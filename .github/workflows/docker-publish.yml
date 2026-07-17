@@ -19,10 +19,14 @@ on:
     branches: [ main ]
 
 env:
-  # Use docker.io for Docker Hub if empty
+  # GitHub Container Registry — always published (uses the built-in GITHUB_TOKEN).
   REGISTRY: ghcr.io
   # github.repository as <account>/<repo>
   IMAGE_NAME: ${{ github.repository }}
+  # Docker Hub image, e.g. "healzangels/incipit-api". Empty (so Docker Hub is
+  # skipped) unless the DOCKERHUB_USERNAME secret is set. Also add a
+  # DOCKERHUB_TOKEN secret (a Docker Hub access token) to enable the push.
+  DOCKERHUB_IMAGE: ${{ secrets.DOCKERHUB_USERNAME != '' && format('{0}/incipit-api', secrets.DOCKERHUB_USERNAME) || '' }}
 
 
 jobs:
@@ -37,9 +41,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
 
-      # Login against a Docker registry except on PR
+      # Login against GHCR except on PR
       # https://github.com/docker/login-action
-      - name: Log into registry ${{ env.REGISTRY }}
+      - name: Log into GHCR (${{ env.REGISTRY }})
         if: github.event_name != 'pull_request'
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567
         with:
@@ -47,13 +51,24 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Log into Docker Hub only when its credentials are configured
+      - name: Log into Docker Hub
+        if: env.DOCKERHUB_IMAGE != '' && github.event_name != 'pull_request'
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       # Extract metadata (tags, labels) for Docker
       # https://github.com/docker/metadata-action
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@60a0d343a0d8a18aedee9d34e62251f752153bdb
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # Both registries; the Docker Hub line is blank (and ignored) when unset.
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+            ${{ env.DOCKERHUB_IMAGE }}
           # :latest tracks the default branch (main); :<branch> and semver :<tag> too.
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
