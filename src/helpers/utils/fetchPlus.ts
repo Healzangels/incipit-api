@@ -48,15 +48,30 @@ function calculateRetryDelay(retries: number, error: AxiosError): number {
  * Uses connection pooling for improved performance.
  * Implements exponential backoff for 429 (Too Many Requests) responses,
  * respecting Retry-After header when present.
+ *
+ * Defaults to GET. Pass `options.method: 'POST'` with `options.data` for a POST
+ * (used by GraphQL providers such as Hardcover); the same 429 backoff applies,
+ * which is exactly what Hardcover's 60/min limit needs.
  * @param {string} url The url to fetch
  * @param {object} options The options to pass to axios (default: {})
  * @param {number} retries The number of retries to start from (default: 0)
  * @returns {Promise<AxiosResponse>} the response from the request
  */
-function fetchPlus(url: string, options = {}, retries = 0): Promise<AxiosResponse> {
+function fetchPlus(
+	url: string,
+	options: Record<string, unknown> = {},
+	retries = 0
+): Promise<AxiosResponse> {
+	const method = typeof options.method === 'string' ? options.method.toLowerCase() : 'get'
+	const dispatch = (): Promise<AxiosResponse> => {
+		if (method === 'post') {
+			const { data, ...rest } = options
+			return pooledAxios.post(url, data, rest)
+		}
+		return pooledAxios.get(url, options)
+	}
 	return new Promise((resolve, reject) => {
-		pooledAxios
-			.get(url, options)
+		dispatch()
 			.then((response: AxiosResponse) => {
 				if (response.status === 200) {
 					resolve(response)
