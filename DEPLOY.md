@@ -75,6 +75,37 @@ a single-container template.
 
 Update later: `docker compose pull` + up (Compose Manager has Update/Up buttons).
 
+### Attaching to an existing Docker network
+
+To put the stack on a network you already run (e.g. a reverse-proxy bridge),
+declare it external and attach each service. Give the datastores distinct names
+so they don't collide with other stacks' `mongo`/`redis` aliases on the shared
+network, and point the URIs at those names:
+
+```yaml
+networks:
+  your-network:
+    external: true
+services:
+  incipit-api:
+    # ... image, ports, etc.
+    environment:
+      MONGODB_URI: mongodb://incipit-mongo:27017
+      REDIS_URL: redis://incipit-redis:6379
+    networks: [ your-network ]
+  incipit-mongo:   # renamed from `mongo`
+    # ... image: mongo:7, healthcheck, volume
+    networks: [ your-network ]
+  incipit-redis:   # renamed from `redis`
+    # ... image: redis:7-alpine, healthcheck, volume
+    networks: [ your-network ]
+```
+
+Mongo and Redis have no auth by default, so on a shared network anything on it
+can reach them — fine for a trusted internal bridge. To keep them private, put
+only `incipit-api` on the shared network and the datastores on a separate
+`internal` network that just `incipit-api` also joins.
+
 ## Run — build from source (works today, no registry setup)
 
 ```bash
