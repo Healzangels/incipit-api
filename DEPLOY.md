@@ -10,6 +10,71 @@ audnexus responses. Nothing depends on an external service.
 - Docker with Compose v2 (`docker compose`).
 - The repo checked out (has the search route, providers, and this compose).
 
+## Unraid (Docker Compose Manager) — recommended for Unraid
+
+The app is a three-container stack, so run it as one compose project rather than
+a single-container template.
+
+1. **Make the image pullable.** Either make the GHCR package public once
+   (GitHub → your profile → Packages → incipit-api → Package settings → Change
+   visibility → Public), or on Unraid run `docker login ghcr.io` with a token.
+2. Install **Docker Compose Manager** from Community Applications.
+3. Add a new stack (e.g. `incipit-api`) and paste this compose — it uses the
+   pre-built image, so no source is needed on Unraid:
+
+   ```yaml
+   services:
+     incipit-api:
+       image: ghcr.io/healzangels/incipit-api:latest
+       restart: unless-stopped
+       depends_on:
+         mongo: { condition: service_healthy }
+         redis: { condition: service_healthy }
+       environment:
+         MONGODB_URI: mongodb://mongo:27017
+         REDIS_URL: redis://redis:6379
+         HOST: 0.0.0.0
+         PORT: "3000"
+         LOG_LEVEL: info
+         DEFAULT_REGION: us
+         HARDCOVER_TOKEN: ${HARDCOVER_TOKEN:-}
+         OL_CONTACT: ${OL_CONTACT:-}
+       ports:
+         - "3000:3000"
+     mongo:
+       image: mongo:7
+       restart: unless-stopped
+       volumes: [ mongo-data:/data/db ]
+       healthcheck:
+         test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+         interval: 10s
+         timeout: 5s
+         retries: 5
+         start_period: 20s
+     redis:
+       image: redis:7-alpine
+       restart: unless-stopped
+       volumes: [ redis-data:/data ]
+       healthcheck:
+         test: ["CMD", "redis-cli", "ping"]
+         interval: 10s
+         timeout: 5s
+         retries: 5
+   volumes:
+     mongo-data:
+     redis-data:
+   ```
+
+4. In the stack's **.env** (Compose Manager has an env editor), set:
+   ```
+   HARDCOVER_TOKEN=<your own token from hardcover.app/settings>
+   OL_CONTACT=you@example.com
+   ```
+5. **Compose Up.** The API is now on `http://<unraid-ip>:3000`.
+6. In Plex → the Incipit agent → set **API base URL** to `http://<unraid-ip>:3000`.
+
+Update later: `docker compose pull` + up (Compose Manager has Update/Up buttons).
+
 ## Run — build from source (works today, no registry setup)
 
 ```bash
