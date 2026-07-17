@@ -1,15 +1,14 @@
 # Deploying incipit-api (self-host)
 
-A minimal self-host: the API plus MongoDB, no Redis. Mongo backs the inherited
-audnexus routes (author search, ASIN data lookup, chapters); the multi-provider
-book search is stateless. Redis is an optional cache — see `docker-compose.yml`
-to enable it later.
+A self-contained stack: the API plus MongoDB plus Redis, all internal. Mongo
+backs the inherited audnexus routes (author search, ASIN data lookup, chapters);
+Redis caches provider search results (easing Hardcover's 60 req/min limit) and
+audnexus responses. Nothing depends on an external service.
 
 ## Prerequisites
 
 - Docker with Compose v2 (`docker compose`).
-- The `feat/multi-provider-search` branch checked out (has the search route +
-  providers + this compose).
+- The repo checked out (has the search route, providers, and this compose).
 
 ## Run — build from source (works today, no registry setup)
 

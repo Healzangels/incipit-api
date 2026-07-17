@@ -1,10 +1,9 @@
-# incipit-api deployment — Option A: MongoDB only, no Redis.
+# incipit-api self-hosted stack — API + MongoDB + Redis, self-contained.
 #
 # Mongo backs the inherited audnexus routes (author search, author/book data
-# lookup by ASIN, chapters). The new multi-provider book search is stateless and
-# needs no datastore. Redis is an OPTIONAL performance cache for provider search
-# results; it is left out here and the API degrades to live provider calls. To
-# add it later, uncomment the redis service and set REDIS_URL on incipit-api.
+# lookup by ASIN, chapters). Redis caches provider search results (easing
+# Hardcover's 60 req/min limit) and audnexus responses. Both run internally on
+# the compose network; nothing here depends on an external service.
 #
 # Copy .env.example to .env and fill in your OWN Hardcover token before running:
 #   docker compose up -d --build
@@ -21,9 +20,12 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
-      # Mongo is internal-only on the compose network.
+      # Mongo and Redis are internal-only on the compose network.
       MONGODB_URI: mongodb://mongo:27017
+      REDIS_URL: redis://redis:6379
       HOST: 0.0.0.0
       PORT: "3000"
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -32,7 +34,6 @@ services:
       # source — nothing is bundled. Hardcover is optional; blank simply skips it.
       HARDCOVER_TOKEN: ${HARDCOVER_TOKEN:-}
       OL_CONTACT: ${OL_CONTACT:-}
-      # REDIS_URL: redis://redis:6379   # uncomment with the redis service below
     ports:
       # Published so the Plex agent (Incipit.bundle) can reach the API.
       - "${API_PORT:-3000}:3000"
@@ -50,13 +51,19 @@ services:
       retries: 5
       start_period: 20s
 
-  # Optional provider-search cache. Uncomment this and REDIS_URL above to enable.
-  # redis:
-  #   image: redis:7-alpine
-  #   restart: unless-stopped
-  #   volumes:
-  #     - redis-data:/data
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # No published port: only incipit-api talks to it, over the compose network.
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 volumes:
   mongo-data:
-  # redis-data:
+  redis-data:
