@@ -1,0 +1,2650 @@
+{
+ "constants": {
+  "TITLE_FLOOR": 0.8,
+  "AUTHOR_FLOOR": 0.7,
+  "DURATION_TOLERANCE": 0.05,
+  "floor": 0.65
+ },
+ "normalize": [
+  {
+   "raw": "The Wandering Inn, Volume 2",
+   "expected": "The Wandering Inn"
+  },
+  {
+   "raw": "His Last Command Gaunt's Ghosts",
+   "expected": "His Last Command Gaunt's Ghosts"
+  },
+  {
+   "raw": "Best American Science Fiction and Fantasy 2023, The",
+   "expected": "Best American Science Fiction and Fantasy 2023, The"
+  },
+  {
+   "raw": "Air Apparent",
+   "expected": "Air Apparent"
+  },
+  {
+   "raw": "Castle Roogna",
+   "expected": "Castle Roogna"
+  },
+  {
+   "raw": "Centaur Aisle",
+   "expected": "Centaur Aisle"
+  },
+  {
+   "raw": "Crewel Lye",
+   "expected": "Crewel Lye"
+  },
+  {
+   "raw": "Dragon on a Pedestal",
+   "expected": "Dragon on a Pedestal"
+  },
+  {
+   "raw": "Esrever Doom",
+   "expected": "Esrever Doom"
+  },
+  {
+   "raw": "Faun and Games",
+   "expected": "Faun and Games"
+  },
+  {
+   "raw": "Golem in the Gears",
+   "expected": "Golem in the Gears"
+  },
+  {
+   "raw": "Jumper Cable",
+   "expected": "Jumper Cable"
+  },
+  {
+   "raw": "Knot Gneiss",
+   "expected": "Knot Gneiss"
+  },
+  {
+   "raw": "Luck of the Draw",
+   "expected": "Luck of the Draw"
+  },
+  {
+   "raw": "Night Mare",
+   "expected": "Night Mare"
+  },
+  {
+   "raw": "Ogre Ogre",
+   "expected": "Ogre Ogre"
+  },
+  {
+   "raw": "Roc and a Hard Place",
+   "expected": "Roc and a Hard Place"
+  },
+  {
+   "raw": "The Source of Magic",
+   "expected": "The Source of Magic"
+  },
+  {
+   "raw": "Stork Naked",
+   "expected": "Stork Naked"
+  },
+  {
+   "raw": "Two to the Fifth",
+   "expected": "Two to the Fifth"
+  },
+  {
+   "raw": "Well-Tempered Clavicle",
+   "expected": "Well-Tempered Clavicle"
+  },
+  {
+   "raw": "Xanth 25",
+   "expected": "Xanth 25"
+  },
+  {
+   "raw": "Xanth 27",
+   "expected": "Xanth 27"
+  },
+  {
+   "raw": "Xanth 28",
+   "expected": "Xanth 28"
+  },
+  {
+   "raw": "Xanth 29",
+   "expected": "Xanth 29"
+  },
+  {
+   "raw": "A Spell for Chameleon",
+   "expected": "A Spell for Chameleon"
+  },
+  {
+   "raw": "Vale of the Vole",
+   "expected": "Vale of the Vole"
+  },
+  {
+   "raw": "Heaven Cent",
+   "expected": "Heaven Cent"
+  },
+  {
+   "raw": "Man From Mundania",
+   "expected": "Man From Mundania"
+  },
+  {
+   "raw": "Isle of View",
+   "expected": "Isle of View"
+  },
+  {
+   "raw": "Question Quest",
+   "expected": "Question Quest"
+  },
+  {
+   "raw": "The Color of Her Panties",
+   "expected": "The Color of Her Panties"
+  },
+  {
+   "raw": "Harpy Thyme",
+   "expected": "Harpy Thyme"
+  },
+  {
+   "raw": "Geis of The Gargoyle",
+   "expected": "Geis of The Gargoyle"
+  },
+  {
+   "raw": "The Dastard",
+   "expected": "The Dastard"
+  },
+  {
+   "raw": "Up in a Heaval",
+   "expected": "Up in a Heaval"
+  },
+  {
+   "raw": "Xone of Contention",
+   "expected": "Xone of Contention"
+  },
+  {
+   "raw": "Yon Ill Wind",
+   "expected": "Yon Ill Wind"
+  },
+  {
+   "raw": "Zombie Lover",
+   "expected": "Zombie Lover"
+  },
+  {
+   "raw": "01 The Stars, Like Dust",
+   "expected": "The Stars, Like Dust"
+  },
+  {
+   "raw": "02 The Currents of Space",
+   "expected": "The Currents of Space"
+  },
+  {
+   "raw": "03 Pebble in the Sky",
+   "expected": "Pebble in the Sky"
+  },
+  {
+   "raw": "Atlee Pine, Book 4",
+   "expected": "Atlee Pine"
+  },
+  {
+   "raw": "Ninth House (Unabridged)",
+   "expected": "Ninth House"
+  },
+  {
+   "raw": "The Hunt for Red October: A Jack Ryan Novel",
+   "expected": "The Hunt for Red October: A Jack Ryan Novel"
+  },
+  {
+   "raw": "The Ballad of Songbirds and Snakes: A Hunger Games Novel",
+   "expected": "The Ballad of Songbirds and Snakes: A Hunger Games Novel"
+  },
+  {
+   "raw": "[The Expanse 0.5] The Butcher of Anderson Station - An Expanse Novella",
+   "expected": "The Butcher of Anderson Station - An Expanse Novella"
+  },
+  {
+   "raw": "Battle for the Abyss: The Horus Heresy, Book 8 (Unabridged)",
+   "expected": "Battle for the Abyss: The Horus Heresy"
+  },
+  {
+   "raw": "04 Bonds of Truths",
+   "expected": "Bonds of Truths"
+  },
+  {
+   "raw": "Blessing of the Energy Centers Meditation",
+   "expected": "Blessing of the Energy Centers Meditation"
+  },
+  {
+   "raw": "Brimstone Angels Book 1",
+   "expected": "Brimstone Angels"
+  },
+  {
+   "raw": "Ahriman, Book 5 - Ahriman: Undying",
+   "expected": "Ahriman: Undying"
+  },
+  {
+   "raw": "Dragonslayer: The Dragonslayer, Book 1 (Unabridged)",
+   "expected": "Dragonslayer: The Dragonslayer"
+  },
+  {
+   "raw": "Outcast of Redwell (Unabridged)",
+   "expected": "Outcast of Redwell"
+  },
+  {
+   "raw": "Pearls of Lutra",
+   "expected": "Pearls of Lutra"
+  },
+  {
+   "raw": "Marlfox",
+   "expected": "Marlfox"
+  },
+  {
+   "raw": "The Legend of Luke",
+   "expected": "The Legend of Luke"
+  },
+  {
+   "raw": "The Unexpected Gift of Joseph Bridgeman (Unabridged)",
+   "expected": "The Unexpected Gift of Joseph Bridgeman"
+  },
+  {
+   "raw": "Ritual of Ruin: King's Dark Tidings, Book 7",
+   "expected": "Ritual of Ruin"
+  },
+  {
+   "raw": "Rage",
+   "expected": "Rage"
+  },
+  {
+   "raw": "Storm of the Century",
+   "expected": "Storm of the Century"
+  },
+  {
+   "raw": "Hell Bent",
+   "expected": "Hell Bent"
+  },
+  {
+   "raw": "01 Dead I Well May Be",
+   "expected": "Dead I Well May Be"
+  },
+  {
+   "raw": "02 The Dead Yard",
+   "expected": "The Dead Yard"
+  },
+  {
+   "raw": "03 The Bloomsday Dead",
+   "expected": "The Bloomsday Dead"
+  },
+  {
+   "raw": "Steal the Show (Unabridged)",
+   "expected": "Steal the Show"
+  },
+  {
+   "raw": "The Last Hero",
+   "expected": "The Last Hero"
+  },
+  {
+   "raw": "Dragonsteel Prime",
+   "expected": "Dragonsteel Prime"
+  },
+  {
+   "raw": "The Hope of Elantris",
+   "expected": "The Hope of Elantris"
+  },
+  {
+   "raw": "ReDawn: Skyward Flight, Book 2",
+   "expected": "ReDawn"
+  },
+  {
+   "raw": "Everfound",
+   "expected": "Everfound"
+  },
+  {
+   "raw": "Professional Integrity",
+   "expected": "Professional Integrity"
+  },
+  {
+   "raw": "01 Unsouled",
+   "expected": "Unsouled"
+  },
+  {
+   "raw": "Isle of Joy (Unabridged)",
+   "expected": "Isle of Joy"
+  },
+  {
+   "raw": "[Victor The Assassin 13] - Unlucky for Some",
+   "expected": "Unlucky for Some"
+  },
+  {
+   "raw": "Fahrenheit 451",
+   "expected": "Fahrenheit 451"
+  },
+  {
+   "raw": "1984",
+   "expected": "1984"
+  },
+  {
+   "raw": "11/22/63",
+   "expected": "11/22/63"
+  },
+  {
+   "raw": "12 Rules for Life",
+   "expected": "12 Rules for Life"
+  },
+  {
+   "raw": "[The Expanse 0.5] The Butcher of Anderson Station - An Expanse Novella",
+   "expected": "The Butcher of Anderson Station - An Expanse Novella"
+  },
+  {
+   "raw": "Ahriman, Book 5 - Ahriman: Undying",
+   "expected": "Ahriman: Undying"
+  }
+ ],
+ "title_sim": [
+  {
+   "a": "The Wandering Inn",
+   "b": "The Wandering Inn",
+   "expected": 1.0
+  },
+  {
+   "a": "His Last Command Gaunt's Ghosts",
+   "b": "His Last Command",
+   "expected": 0.695652173913
+  },
+  {
+   "a": "His Last Command Gaunt's Ghosts",
+   "b": "His Last Command (Gaunt's Ghosts)",
+   "expected": 1.0
+  },
+  {
+   "a": "Best American Science Fiction and Fantasy 2023, The",
+   "b": "Best American Science Fiction and Fantasy 2023",
+   "expected": 0.958333333333
+  },
+  {
+   "a": "Air Apparent",
+   "b": "Air Apparent (Xanth)",
+   "expected": 1.0
+  },
+  {
+   "a": "Air Apparent",
+   "b": "Air Apparent (Xanth)",
+   "expected": 1.0
+  },
+  {
+   "a": "Castle Roogna",
+   "b": "Castle Roogna",
+   "expected": 1.0
+  },
+  {
+   "a": "Castle Roogna",
+   "b": "Castle Roogna",
+   "expected": 1.0
+  },
+  {
+   "a": "Centaur Aisle",
+   "b": "Centaur Aisle",
+   "expected": 1.0
+  },
+  {
+   "a": "Centaur Aisle",
+   "b": "Centaur Aisle",
+   "expected": 1.0
+  },
+  {
+   "a": "Crewel Lye",
+   "b": "Crewel Lye",
+   "expected": 1.0
+  },
+  {
+   "a": "Crewel Lye",
+   "b": "Crewel Lye",
+   "expected": 1.0
+  },
+  {
+   "a": "Dragon on a Pedestal",
+   "b": "Dragon on a Pedestal",
+   "expected": 1.0
+  },
+  {
+   "a": "Dragon on a Pedestal",
+   "b": "Dragon on a Pedestal",
+   "expected": 1.0
+  },
+  {
+   "a": "Esrever Doom",
+   "b": "Esrever Doom: A Fun-Filled Adventure in the Magical Land of Xanth",
+   "expected": 1.0
+  },
+  {
+   "a": "Esrever Doom",
+   "b": "Esrever Doom: A Fun-Filled Adventure in the Magical Land of Xanth",
+   "expected": 1.0
+  },
+  {
+   "a": "Faun and Games",
+   "b": "Faun & Games",
+   "expected": 0.88
+  },
+  {
+   "a": "Golem in the Gears",
+   "b": "Golem in the Gears",
+   "expected": 1.0
+  },
+  {
+   "a": "Golem in the Gears",
+   "b": "Golem in the Gears",
+   "expected": 1.0
+  },
+  {
+   "a": "Jumper Cable",
+   "b": "Jumper Cable",
+   "expected": 1.0
+  },
+  {
+   "a": "Jumper Cable",
+   "b": "Jumper cable",
+   "expected": 1.0
+  },
+  {
+   "a": "Knot Gneiss",
+   "b": "Knot Gneiss",
+   "expected": 1.0
+  },
+  {
+   "a": "Knot Gneiss",
+   "b": "Knot Gneiss",
+   "expected": 1.0
+  },
+  {
+   "a": "Luck of the Draw",
+   "b": "Luck of the Draw",
+   "expected": 1.0
+  },
+  {
+   "a": "Luck of the Draw",
+   "b": "Luck of the draw",
+   "expected": 1.0
+  },
+  {
+   "a": "Night Mare",
+   "b": "Night Mare",
+   "expected": 1.0
+  },
+  {
+   "a": "Night Mare",
+   "b": "Night Mare",
+   "expected": 1.0
+  },
+  {
+   "a": "Ogre Ogre",
+   "b": "Ogre, Ogre",
+   "expected": 1.0
+  },
+  {
+   "a": "Ogre Ogre",
+   "b": "Ogre, Ogre",
+   "expected": 1.0
+  },
+  {
+   "a": "Roc and a Hard Place",
+   "b": "Roc and a Hard Place",
+   "expected": 1.0
+  },
+  {
+   "a": "Roc and a Hard Place",
+   "b": "Roc and a Hard Place",
+   "expected": 1.0
+  },
+  {
+   "a": "The Source of Magic",
+   "b": "The Source of Magic",
+   "expected": 1.0
+  },
+  {
+   "a": "The Source of Magic",
+   "b": "The Source of Magic",
+   "expected": 1.0
+  },
+  {
+   "a": "Stork Naked",
+   "b": "Stork Naked",
+   "expected": 1.0
+  },
+  {
+   "a": "Stork Naked",
+   "b": "Stork Naked (Xanth)",
+   "expected": 1.0
+  },
+  {
+   "a": "Two to the Fifth",
+   "b": "Two to the Fifth",
+   "expected": 1.0
+  },
+  {
+   "a": "Two to the Fifth",
+   "b": "Two to the Fifth (Xanth)",
+   "expected": 1.0
+  },
+  {
+   "a": "Well-Tempered Clavicle",
+   "b": "Well-Tempered Clavicle",
+   "expected": 1.0
+  },
+  {
+   "a": "Well-Tempered Clavicle",
+   "b": "Well-tempered clavicle",
+   "expected": 1.0
+  },
+  {
+   "a": "Xanth 25",
+   "b": "Piers Anthony - Xanth Series Set #2 (5 books) - Volumes 10-14: Vale of the Vole; Heaven Cent; Man from Mundaria; Isle of View & Question Quest",
+   "expected": 0.341463414634
+  },
+  {
+   "a": "Xanth 27",
+   "b": "Xanth: The Quest for Magic",
+   "expected": 0.769230769231
+  },
+  {
+   "a": "Xanth 28",
+   "b": "Xanth: The Quest for Magic",
+   "expected": 0.769230769231
+  },
+  {
+   "a": "Xanth 29",
+   "b": "Xanth: The Quest for Magic",
+   "expected": 0.769230769231
+  },
+  {
+   "a": "A Spell for Chameleon",
+   "b": "A Spell for Chameleon",
+   "expected": 1.0
+  },
+  {
+   "a": "A Spell for Chameleon",
+   "b": "A Spell for Chameleon",
+   "expected": 1.0
+  },
+  {
+   "a": "Vale of the Vole",
+   "b": "Vale of the Vole",
+   "expected": 1.0
+  },
+  {
+   "a": "Vale of the Vole",
+   "b": "Vale of the Vole (Magic of Xanth)",
+   "expected": 1.0
+  },
+  {
+   "a": "Heaven Cent",
+   "b": "Heaven Cent",
+   "expected": 1.0
+  },
+  {
+   "a": "Heaven Cent",
+   "b": "Heaven cent",
+   "expected": 1.0
+  },
+  {
+   "a": "Man From Mundania",
+   "b": "Man From Mundania",
+   "expected": 1.0
+  },
+  {
+   "a": "Man From Mundania",
+   "b": "Man from Mundania",
+   "expected": 1.0
+  },
+  {
+   "a": "Isle of View",
+   "b": "Isle of View",
+   "expected": 1.0
+  },
+  {
+   "a": "Isle of View",
+   "b": "Isle of View",
+   "expected": 1.0
+  },
+  {
+   "a": "Question Quest",
+   "b": "Question Quest",
+   "expected": 1.0
+  },
+  {
+   "a": "Question Quest",
+   "b": "Question Quest",
+   "expected": 1.0
+  },
+  {
+   "a": "The Color of Her Panties",
+   "b": "The Color of Her Panties",
+   "expected": 1.0
+  },
+  {
+   "a": "The Color of Her Panties",
+   "b": "The Color of Her Panties",
+   "expected": 1.0
+  },
+  {
+   "a": "Harpy Thyme",
+   "b": "Harpy Thyme",
+   "expected": 1.0
+  },
+  {
+   "a": "Harpy Thyme",
+   "b": "Harpy Thyme",
+   "expected": 1.0
+  },
+  {
+   "a": "Geis of The Gargoyle",
+   "b": "Geis of the Gargoyle",
+   "expected": 1.0
+  },
+  {
+   "a": "Geis of The Gargoyle",
+   "b": "Geis of the Gargoyle",
+   "expected": 1.0
+  },
+  {
+   "a": "The Dastard",
+   "b": "The Dastard",
+   "expected": 1.0
+  },
+  {
+   "a": "The Dastard",
+   "b": "The Dastard",
+   "expected": 1.0
+  },
+  {
+   "a": "Up in a Heaval",
+   "b": "Up in a Heaval",
+   "expected": 1.0
+  },
+  {
+   "a": "Up in a Heaval",
+   "b": "Up in a heaval",
+   "expected": 1.0
+  },
+  {
+   "a": "Xone of Contention",
+   "b": "Xone of Contention",
+   "expected": 1.0
+  },
+  {
+   "a": "Xone of Contention",
+   "b": "Xone of Contention",
+   "expected": 1.0
+  },
+  {
+   "a": "Yon Ill Wind",
+   "b": "Yon Ill Wind",
+   "expected": 1.0
+  },
+  {
+   "a": "Yon Ill Wind",
+   "b": "Yon Ill Wind",
+   "expected": 1.0
+  },
+  {
+   "a": "Zombie Lover",
+   "b": "Zombie Lover",
+   "expected": 1.0
+  },
+  {
+   "a": "Zombie Lover",
+   "b": "Zombie lover",
+   "expected": 1.0
+  },
+  {
+   "a": "The Stars, Like Dust",
+   "b": "The Stars, Like Dust",
+   "expected": 1.0
+  },
+  {
+   "a": "The Stars, Like Dust",
+   "b": "The Stars, Like Dust",
+   "expected": 1.0
+  },
+  {
+   "a": "The Currents of Space",
+   "b": "The Currents of Space",
+   "expected": 1.0
+  },
+  {
+   "a": "The Currents of Space",
+   "b": "The Currents of Space",
+   "expected": 1.0
+  },
+  {
+   "a": "Pebble in the Sky",
+   "b": "Pebble in the Sky",
+   "expected": 1.0
+  },
+  {
+   "a": "Pebble in the Sky",
+   "b": "Pebble in the Sky",
+   "expected": 1.0
+  },
+  {
+   "a": "Atlee Pine",
+   "b": "A Minute to Midnight",
+   "expected": 0.4
+  },
+  {
+   "a": "Ninth House",
+   "b": "Ninth House",
+   "expected": 1.0
+  },
+  {
+   "a": "Ninth House",
+   "b": "Ninth House",
+   "expected": 1.0
+  },
+  {
+   "a": "The Hunt for Red October: A Jack Ryan Novel",
+   "b": "The Hunt for Red October",
+   "expected": 1.0
+  },
+  {
+   "a": "The Hunt for Red October: A Jack Ryan Novel",
+   "b": "The Hunt for Red October",
+   "expected": 1.0
+  },
+  {
+   "a": "The Ballad of Songbirds and Snakes: A Hunger Games Novel",
+   "b": "The Ballad of Songbirds and Snakes",
+   "expected": 1.0
+  },
+  {
+   "a": "The Ballad of Songbirds and Snakes: A Hunger Games Novel",
+   "b": "The Ballad of Songbirds and Snakes",
+   "expected": 1.0
+  },
+  {
+   "a": "The Butcher of Anderson Station - An Expanse Novella",
+   "b": "The Butcher of Anderson Station",
+   "expected": 0.756097560976
+  },
+  {
+   "a": "The Butcher of Anderson Station - An Expanse Novella",
+   "b": "The Butcher of Anderson Station",
+   "expected": 0.756097560976
+  },
+  {
+   "a": "Battle for the Abyss: The Horus Heresy",
+   "b": "Battle for the Abyss",
+   "expected": 1.0
+  },
+  {
+   "a": "Battle for the Abyss: The Horus Heresy",
+   "b": "Battle for the Abyss",
+   "expected": 1.0
+  },
+  {
+   "a": "Bonds of Truths",
+   "b": "Bonds of Truths",
+   "expected": 1.0
+  },
+  {
+   "a": "Blessing of the Energy Centers Meditation",
+   "b": "The Path of Blessing: Experiencing the Energy and Abundance of the Divine",
+   "expected": 0.530973451327
+  },
+  {
+   "a": "Brimstone Angels",
+   "b": "Brimstone Angels",
+   "expected": 1.0
+  },
+  {
+   "a": "Brimstone Angels",
+   "b": "Brimstone Angels",
+   "expected": 1.0
+  },
+  {
+   "a": "Ahriman: Undying",
+   "b": "Ahriman: Undying",
+   "expected": 1.0
+  },
+  {
+   "a": "Ahriman: Undying",
+   "b": "Ahriman",
+   "expected": 1.0
+  },
+  {
+   "a": "Dragonslayer: The Dragonslayer",
+   "b": "The Dragonslayer",
+   "expected": 0.857142857143
+  },
+  {
+   "a": "Dragonslayer: The Dragonslayer",
+   "b": "Dragonslayer",
+   "expected": 1.0
+  },
+  {
+   "a": "Outcast of Redwell",
+   "b": "Outcast of Redwall",
+   "expected": 0.944444444444
+  },
+  {
+   "a": "Pearls of Lutra",
+   "b": "Pearls of Lutra",
+   "expected": 1.0
+  },
+  {
+   "a": "Pearls of Lutra",
+   "b": "The Pearls of Lutra",
+   "expected": 0.882352941176
+  },
+  {
+   "a": "Marlfox",
+   "b": "Marlfox",
+   "expected": 1.0
+  },
+  {
+   "a": "Marlfox",
+   "b": "Marlfox",
+   "expected": 1.0
+  },
+  {
+   "a": "The Legend of Luke",
+   "b": "The Legend of Luke",
+   "expected": 1.0
+  },
+  {
+   "a": "The Legend of Luke",
+   "b": "The Legend of Luke",
+   "expected": 1.0
+  },
+  {
+   "a": "The Unexpected Gift of Joseph Bridgeman",
+   "b": "The Unexpected Gift of Joseph Bridgeman: A Time Travel Adventure: Volume 1",
+   "expected": 1.0
+  },
+  {
+   "a": "Ritual of Ruin",
+   "b": "Ritual of Ruin",
+   "expected": 1.0
+  },
+  {
+   "a": "Rage",
+   "b": "Rage",
+   "expected": 1.0
+  },
+  {
+   "a": "Rage",
+   "b": "Rage",
+   "expected": 1.0
+  },
+  {
+   "a": "Storm of the Century",
+   "b": "Storm of the Century",
+   "expected": 1.0
+  },
+  {
+   "a": "Storm of the Century",
+   "b": "Storm of the Century",
+   "expected": 1.0
+  },
+  {
+   "a": "Hell Bent",
+   "b": "Hell Bent",
+   "expected": 1.0
+  },
+  {
+   "a": "Dead I Well May Be",
+   "b": "Dead I Well May Be",
+   "expected": 1.0
+  },
+  {
+   "a": "Dead I Well May Be",
+   "b": "Dead I Well May Be",
+   "expected": 1.0
+  },
+  {
+   "a": "The Dead Yard",
+   "b": "The Dead Yard",
+   "expected": 1.0
+  },
+  {
+   "a": "The Dead Yard",
+   "b": "The Dead Yard",
+   "expected": 1.0
+  },
+  {
+   "a": "The Bloomsday Dead",
+   "b": "The Bloomsday Dead",
+   "expected": 1.0
+  },
+  {
+   "a": "The Bloomsday Dead",
+   "b": "The Bloomsday Dead",
+   "expected": 1.0
+  },
+  {
+   "a": "Steal the Show",
+   "b": "Steal the Show",
+   "expected": 1.0
+  },
+  {
+   "a": "Steal the Show",
+   "b": "Steal the Show",
+   "expected": 1.0
+  },
+  {
+   "a": "The Last Hero",
+   "b": "The Last Hero",
+   "expected": 1.0
+  },
+  {
+   "a": "The Last Hero",
+   "b": "The Last Hero",
+   "expected": 1.0
+  },
+  {
+   "a": "Dragonsteel Prime",
+   "b": "Dragonsteel Prime",
+   "expected": 1.0
+  },
+  {
+   "a": "Dragonsteel Prime",
+   "b": "Dragonsteel Prime",
+   "expected": 1.0
+  },
+  {
+   "a": "The Hope of Elantris",
+   "b": "The Hope of Elantris",
+   "expected": 1.0
+  },
+  {
+   "a": "The Hope of Elantris",
+   "b": "The Hope of Elantris [Dramatized Adaptation]",
+   "expected": 0.645161290323
+  },
+  {
+   "a": "ReDawn",
+   "b": "ReDawn",
+   "expected": 1.0
+  },
+  {
+   "a": "ReDawn",
+   "b": "ReDawn",
+   "expected": 1.0
+  },
+  {
+   "a": "Everfound",
+   "b": "Everfound",
+   "expected": 1.0
+  },
+  {
+   "a": "Everfound",
+   "b": "Everfound",
+   "expected": 1.0
+  },
+  {
+   "a": "Professional Integrity",
+   "b": "Professional Integrity",
+   "expected": 1.0
+  },
+  {
+   "a": "Professional Integrity",
+   "b": "Professional Integrity",
+   "expected": 1.0
+  },
+  {
+   "a": "Unsouled",
+   "b": "Unsouled",
+   "expected": 1.0
+  },
+  {
+   "a": "Unsouled",
+   "b": "Unsouled",
+   "expected": 1.0
+  },
+  {
+   "a": "Isle of Joy",
+   "b": "Isle of Joy",
+   "expected": 1.0
+  },
+  {
+   "a": "Isle of Joy",
+   "b": "Isle of Joy",
+   "expected": 1.0
+  },
+  {
+   "a": "Unlucky for Some",
+   "b": "Unlucky for Some",
+   "expected": 1.0
+  },
+  {
+   "a": "Unlucky for Some",
+   "b": "Unlucky for Some",
+   "expected": 1.0
+  }
+ ],
+ "score": [
+  {
+   "want_title": "The Wandering Inn",
+   "want_author": "pirate aba",
+   "cand_title": "The Wandering Inn",
+   "cand_authors": [
+    "pirate aba"
+   ],
+   "want_ms": 219873000,
+   "cand_audio_seconds": 173220,
+   "expected_conf": 0.55,
+   "expected_delta": 0.269328022168
+  },
+  {
+   "want_title": "His Last Command Gaunt's Ghosts",
+   "want_author": "Dan Abnett",
+   "cand_title": "His Last Command",
+   "cand_authors": [
+    "Dan Abnett"
+   ],
+   "want_ms": 37119000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.682608695652,
+   "expected_delta": null
+  },
+  {
+   "want_title": "His Last Command Gaunt's Ghosts",
+   "want_author": "Dan Abnett",
+   "cand_title": "His Last Command (Gaunt's Ghosts)",
+   "cand_authors": [
+    "Dan Abnett"
+   ],
+   "want_ms": 37119000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Best American Science Fiction and Fantasy 2023, The",
+   "want_author": "John Joseph Adams",
+   "cand_title": "Best American Science Fiction and Fantasy 2023",
+   "cand_authors": [
+    "John Joseph Adams"
+   ],
+   "want_ms": 46094000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.827083333333,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Air Apparent",
+   "want_author": "Piers Anthony",
+   "cand_title": "Air Apparent (Xanth)",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 46087000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Air Apparent",
+   "want_author": "Piers Anthony",
+   "cand_title": "Air Apparent (Xanth)",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 46087000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Castle Roogna",
+   "want_author": "Piers Anthony",
+   "cand_title": "Castle Roogna",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 48378000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Castle Roogna",
+   "want_author": "Piers Anthony",
+   "cand_title": "Castle Roogna",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 48378000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Centaur Aisle",
+   "want_author": "Piers Anthony",
+   "cand_title": "Centaur Aisle",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 46319000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Centaur Aisle",
+   "want_author": "Piers Anthony",
+   "cand_title": "Centaur Aisle",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 46319000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Crewel Lye",
+   "want_author": "Piers Anthony",
+   "cand_title": "Crewel Lye",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 44507000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Crewel Lye",
+   "want_author": "Piers Anthony",
+   "cand_title": "Crewel Lye",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 44507000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Dragon on a Pedestal",
+   "want_author": "Piers Anthony",
+   "cand_title": "Dragon on a Pedestal",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 44136000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Dragon on a Pedestal",
+   "want_author": "Piers Anthony",
+   "cand_title": "Dragon on a Pedestal",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 44136000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Esrever Doom",
+   "want_author": "Piers Anthony",
+   "cand_title": "Esrever Doom: A Fun-Filled Adventure in the Magical Land of Xanth",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 39394000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Esrever Doom",
+   "want_author": "Piers Anthony",
+   "cand_title": "Esrever Doom: A Fun-Filled Adventure in the Magical Land of Xanth",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 39394000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Faun and Games",
+   "want_author": "Piers Anthony",
+   "cand_title": "Faun & Games",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 36034000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.784,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Golem in the Gears",
+   "want_author": "Piers Anthony",
+   "cand_title": "Golem in the Gears",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 36998000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Golem in the Gears",
+   "want_author": "Piers Anthony",
+   "cand_title": "Golem in the Gears",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 36998000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Jumper Cable",
+   "want_author": "Piers Anthony",
+   "cand_title": "Jumper Cable",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 41005000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Jumper Cable",
+   "want_author": "Piers Anthony",
+   "cand_title": "Jumper cable",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 41005000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Knot Gneiss",
+   "want_author": "Piers Anthony",
+   "cand_title": "Knot Gneiss",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 39673000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Knot Gneiss",
+   "want_author": "Piers Anthony",
+   "cand_title": "Knot Gneiss",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 39673000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Luck of the Draw",
+   "want_author": "Piers Anthony",
+   "cand_title": "Luck of the Draw",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 41744000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Luck of the Draw",
+   "want_author": "Piers Anthony",
+   "cand_title": "Luck of the draw",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 41744000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Night Mare",
+   "want_author": "Piers Anthony",
+   "cand_title": "Night Mare",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 44287000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Night Mare",
+   "want_author": "Piers Anthony",
+   "cand_title": "Night Mare",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 44287000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Ogre Ogre",
+   "want_author": "Piers Anthony",
+   "cand_title": "Ogre, Ogre",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 47446000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Ogre Ogre",
+   "want_author": "Piers Anthony",
+   "cand_title": "Ogre, Ogre",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 47446000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Roc and a Hard Place",
+   "want_author": "Piers Anthony",
+   "cand_title": "Roc and a Hard Place",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 42051000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Roc and a Hard Place",
+   "want_author": "Piers Anthony",
+   "cand_title": "Roc and a Hard Place",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 42051000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "The Source of Magic",
+   "want_author": "Piers Anthony",
+   "cand_title": "The Source of Magic",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 47870000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "The Source of Magic",
+   "want_author": "Piers Anthony",
+   "cand_title": "The Source of Magic",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 47870000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Stork Naked",
+   "want_author": "Piers Anthony",
+   "cand_title": "Stork Naked",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 44025000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Stork Naked",
+   "want_author": "Piers Anthony",
+   "cand_title": "Stork Naked (Xanth)",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 44025000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Two to the Fifth",
+   "want_author": "Piers Anthony",
+   "cand_title": "Two to the Fifth",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 44317000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Two to the Fifth",
+   "want_author": "Piers Anthony",
+   "cand_title": "Two to the Fifth (Xanth)",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 44317000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Well-Tempered Clavicle",
+   "want_author": "Piers Anthony",
+   "cand_title": "Well-Tempered Clavicle",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 40120000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Well-Tempered Clavicle",
+   "want_author": "Piers Anthony",
+   "cand_title": "Well-tempered clavicle",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 40120000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Xanth 25",
+   "want_author": "Piers Anthony",
+   "cand_title": "Piers Anthony - Xanth Series Set #2 (5 books) - Volumes 10-14: Vale of the Vole; Heaven Cent; Man from Mundaria; Isle of View & Question Quest",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 36822000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.487804878049,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Xanth 27",
+   "want_author": "Piers Anthony",
+   "cand_title": "Xanth: The Quest for Magic",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 38896000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.723076923077,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Xanth 28",
+   "want_author": "Piers Anthony",
+   "cand_title": "Xanth: The Quest for Magic",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 39225000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.723076923077,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Xanth 29",
+   "want_author": "Piers Anthony",
+   "cand_title": "Xanth: The Quest for Magic",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 38270000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.723076923077,
+   "expected_delta": null
+  },
+  {
+   "want_title": "A Spell for Chameleon",
+   "want_author": "Piers Anthony",
+   "cand_title": "A Spell for Chameleon",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 46308000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "A Spell for Chameleon",
+   "want_author": "Piers Anthony",
+   "cand_title": "A Spell for Chameleon",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 46308000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Vale of the Vole",
+   "want_author": "Piers Anthony",
+   "cand_title": "Vale of the Vole",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 33245000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Vale of the Vole",
+   "want_author": "Piers Anthony",
+   "cand_title": "Vale of the Vole (Magic of Xanth)",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 33245000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Heaven Cent",
+   "want_author": "Piers Anthony",
+   "cand_title": "Heaven Cent",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 35667000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Heaven Cent",
+   "want_author": "Piers Anthony",
+   "cand_title": "Heaven cent",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 35667000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Man From Mundania",
+   "want_author": "Piers Anthony",
+   "cand_title": "Man From Mundania",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 36748000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Man From Mundania",
+   "want_author": "Piers Anthony",
+   "cand_title": "Man from Mundania",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 36748000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Isle of View",
+   "want_author": "Piers Anthony",
+   "cand_title": "Isle of View",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 37015000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Isle of View",
+   "want_author": "Piers Anthony",
+   "cand_title": "Isle of View",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 37015000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Question Quest",
+   "want_author": "Piers Anthony",
+   "cand_title": "Question Quest",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 36882000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Question Quest",
+   "want_author": "Piers Anthony",
+   "cand_title": "Question Quest",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 36882000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "The Color of Her Panties",
+   "want_author": "Piers Anthony",
+   "cand_title": "The Color of Her Panties",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 35950000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "The Color of Her Panties",
+   "want_author": "Piers Anthony",
+   "cand_title": "The Color of Her Panties",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 35950000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Harpy Thyme",
+   "want_author": "Piers Anthony",
+   "cand_title": "Harpy Thyme",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 37749000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Harpy Thyme",
+   "want_author": "Piers Anthony",
+   "cand_title": "Harpy Thyme",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 37749000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Geis of The Gargoyle",
+   "want_author": "Piers Anthony",
+   "cand_title": "Geis of the Gargoyle",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 36403000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Geis of The Gargoyle",
+   "want_author": "Piers Anthony",
+   "cand_title": "Geis of the Gargoyle",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 36403000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "The Dastard",
+   "want_author": "Piers Anthony",
+   "cand_title": "The Dastard",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 38211000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "The Dastard",
+   "want_author": "Piers Anthony",
+   "cand_title": "The Dastard",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 38211000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Up in a Heaval",
+   "want_author": "Piers Anthony",
+   "cand_title": "Up in a Heaval",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 38646000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Up in a Heaval",
+   "want_author": "Piers Anthony",
+   "cand_title": "Up in a heaval",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 38646000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Xone of Contention",
+   "want_author": "Piers Anthony",
+   "cand_title": "Xone of Contention",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 43574000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Xone of Contention",
+   "want_author": "Piers Anthony",
+   "cand_title": "Xone of Contention",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 43574000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Yon Ill Wind",
+   "want_author": "Piers Anthony",
+   "cand_title": "Yon Ill Wind",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 37859000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Yon Ill Wind",
+   "want_author": "Piers Anthony",
+   "cand_title": "Yon Ill Wind",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 37859000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Zombie Lover",
+   "want_author": "Piers Anthony",
+   "cand_title": "Zombie Lover",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 41623000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Zombie Lover",
+   "want_author": "Piers Anthony",
+   "cand_title": "Zombie lover",
+   "cand_authors": [
+    "Piers Anthony"
+   ],
+   "want_ms": 41623000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "The Stars, Like Dust",
+   "want_author": "Isaac Asimov",
+   "cand_title": "The Stars, Like Dust",
+   "cand_authors": [
+    "Isaac Asimov"
+   ],
+   "want_ms": 29598000,
+   "cand_audio_seconds": 29598,
+   "expected_conf": 1.0,
+   "expected_delta": 0.0
+  },
+  {
+   "want_title": "The Stars, Like Dust",
+   "want_author": "Isaac Asimov",
+   "cand_title": "The Stars, Like Dust",
+   "cand_authors": [
+    "Isaac Asimov"
+   ],
+   "want_ms": 29598000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "The Currents of Space",
+   "want_author": "Isaac Asimov",
+   "cand_title": "The Currents of Space",
+   "cand_authors": [
+    "Isaac Asimov"
+   ],
+   "want_ms": 30865000,
+   "cand_audio_seconds": 30865,
+   "expected_conf": 1.0,
+   "expected_delta": 0.0
+  },
+  {
+   "want_title": "The Currents of Space",
+   "want_author": "Isaac Asimov",
+   "cand_title": "The Currents of Space",
+   "cand_authors": [
+    "Isaac Asimov"
+   ],
+   "want_ms": 30865000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Pebble in the Sky",
+   "want_author": "Isaac Asimov",
+   "cand_title": "Pebble in the Sky",
+   "cand_authors": [
+    "Isaac Asimov"
+   ],
+   "want_ms": 30928000,
+   "cand_audio_seconds": 30928,
+   "expected_conf": 1.0,
+   "expected_delta": 0.0
+  },
+  {
+   "want_title": "Pebble in the Sky",
+   "want_author": "Isaac Asimov",
+   "cand_title": "Pebble in the Sky",
+   "cand_authors": [
+    "Isaac Asimov"
+   ],
+   "want_ms": 30928000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Atlee Pine",
+   "want_author": "David Baldacci",
+   "cand_title": "A Minute to Midnight",
+   "cand_authors": [
+    "David Baldacci"
+   ],
+   "want_ms": 43059000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.52,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Ninth House",
+   "want_author": "Leigh Bardugo",
+   "cand_title": "Ninth House",
+   "cand_authors": [
+    "Leigh Bardugo"
+   ],
+   "want_ms": 58948000,
+   "cand_audio_seconds": 58947,
+   "expected_conf": 1.0,
+   "expected_delta": 1.6964392e-05
+  },
+  {
+   "want_title": "Ninth House",
+   "want_author": "Leigh Bardugo",
+   "cand_title": "Ninth House",
+   "cand_authors": [
+    "Leigh Bardugo"
+   ],
+   "want_ms": 58948000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "The Hunt for Red October: A Jack Ryan Novel",
+   "want_author": "Tom Clancy",
+   "cand_title": "The Hunt for Red October",
+   "cand_authors": [
+    "Tom Clancy"
+   ],
+   "want_ms": 67341000,
+   "cand_audio_seconds": 67320,
+   "expected_conf": 1.0,
+   "expected_delta": 0.000311942959
+  },
+  {
+   "want_title": "The Hunt for Red October: A Jack Ryan Novel",
+   "want_author": "Tom Clancy",
+   "cand_title": "The Hunt for Red October",
+   "cand_authors": [
+    "Tom Clancy"
+   ],
+   "want_ms": 67341000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "The Ballad of Songbirds and Snakes: A Hunger Games Novel",
+   "want_author": "Suzanne Collins",
+   "cand_title": "The Ballad of Songbirds and Snakes",
+   "cand_authors": [
+    "Suzanne Collins"
+   ],
+   "want_ms": 58602000,
+   "cand_audio_seconds": 58560,
+   "expected_conf": 1.0,
+   "expected_delta": 0.000717213115
+  },
+  {
+   "want_title": "The Ballad of Songbirds and Snakes: A Hunger Games Novel",
+   "want_author": "Suzanne Collins",
+   "cand_title": "The Ballad of Songbirds and Snakes",
+   "cand_authors": [
+    "Suzanne Collins"
+   ],
+   "want_ms": 58602000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "The Butcher of Anderson Station - An Expanse Novella",
+   "want_author": "James S. A. Corey",
+   "cand_title": "The Butcher of Anderson Station",
+   "cand_authors": [
+    "James S. A. Corey"
+   ],
+   "want_ms": 3674000,
+   "cand_audio_seconds": 3600,
+   "expected_conf": 0.865853658537,
+   "expected_delta": 0.020555555556
+  },
+  {
+   "want_title": "The Butcher of Anderson Station - An Expanse Novella",
+   "want_author": "James S. A. Corey",
+   "cand_title": "The Butcher of Anderson Station",
+   "cand_authors": [
+    "James S. A. Corey"
+   ],
+   "want_ms": 3674000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.715853658537,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Battle for the Abyss: The Horus Heresy",
+   "want_author": "Ben Counter",
+   "cand_title": "Battle for the Abyss",
+   "cand_authors": [
+    "Ben Counter"
+   ],
+   "want_ms": 38535000,
+   "cand_audio_seconds": 38700,
+   "expected_conf": 1.0,
+   "expected_delta": 0.004263565891
+  },
+  {
+   "want_title": "Battle for the Abyss: The Horus Heresy",
+   "want_author": "Ben Counter",
+   "cand_title": "Battle for the Abyss",
+   "cand_authors": [
+    "Ben Counter"
+   ],
+   "want_ms": 38535000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Bonds of Truths",
+   "want_author": "Davis Ashura (Instrument of Omens)",
+   "cand_title": "Bonds of Truths",
+   "cand_authors": [
+    "Davis Ashura (Instrument of Omens)"
+   ],
+   "want_ms": 82754000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Blessing of the Energy Centers Meditation",
+   "want_author": "Joe Dispenza",
+   "cand_title": "The Path of Blessing: Experiencing the Energy and Abundance of the Divine",
+   "cand_authors": [
+    "Joe Dispenza"
+   ],
+   "want_ms": 2524000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.59203539823,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Brimstone Angels",
+   "want_author": "Erin M. Evans",
+   "cand_title": "Brimstone Angels",
+   "cand_authors": [
+    "Erin M. Evans"
+   ],
+   "want_ms": 50202000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Brimstone Angels",
+   "want_author": "Erin M. Evans",
+   "cand_title": "Brimstone Angels",
+   "cand_authors": [
+    "Erin M. Evans"
+   ],
+   "want_ms": 50202000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Ahriman: Undying",
+   "want_author": "John French",
+   "cand_title": "Ahriman: Undying",
+   "cand_authors": [
+    "John French"
+   ],
+   "want_ms": 35828000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Ahriman: Undying",
+   "want_author": "John French",
+   "cand_title": "Ahriman",
+   "cand_authors": [
+    "John French"
+   ],
+   "want_ms": 35828000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Dragonslayer: The Dragonslayer",
+   "want_author": "Duncan M Hamilton",
+   "cand_title": "The Dragonslayer",
+   "cand_authors": [
+    "Duncan M Hamilton"
+   ],
+   "want_ms": 37680000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.771428571429,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Dragonslayer: The Dragonslayer",
+   "want_author": "Duncan M Hamilton",
+   "cand_title": "Dragonslayer",
+   "cand_authors": [
+    "Duncan M Hamilton"
+   ],
+   "want_ms": 37680000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Outcast of Redwell",
+   "want_author": "Brian Jacques",
+   "cand_title": "Outcast of Redwall",
+   "cand_authors": [
+    "Brian Jacques"
+   ],
+   "want_ms": 40549000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.819444444444,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Pearls of Lutra",
+   "want_author": "Brian Jacques",
+   "cand_title": "Pearls of Lutra",
+   "cand_authors": [
+    "Brian Jacques"
+   ],
+   "want_ms": 43514000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Pearls of Lutra",
+   "want_author": "Brian Jacques",
+   "cand_title": "The Pearls of Lutra",
+   "cand_authors": [
+    "Brian Jacques"
+   ],
+   "want_ms": 43514000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.785294117647,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Marlfox",
+   "want_author": "Brian Jacques",
+   "cand_title": "Marlfox",
+   "cand_authors": [
+    "Brian Jacques"
+   ],
+   "want_ms": 40171000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Marlfox",
+   "want_author": "Brian Jacques",
+   "cand_title": "Marlfox",
+   "cand_authors": [
+    "Brian Jacques"
+   ],
+   "want_ms": 40171000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "The Legend of Luke",
+   "want_author": "Brian Jacques",
+   "cand_title": "The Legend of Luke",
+   "cand_authors": [
+    "Brian Jacques"
+   ],
+   "want_ms": 43841000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "The Legend of Luke",
+   "want_author": "Brian Jacques",
+   "cand_title": "The Legend of Luke",
+   "cand_authors": [
+    "Brian Jacques"
+   ],
+   "want_ms": 43841000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "The Unexpected Gift of Joseph Bridgeman",
+   "want_author": "Nick Jones",
+   "cand_title": "The Unexpected Gift of Joseph Bridgeman: A Time Travel Adventure: Volume 1",
+   "cand_authors": [
+    "Nick Jones"
+   ],
+   "want_ms": 54945000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Ritual of Ruin",
+   "want_author": "Kel Kade",
+   "cand_title": "Ritual of Ruin",
+   "cand_authors": [
+    "Kel Kade"
+   ],
+   "want_ms": 53471000,
+   "cand_audio_seconds": 53460,
+   "expected_conf": 1.0,
+   "expected_delta": 0.000205761317
+  },
+  {
+   "want_title": "Rage",
+   "want_author": "Stephen King",
+   "cand_title": "Rage",
+   "cand_authors": [
+    "Stephen King"
+   ],
+   "want_ms": 17592000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Rage",
+   "want_author": "Stephen King",
+   "cand_title": "Rage",
+   "cand_authors": [
+    "Stephen King"
+   ],
+   "want_ms": 17592000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Storm of the Century",
+   "want_author": "Stephen King",
+   "cand_title": "Storm of the Century",
+   "cand_authors": [
+    "Stephen King"
+   ],
+   "want_ms": 37369000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Storm of the Century",
+   "want_author": "Stephen King",
+   "cand_title": "Storm of the Century",
+   "cand_authors": [
+    "Stephen King"
+   ],
+   "want_ms": 37369000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Hell Bent",
+   "want_author": "Lauren Fortgang",
+   "cand_title": "Hell Bent",
+   "cand_authors": [
+    "Lauren Fortgang"
+   ],
+   "want_ms": 58593000,
+   "cand_audio_seconds": 58584,
+   "expected_conf": 1.0,
+   "expected_delta": 0.000153625563
+  },
+  {
+   "want_title": "Dead I Well May Be",
+   "want_author": "Adrian McKinty",
+   "cand_title": "Dead I Well May Be",
+   "cand_authors": [
+    "Adrian McKinty"
+   ],
+   "want_ms": 44738000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Dead I Well May Be",
+   "want_author": "Adrian McKinty",
+   "cand_title": "Dead I Well May Be",
+   "cand_authors": [
+    "Adrian McKinty"
+   ],
+   "want_ms": 44738000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "The Dead Yard",
+   "want_author": "Adrian McKinty",
+   "cand_title": "The Dead Yard",
+   "cand_authors": [
+    "Adrian McKinty"
+   ],
+   "want_ms": 40216000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "The Dead Yard",
+   "want_author": "Adrian McKinty",
+   "cand_title": "The Dead Yard",
+   "cand_authors": [
+    "Adrian McKinty"
+   ],
+   "want_ms": 40216000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "The Bloomsday Dead",
+   "want_author": "Adrian McKinty",
+   "cand_title": "The Bloomsday Dead",
+   "cand_authors": [
+    "Adrian McKinty"
+   ],
+   "want_ms": 39403000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "The Bloomsday Dead",
+   "want_author": "Adrian McKinty",
+   "cand_title": "The Bloomsday Dead",
+   "cand_authors": [
+    "Adrian McKinty"
+   ],
+   "want_ms": 39403000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Steal the Show",
+   "want_author": "Michael Port",
+   "cand_title": "Steal the Show",
+   "cand_authors": [
+    "Michael Port"
+   ],
+   "want_ms": 27509000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Steal the Show",
+   "want_author": "Michael Port",
+   "cand_title": "Steal the Show",
+   "cand_authors": [
+    "Michael Port"
+   ],
+   "want_ms": 27509000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "The Last Hero",
+   "want_author": "Terry Pratchett",
+   "cand_title": "The Last Hero",
+   "cand_authors": [
+    "Terry Pratchett"
+   ],
+   "want_ms": 15841000,
+   "cand_audio_seconds": 15935,
+   "expected_conf": 1.0,
+   "expected_delta": 0.005898964543
+  },
+  {
+   "want_title": "The Last Hero",
+   "want_author": "Terry Pratchett",
+   "cand_title": "The Last Hero",
+   "cand_authors": [
+    "Terry Pratchett"
+   ],
+   "want_ms": 15841000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Dragonsteel Prime",
+   "want_author": "Brandon Sanderson",
+   "cand_title": "Dragonsteel Prime",
+   "cand_authors": [
+    "Brandon Sanderson"
+   ],
+   "want_ms": 97408000,
+   "cand_audio_seconds": 97380,
+   "expected_conf": 1.0,
+   "expected_delta": 0.000287533374
+  },
+  {
+   "want_title": "Dragonsteel Prime",
+   "want_author": "Brandon Sanderson",
+   "cand_title": "Dragonsteel Prime",
+   "cand_authors": [
+    "Brandon Sanderson"
+   ],
+   "want_ms": 97408000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "The Hope of Elantris",
+   "want_author": "Brandon Sanderson",
+   "cand_title": "The Hope of Elantris",
+   "cand_authors": [
+    "Brandon Sanderson"
+   ],
+   "want_ms": 2331000,
+   "cand_audio_seconds": 2330,
+   "expected_conf": 1.0,
+   "expected_delta": 0.000429184549
+  },
+  {
+   "want_title": "The Hope of Elantris",
+   "want_author": "Brandon Sanderson",
+   "cand_title": "The Hope of Elantris [Dramatized Adaptation]",
+   "cand_authors": [
+    "Brandon Sanderson"
+   ],
+   "want_ms": 2331000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.654838709677,
+   "expected_delta": null
+  },
+  {
+   "want_title": "ReDawn",
+   "want_author": "Brandon Sanderson",
+   "cand_title": "ReDawn",
+   "cand_authors": [
+    "Brandon Sanderson"
+   ],
+   "want_ms": 25049000,
+   "cand_audio_seconds": 25020,
+   "expected_conf": 1.0,
+   "expected_delta": 0.001159072742
+  },
+  {
+   "want_title": "ReDawn",
+   "want_author": "Brandon Sanderson",
+   "cand_title": "ReDawn",
+   "cand_authors": [
+    "Brandon Sanderson"
+   ],
+   "want_ms": 25049000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Everfound",
+   "want_author": "Neal Shusterman",
+   "cand_title": "Everfound",
+   "cand_authors": [
+    "Neal Shusterman"
+   ],
+   "want_ms": 50042000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Everfound",
+   "want_author": "Neal Shusterman",
+   "cand_title": "Everfound",
+   "cand_authors": [
+    "Neal Shusterman"
+   ],
+   "want_ms": 50042000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Professional Integrity",
+   "want_author": "Michael J. Sullivan",
+   "cand_title": "Professional Integrity",
+   "cand_authors": [
+    "Michael J. Sullivan"
+   ],
+   "want_ms": 4677000,
+   "cand_audio_seconds": 4620,
+   "expected_conf": 1.0,
+   "expected_delta": 0.012337662338
+  },
+  {
+   "want_title": "Professional Integrity",
+   "want_author": "Michael J. Sullivan",
+   "cand_title": "Professional Integrity",
+   "cand_authors": [
+    "Michael J. Sullivan"
+   ],
+   "want_ms": 4677000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Unsouled",
+   "want_author": "Will Wight",
+   "cand_title": "Unsouled",
+   "cand_authors": [
+    "Will Wight"
+   ],
+   "want_ms": 31945000,
+   "cand_audio_seconds": 31920,
+   "expected_conf": 1.0,
+   "expected_delta": 0.00078320802
+  },
+  {
+   "want_title": "Unsouled",
+   "want_author": "Will Wight",
+   "cand_title": "Unsouled",
+   "cand_authors": [
+    "Will Wight"
+   ],
+   "want_ms": 31945000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Isle of Joy",
+   "want_author": "Don Winslow",
+   "cand_title": "Isle of Joy",
+   "cand_authors": [
+    "Don Winslow"
+   ],
+   "want_ms": 37944000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Isle of Joy",
+   "want_author": "Don Winslow",
+   "cand_title": "Isle of Joy",
+   "cand_authors": [
+    "Don Winslow"
+   ],
+   "want_ms": 37944000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Unlucky for Some",
+   "want_author": "Tom Wood",
+   "cand_title": "Unlucky for Some",
+   "cand_authors": [
+    "Tom Wood"
+   ],
+   "want_ms": 52985000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  },
+  {
+   "want_title": "Unlucky for Some",
+   "want_author": "Tom Wood",
+   "cand_title": "Unlucky for Some",
+   "cand_authors": [
+    "Tom Wood"
+   ],
+   "want_ms": 52985000,
+   "cand_audio_seconds": null,
+   "expected_conf": 0.85,
+   "expected_delta": null
+  }
+ ]
+}
