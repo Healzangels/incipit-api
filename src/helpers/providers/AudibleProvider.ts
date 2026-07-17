@@ -93,6 +93,7 @@ export default class AudibleProvider implements BookProvider {
 			.map((p) => ({
 				provider: AUDIBLE_NAME,
 				id: p.asin as string,
+				asin: p.asin as string,
 				title: p.title ?? '',
 				authors: (p.authors ?? []).map((a) => a.name).filter((n): n is string => !!n),
 				narrators: (p.narrators ?? []).map((n) => n.name).filter((n): n is string => !!n),

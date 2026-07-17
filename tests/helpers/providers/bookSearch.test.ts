@@ -11,6 +11,7 @@ function candidate(over: Partial<ProviderCandidate>): ProviderCandidate {
 	return {
 		provider: 'stub',
 		id: 'x',
+		asin: null,
 		title: 'Untitled',
 		authors: [],
 		narrators: [],

@@ -32,6 +32,12 @@ export interface ProviderCandidate {
 	provider: string
 	/** Provider-native id (ASIN, hardcover book id, OpenLibrary key). */
 	id: string
+	/**
+	 * Audible ASIN when the candidate has one, else null. Carried explicitly (not
+	 * just inside id) because it is the cross-provider identity key: the same ASIN
+	 * from Audible and Hardcover is the same edition and dedupes to one.
+	 */
+	asin: string | null
 	title: string
 	authors: string[]
 	narrators: string[]

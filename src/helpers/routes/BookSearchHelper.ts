@@ -1,8 +1,10 @@
 import type { FastifyBaseLogger } from 'fastify'
 
 import type { BookSearchQueryString } from '#config/types'
+import { dedupeCandidates } from '#helpers/providers/dedupe'
 import { CONFIDENCE_FLOOR, normalizeTitle, scoreCandidate } from '#helpers/providers/matchScorer'
 import type ProviderRegistry from '#helpers/providers/ProviderRegistry'
+import type ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
 import type { BookSearchQuery, ScoredCandidate } from '#helpers/providers/types'
 
 /**
@@ -21,17 +23,20 @@ export default class BookSearchHelper {
 	// from a request header rather than the query string so tokens never land in
 	// access logs. Forwarded to providers via the internal BookSearchQuery.
 	private credentials?: Record<string, string>
+	private cache?: ProviderSearchCache
 
 	constructor(
 		registry: ProviderRegistry,
 		options: BookSearchQueryString,
 		logger?: FastifyBaseLogger,
-		credentials?: Record<string, string>
+		credentials?: Record<string, string>,
+		cache?: ProviderSearchCache
 	) {
 		this.registry = registry
 		this.options = options
 		this.logger = logger
 		this.credentials = credentials
+		this.cache = cache
 	}
 
 	/** The raw search title (title param, or its `query` alias). */
@@ -79,7 +84,7 @@ export default class BookSearchHelper {
 			credentials: this.credentials
 		}
 
-		const candidates = await this.registry.searchAll(query, this.logger)
+		const candidates = await this.registry.searchAll(query, this.logger, this.cache)
 
 		const scored: ScoredCandidate[] = candidates.map((c) => {
 			const { confidence, durationDeltaPct } = scoreCandidate(
@@ -93,8 +98,7 @@ export default class BookSearchHelper {
 			return { ...c, confidence, durationDeltaPct }
 		})
 
-		return scored
-			.filter((c) => c.confidence >= CONFIDENCE_FLOOR)
-			.sort((a, b) => b.confidence - a.confidence)
+		const accepted = scored.filter((c) => c.confidence >= CONFIDENCE_FLOOR)
+		return dedupeCandidates(accepted).sort((a, b) => b.confidence - a.confidence)
 	}
 }

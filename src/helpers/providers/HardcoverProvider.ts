@@ -175,6 +175,7 @@ export default class HardcoverProvider implements BookProvider {
 						provider: HARDCOVER_NAME,
 						// Provider-native, always populated even when there is no ASIN.
 						id: ed.asin || `hardcover:edition:${ed.id}`,
+						asin: ed.asin ?? null,
 						title,
 						authors: authorsOf(ed.contributions).length ? authorsOf(ed.contributions) : bookAuthors,
 						narrators: narratorsOf(ed.contributions),
@@ -187,6 +188,7 @@ export default class HardcoverProvider implements BookProvider {
 				candidates.push({
 					provider: HARDCOVER_NAME,
 					id: `hardcover:book:${book.id}`,
+					asin: null,
 					title,
 					authors: bookAuthors,
 					narrators: [],

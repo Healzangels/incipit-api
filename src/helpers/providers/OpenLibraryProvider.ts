@@ -91,6 +91,7 @@ export default class OpenLibraryProvider implements BookProvider {
 			provider: OPENLIBRARY_NAME,
 			// OpenLibrary work key, e.g. "/works/OL27448W" — always present, namespaced.
 			id: d.key ? `openlibrary:${d.key}` : `openlibrary:${d.title ?? 'unknown'}`,
+			asin: null,
 			title: d.title ?? '',
 			authors: d.author_name ?? [],
 			narrators: [],

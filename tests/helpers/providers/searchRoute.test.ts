@@ -25,6 +25,7 @@ const spellProvider: BookProvider = {
 			{
 				provider: 'stub',
 				id: 'B1',
+				asin: 'B1',
 				title: 'A Spell for Chameleon',
 				authors: ['Piers Anthony'],
 				narrators: ['Traber Burns'],
