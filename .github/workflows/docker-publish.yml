@@ -24,9 +24,10 @@ env:
   # github.repository as <account>/<repo>
   IMAGE_NAME: ${{ github.repository }}
   # Docker Hub image, e.g. "healzangels/incipit-api". Empty (so Docker Hub is
-  # skipped) unless the DOCKERHUB_USERNAME secret is set. Also add a
-  # DOCKERHUB_TOKEN secret (a Docker Hub access token) to enable the push.
-  DOCKERHUB_IMAGE: ${{ secrets.DOCKERHUB_USERNAME != '' && format('{0}/incipit-api', secrets.DOCKERHUB_USERNAME) || '' }}
+  # skipped) unless BOTH secrets are set: DOCKERHUB_USERNAME and DOCKERHUB_TOKEN
+  # (a Docker Hub access token). Requiring both avoids a half-configured login
+  # failing the build.
+  DOCKERHUB_IMAGE: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' && format('{0}/incipit-api', secrets.DOCKERHUB_USERNAME) || '' }}
 
 
 jobs:
