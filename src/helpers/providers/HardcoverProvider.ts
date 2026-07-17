@@ -53,6 +53,7 @@ const BOOKS_QUERY = `query IncipitBooks($ids: [Int!]) {
 			asin
 			audio_seconds
 			cached_image
+			language { language }
 			contributions { author { name } contribution }
 		}
 	}
@@ -105,8 +106,35 @@ interface HardcoverEdition {
 	reading_format_id?: number | null
 	release_date?: string | null
 	cached_image?: HardcoverImage | null
+	language?: { language?: string | null } | null
 	publisher?: { name?: string | null } | null
 	contributions?: HardcoverContribution[] | null
+}
+
+// Region → the Hardcover `languages.language` name we prefer. A global catalog
+// returns editions in every language; without this, a French or German audio
+// edition of "Small Gods" scores as high as the English one on title+author.
+// Prefer the region's language, but fall back to all editions so a book only
+// available in one language still matches.
+const REGION_LANGUAGE: Record<string, string> = {
+	us: 'English',
+	uk: 'English',
+	ca: 'English',
+	au: 'English',
+	in: 'English',
+	de: 'German',
+	es: 'Spanish',
+	fr: 'French',
+	it: 'Italian',
+	jp: 'Japanese'
+}
+
+/** Keep only editions in the preferred language; fall back to all if none match. */
+function preferLanguage(editions: HardcoverEdition[], region: string): HardcoverEdition[] {
+	const want = REGION_LANGUAGE[region]
+	if (!want) return editions
+	const inLang = editions.filter((e) => e.language?.language === want)
+	return inLang.length ? inLang : editions
 }
 interface HardcoverBook {
 	id: number
@@ -245,7 +273,7 @@ export default class HardcoverProvider implements BookProvider {
 			const title = book.title ?? ''
 			const bookAuthors = authorsOf(book.contributions)
 			const bookCover = book.cached_image?.url ?? null
-			const editions = book.editions ?? []
+			const editions = preferLanguage(book.editions ?? [], query.region)
 
 			if (editions.length) {
 				for (const ed of editions) {

@@ -90,6 +90,34 @@ describe('HardcoverProvider', () => {
 		expect(out.map((c) => c.audioSeconds)).toEqual([58200, 58253])
 	})
 
+	test('prefers the region-language edition; falls back to all when none match', async () => {
+		const mixed = {
+			...projectHailMary,
+			editions: [
+				{ ...projectHailMary.editions[0], id: 1, language: { language: 'French' } },
+				{ ...projectHailMary.editions[0], id: 2, language: { language: 'English' } }
+			]
+		}
+		const en = await new HardcoverProvider({ gql: gqlWith([1], [mixed]) }).search({
+			...baseQuery,
+			title: 'Project Hail Mary'
+		})
+		expect(en).toHaveLength(1)
+		expect(en[0].id).toBe('hardcover-edition-2')
+
+		// No English edition -> keep what we have rather than drop the book.
+		const frOnly = {
+			...projectHailMary,
+			editions: [{ ...projectHailMary.editions[0], id: 3, language: { language: 'French' } }]
+		}
+		const fallback = await new HardcoverProvider({ gql: gqlWith([1], [frOnly]) }).search({
+			...baseQuery,
+			title: 'Project Hail Mary'
+		})
+		expect(fallback).toHaveLength(1)
+		expect(fallback[0].id).toBe('hardcover-edition-3')
+	})
+
 	test('falls back to the edition id when an audio edition has no asin', async () => {
 		const noAsin = {
 			...projectHailMary,
