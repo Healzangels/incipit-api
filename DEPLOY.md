@@ -1,0 +1,64 @@
+# Deploying incipit-api (self-host)
+
+A minimal self-host: the API plus MongoDB, no Redis. Mongo backs the inherited
+audnexus routes (author search, ASIN data lookup, chapters); the multi-provider
+book search is stateless. Redis is an optional cache — see `docker-compose.yml`
+to enable it later.
+
+## Prerequisites
+
+- Docker with Compose v2 (`docker compose`).
+- The `feat/multi-provider-search` branch checked out (has the search route +
+  providers + this compose).
+
+## Run
+
+```bash
+cp .env.example .env
+# edit .env — at minimum set OL_CONTACT; add your own HARDCOVER_TOKEN to enable Hardcover
+docker compose up -d --build
+```
+
+The API comes up on port 3000 (change with `API_PORT` in `.env`). Mongo is
+internal to the compose network — no published port.
+
+Every provider credential is the operator's own or keyless: Hardcover uses your
+token (or is skipped if blank), Audible's catalog and OpenLibrary need none.
+
+## Verify (smoke tests)
+
+```bash
+HOST=http://localhost:3000     # or http://<server-ip>:3000
+
+# 1. health
+curl -fsS $HOST/health
+
+# 2. inherited audnexus lookup by ASIN (exercises Mongo) — Project Hail Mary
+curl -fsS "$HOST/books/B08G9PRS1K?region=us" | head -c 300
+
+# 3. the new multi-provider search (Audible + Hardcover + OpenLibrary)
+curl -fsS "$HOST/books?title=A+Spell+for+Chameleon&author=Piers+Anthony" | head -c 400
+
+# 3b. with a per-user Hardcover token via header (instead of the env default)
+curl -fsS -H "x-hardcover-token: <token>" \
+  "$HOST/books?title=Project+Hail+Mary&author=Andy+Weir&duration=58200000" | head -c 400
+```
+
+Search 3 should return ranked, provider-tagged candidates (a Xanth book with no
+Audible edition still matches via Hardcover/OpenLibrary).
+
+## Point the Plex agent at it
+
+In Plex → the Incipit agent settings:
+
+- **API base URL** → `http://<server-ip>:3000`
+- **Hardcover token** → your own token (or leave blank and rely on the API's env
+  default)
+
+## Notes
+
+- No `.env` is ever baked into the image (it's in `.dockerignore` and
+  `.gitignore`); tokens are supplied at runtime.
+- Audible chapter support (`ADP_TOKEN`/`PRIVATE_KEY`) is off by default and not
+  needed for matching or metadata.
+- Update: `git pull`, then `docker compose up -d --build`.

@@ -1,92 +1,58 @@
-version: '3.7'
+# incipit-api deployment — Option A: MongoDB only, no Redis.
+#
+# Mongo backs the inherited audnexus routes (author search, author/book data
+# lookup by ASIN, chapters). The new multi-provider book search is stateless and
+# needs no datastore. Redis is an OPTIONAL performance cache for provider search
+# results; it is left out here and the API degrades to live provider calls. To
+# add it later, uncomment the redis service and set REDIS_URL on incipit-api.
+#
+# Copy .env.example to .env and fill in your OWN Hardcover token before running:
+#   docker compose up -d --build
 
 services:
-  node-server:
-    image: ghcr.io/laxamentumtech/audnexus:latest@sha256:cdb7159b7ec0576e2a00a944709859e8fdf51bdb414aedf48093745abcf162ff
-    restart: always
-    environment:
-      ADP_TOKEN: ${ADP_TOKEN}
-      MAX_REQUESTS: ${MAX_REQUESTS:-300}
-      MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017/audnexus}
-      PRIVATE_KEY: ${PRIVATE_KEY}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      UPDATE_INTERVAL: ${UPDATE_INTERVAL:-30}
-      UPDATE_THRESHOLD: ${UPDATE_THRESHOLD:-7}
-    ports:
-      - '3000:3000'
+  incipit-api:
+    build: .
+    image: incipit-api:local
+    restart: unless-stopped
     depends_on:
-      - mongo
-      - redis
-    networks:
-      - traefik-overlay
-      - internal
-    deploy:
-      labels:
-        - 'traefik.enable=true'
-        - 'traefik.docker.network=traefik-overlay'
-        - 'traefik.http.routers.node-server.rule=Host(`${TRAEFIK_DOMAIN}`)'
-        - 'traefik.http.routers.node-server.entrypoints=websecure'
-        - 'traefik.http.routers.redirs.entrypoints=websecure'
-        - 'traefik.http.services.node-server.loadbalancer.server.port=3000'
-      replicas: 15
-    healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
-      interval: 30s
-      timeout: 6s
-      retries: 3
-      start_period: 10s
+      mongo:
+        condition: service_healthy
+    environment:
+      # Mongo is internal-only on the compose network.
+      MONGODB_URI: mongodb://mongo:27017
+      HOST: 0.0.0.0
+      PORT: "3000"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DEFAULT_REGION: ${DEFAULT_REGION:-us}
+      # Providers. Every token here is the operator's own or a keyless public
+      # source — nothing is bundled. Hardcover is optional; blank simply skips it.
+      HARDCOVER_TOKEN: ${HARDCOVER_TOKEN:-}
+      OL_CONTACT: ${OL_CONTACT:-}
+      # REDIS_URL: redis://redis:6379   # uncomment with the redis service below
+    ports:
+      # Published so the Plex agent (Incipit.bundle) can reach the API.
+      - "${API_PORT:-3000}:3000"
 
   mongo:
-    image: mongo:7.0.31@sha256:45d9c9b48aa1b56b5e3a9f906763fe432f376abb3bc2832438022b6d2534e4fe
-    restart: always
+    image: mongo:7
+    restart: unless-stopped
+    # No published port: only incipit-api talks to it, over the compose network.
     volumes:
-      - /mnt/docker/mongo/data:/data/db
-    networks:
-      - internal
-    ports:
-      - '27017:27017'
+      - mongo-data:/data/db
     healthcheck:
-      test: ['CMD', 'mongosh', '--eval', "db.adminCommand('ping')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
       start_period: 20s
 
-  redis:
-    image: redis:8.6-alpine
-    restart: always
-    networks:
-      - internal
-    ports:
-      - '6379:6379'
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
+  # Optional provider-search cache. Uncomment this and REDIS_URL above to enable.
+  # redis:
+  #   image: redis:7-alpine
+  #   restart: unless-stopped
+  #   volumes:
+  #     - redis-data:/data
 
-  traefik:
-    image: traefik:v3.6.12@sha256:171c9c3565b29f6c133f1c1b43c5d4e5853415198e9e1078c001f8702ff66aec
-    restart: always
-    command:
-      - '--providers.docker=true'
-      - '--entryPoints.websecure.address=:443'
-      - '--providers.docker.exposedbydefault=false'
-      - '--entrypoints.websecure.http.tls=true'
-      - '--certificatesresolvers.myresolver.acme.tlschallenge=true'
-      - '--certificatesresolvers.myresolver.acme.email=${TRAEFIK_EMAIL}'
-      - '--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json'
-    ports:
-      - '443:443'
-    volumes:
-      - /mnt/docker/letsencrypt:/letsencrypt
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks:
-      - traefik-overlay
-    deploy:
-      replicas: 1
-
-networks:
-  traefik-overlay:
-  internal:
+volumes:
+  mongo-data:
+  # redis-data:
