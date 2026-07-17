@@ -270,3 +270,25 @@ export const ApiQueryStringSchema = z.object({
 })
 
 export type ApiQueryString = z.infer<typeof ApiQueryStringSchema>
+
+// Query for the multi-provider book search route (GET /books). Distinct from
+// ApiQueryStringSchema, which is the ASIN-lookup query: search needs a free-text
+// title, an optional author, and an optional runtime to score editions on.
+export const BookSearchQueryStringSchema = z.object({
+	// The book title to search for. `title` is the canonical param; `query` is an
+	// accepted alias so the Plex bundle can pass either.
+	title: TitleSchema.optional(),
+	query: TitleSchema.optional(),
+	author: z.string().min(1).optional(),
+	// Fallback title from the first track, used only when the album title finds
+	// nothing. Audiobook rips often tag the ALBUM as a bare series+number ("Xanth
+	// 25", "Atlee Pine, Book 4") while the real book title sits in the track name
+	// ("Swell Foop", "Mercy"). The bundle forwards it so the API can recover those.
+	trackTitle: TitleSchema.optional(),
+	// Runtime of the local audio in MILLISECONDS (what Plex passes to the agent).
+	// Coerced from the query string; a non-numeric value is rejected.
+	duration: z.coerce.number().int().positive().optional(),
+	region: RegionSchema
+})
+
+export type BookSearchQueryString = z.infer<typeof BookSearchQueryStringSchema>

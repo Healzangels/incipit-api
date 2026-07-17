@@ -95,4 +95,5 @@ export const MessageBadRegion = `Invalid region. Valid regions are: ${Object.key
 export const MessageDeleted = (asin: string) => `${asin} deleted`
 export const MessageNoChapters = (asin: string) => `${asin} has no chapters`
 export const MessageNoSearchParams = 'Invalid search parameters'
+export const MessageNoSearchTitle = 'A title (or query) parameter is required to search books'
 export const MessageNotFoundInDb = (asin: string) => `${asin} not found in the database`

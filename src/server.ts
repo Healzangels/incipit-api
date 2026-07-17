@@ -29,6 +29,7 @@ import showAuthor from '#config/routes/authors/show'
 import deleteChapter from '#config/routes/books/chapters/delete'
 import showChapter from '#config/routes/books/chapters/show'
 import deleteBook from '#config/routes/books/delete'
+import searchBook from '#config/routes/books/search/show'
 import showBook from '#config/routes/books/show'
 import health from '#config/routes/health'
 import { registerMetricsRoute } from '#config/routes/metrics'
@@ -210,6 +211,7 @@ async function registerPlugins() {
 async function registerRoutes() {
 	await server
 		.register(showBook)
+		.register(searchBook)
 		.register(deleteBook)
 		.register(showChapter)
 		.register(deleteChapter)
