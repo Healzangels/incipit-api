@@ -51,12 +51,50 @@ export interface ScoredCandidate extends ProviderCandidate {
 	durationDeltaPct: number | null
 }
 
+export interface ProviderBookSeries {
+	name: string
+	position?: string
+}
+
+/**
+ * Full book metadata for the data-lookup route (`GET /books/{id}`), shaped to the
+ * fields the Plex bundle's book updater reads. Every field beyond title/authors
+ * is optional — the bundle reads each with `if key in response`, so a provider
+ * only supplies what it has and the bundle defaults the rest.
+ */
+export interface ProviderBook {
+	asin: string | null
+	title: string
+	subtitle?: string
+	authors: { name: string }[]
+	narrators: { name: string }[]
+	summary?: string
+	image?: string | null
+	publisherName?: string
+	rating?: string
+	releaseDate?: string
+	seriesPrimary?: ProviderBookSeries
+	seriesSecondary?: ProviderBookSeries
+}
+
+/** Options for a data-lookup fetch (per-request credentials, region, logger). */
+export interface FetchBookOptions {
+	region: string
+	credentials?: Record<string, string>
+	logger?: FastifyBaseLogger
+}
+
 /**
  * One data source. Implementations must not throw for an empty result — return
  * []. They may throw on transport failure; the registry isolates that so one bad
  * provider cannot sink the whole search.
+ *
+ * `fetchBook` resolves a matched non-Audible book to full metadata by its native
+ * id (from a decoded candidate id). Providers that can be matched must implement
+ * it; the data-lookup route dispatches to the right one.
  */
 export interface BookProvider {
 	readonly name: string
 	search(query: BookSearchQuery, logger?: FastifyBaseLogger): Promise<ProviderCandidate[]>
+	fetchBook?(nativeId: string, kind: string, opts: FetchBookOptions): Promise<ProviderBook | null>
 }

@@ -29,6 +29,11 @@ export default class ProviderRegistry {
 		return this.providers.map((p) => p.name)
 	}
 
+	/** The registered provider with this name, or undefined. */
+	get(name: string): BookProvider | undefined {
+		return this.providers.find((p) => p.name === name)
+	}
+
 	/**
 	 * Search every provider in parallel and return the flattened candidate pool.
 	 * A provider that rejects is logged and contributes nothing. When a cache is
