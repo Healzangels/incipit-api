@@ -65,7 +65,7 @@ describe('HardcoverProvider', () => {
 		expect(out).toHaveLength(1)
 		expect(out[0]).toMatchObject({
 			provider: 'hardcover',
-			id: 'hardcover:book:100',
+			id: 'hardcover-book-100',
 			title: 'Castle Roogna',
 			authors: ['Piers Anthony'],
 			narrators: [],
@@ -95,7 +95,7 @@ describe('HardcoverProvider', () => {
 		}
 		const p = new HardcoverProvider({ gql: gqlWith([427578], [noAsin]) })
 		const out = await p.search({ ...baseQuery, title: 'Project Hail Mary' })
-		expect(out[0].id).toBe('hardcover:edition:31501578')
+		expect(out[0].id).toBe('hardcover-edition-31501578')
 	})
 
 	test('returns [] and does not call the API when no token is available', async () => {

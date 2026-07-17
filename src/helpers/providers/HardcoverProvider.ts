@@ -1,6 +1,13 @@
 import type { FastifyBaseLogger } from 'fastify'
 
-import type { BookProvider, BookSearchQuery, ProviderCandidate } from './types'
+import { encodeHardcoverBook, encodeHardcoverEdition } from './providerId'
+import type {
+	BookProvider,
+	BookSearchQuery,
+	FetchBookOptions,
+	ProviderBook,
+	ProviderCandidate
+} from './types'
 
 import fetch from '#helpers/utils/fetchPlus'
 
@@ -51,6 +58,35 @@ const BOOKS_QUERY = `query IncipitBooks($ids: [Int!]) {
 	}
 }`
 
+// Full-book query for the data lookup (GET /books/{id}). Fields verified live.
+const BOOK_BY_ID_QUERY = `query IncipitBook($id: Int!) {
+	books(where: { id: { _eq: $id } }) {
+		id
+		title
+		subtitle
+		description
+		rating
+		cached_image
+		contributions { author { name } contribution }
+		book_series { position series { name } }
+		editions(order_by: { users_count: desc }, limit: 5) {
+			id
+			asin
+			audio_seconds
+			reading_format_id
+			release_date
+			cached_image
+			publisher { name }
+			contributions { author { name } contribution }
+		}
+	}
+}`
+
+// Resolve an edition id to its parent book, then reuse the book path.
+const BOOK_ID_FOR_EDITION_QUERY = `query IncipitEditionBook($id: Int!) {
+	editions(where: { id: { _eq: $id } }, limit: 1) { book_id }
+}`
+
 interface HardcoverImage {
 	url?: string | null
 }
@@ -58,18 +94,29 @@ interface HardcoverContribution {
 	author?: { name?: string | null } | null
 	contribution?: string | null
 }
+interface HardcoverSeries {
+	position?: number | null
+	series?: { name?: string | null } | null
+}
 interface HardcoverEdition {
 	id: number
 	asin?: string | null
 	audio_seconds?: number | null
+	reading_format_id?: number | null
+	release_date?: string | null
 	cached_image?: HardcoverImage | null
+	publisher?: { name?: string | null } | null
 	contributions?: HardcoverContribution[] | null
 }
 interface HardcoverBook {
 	id: number
 	title?: string | null
+	subtitle?: string | null
+	description?: string | null
+	rating?: number | null
 	cached_image?: HardcoverImage | null
 	contributions?: HardcoverContribution[] | null
+	book_series?: HardcoverSeries[] | null
 	editions?: HardcoverEdition[] | null
 }
 
@@ -124,6 +171,37 @@ function narratorsOf(contributions?: HardcoverContribution[] | null): string[] {
 		.filter((n): n is string => !!n)
 }
 
+/** Map a full Hardcover book to the data-lookup ProviderBook shape. */
+function toProviderBook(book: HardcoverBook): ProviderBook {
+	const editions = book.editions ?? []
+	// Prefer an audio edition for narrator/publisher/date; else the top edition.
+	const audioEdition = editions.find((e) => e.reading_format_id === 2 && e.audio_seconds)
+	const edition = audioEdition ?? editions[0]
+
+	const series = (book.book_series ?? [])
+		.filter((s) => s.series?.name)
+		.map((s) => ({
+			name: s.series?.name as string,
+			position: s.position != null ? String(s.position) : undefined
+		}))
+
+	return {
+		asin: edition?.asin ?? null,
+		title: book.title ?? '',
+		subtitle: book.subtitle ?? undefined,
+		authors: authorsOf(book.contributions).map((name) => ({ name })),
+		narrators: narratorsOf(edition?.contributions).map((name) => ({ name })),
+		summary: book.description ?? undefined,
+		image: edition?.cached_image?.url ?? book.cached_image?.url ?? null,
+		publisherName: edition?.publisher?.name ?? undefined,
+		// Hardcover rates 0-5; the bundle stores rating as a string.
+		rating: typeof book.rating === 'number' ? book.rating.toFixed(2) : undefined,
+		releaseDate: edition?.release_date ?? undefined,
+		seriesPrimary: series[0],
+		seriesSecondary: series[1]
+	}
+}
+
 export default class HardcoverProvider implements BookProvider {
 	readonly name = HARDCOVER_NAME
 	private defaultToken?: string
@@ -174,7 +252,7 @@ export default class HardcoverProvider implements BookProvider {
 					candidates.push({
 						provider: HARDCOVER_NAME,
 						// Provider-native, always populated even when there is no ASIN.
-						id: ed.asin || `hardcover:edition:${ed.id}`,
+						id: ed.asin || encodeHardcoverEdition(ed.id),
 						asin: ed.asin ?? null,
 						title,
 						authors: authorsOf(ed.contributions).length ? authorsOf(ed.contributions) : bookAuthors,
@@ -187,7 +265,7 @@ export default class HardcoverProvider implements BookProvider {
 				// No audio edition (e.g. Xanth): book-level fallback, no narrator.
 				candidates.push({
 					provider: HARDCOVER_NAME,
-					id: `hardcover:book:${book.id}`,
+					id: encodeHardcoverBook(book.id),
 					asin: null,
 					title,
 					authors: bookAuthors,
@@ -198,5 +276,46 @@ export default class HardcoverProvider implements BookProvider {
 			}
 		}
 		return candidates
+	}
+
+	/**
+	 * Fetch full metadata for a matched Hardcover book by its native id.
+	 * @param {string} nativeId the Hardcover book or edition id
+	 * @param {string} kind "book" or "edition" (from the decoded candidate id)
+	 * @param {FetchBookOptions} opts region, credentials, logger
+	 * @returns {Promise<ProviderBook | null>} the book, or null if not found
+	 */
+	async fetchBook(
+		nativeId: string,
+		kind: string,
+		opts: FetchBookOptions
+	): Promise<ProviderBook | null> {
+		const token = opts.credentials?.[HARDCOVER_NAME] ?? this.defaultToken
+		if (!token) {
+			opts.logger?.debug('hardcover: no token supplied, cannot fetch book')
+			return null
+		}
+
+		// An edition id must first resolve to its parent book id.
+		let bookId = Number(nativeId)
+		if (kind === 'edition') {
+			const ed = await this.gql<{ editions?: { book_id?: number }[] }>(
+				BOOK_ID_FOR_EDITION_QUERY,
+				{ id: Number(nativeId) },
+				token
+			)
+			const resolved = ed?.editions?.[0]?.book_id
+			if (!resolved) return null
+			bookId = resolved
+		}
+		if (!Number.isInteger(bookId)) return null
+
+		const data = await this.gql<{ books?: HardcoverBook[] }>(
+			BOOK_BY_ID_QUERY,
+			{ id: bookId },
+			token
+		)
+		const book = data?.books?.[0]
+		return book ? toProviderBook(book) : null
 	}
 }

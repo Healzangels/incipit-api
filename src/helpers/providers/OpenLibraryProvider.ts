@@ -1,6 +1,13 @@
 import type { FastifyBaseLogger } from 'fastify'
 
-import type { BookProvider, BookSearchQuery, ProviderCandidate } from './types'
+import { encodeOpenLibraryWork } from './providerId'
+import type {
+	BookProvider,
+	BookSearchQuery,
+	FetchBookOptions,
+	ProviderBook,
+	ProviderCandidate
+} from './types'
 
 import fetch from '#helpers/utils/fetchPlus'
 
@@ -19,10 +26,13 @@ import fetch from '#helpers/utils/fetchPlus'
  *    identifying User-Agent with a contact. Both are done here.
  */
 
-const SEARCH_URL = 'https://openlibrary.org/search.json'
+const OL_BASE = 'https://openlibrary.org'
+const SEARCH_URL = `${OL_BASE}/search.json`
 const OPENLIBRARY_NAME = 'openlibrary'
 const FIELDS = 'key,title,author_name,first_publish_year,cover_i'
 const LIMIT = 5
+// Cap author-key resolutions per book lookup (each is a separate request).
+const MAX_AUTHORS = 4
 
 export interface OpenLibraryDoc {
 	key?: string
@@ -30,6 +40,13 @@ export interface OpenLibraryDoc {
 	author_name?: string[]
 	first_publish_year?: number
 	cover_i?: number
+}
+
+interface OpenLibraryWork {
+	title?: string
+	description?: string | { value?: string }
+	covers?: number[]
+	authors?: { author?: { key?: string } }[]
 }
 
 /** Transport for an OpenLibrary search; injectable so tests need no network. */
@@ -58,14 +75,31 @@ function baseTitle(s: string): string {
 	return beforeDash.split(/\s*[:(]\s*/)[0].trim()
 }
 
+/** Fetches a JSON document; injectable so the data lookup needs no network in tests. */
+export type OpenLibraryGetJson = (url: string, contact: string | undefined) => Promise<unknown>
+
+const defaultGetJson: OpenLibraryGetJson = async (url, contact): Promise<unknown> => {
+	const res = await fetch(url, {
+		headers: {
+			'User-Agent': `incipit-api/0.1 (+${contact || 'no-contact-set'})`,
+			Accept: 'application/json'
+		}
+	})
+	return res.data
+}
+
 export default class OpenLibraryProvider implements BookProvider {
 	readonly name = OPENLIBRARY_NAME
 	private contact?: string
 	private fetchDocs: OpenLibraryFetch
+	private getJson: OpenLibraryGetJson
 
-	constructor(opts: { contact?: string; fetchDocs?: OpenLibraryFetch } = {}) {
+	constructor(
+		opts: { contact?: string; fetchDocs?: OpenLibraryFetch; getJson?: OpenLibraryGetJson } = {}
+	) {
 		this.contact = opts.contact
 		this.fetchDocs = opts.fetchDocs ?? defaultFetch
+		this.getJson = opts.getJson ?? defaultGetJson
 	}
 
 	/**
@@ -90,7 +124,7 @@ export default class OpenLibraryProvider implements BookProvider {
 		return docs.map((d) => ({
 			provider: OPENLIBRARY_NAME,
 			// OpenLibrary work key, e.g. "/works/OL27448W" — always present, namespaced.
-			id: d.key ? `openlibrary:${d.key}` : `openlibrary:${d.title ?? 'unknown'}`,
+			id: d.key ? encodeOpenLibraryWork(d.key) : `openlibrary-works-unknown`,
 			asin: null,
 			title: d.title ?? '',
 			authors: d.author_name ?? [],
@@ -101,5 +135,53 @@ export default class OpenLibraryProvider implements BookProvider {
 					? `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg`
 					: null
 		}))
+	}
+
+	/**
+	 * Fetch full metadata for a matched OpenLibrary work by its native key.
+	 * OpenLibrary is book-level only: title, synopsis, cover, and resolved author
+	 * names. No narrator, runtime, publisher, or rating.
+	 * @param {string} nativeId the work key, e.g. "/works/OL80870W"
+	 * @param {string} _kind unused (always "works")
+	 * @param {FetchBookOptions} opts region, credentials, logger
+	 * @returns {Promise<ProviderBook | null>} the book, or null if not found
+	 */
+	async fetchBook(
+		nativeId: string,
+		_kind: string,
+		opts: FetchBookOptions
+	): Promise<ProviderBook | null> {
+		const work = (await this.getJson(`${OL_BASE}${nativeId}.json`, this.contact)) as
+			| OpenLibraryWork
+			| undefined
+		if (!work || !work.title) return null
+
+		const description =
+			typeof work.description === 'string' ? work.description : work.description?.value
+
+		// Resolve author keys to names (each is a separate request; capped).
+		const authorKeys = (work.authors ?? [])
+			.map((a) => a.author?.key)
+			.filter((k): k is string => !!k)
+			.slice(0, MAX_AUTHORS)
+		const authors: { name: string }[] = []
+		for (const key of authorKeys) {
+			try {
+				const a = (await this.getJson(`${OL_BASE}${key}.json`, this.contact)) as { name?: string }
+				if (a?.name) authors.push({ name: a.name })
+			} catch (err) {
+				opts.logger?.debug({ err, key }, 'openlibrary: author resolve failed')
+			}
+		}
+
+		const coverId = work.covers?.find((c) => c > 0)
+		return {
+			asin: null,
+			title: work.title,
+			authors,
+			narrators: [],
+			summary: description,
+			image: coverId ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg` : null
+		}
 	}
 }

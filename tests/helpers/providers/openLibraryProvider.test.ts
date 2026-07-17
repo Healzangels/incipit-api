@@ -21,7 +21,7 @@ describe('OpenLibraryProvider', () => {
 		expect(out).toHaveLength(1)
 		expect(out[0]).toMatchObject({
 			provider: 'openlibrary',
-			id: 'openlibrary:/works/OL80870W',
+			id: 'openlibrary-works-OL80870W',
 			title: 'A Spell for Chameleon',
 			authors: ['Piers Anthony'],
 			narrators: [],
