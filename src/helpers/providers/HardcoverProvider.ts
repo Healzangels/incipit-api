@@ -251,8 +251,12 @@ export default class HardcoverProvider implements BookProvider {
 				for (const ed of editions) {
 					candidates.push({
 						provider: HARDCOVER_NAME,
-						// Provider-native, always populated even when there is no ASIN.
-						id: ed.asin || encodeHardcoverEdition(ed.id),
+						// The id is the DATA-FETCH key, so it must point back to
+						// Hardcover — never the ASIN. An edition's ASIN can be an
+						// Amazon/preorder id that resolves to an empty Audible
+						// product (404 on /books/:asin); the ASIN still rides along
+						// in the `asin` field for dedup + the exact-match pin.
+						id: encodeHardcoverEdition(ed.id),
 						asin: ed.asin ?? null,
 						title,
 						authors: authorsOf(ed.contributions).length ? authorsOf(ed.contributions) : bookAuthors,

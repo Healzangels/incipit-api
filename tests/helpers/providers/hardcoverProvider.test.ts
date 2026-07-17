@@ -50,7 +50,9 @@ describe('HardcoverProvider', () => {
 		expect(out).toHaveLength(1)
 		expect(out[0]).toMatchObject({
 			provider: 'hardcover',
-			id: 'B08GB58KD5',
+			// id routes data fetches back to Hardcover, never to the ASIN.
+			id: 'hardcover-edition-31501578',
+			asin: 'B08GB58KD5',
 			title: 'Project Hail Mary',
 			authors: ['Andy Weir'],
 			narrators: ['Ray Porter'],
