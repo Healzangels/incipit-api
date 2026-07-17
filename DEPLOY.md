@@ -11,9 +11,11 @@ to enable it later.
 - The `feat/multi-provider-search` branch checked out (has the search route +
   providers + this compose).
 
-## Run
+## Run — build from source (works today, no registry setup)
 
 ```bash
+git clone -b feat/multi-provider-search https://github.com/Healzangels/incipit-api.git
+cd incipit-api
 cp .env.example .env
 # edit .env — at minimum set OL_CONTACT; add your own HARDCOVER_TOKEN to enable Hardcover
 docker compose up -d --build
@@ -21,6 +23,19 @@ docker compose up -d --build
 
 The API comes up on port 3000 (change with `API_PORT` in `.env`). Mongo is
 internal to the compose network — no published port.
+
+## Run — pre-built image (no build step)
+
+Once an image is published to the registry (via the Docker workflow — run it from
+the Actions tab, or it publishes automatically on a push to `main`), self-host
+without cloning or building:
+
+1. Make the GHCR package public once (GitHub → your profile → Packages →
+   incipit-api → Package settings → Change visibility → Public), or authenticate
+   Docker to GHCR to pull a private image.
+2. In `docker-compose.yml`, comment out `build: .` and set
+   `image: ghcr.io/healzangels/incipit-api:latest`.
+3. `docker compose pull && docker compose up -d`.
 
 Every provider credential is the operator's own or keyless: Hardcover uses your
 token (or is skipped if blank), Audible's catalog and OpenLibrary need none.

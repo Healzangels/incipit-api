@@ -11,6 +11,10 @@
 
 services:
   incipit-api:
+    # Default: build the image locally from source (works with no registry setup).
+    # To use a pre-built image instead, comment out `build:` and set:
+    #   image: ghcr.io/healzangels/incipit-api:latest
+    # then `docker compose pull && docker compose up -d`.
     build: .
     image: incipit-api:local
     restart: unless-stopped

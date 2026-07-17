@@ -6,8 +6,9 @@ name: Docker
 # documentation.
 
 on:
-  schedule:
-    - cron: '15 5 * * *'
+  # Manual trigger — build and publish an image from any branch on demand
+  # (e.g. the multi-provider work before it lands on main).
+  workflow_dispatch:
   push:
     branches:
       - develop
