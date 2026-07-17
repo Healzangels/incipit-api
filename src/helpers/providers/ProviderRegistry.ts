@@ -1,5 +1,6 @@
 import type { FastifyBaseLogger } from 'fastify'
 
+import type ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
 import type { BookProvider, BookSearchQuery, ProviderCandidate } from '#helpers/providers/types'
 
 /**
@@ -30,16 +31,24 @@ export default class ProviderRegistry {
 
 	/**
 	 * Search every provider in parallel and return the flattened candidate pool.
-	 * A provider that rejects is logged and contributes nothing.
+	 * A provider that rejects is logged and contributes nothing. When a cache is
+	 * given, each provider's call goes through it (per-provider, so an error caches
+	 * nothing).
 	 * @param {BookSearchQuery} query the search query
 	 * @param {FastifyBaseLogger} logger optional logger for provider failures
+	 * @param {ProviderSearchCache} cache optional per-provider search cache
 	 * @returns {Promise<ProviderCandidate[]>} combined candidates from all providers
 	 */
 	async searchAll(
 		query: BookSearchQuery,
-		logger?: FastifyBaseLogger
+		logger?: FastifyBaseLogger,
+		cache?: ProviderSearchCache
 	): Promise<ProviderCandidate[]> {
-		const settled = await Promise.allSettled(this.providers.map((p) => p.search(query, logger)))
+		const settled = await Promise.allSettled(
+			this.providers.map((p) =>
+				cache ? cache.wrap(p.name, query, () => p.search(query, logger)) : p.search(query, logger)
+			)
+		)
 
 		const candidates: ProviderCandidate[] = []
 		settled.forEach((result, i) => {

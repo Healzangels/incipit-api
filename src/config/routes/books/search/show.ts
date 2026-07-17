@@ -3,6 +3,7 @@ import { FastifyInstance } from 'fastify'
 import { BookSearchQueryString, BookSearchQueryStringSchema } from '#config/types'
 import { BadRequestError } from '#helpers/errors/ApiErrors'
 import type ProviderRegistry from '#helpers/providers/ProviderRegistry'
+import ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
 import defaultRegistry from '#helpers/providers/registry'
 import BookSearchHelper from '#helpers/routes/BookSearchHelper'
 import { ErrorMessageBadQuery, MessageBadRegion, MessageNoSearchTitle } from '#static/messages'
@@ -43,7 +44,12 @@ export function makeSearchBookRoute(registry: ProviderRegistry = defaultRegistry
 				credentials.hardcover = hardcoverToken
 			}
 
-			const helper = new BookSearchHelper(registry, options, request.log, credentials)
+			// Cache provider results in Redis when it is available; degrades to live
+			// calls when it is not.
+			const { redis } = fastify
+			const cache = new ProviderSearchCache(redis, undefined, request.log)
+
+			const helper = new BookSearchHelper(registry, options, request.log, credentials, cache)
 			return helper.search()
 		})
 	}
