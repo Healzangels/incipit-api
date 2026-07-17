@@ -275,10 +275,13 @@ export type ApiQueryString = z.infer<typeof ApiQueryStringSchema>
 // ApiQueryStringSchema, which is the ASIN-lookup query: search needs a free-text
 // title, an optional author, and an optional runtime to score editions on.
 export const BookSearchQueryStringSchema = z.object({
-	// The book title to search for. `title` is the canonical param; `query` is an
-	// accepted alias so the Plex bundle can pass either.
+	// The book title to search for. `title` is the canonical param; `query` and
+	// `keywords` are accepted aliases so the Plex bundle can pass either (Plex's
+	// Audible album search falls back to a bare `keywords` param when it has no
+	// artist name, and we treat that as the title).
 	title: TitleSchema.optional(),
 	query: TitleSchema.optional(),
+	keywords: TitleSchema.optional(),
 	author: z.string().min(1).optional(),
 	// Fallback title from the first track, used only when the album title finds
 	// nothing. Audiobook rips often tag the ALBUM as a bare series+number ("Xanth

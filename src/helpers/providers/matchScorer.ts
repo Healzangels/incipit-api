@@ -196,7 +196,11 @@ export function scoreCandidate(
 		else if (durDelta > 0.25) durBonus = -0.3 // actively contradicts — wrong edition
 	}
 
-	const conf = 0.55 * t + 0.3 * a + durBonus
+	// With an author, weight title 0.55 + author 0.30 (the validated model). Album
+	// searches often arrive with no author (Plex passes the album but not the
+	// artist name), so score on title alone rather than let the missing author cap
+	// confidence below the floor.
+	const conf = wantAuthor ? 0.55 * t + 0.3 * a + durBonus : t + durBonus
 	return {
 		confidence: Math.max(0.0, Math.min(1.0, conf)),
 		durationDeltaPct: durDelta

@@ -46,7 +46,7 @@ export default class BookSearchHelper {
 
 	/** The raw search title (title param, or its `query` alias). */
 	get rawTitle(): string {
-		return this.options.title ?? this.options.query ?? ''
+		return this.options.title ?? this.options.query ?? this.options.keywords ?? ''
 	}
 
 	/**
