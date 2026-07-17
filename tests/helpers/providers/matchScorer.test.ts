@@ -4,6 +4,7 @@ import {
 	AUTHOR_FLOOR,
 	CONFIDENCE_FLOOR,
 	DURATION_TOLERANCE,
+	extractAsinAndClean,
 	normalizeTitle,
 	scoreCandidate,
 	TITLE_FLOOR,
@@ -63,6 +64,30 @@ describe('scoreCandidate reproduces Python confidence and duration delta', () =>
 			}
 		})
 	}
+})
+
+describe('extractAsinAndClean (Audiobookshelf / seanap bracket conventions)', () => {
+	const cases: Array<[string, string | null, string]> = [
+		// [input, expected asin, expected cleaned title]
+		["Demons Don't Dream [B0CJRV5S7M]", 'B0CJRV5S7M', "Demons Don't Dream"],
+		["[B0CJRV5S7M] Demons Don't Dream", 'B0CJRV5S7M', "Demons Don't Dream"],
+		['A Spell for Chameleon [Xanth 1]', null, 'A Spell for Chameleon'],
+		['Castle Roogna [Xanth #3]', null, 'Castle Roogna'],
+		['Project Hail Mary', null, 'Project Hail Mary'], // no brackets, unchanged
+		['Fahrenheit 451', null, 'Fahrenheit 451'] // number in title is not an ASIN
+	]
+	for (const [input, asin, title] of cases) {
+		test(`"${input}" -> asin=${asin}, title="${title}"`, () => {
+			const out = extractAsinAndClean(input)
+			expect(out.asin).toBe(asin)
+			expect(out.title).toBe(title)
+		})
+	}
+
+	test('does not treat an ordinary capitalized bracket word as an ASIN', () => {
+		// "Bookseller" is B + 9 chars but not an all-caps ASIN — must not match.
+		expect(extractAsinAndClean('Some Title [Bookseller]').asin).toBeNull()
+	})
 })
 
 describe('the duration veto behaves as designed', () => {

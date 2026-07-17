@@ -242,3 +242,68 @@ describe('BookSearchHelper track-title fallback', () => {
 		expect(calls).toBe(1)
 	})
 })
+
+describe('BookSearchHelper ASIN handling (Audiobookshelf / seanap conventions)', () => {
+	test('strips a bracketed series token from the searched title (recall)', async () => {
+		let searchedTitle = ''
+		const spy: BookProvider = {
+			name: 'spy',
+			async search(q) {
+				searchedTitle = q.title
+				return [candidate({ id: 'ok', title: 'A Spell for Chameleon', authors: ['Piers Anthony'] })]
+			}
+		}
+		const helper = new BookSearchHelper(new ProviderRegistry([spy]), {
+			// seanap folder convention: series in a trailing bracket
+			title: 'A Spell for Chameleon [Xanth 1]',
+			author: 'Piers Anthony',
+			region: 'us'
+		})
+		const out = await helper.search()
+		expect(searchedTitle).toBe('A Spell for Chameleon') // bracket removed before search
+		expect(out).toHaveLength(1)
+	})
+
+	test('extracts a bracketed ASIN and pins the matching candidate to full confidence', async () => {
+		const provider: BookProvider = {
+			name: 'p',
+			async search() {
+				return [
+					candidate({
+						id: 'B0CJRV5S7M',
+						asin: 'B0CJRV5S7M',
+						title: "Demons Don't Dream",
+						authors: []
+					}),
+					candidate({ id: 'other', asin: 'B000000000', title: "Demons Don't Dream", authors: [] })
+				]
+			}
+		}
+		const helper = new BookSearchHelper(new ProviderRegistry([provider]), {
+			title: "Demons Don't Dream [B0CJRV5S7M]",
+			region: 'us'
+		})
+		const out = await helper.search()
+		expect(out[0].asin).toBe('B0CJRV5S7M')
+		expect(out[0].confidence).toBe(1)
+	})
+
+	test('an explicit asin param confirms a match even with a weak title', async () => {
+		const provider: BookProvider = {
+			name: 'p',
+			async search() {
+				return [
+					candidate({ id: 'B0CJRV5S7M', asin: 'B0CJRV5S7M', title: 'Totally Different Title' })
+				]
+			}
+		}
+		const helper = new BookSearchHelper(new ProviderRegistry([provider]), {
+			title: 'Xanth 16',
+			asin: 'b0cjrv5s7m', // lowercase — matching is case-insensitive
+			region: 'us'
+		})
+		const out = await helper.search()
+		expect(out).toHaveLength(1)
+		expect(out[0].confidence).toBe(1)
+	})
+})

@@ -79,6 +79,48 @@ export function normalizeTitle(raw: string | null | undefined): string {
 	return t.replace(/^[\s\-–—:,]+|[\s\-–—:,]+$/g, '')
 }
 
+// Audible ASIN shape: 10 chars beginning with B, e.g. B0CJRV5S7M. Deliberately
+// narrow so it does not catch ISBN digits or arbitrary bracket contents.
+const ASIN_RE = /\bB[0-9A-Z]{9}\b/
+// A leading or trailing bracketed token, e.g. "[Xanth 1]" or "[B0CJRV5S7M]".
+const EDGE_BRACKET = /^\s*\[[^\]]{1,40}\]\s*|\s*\[[^\]]{1,40}\]\s*$/g
+
+/**
+ * Pull an ASIN out of a raw ALBUM tag and strip edge bracket tokens, before
+ * normalization.
+ *
+ * Audiobookshelf and the seanap Plex convention both embed the Audible ASIN in
+ * brackets ("Demons Don't Dream [B0CJRV5S7M]") and put series info in trailing
+ * brackets ("A Spell for Chameleon [Xanth 1]"). Those brackets destroy provider
+ * recall — a bracketed title returns zero results from Audible's catalog search —
+ * and the ASIN is the single most reliable match key, so both are worth
+ * recovering here rather than leaving in the query.
+ * @param {string} raw the raw ALBUM tag
+ * @returns {{ asin: string | null; title: string }} extracted ASIN and de-bracketed title
+ */
+export function extractAsinAndClean(raw: string | null | undefined): {
+	asin: string | null
+	title: string
+} {
+	if (!raw) return { asin: null, title: '' }
+	let asin: string | null = null
+	// Scan bracketed tokens for an ASIN.
+	const bracketed = /[[(]([^\])]{1,40})[\])]/g
+	let m: RegExpExecArray | null
+	while ((m = bracketed.exec(raw)) !== null) {
+		const found = m[1].match(ASIN_RE)
+		if (found) {
+			asin = found[0].toUpperCase()
+			break
+		}
+	}
+	const title = raw
+		.replace(EDGE_BRACKET, ' ')
+		.replace(/\s{2,}/g, ' ')
+		.trim()
+	return { asin, title }
+}
+
 /**
  * 0.0-1.0 similarity, case/punctuation insensitive. Mirrors the bench `sim()`.
  * @param {string} a first string

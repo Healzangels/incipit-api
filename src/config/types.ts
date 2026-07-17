@@ -285,6 +285,11 @@ export const BookSearchQueryStringSchema = z.object({
 	// 25", "Atlee Pine, Book 4") while the real book title sits in the track name
 	// ("Swell Foop", "Mercy"). The bundle forwards it so the API can recover those.
 	trackTitle: TitleSchema.optional(),
+	// Optional Audible ASIN from the item's metadata. Audiobookshelf and the seanap
+	// Plex convention store it as a first-class tag; when present it is the most
+	// reliable match key, so a candidate with the same ASIN is treated as a
+	// definitive match. Also extracted from a bracketed title when not passed here.
+	asin: z.string().min(1).optional(),
 	// Runtime of the local audio in MILLISECONDS (what Plex passes to the agent).
 	// Coerced from the query string; a non-numeric value is rejected.
 	duration: z.coerce.number().int().positive().optional(),
