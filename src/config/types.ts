@@ -294,8 +294,10 @@ export const BookSearchQueryStringSchema = z.object({
 	// definitive match. Also extracted from a bracketed title when not passed here.
 	asin: z.string().min(1).optional(),
 	// Runtime of the local audio in MILLISECONDS (what Plex passes to the agent).
-	// Coerced from the query string; a non-numeric value is rejected.
-	duration: z.coerce.number().int().positive().optional(),
+	// An optional scoring hint, so a bad value must never fail the whole search:
+	// `.catch(undefined)` drops anything non-positive/non-numeric (Plex sends -1
+	// for an unanalyzed file) instead of 400-ing the request.
+	duration: z.coerce.number().int().positive().optional().catch(undefined),
 	region: RegionSchema
 })
 

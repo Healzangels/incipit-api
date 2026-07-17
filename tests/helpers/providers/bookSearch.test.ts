@@ -45,9 +45,14 @@ describe('BookSearchQueryStringSchema', () => {
 		if (p.success) expect(p.data.duration).toBe(75720000)
 	})
 
-	test('rejects a non-numeric duration', () => {
-		const p = BookSearchQueryStringSchema.safeParse({ title: 'Dune', duration: 'soon' })
-		expect(p.success).toBe(false)
+	test('drops a bad duration instead of rejecting (optional scoring hint)', () => {
+		// Plex sends -1 for an unanalyzed file; a non-numeric value is also possible.
+		// Neither should fail the search — the field is dropped to undefined.
+		for (const duration of ['soon', -1, 0]) {
+			const p = BookSearchQueryStringSchema.safeParse({ title: 'Dune', duration })
+			expect(p.success).toBe(true)
+			if (p.success) expect(p.data.duration).toBeUndefined()
+		}
 	})
 
 	test('rejects an invalid region', () => {

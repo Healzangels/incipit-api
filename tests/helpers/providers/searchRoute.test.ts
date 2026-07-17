@@ -43,10 +43,12 @@ describe('GET /books route', () => {
 		expect(r.statusCode).toBe(400)
 	})
 
-	test('400 on a non-numeric duration', async () => {
+	test('a bad duration is ignored, not a 400 (Plex sends -1 for unanalyzed files)', async () => {
 		const f = await appWith(new ProviderRegistry())
-		const r = await f.inject({ method: 'GET', url: '/books?title=Dune&duration=soon' })
-		expect(r.statusCode).toBe(400)
+		for (const duration of ['soon', '-1']) {
+			const r = await f.inject({ method: 'GET', url: `/books?title=Dune&duration=${duration}` })
+			expect(r.statusCode).toBe(200)
+		}
 	})
 
 	test('400 on an invalid region', async () => {
