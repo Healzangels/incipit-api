@@ -7,9 +7,31 @@ import PaprAudibleAuthorHelper from '#helpers/database/papr/audible/PaprAudibleA
 import { sim } from '#helpers/providers/matchScorer'
 import GenericShowHelper from '#helpers/routes/GenericShowHelper'
 
-// Same floor the Audible fallback uses: a Mongo $text hit whose name isn't this
-// close to the query is a loose token match, not the author we want.
-const NAME_MATCH_FLOOR = 0.7
+const TOKEN_FLOOR = 0.85
+const FULL_NAME_FLOOR = 0.9
+
+/**
+ * Whether a Mongo $text cache hit is really the searched author.
+ *
+ * $text is a loose OR over tokens, so "Andrew Karevik" pulls a cached "Andrew
+ * Rowe" and "Adrian Tchaikovsky" pulls "Adrian McKinty" — the shared FIRST name
+ * lifts the overall similarity over any single threshold (~0.72). Require the
+ * name to be near-identical OR to match on BOTH first and last token, so a
+ * shared first name (or a shared surname like Jane/John Smith) is not enough.
+ * Anything legitimately rejected here is recovered by the Audible fallback.
+ * @param {string} query the searched name
+ * @param {string} candidate the cached author name
+ */
+export function isSameAuthor(query: string, candidate: string): boolean {
+	if (sim(query, candidate) >= FULL_NAME_FLOOR) return true
+	const toks = (s: string) => s.trim().toLowerCase().split(/\s+/).filter(Boolean)
+	const q = toks(query)
+	const c = toks(candidate)
+	if (!q.length || !c.length) return false
+	const firstOk = sim(q[0], c[0]) >= TOKEN_FLOOR
+	const lastOk = sim(q[q.length - 1], c[c.length - 1]) >= TOKEN_FLOOR
+	return firstOk && lastOk
+}
 
 export default class AuthorShowHelper extends GenericShowHelper {
 	constructor(
@@ -34,7 +56,7 @@ export default class AuthorShowHelper extends GenericShowHelper {
 		// Tchaikovsky" can return a cached "Adrian McKinty" on the shared
 		// "Adrian". Keep only close name matches — otherwise a wrong cached
 		// author both mis-matches AND suppresses the Audible fallback below.
-		const close = cached.filter((a) => sim(name, a.name) >= NAME_MATCH_FLOOR)
+		const close = cached.filter((a) => isSameAuthor(name, a.name))
 		if (close.length) return close
 
 		// Cache miss (empty on a fresh instance, or only loose matches): fall back
