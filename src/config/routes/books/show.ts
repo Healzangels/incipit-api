@@ -1,8 +1,10 @@
 import { FastifyInstance } from 'fastify'
 
+import type { ApiBook } from '#config/types'
 import { RequestGeneric } from '#config/typing/requests'
 import { NotFoundError } from '#helpers/errors/ApiErrors'
 import defaultRegistry from '#helpers/providers/registry'
+import { bestSquareCover } from '#helpers/providers/squareCover'
 import BookDataHelper from '#helpers/routes/BookDataHelper'
 import BookShowHelper from '#helpers/routes/BookShowHelper'
 import RouteCommonHelper from '#helpers/routes/RouteCommonHelper'
@@ -20,11 +22,30 @@ async function _show(fastify: FastifyInstance) {
 		if (typeof hardcoverToken === 'string' && hardcoverToken) {
 			credentials.hardcover = hardcoverToken
 		}
+		// Attach a native square cover (Apple Books) for a square Plex poster. Any
+		// object with a title/authors/image works for both response shapes.
+		const withSquareCover = async <
+			T extends { title?: string; authors?: { name?: string }[]; image?: string | null }
+		>(
+			book: T
+		): Promise<T> => {
+			if (!book?.title) return book
+			const square = await bestSquareCover(defaultRegistry, {
+				title: book.title,
+				author: book.authors?.[0]?.name,
+				currentImage: book.image,
+				region,
+				credentials,
+				logger: request.log
+			})
+			return square ? { ...book, imageSquare: square } : book
+		}
+
 		const dataHelper = new BookDataHelper(defaultRegistry, asin, region, credentials, request.log)
 		if (dataHelper.isProviderId) {
 			const book = await dataHelper.fetch()
 			if (!book) throw new NotFoundError(MessageNotFoundInDb(asin))
-			return book
+			return withSquareCover(book)
 		}
 
 		// Setup common helper first
@@ -39,7 +60,8 @@ async function _show(fastify: FastifyInstance) {
 		const helper = new BookShowHelper(asin, handler.options, redis, request.log)
 
 		// Call helper handler
-		return helper.handler()
+		const book = await helper.handler()
+		return book && 'image' in book ? withSquareCover(book as ApiBook) : book
 	})
 }
 

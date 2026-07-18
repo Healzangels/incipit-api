@@ -70,6 +70,8 @@ export interface ProviderBook {
 	narrators: { name: string }[]
 	summary?: string
 	image?: string | null
+	/** A native square, high-res cover for a square Plex poster, when found. */
+	imageSquare?: string | null
 	publisherName?: string
 	rating?: string
 	releaseDate?: string

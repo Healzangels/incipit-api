@@ -90,6 +90,9 @@ export const ApiBookSchema = z.object({
 	formatType: z.string(),
 	genres: z.array(ApiGenreSchema).optional(),
 	image: z.string().url().optional(),
+	// A native square, high-res cover (Apple Books) when one is found, for a
+	// square poster in Plex. Filled at the route, never persisted.
+	imageSquare: z.string().url().optional(),
 	isAdult: z.boolean().default(false),
 	isbn: z.string().optional(),
 	language: z.string(),
