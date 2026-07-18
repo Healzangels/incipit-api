@@ -182,3 +182,55 @@ describe('HardcoverProvider', () => {
 		expect(out).toEqual([])
 	})
 })
+
+describe('HardcoverProvider.fetchAuthorImage', () => {
+	const authorGql =
+		(authors: unknown): HardcoverGql =>
+		async <T>() =>
+			({ authors }) as T
+
+	test('returns the exact-name match image over another result', async () => {
+		const gql = authorGql([
+			{ name: 'Andy Other', cached_image: { url: 'https://assets.hardcover.app/wrong.jpg' } },
+			{ name: 'Andy Weir', cached_image: { url: 'https://assets.hardcover.app/andy.jpg' } }
+		])
+		const img = await new HardcoverProvider({ token: 'tok', gql }).fetchAuthorImage('Andy Weir', {
+			region: 'us'
+		})
+		expect(img).toBe('https://assets.hardcover.app/andy.jpg')
+	})
+
+	test('falls back to the first result with an image when no exact match', async () => {
+		const gql = authorGql([
+			{ name: 'A. Weir', cached_image: null },
+			{ name: 'Andrew Weir', cached_image: { url: 'https://assets.hardcover.app/aw.jpg' } }
+		])
+		const img = await new HardcoverProvider({ token: 'tok', gql }).fetchAuthorImage('Andy Weir', {
+			region: 'us'
+		})
+		expect(img).toBe('https://assets.hardcover.app/aw.jpg')
+	})
+
+	test('returns null with no token, no match, or on a query error', async () => {
+		expect(
+			await new HardcoverProvider({ gql: authorGql([]) }).fetchAuthorImage('Andy Weir', {
+				region: 'us'
+			})
+		).toBeNull()
+
+		expect(
+			await new HardcoverProvider({ token: 'tok', gql: authorGql([]) }).fetchAuthorImage('Nobody', {
+				region: 'us'
+			})
+		).toBeNull()
+
+		const throwing: HardcoverGql = async () => {
+			throw new Error('bad field')
+		}
+		expect(
+			await new HardcoverProvider({ token: 'tok', gql: throwing }).fetchAuthorImage('Andy Weir', {
+				region: 'us'
+			})
+		).toBeNull()
+	})
+})

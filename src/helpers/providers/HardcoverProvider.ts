@@ -92,6 +92,16 @@ const BOOK_ID_FOR_EDITION_QUERY = `query IncipitEditionBook($id: Int!) {
 	editions(where: { id: { _eq: $id } }, limit: 1) { book_id }
 }`
 
+// Author photo by name, for the author-image fallback when Audible has none.
+// cached_image is the same jsonb-with-.url field the book queries use, so it is
+// selected without a sub-selection and read as `.url`.
+const AUTHOR_IMAGE_QUERY = `query IncipitAuthorImage($name: String!) {
+	authors(where: { name: { _ilike: $name } }, limit: 5) {
+		name
+		cached_image
+	}
+}`
+
 interface HardcoverImage {
 	url?: string | null
 }
@@ -353,5 +363,35 @@ export default class HardcoverProvider implements BookProvider {
 		)
 		const book = data?.books?.[0]
 		return book ? toProviderBook(book) : null
+	}
+
+	/**
+	 * Fetch an author photo URL by name — the fallback used when the primary
+	 * (Audible) author page has no image. Returns null (never throws) when there
+	 * is no token, no match, or the lookup fails, so a miss is a no-op rather than
+	 * a broken author update.
+	 * @param {string} name the author name to look up
+	 * @param {FetchBookOptions} opts region, credentials, logger
+	 * @returns {Promise<string | null>} an image URL, or null
+	 */
+	async fetchAuthorImage(name: string, opts: FetchBookOptions): Promise<string | null> {
+		const token = opts.credentials?.[HARDCOVER_NAME] ?? this.defaultToken
+		if (!token || !name) return null
+		try {
+			const data = await this.gql<{
+				authors?: { name?: string | null; cached_image?: HardcoverImage | null }[]
+			}>(AUTHOR_IMAGE_QUERY, { name }, token)
+			const authors = data?.authors ?? []
+			// Prefer an exact (case-insensitive) name match with an image; otherwise
+			// the first result that has one.
+			const exact = authors.find(
+				(a) => a.name?.toLowerCase() === name.toLowerCase() && a.cached_image?.url
+			)
+			const anyWithImage = authors.find((a) => a.cached_image?.url)
+			return (exact ?? anyWithImage)?.cached_image?.url ?? null
+		} catch (err) {
+			opts.logger?.debug({ err, name }, 'hardcover: author image lookup failed')
+			return null
+		}
 	}
 }

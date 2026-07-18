@@ -1,10 +1,13 @@
 import { FastifyRedis } from '@fastify/redis'
 import type { FastifyBaseLogger } from 'fastify'
 
+import type { ApiAuthorProfile, ApiBook, ApiChapter } from '#config/types'
 import { ApiQueryString } from '#config/types'
 import { searchAudibleAuthors } from '#helpers/authors/audible/AudibleAuthorSearch'
 import PaprAudibleAuthorHelper from '#helpers/database/papr/audible/PaprAudibleAuthorHelper'
+import type HardcoverProvider from '#helpers/providers/HardcoverProvider'
 import { sim } from '#helpers/providers/matchScorer'
+import defaultRegistry from '#helpers/providers/registry'
 import GenericShowHelper from '#helpers/routes/GenericShowHelper'
 
 const TOKEN_FLOOR = 0.85
@@ -41,6 +44,36 @@ export default class AuthorShowHelper extends GenericShowHelper {
 		logger?: FastifyBaseLogger
 	) {
 		super(asin, options, redis, 'author', logger)
+	}
+
+	/**
+	 * Build the author profile, then fill a missing photo from Hardcover.
+	 *
+	 * Audible is the primary author-image source, but it has no photo for many
+	 * authors (the update logs "Error getting square image"). Hardcover carries
+	 * author photos for a lot of those, so when Audible returns none we look one
+	 * up by name. Apple Books is deliberately not consulted — its author pages
+	 * carry no portrait. The lookup is best-effort: any failure leaves the image
+	 * empty rather than breaking the update.
+	 * @returns {Promise<ApiAuthorProfile | ApiBook | ApiChapter | undefined>}
+	 */
+	async getNewData(): Promise<ApiAuthorProfile | ApiBook | ApiChapter | undefined> {
+		const data = await super.getNewData()
+		if (!data || !('image' in data) || data.image) return data
+
+		const author = data as ApiAuthorProfile
+		const hardcover = defaultRegistry.get('hardcover') as HardcoverProvider | undefined
+		if (!hardcover?.fetchAuthorImage) return data
+
+		const image = await hardcover.fetchAuthorImage(author.name, {
+			region: this.options.region,
+			logger: this.logger
+		})
+		if (image) {
+			this.logger?.info({ author: author.name }, 'author image: filled from Hardcover fallback')
+			author.image = image
+		}
+		return author
 	}
 
 	/**
