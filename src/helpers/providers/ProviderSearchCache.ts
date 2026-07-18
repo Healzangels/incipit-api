@@ -79,11 +79,17 @@ export default class ProviderSearchCache {
 
 		const result = await fetch()
 
-		try {
-			await this.redis.set(key, JSON.stringify(result))
-			await this.redis.expire(key, this.ttl)
-		} catch (error) {
-			this.logger?.debug({ err: getErrorMessage(error) }, 'provider search cache write failed')
+		// Never cache an empty result. A provider that returns [] because it was
+		// skipped for a missing credential (e.g. Hardcover with no token) or hit a
+		// transient miss would otherwise poison this shared, credential-independent
+		// key for the whole TTL, silently disabling the provider for every user.
+		if (result.length > 0) {
+			try {
+				await this.redis.set(key, JSON.stringify(result))
+				await this.redis.expire(key, this.ttl)
+			} catch (error) {
+				this.logger?.debug({ err: getErrorMessage(error) }, 'provider search cache write failed')
+			}
 		}
 
 		return result

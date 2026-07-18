@@ -57,6 +57,20 @@ describe('ProviderSearchCache', () => {
 		expect(calls).toBe(1) // second served from cache
 	})
 
+	test('never caches an empty result (credential-gated no-token miss)', async () => {
+		const redis = fakeRedis()
+		const cache = new ProviderSearchCache(redis as never)
+		let calls = 0
+		const emptyFetch = async () => {
+			calls++
+			return [] as ProviderCandidate[]
+		}
+		await cache.wrap('hardcover', query, emptyFetch)
+		await cache.wrap('hardcover', query, emptyFetch)
+		expect(redis.store.size).toBe(0) // nothing cached
+		expect(calls).toBe(2) // re-fetched, not served a poisoned []
+	})
+
 	test('sets a TTL on write', async () => {
 		const redis = fakeRedis()
 		const cache = new ProviderSearchCache(redis as never, 1234)

@@ -12,6 +12,20 @@ import type { BookProvider, BookSearchQuery, ProviderCandidate } from '#helpers/
  * candidates and the others still return. This mirrors the Gate 0 lesson that a
  * transport failure must never be read as "no data".
  */
+// A single hung provider must not stall the whole fan-out. Each per-request
+// call has a 30s connection timeout with retries (~120s worst case); this caps
+// any one provider well below that. On timeout the call rejects, so allSettled
+// isolates it exactly like any other provider failure.
+const PROVIDER_TIMEOUT_MS = 25000
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+	let timer: ReturnType<typeof setTimeout>
+	const timeout = new Promise<never>((_resolve, reject) => {
+		timer = setTimeout(() => reject(new Error(`provider ${label} timed out after ${ms}ms`)), ms)
+	})
+	return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+}
+
 export default class ProviderRegistry {
 	private providers: BookProvider[]
 
@@ -50,9 +64,12 @@ export default class ProviderRegistry {
 		cache?: ProviderSearchCache
 	): Promise<ProviderCandidate[]> {
 		const settled = await Promise.allSettled(
-			this.providers.map((p) =>
-				cache ? cache.wrap(p.name, query, () => p.search(query, logger)) : p.search(query, logger)
-			)
+			this.providers.map((p) => {
+				const call = cache
+					? cache.wrap(p.name, query, () => p.search(query, logger))
+					: p.search(query, logger)
+				return withTimeout(call, PROVIDER_TIMEOUT_MS, p.name)
+			})
 		)
 
 		const candidates: ProviderCandidate[] = []

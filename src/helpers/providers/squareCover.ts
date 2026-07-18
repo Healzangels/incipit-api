@@ -76,6 +76,13 @@ export async function bestSquareCover(
 	// just serve it at high resolution, no extra lookup.
 	if (isAppleSquare(q.currentImage)) return highRes(q.currentImage as string)
 
+	// Only replace a portrait Audible/Amazon cover (or a missing one) with Apple's
+	// square. A provider's own cover (Hardcover/OpenLibrary/Storytel) is left
+	// alone — it may already be square and, crucially, the correct edition, whereas
+	// Apple could return a different edition's cover for the same title/author.
+	const currentIsAmazon = !!q.currentImage && q.currentImage.indexOf('amazon') !== -1
+	if (q.currentImage && !currentIsAmazon) return null
+
 	const apple = registry.get('apple') as AppleBooksProvider | undefined
 	if (!apple || !q.title) return null
 
