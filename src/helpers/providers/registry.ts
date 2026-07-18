@@ -2,6 +2,8 @@ import AudibleProvider from '#helpers/providers/AudibleProvider'
 import HardcoverProvider from '#helpers/providers/HardcoverProvider'
 import OpenLibraryProvider from '#helpers/providers/OpenLibraryProvider'
 import ProviderRegistry from '#helpers/providers/ProviderRegistry'
+import StorytelProvider from '#helpers/providers/StorytelProvider'
+import type { BookProvider } from '#helpers/providers/types'
 
 /**
  * The default provider registry used by the GET /books search route.
@@ -14,10 +16,22 @@ import ProviderRegistry from '#helpers/providers/ProviderRegistry'
  * per-request token the Plex bundle forwards (see BookSearchQuery.credentials).
  * OpenLibrary needs no auth, only an identifying contact (OL_CONTACT).
  */
-const defaultRegistry = new ProviderRegistry([
+const providers: BookProvider[] = [
 	new AudibleProvider(),
-	new HardcoverProvider({ token: process.env.HARDCOVER_TOKEN }),
-	new OpenLibraryProvider({ contact: process.env.OL_CONTACT })
-])
+	new HardcoverProvider({ token: process.env.HARDCOVER_TOKEN })
+]
+
+// Storytel is keyless and real (narrator + runtime), but a live check showed its
+// English catalog is thin for indie US SF / LitRPG and its search is a loose
+// relevance match (a query for "Steel World" returns "Steel River"). Our scorer
+// filters that noise, so it's harmless — but for many libraries it's just extra
+// latency for ~zero coverage. OFF by default; enable with STORYTEL_ENABLED=true
+// (useful for mainstream/European catalogs). Placed before OpenLibrary so the
+// provider-richness tiebreak prefers its audio edition over a book-level record.
+if (process.env.STORYTEL_ENABLED === 'true') providers.push(new StorytelProvider())
+
+providers.push(new OpenLibraryProvider({ contact: process.env.OL_CONTACT }))
+
+const defaultRegistry = new ProviderRegistry(providers)
 
 export default defaultRegistry

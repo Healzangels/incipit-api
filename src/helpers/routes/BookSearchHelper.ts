@@ -22,6 +22,21 @@ function isAudioEdition(c: ScoredCandidate): boolean {
 	return (c.audioSeconds != null && c.audioSeconds > 0) || c.narrators.length > 0
 }
 
+// On a genuine tie (same confidence AND same audio-edition status), prefer the
+// richer/more-authoritative source so a win never *degrades* metadata: Audible's
+// full record beats a coin-flip, but a new provider still wins when it's actually
+// a better match (higher confidence). Unknown providers sort last.
+const PROVIDER_RANK: Record<string, number> = {
+	audible: 0,
+	hardcover: 1,
+	storytel: 2,
+	libro: 2,
+	openlibrary: 3
+}
+function providerRank(c: ScoredCandidate): number {
+	return PROVIDER_RANK[c.provider] ?? 9
+}
+
 /**
  * Runs a multi-provider book search: fan out across the registry, score every
  * candidate on one scale (title + author + duration), drop anything below the
@@ -141,7 +156,10 @@ export default class BookSearchHelper {
 			// prefer the ACTUAL audiobook edition. Otherwise the winner falls to
 			// provider order, and a series can split across sources (half Audible,
 			// half OpenLibrary) with inconsistent series/sort metadata.
-			return Number(isAudioEdition(b)) - Number(isAudioEdition(a))
+			const byAudio = Number(isAudioEdition(b)) - Number(isAudioEdition(a))
+			if (byAudio !== 0) return byAudio
+			// Still tied: prefer the richer/more-authoritative source.
+			return providerRank(a) - providerRank(b)
 		})
 	}
 }

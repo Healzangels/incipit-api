@@ -14,9 +14,14 @@
 const ASIN_RE = /^B[0-9A-Z]{9}$/
 
 export interface DecodedProviderId {
-	provider: 'hardcover' | 'openlibrary'
+	provider: 'hardcover' | 'openlibrary' | 'storytel'
 	kind: 'edition' | 'book' | 'works'
 	nativeId: string
+}
+
+/** Storytel consumable -> "storytel-14117566". */
+export function encodeStorytel(consumableId: number | string): string {
+	return `storytel-${consumableId}`
 }
 
 /** Hardcover audio edition -> "hardcover-edition-31501578". */
@@ -49,6 +54,9 @@ export function decodeProviderId(id: string): DecodedProviderId | null {
 
 	const ol = id.match(/^openlibrary-works-(.+)$/)
 	if (ol) return { provider: 'openlibrary', kind: 'works', nativeId: `/works/${ol[1]}` }
+
+	const st = id.match(/^storytel-(.+)$/)
+	if (st) return { provider: 'storytel', kind: 'book', nativeId: st[1] }
 
 	return null
 }

@@ -158,6 +158,41 @@ describe('BookSearchHelper scoring and ranking', () => {
 		expect(out[0].id).toBe('audible-edition')
 	})
 
+	test('on a full tie between audio providers, prefers the richer source', async () => {
+		// Same title+author, both audio, no duration signal → both at the floor.
+		// Different runtimes so they don't dedupe to one. Storytel is listed first;
+		// the richness tiebreak must still put Audible on top.
+		const storytel = candidate({
+			provider: 'storytel',
+			id: 'storytel-1',
+			title: 'Steel World',
+			authors: ['B.V. Larson'],
+			audioSeconds: 42500,
+			narrators: ['Mark Boyett']
+		})
+		const audible = candidate({
+			provider: 'audible',
+			id: 'B00STEELWW',
+			title: 'Steel World',
+			authors: ['B.V. Larson'],
+			audioSeconds: 42000,
+			narrators: ['Mark Boyett']
+		})
+		const reg = new ProviderRegistry([
+			stubProvider('storytel', [storytel]),
+			stubProvider('audible', [audible])
+		])
+		const helper = new BookSearchHelper(reg, {
+			title: 'Steel World',
+			author: 'B.V. Larson',
+			region: 'us'
+		})
+		const out = await helper.search()
+		expect(out).toHaveLength(2)
+		expect(out[0].confidence).toBeCloseTo(out[1].confidence, 9)
+		expect(out[0].provider).toBe('audible')
+	})
+
 	test('normalizes the incoming title like the benchmark did', async () => {
 		// Series-suffixed ALBUM tag must still match the clean provider title.
 		const reg = new ProviderRegistry([
