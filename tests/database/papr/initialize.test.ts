@@ -2,7 +2,13 @@ mock.module('mongodb', () => {
 	return {
 		MongoClient: mock().mockImplementation(() => ({
 			connect: mock().mockResolvedValue(undefined),
-			db: mock().mockReturnValue({ collection: mock() }),
+			// collection() must return an object with createIndex — initialize()
+			// ensures the authors text index on boot.
+			db: mock().mockReturnValue({
+				collection: mock().mockReturnValue({
+					createIndex: mock().mockResolvedValue('name_text_aliases_text')
+				})
+			}),
 			close: mock().mockResolvedValue(undefined)
 		}))
 	}
@@ -21,7 +27,9 @@ beforeEach(() => {
 	mockCtx = createMockContext()
 	ctx = mockCtx as unknown as Context
 	const mockDbInstance = {
-		collection: mock()
+		collection: mock().mockReturnValue({
+			createIndex: mock().mockResolvedValue('name_text_aliases_text')
+		})
 	} as unknown as Db
 	spyOn(ctx.client, 'db').mockReturnValue(mockDbInstance)
 	spyOn(ctx.client, 'connect').mockResolvedValue(ctx.client)
