@@ -191,8 +191,8 @@ describe('HardcoverProvider.fetchAuthorImage', () => {
 
 	test('returns the exact-name match image over another result', async () => {
 		const gql = authorGql([
-			{ name: 'Andy Other', cached_image: { url: 'https://assets.hardcover.app/wrong.jpg' } },
-			{ name: 'Andy Weir', cached_image: { url: 'https://assets.hardcover.app/andy.jpg' } }
+			{ name: 'Andy Other', image: { url: 'https://assets.hardcover.app/wrong.jpg' } },
+			{ name: 'Andy Weir', image: { url: 'https://assets.hardcover.app/andy.jpg' } }
 		])
 		const img = await new HardcoverProvider({ token: 'tok', gql }).fetchAuthorImage('Andy Weir', {
 			region: 'us'
@@ -202,8 +202,8 @@ describe('HardcoverProvider.fetchAuthorImage', () => {
 
 	test('falls back to the first result with an image when no exact match', async () => {
 		const gql = authorGql([
-			{ name: 'A. Weir', cached_image: null },
-			{ name: 'Andrew Weir', cached_image: { url: 'https://assets.hardcover.app/aw.jpg' } }
+			{ name: 'A. Weir', image: null },
+			{ name: 'Andrew Weir', image: { url: 'https://assets.hardcover.app/aw.jpg' } }
 		])
 		const img = await new HardcoverProvider({ token: 'tok', gql }).fetchAuthorImage('Andy Weir', {
 			region: 'us'

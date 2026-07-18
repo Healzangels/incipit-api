@@ -92,13 +92,15 @@ const BOOK_ID_FOR_EDITION_QUERY = `query IncipitEditionBook($id: Int!) {
 	editions(where: { id: { _eq: $id } }, limit: 1) { book_id }
 }`
 
-// Author photo by name, for the author-image fallback when Audible has none.
-// cached_image is the same jsonb-with-.url field the book queries use, so it is
-// selected without a sub-selection and read as `.url`.
+// Author photo by name. NOTE: unlike books, the authors table's `cached_image`
+// is null — the real photo is the `image` object relation, selected as
+// `image { url }` (verified live against the schema).
 const AUTHOR_IMAGE_QUERY = `query IncipitAuthorImage($name: String!) {
 	authors(where: { name: { _ilike: $name } }, limit: 5) {
 		name
-		cached_image
+		image {
+			url
+		}
 	}
 }`
 
@@ -379,16 +381,16 @@ export default class HardcoverProvider implements BookProvider {
 		if (!token || !name) return null
 		try {
 			const data = await this.gql<{
-				authors?: { name?: string | null; cached_image?: HardcoverImage | null }[]
+				authors?: { name?: string | null; image?: HardcoverImage | null }[]
 			}>(AUTHOR_IMAGE_QUERY, { name }, token)
 			const authors = data?.authors ?? []
 			// Prefer an exact (case-insensitive) name match with an image; otherwise
 			// the first result that has one.
 			const exact = authors.find(
-				(a) => a.name?.toLowerCase() === name.toLowerCase() && a.cached_image?.url
+				(a) => a.name?.toLowerCase() === name.toLowerCase() && a.image?.url
 			)
-			const anyWithImage = authors.find((a) => a.cached_image?.url)
-			return (exact ?? anyWithImage)?.cached_image?.url ?? null
+			const anyWithImage = authors.find((a) => a.image?.url)
+			return (exact ?? anyWithImage)?.image?.url ?? null
 		} catch (err) {
 			opts.logger?.debug({ err, name }, 'hardcover: author image lookup failed')
 			return null

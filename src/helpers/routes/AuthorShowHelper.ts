@@ -50,15 +50,15 @@ export default class AuthorShowHelper extends GenericShowHelper {
 	}
 
 	/**
-	 * Build the author profile, then bring in Hardcover's photo.
+	 * Build the author profile, then PREFER Hardcover's curated portrait.
 	 *
-	 * Audible is the primary author-image source, but it has no photo for many
-	 * authors, and for some it only has a tiny thumbnail. So we always look up
-	 * Hardcover's photo by name: when Audible has none we use it outright; when
-	 * Audible has one we hand Hardcover's along as `imageAlt` and let the bundle
-	 * keep whichever is higher-resolution. Apple Books is deliberately not
-	 * consulted — its author pages carry no portrait. Best-effort: any failure
-	 * leaves the images as they were rather than breaking the update.
+	 * Audible's author image is unreliable — for many (often indie) authors it is
+	 * the book cover, not a photo (e.g. Craig Alanson's is his Expeditionary Force
+	 * cover). Hardcover carries real author portraits, so when it has one we use it
+	 * and keep Audible's as `imageAlt` (a secondary poster option); when Hardcover
+	 * has none we fall back to Audible's image as-is. Apple Books is deliberately
+	 * not consulted — its author pages carry no portrait. Best-effort: any failure
+	 * leaves the Audible image in place rather than breaking the update.
 	 * @returns {Promise<ApiAuthorProfile | ApiBook | ApiChapter | undefined>}
 	 */
 	async getNewData(): Promise<ApiAuthorProfile | ApiBook | ApiChapter | undefined> {
@@ -73,15 +73,12 @@ export default class AuthorShowHelper extends GenericShowHelper {
 			region: this.options.region,
 			logger: this.logger
 		})
-		if (hardcoverImage) {
-			if (!author.image) {
-				this.logger?.info({ author: author.name }, 'author image: filled from Hardcover fallback')
-				author.image = hardcoverImage
-			} else {
-				// Both exist — offer Hardcover's as the alternative; the bundle
-				// keeps whichever is higher-resolution.
-				author.imageAlt = hardcoverImage
-			}
+		if (hardcoverImage && hardcoverImage !== author.image) {
+			this.logger?.info({ author: author.name }, 'author image: preferring Hardcover portrait')
+			// Keep Audible's image (if any) as the secondary option, then make
+			// Hardcover's portrait the primary.
+			if (author.image) author.imageAlt = author.image
+			author.image = hardcoverImage
 		}
 		return author
 	}
