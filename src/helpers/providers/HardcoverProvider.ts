@@ -18,21 +18,25 @@ import fetch from '#helpers/utils/fetchPlus'
  *
  * Hardcover has no single search-with-filter endpoint, so it takes two calls:
  *  1. Typesense-backed `search` -> a list of book ids.
- *  2. `books(where: {id: {_in: ids}})` with each book's AUDIO editions
- *     (reading_format_id 2, audio_seconds > 0).
+ *  2. `books(where: {id: {_in: ids}})` with each book's AUDIObook editions
+ *     (reading_format_id 2) — including ones with no `audio_seconds`.
  *
- * A book with audio editions yields one candidate per edition — different
- * editions have different runtimes, and the scorer's duration signal picks the
- * right one. A book with no audio edition (e.g. the Xanth catalog) still yields a
- * book-level candidate: title, author and cover, no narrator — the graceful
- * fallback PLAN §5 describes.
+ * A book with audio editions yields one candidate per edition. Duration-bearing
+ * editions rank higher (the scorer's duration signal picks the right one), but we
+ * DON'T require `audio_seconds`: many real audiobook editions (e.g. Tolkien's
+ * "The Fall of Gondolin") have it unset, and dropping them lost the square
+ * audiobook cover + narrator, falling back to the print book cover. A book with
+ * no audiobook edition at all (e.g. the Xanth catalog) still yields a book-level
+ * candidate — the graceful fallback PLAN §5 describes.
  */
 
 const ENDPOINT = 'https://api.hardcover.app/v1/graphql'
 const HARDCOVER_NAME = 'hardcover'
 const SEARCH_PER_PAGE = 5
 const BOOKS_LIMIT = 10
-const EDITIONS_LIMIT = 3
+// Raised from 3 now that we accept editions without audio_seconds, so a
+// duration-bearing edition isn't crowded out of the top slots by no-duration ones.
+const EDITIONS_LIMIT = 6
 
 const SEARCH_QUERY = `query IncipitSearch($q: String!, $pp: Int!) {
 	search(query: $q, query_type: "book", per_page: $pp) { ids }
@@ -45,8 +49,8 @@ const BOOKS_QUERY = `query IncipitBooks($ids: [Int!]) {
 		cached_image
 		contributions { author { name } contribution }
 		editions(
-			where: { reading_format_id: { _eq: 2 }, audio_seconds: { _gt: 0 } }
-			order_by: { users_count: desc }
+			where: { reading_format_id: { _eq: 2 } }
+			order_by: [{ audio_seconds: desc_nulls_last }, { users_count: desc }]
 			limit: ${EDITIONS_LIMIT}
 		) {
 			id

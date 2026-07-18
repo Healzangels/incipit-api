@@ -61,6 +61,25 @@ describe('HardcoverProvider', () => {
 		})
 	})
 
+	test('keeps an audiobook edition that has no audio_seconds (square cover, not book-level)', async () => {
+		// Tolkien's "The Fall of Gondolin" case: a real audiobook edition with no
+		// audio_seconds — must still be an edition candidate (its square cover +
+		// narrator), not fall back to the print book cover.
+		const noDuration = {
+			...projectHailMary,
+			editions: [{ ...projectHailMary.editions[0], audio_seconds: null }]
+		}
+		const out = await new HardcoverProvider({ gql: gqlWith([1], [noDuration]) }).search({
+			...baseQuery,
+			title: 'Project Hail Mary'
+		})
+		expect(out).toHaveLength(1)
+		expect(out[0].id).toBe('hardcover-edition-31501578')
+		expect(out[0].audioSeconds).toBeNull()
+		expect(out[0].narrators).toEqual(['Ray Porter'])
+		expect(out[0].cover).toBe('https://assets.hardcover.app/edition/audio.jpg')
+	})
+
 	test('a book with no audio edition yields a book-level candidate (no narrator, no asin, book cover)', async () => {
 		const p = new HardcoverProvider({ gql: gqlWith([100], [castleRoogna]) })
 		const out = await p.search({ ...baseQuery, title: 'Castle Roogna' })
