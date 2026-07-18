@@ -4,7 +4,6 @@ import rateLimit from '@fastify/rate-limit'
 import redis from '@fastify/redis'
 import schedule from '@fastify/schedule'
 import { fastify, FastifyBaseLogger, FastifyError, FastifyReply, FastifyRequest } from 'fastify'
-import ipRangeCheck from 'ip-range-check'
 import { MongoClient } from 'mongodb'
 
 import { Context, createDefaultContext } from '#config/context'
@@ -63,19 +62,6 @@ async function buildTrustedProxies(): Promise<string[]> {
 	}
 }
 
-/**
- * Check if an IP is in the trusted proxies list
- * Supports both exact IP matches and CIDR ranges (e.g., "10.0.0.0/8")
- */
-function isTrustedProxy(ip: string, trustedProxiesList: string[]): boolean {
-	try {
-		return ipRangeCheck(ip, trustedProxiesList)
-	} catch {
-		// Treat parsing errors as non-match
-		return false
-	}
-}
-
 let trustedProxies: string[] = []
 let server: ReturnType<typeof fastify>
 const updateInterval = Number(process.env.UPDATE_INTERVAL) || 30
@@ -118,19 +104,13 @@ async function registerPlugins() {
 	// Rate limiting
 	await server.register(rateLimit, {
 		global: true,
-		keyGenerator: (request: { ip: string; headers: { 'x-forwarded-for'?: string | string[] } }) => {
-			// Only trust X-Forwarded-For if request comes from a trusted proxy
-			if (isTrustedProxy(request.ip, trustedProxies)) {
-				const forwardedFor = request.headers['x-forwarded-for']
-				if (forwardedFor) {
-					const firstIp = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor.split(',')[0]
-					if (firstIp?.trim()) {
-						return firstIp.trim()
-					}
-				}
-			}
-			return request.ip
-		},
+		// Key on request.ip (the @fastify/rate-limit default). Fastify derives it
+		// from the X-Forwarded-For chain via `trustProxy: trustedProxies` (set
+		// below) — so behind a reverse proxy it's the real client and it is NOT
+		// spoofable by external clients. IMPORTANT: put your reverse proxy's
+		// IP/CIDR in TRUSTED_PROXIES, or request.ip becomes the proxy IP and the
+		// whole API shares one rate-limit bucket. (Reading the leftmost XFF entry
+		// here instead would trust a client-spoofable value.)
 		max: Number(process.env.MAX_REQUESTS) || 100,
 		redis: process.env.REDIS_URL ? server.redis : undefined,
 		timeWindow: '1 minute'
