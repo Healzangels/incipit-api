@@ -68,6 +68,9 @@ export const ApiAuthorProfileSchema = z.object({
 	description: z.string().optional(),
 	genres: z.array(ApiGenreSchema).optional(),
 	image: z.string().optional(),
+	// A higher-quality alternative photo (Hardcover) offered alongside Audible's,
+	// so the bundle can keep whichever is higher-resolution. Filled at the route.
+	imageAlt: z.string().optional(),
 	name: NameSchema,
 	region: RegionSchema,
 	similar: z.array(ApiAuthorOnBookSchema).optional()

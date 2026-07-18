@@ -50,31 +50,38 @@ export default class AuthorShowHelper extends GenericShowHelper {
 	}
 
 	/**
-	 * Build the author profile, then fill a missing photo from Hardcover.
+	 * Build the author profile, then bring in Hardcover's photo.
 	 *
 	 * Audible is the primary author-image source, but it has no photo for many
-	 * authors (the update logs "Error getting square image"). Hardcover carries
-	 * author photos for a lot of those, so when Audible returns none we look one
-	 * up by name. Apple Books is deliberately not consulted — its author pages
-	 * carry no portrait. The lookup is best-effort: any failure leaves the image
-	 * empty rather than breaking the update.
+	 * authors, and for some it only has a tiny thumbnail. So we always look up
+	 * Hardcover's photo by name: when Audible has none we use it outright; when
+	 * Audible has one we hand Hardcover's along as `imageAlt` and let the bundle
+	 * keep whichever is higher-resolution. Apple Books is deliberately not
+	 * consulted — its author pages carry no portrait. Best-effort: any failure
+	 * leaves the images as they were rather than breaking the update.
 	 * @returns {Promise<ApiAuthorProfile | ApiBook | ApiChapter | undefined>}
 	 */
 	async getNewData(): Promise<ApiAuthorProfile | ApiBook | ApiChapter | undefined> {
 		const data = await super.getNewData()
-		if (!data || !('image' in data) || data.image) return data
+		if (!data || !('image' in data)) return data
 
 		const author = data as ApiAuthorProfile
 		const hardcover = defaultRegistry.get('hardcover') as HardcoverProvider | undefined
 		if (!hardcover?.fetchAuthorImage) return data
 
-		const image = await hardcover.fetchAuthorImage(author.name, {
+		const hardcoverImage = await hardcover.fetchAuthorImage(author.name, {
 			region: this.options.region,
 			logger: this.logger
 		})
-		if (image) {
-			this.logger?.info({ author: author.name }, 'author image: filled from Hardcover fallback')
-			author.image = image
+		if (hardcoverImage) {
+			if (!author.image) {
+				this.logger?.info({ author: author.name }, 'author image: filled from Hardcover fallback')
+				author.image = hardcoverImage
+			} else {
+				// Both exist — offer Hardcover's as the alternative; the bundle
+				// keeps whichever is higher-resolution.
+				author.imageAlt = hardcoverImage
+			}
 		}
 		return author
 	}
