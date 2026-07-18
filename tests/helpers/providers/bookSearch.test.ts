@@ -126,6 +126,38 @@ describe('BookSearchHelper scoring and ranking', () => {
 		expect(out[0].confidence).toBeGreaterThanOrEqual(CONFIDENCE_FLOOR)
 	})
 
+	test('prefers the audiobook edition over a book-level record on a tie', async () => {
+		// Same title+author, no duration signal → both score at the floor. The
+		// book-level record's provider is listed FIRST, so without the tiebreak
+		// provider order would rank it first and split a series across sources.
+		const bookLevel = candidate({
+			provider: 'openlibrary',
+			id: 'ol-booklevel',
+			title: 'Steel World',
+			authors: ['B.V. Larson']
+		})
+		const audio = candidate({
+			provider: 'audible',
+			id: 'audible-edition',
+			title: 'Steel World',
+			authors: ['B.V. Larson'],
+			audioSeconds: 42000,
+			narrators: ['Mark Boyett']
+		})
+		const reg = new ProviderRegistry([
+			stubProvider('openlibrary', [bookLevel]),
+			stubProvider('audible', [audio])
+		])
+		const helper = new BookSearchHelper(reg, {
+			title: 'Steel World',
+			author: 'B.V. Larson',
+			region: 'us'
+		})
+		const out = await helper.search()
+		expect(out[0].confidence).toBeCloseTo(out[1].confidence, 9) // genuinely tied
+		expect(out[0].id).toBe('audible-edition')
+	})
+
 	test('normalizes the incoming title like the benchmark did', async () => {
 		// Series-suffixed ALBUM tag must still match the clean provider title.
 		const reg = new ProviderRegistry([

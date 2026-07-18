@@ -13,6 +13,16 @@ import type ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
 import type { BookSearchQuery, ScoredCandidate } from '#helpers/providers/types'
 
 /**
+ * Whether a candidate is an actual audiobook edition (has an audio runtime or a
+ * narrator) rather than a book-level record (OpenLibrary / a Hardcover book with
+ * no audio edition). Used only as a same-confidence tiebreak.
+ * @param {ScoredCandidate} c the candidate
+ */
+function isAudioEdition(c: ScoredCandidate): boolean {
+	return (c.audioSeconds != null && c.audioSeconds > 0) || c.narrators.length > 0
+}
+
+/**
  * Runs a multi-provider book search: fan out across the registry, score every
  * candidate on one scale (title + author + duration), drop anything below the
  * acceptance floor, and return the survivors ranked best-first.
@@ -123,6 +133,15 @@ export default class BookSearchHelper {
 		})
 
 		const accepted = scored.filter((c) => c.confidence >= CONFIDENCE_FLOOR)
-		return dedupeCandidates(accepted).sort((a, b) => b.confidence - a.confidence)
+		return dedupeCandidates(accepted).sort((a, b) => {
+			const byConfidence = b.confidence - a.confidence
+			if (Math.abs(byConfidence) > 1e-9) return byConfidence
+			// Equal confidence (e.g. an unanalyzed file gives no duration signal,
+			// so an audio edition and a book-level record both sit at the floor):
+			// prefer the ACTUAL audiobook edition. Otherwise the winner falls to
+			// provider order, and a series can split across sources (half Audible,
+			// half OpenLibrary) with inconsistent series/sort metadata.
+			return Number(isAudioEdition(b)) - Number(isAudioEdition(a))
+		})
 	}
 }
