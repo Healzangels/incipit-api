@@ -43,6 +43,31 @@ const defaultFetch: AudibleAuthorFetch = async (url: string): Promise<AudiblePro
 const NAME_MATCH_FLOOR = 0.7
 const NUM_RESULTS = 20
 
+/** Stable key for grouping authors by display name (case/space-insensitive). */
+export function normalizeName(name: string): string {
+	return name.toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * Collapse authors that share a display name to the first (best-ranked) one,
+ * preserving order. Callers pass a list already ordered best-first (Audible
+ * frequency, or Mongo text score) so the survivor is the canonical entry. This
+ * stops Fix Match from showing several identical rows for one author.
+ * @param {T[]} authors authors ordered best-first
+ * @returns {T[]} one author per distinct display name
+ */
+export function dedupeAuthorsByName<T extends { name: string }>(authors: T[]): T[] {
+	const seen = new Set<string>()
+	const out: T[] = []
+	for (const author of authors) {
+		const key = normalizeName(author.name)
+		if (seen.has(key)) continue
+		seen.add(key)
+		out.push(author)
+	}
+	return out
+}
+
 /** Build the Audible catalog URL for an author-name query. */
 function buildUrl(name: string, region: string): string {
 	const r = regions[region] ? region : 'us'
@@ -80,21 +105,37 @@ export async function searchAudibleAuthors(
 		return []
 	}
 
-	const byAsin = new Map<string, AuthorSearchResult>()
+	// Count how many catalog products list each contributor ASIN. Audible often
+	// has several same-named author entries (e.g. three distinct "David Baldacci"
+	// ASINs); the one credited on the most books is the canonical author page.
+	const count = new Map<string, number>()
+	const nameOf = new Map<string, string>()
 	for (const product of products) {
+		const seenInProduct = new Set<string>()
 		for (const author of product.authors ?? []) {
-			if (
-				author.asin &&
-				author.name &&
-				!byAsin.has(author.asin) &&
-				sim(name, author.name) >= NAME_MATCH_FLOOR
-			) {
-				byAsin.set(author.asin, { asin: author.asin, name: author.name })
-			}
+			if (!author.asin || !author.name) continue
+			if (sim(name, author.name) < NAME_MATCH_FLOOR) continue
+			if (seenInProduct.has(author.asin)) continue // count each book once
+			seenInProduct.add(author.asin)
+			count.set(author.asin, (count.get(author.asin) ?? 0) + 1)
+			nameOf.set(author.asin, author.name)
 		}
 	}
 
-	const results = Array.from(byAsin.values())
+	// Collapse authors that share a display name to their most-referenced ASIN, so
+	// Fix Match shows one "David Baldacci" (the real one) instead of three
+	// indistinguishable rows. Canonical (most books) first.
+	const bestByName = new Map<string, { asin: string; name: string; count: number }>()
+	for (const [asin, cnt] of count) {
+		const authorName = nameOf.get(asin) as string
+		const key = normalizeName(authorName)
+		const current = bestByName.get(key)
+		if (!current || cnt > current.count) bestByName.set(key, { asin, name: authorName, count: cnt })
+	}
+
+	const results = Array.from(bestByName.values())
+		.sort((a, b) => b.count - a.count)
+		.map(({ asin, name: authorName }) => ({ asin, name: authorName }))
 	logger?.debug({ count: results.length, name }, 'audible author search returned')
 	return results
 }

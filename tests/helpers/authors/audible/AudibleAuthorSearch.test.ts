@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
 	type AudibleAuthorFetch,
+	dedupeAuthorsByName,
 	searchAudibleAuthors
 } from '#helpers/authors/audible/AudibleAuthorSearch'
 
@@ -54,5 +55,34 @@ describe('searchAudibleAuthors', () => {
 		}
 		const out = await searchAudibleAuthors('Dan Brown', 'us', undefined, fetchImpl)
 		expect(out).toEqual([])
+	})
+
+	test('collapses several same-name author ASINs to the most-referenced one', async () => {
+		// Audible returns three distinct "David Baldacci" ASINs; the one on the most
+		// books is the canonical author and the only row Fix Match should show.
+		const baldacci: { authors: { name: string; asin: string }[] }[] = [
+			{ authors: [{ name: 'David Baldacci', asin: 'B000AQ0STC' }] },
+			{ authors: [{ name: 'David Baldacci', asin: 'B0H12WK1DB' }] },
+			{ authors: [{ name: 'David Baldacci', asin: 'B0H12WK1DB' }] },
+			{ authors: [{ name: 'David Baldacci', asin: 'B0H12WK1DB' }] },
+			{ authors: [{ name: 'David Baldacci', asin: 'B0H8QD5X57' }] }
+		]
+		const out = await searchAudibleAuthors('David Baldacci', 'us', undefined, async () => baldacci)
+		expect(out).toEqual([{ asin: 'B0H12WK1DB', name: 'David Baldacci' }])
+	})
+})
+
+describe('dedupeAuthorsByName', () => {
+	test('keeps one author per display name, preserving best-first order', () => {
+		const out = dedupeAuthorsByName([
+			{ asin: 'A1', name: 'David Baldacci' },
+			{ asin: 'A2', name: 'david  baldacci' }, // same name, different case/spacing
+			{ asin: 'B1', name: 'Dan Brown' },
+			{ asin: 'A3', name: 'David Baldacci' }
+		])
+		expect(out).toEqual([
+			{ asin: 'A1', name: 'David Baldacci' },
+			{ asin: 'B1', name: 'Dan Brown' }
+		])
 	})
 })

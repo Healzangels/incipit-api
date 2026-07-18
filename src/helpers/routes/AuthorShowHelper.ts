@@ -3,7 +3,10 @@ import type { FastifyBaseLogger } from 'fastify'
 
 import type { ApiAuthorProfile, ApiBook, ApiChapter } from '#config/types'
 import { ApiQueryString } from '#config/types'
-import { searchAudibleAuthors } from '#helpers/authors/audible/AudibleAuthorSearch'
+import {
+	dedupeAuthorsByName,
+	searchAudibleAuthors
+} from '#helpers/authors/audible/AudibleAuthorSearch'
 import PaprAudibleAuthorHelper from '#helpers/database/papr/audible/PaprAudibleAuthorHelper'
 import type HardcoverProvider from '#helpers/providers/HardcoverProvider'
 import { sim } from '#helpers/providers/matchScorer'
@@ -89,12 +92,18 @@ export default class AuthorShowHelper extends GenericShowHelper {
 		// Tchaikovsky" can return a cached "Adrian McKinty" on the shared
 		// "Adrian". Keep only close name matches — otherwise a wrong cached
 		// author both mis-matches AND suppresses the Audible fallback below.
-		const close = cached.filter((a) => isSameAuthor(name, a.name))
+		// Collapse same-name duplicates: Audible has several author ASINs for one
+		// person (three "David Baldacci"s), which the cache accumulates. Without
+		// this, Fix Match shows several identical rows scored 100/99/98 with no way
+		// to tell them apart. The cache is text-score ordered, so the first per name
+		// is the best-ranked one.
+		const close = dedupeAuthorsByName(cached.filter((a) => isSameAuthor(name, a.name)))
 		if (close.length) return close
 
 		// Cache miss (empty on a fresh instance, or only loose matches): fall back
 		// to the Audible catalog so authors resolve out of the box. A picked author
 		// is then fetched by ASIN and cached, so later searches hit the text index.
+		// (searchAudibleAuthors already collapses same-name authors.)
 		return searchAudibleAuthors(name, this.options.region, this.logger)
 	}
 }
