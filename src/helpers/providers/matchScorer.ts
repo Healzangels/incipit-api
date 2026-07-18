@@ -44,7 +44,15 @@ const SERIES_PREFIX: RegExp[] = [
 	/^\s*[A-Za-z'’. ]{2,25}\s+#?\d{1,3}\s*[-–—]\s+/,
 	// "<Series>, Book N - <Title>": must run before the generic \bbook \d+\b noise
 	// rule, which would otherwise strand a dangling ", - " in the middle.
-	/^\s*[^,]{2,30},\s*book\s+\d+\s*[-–—]\s+/i
+	/^\s*[^,]{2,30},\s*book\s+\d+\s*[-–—]\s+/i,
+	// A GLUED series code from a folder/rip convention: "DW23 - Carpe Jugulum",
+	// "GOT1 - ...". Deliberately narrow to avoid touching real titles:
+	//  - 2-5 UPPERCASE letters immediately followed by 1-3 digits (a code, not a
+	//    word) — so "V2 - "/"R2 - " (one letter) and lowercase words are safe;
+	//  - a DASH separator is required — so a standalone "WW2", "2001", or
+	//    "Fahrenheit 451" (space, not dash) is never stripped;
+	//  - runs on the RAW title (the bundle no longer pre-strips punctuation).
+	/^\s*[A-Z]{2,5}\d{1,3}\s*[-–—]\s+/
 ]
 
 // Trailing series suffix: ": Xanth, Book 16" / " (Xanth #3)" / ", Book 2".

@@ -36,6 +36,30 @@ describe('normalizeTitle matches the Python normalizer', () => {
 	}
 })
 
+describe('normalizeTitle strips a glued series-code prefix (DW23 -) safely', () => {
+	test('strips a 2-5 letter + digits code followed by a dash', () => {
+		expect(normalizeTitle('DW23 - Carpe Jugulum')).toBe('Carpe Jugulum')
+		expect(normalizeTitle('GOT1 - A Game of Thrones')).toBe('A Game of Thrones')
+		expect(normalizeTitle('HP1 - The Sorcerer Stone')).toBe('The Sorcerer Stone')
+	})
+
+	test('leaves real titles untouched', () => {
+		// single-letter codes, standalone numbers/acronyms, no-dash, lowercase
+		for (const t of [
+			'V2 - A Novel',
+			'R2 - Something',
+			'2001: A Space Odyssey',
+			'Fahrenheit 451',
+			'Steel World',
+			'Mistborn: The Final Empire',
+			'1984',
+			'dw23 - lowercase code'
+		]) {
+			expect(normalizeTitle(t)).toBe(t)
+		}
+	})
+})
+
 describe('titleSim matches Python difflib-based similarity', () => {
 	for (const c of oracle.title_sim) {
 		test(`sim("${c.a}", "${c.b}") == ${c.expected}`, () => {
