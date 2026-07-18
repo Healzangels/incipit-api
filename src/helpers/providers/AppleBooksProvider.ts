@@ -160,7 +160,10 @@ export function parseAudiobookLd(html: string): AppleAudiobookLd | null {
 		try {
 			const parsed = JSON.parse(json)
 			const nodes = Array.isArray(parsed) ? parsed : [parsed]
-			const audiobook = nodes.find((n) => n && n['@type'] === 'Audiobook')
+			// Case-insensitive: Apple emits both "Audiobook" and "AudioBook".
+			const audiobook = nodes.find(
+				(n) => n && typeof n['@type'] === 'string' && n['@type'].toLowerCase() === 'audiobook'
+			)
 			if (audiobook) return audiobook as AppleAudiobookLd
 		} catch {
 			// Not every ld+json block is valid/relevant; keep scanning.

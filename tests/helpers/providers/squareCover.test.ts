@@ -66,6 +66,28 @@ describe('bestSquareCover', () => {
 		expect(wrongOnly).toBeNull()
 	})
 
+	test('rejects a same-title cover by a different author when an author is given', async () => {
+		// Apple term-search can surface a same-title book by another author.
+		const registry = appleRegistry([appleResult(1, 'Project Hail Mary (Unabridged)')])
+		// appleResult author is "Andy Weir"; asking for a different author -> no cover.
+		const wrong = await bestSquareCover(registry, {
+			title: 'Project Hail Mary',
+			author: 'Someone Else',
+			currentImage: 'https://m.media-amazon.com/images/I/91gJiaPahBL.jpg',
+			region: 'us'
+		})
+		expect(wrong).toBeNull()
+
+		// Matching author -> cover returned.
+		const right = await bestSquareCover(registry, {
+			title: 'Project Hail Mary',
+			author: 'Andy Weir',
+			currentImage: 'https://m.media-amazon.com/images/I/91gJiaPahBL.jpg',
+			region: 'us'
+		})
+		expect(right).toContain('1400x1400bb')
+	})
+
 	test('returns null when Apple is not registered or the lookup throws', async () => {
 		expect(
 			await bestSquareCover(new ProviderRegistry([]), { title: 'Dune', region: 'us' })

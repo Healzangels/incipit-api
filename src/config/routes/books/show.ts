@@ -3,6 +3,7 @@ import { FastifyInstance } from 'fastify'
 import type { ApiBook } from '#config/types'
 import { RequestGeneric } from '#config/typing/requests'
 import { NotFoundError } from '#helpers/errors/ApiErrors'
+import ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
 import defaultRegistry from '#helpers/providers/registry'
 import { bestSquareCover } from '#helpers/providers/squareCover'
 import BookDataHelper from '#helpers/routes/BookDataHelper'
@@ -23,21 +24,27 @@ async function _show(fastify: FastifyInstance) {
 			credentials.hardcover = hardcoverToken
 		}
 		// Attach a native square cover (Apple Books) for a square Plex poster. Any
-		// object with a title/authors/image works for both response shapes.
+		// object with a title/authors/image works for both response shapes. The
+		// Apple lookup is cached (this runs on every book response, refreshes too).
+		const squareCache = new ProviderSearchCache(fastify.redis ?? null, undefined, request.log)
 		const withSquareCover = async <
 			T extends { title?: string; authors?: { name?: string }[]; image?: string | null }
 		>(
 			book: T
 		): Promise<T> => {
 			if (!book?.title) return book
-			const square = await bestSquareCover(defaultRegistry, {
-				title: book.title,
-				author: book.authors?.[0]?.name,
-				currentImage: book.image,
-				region,
-				credentials,
-				logger: request.log
-			})
+			const square = await bestSquareCover(
+				defaultRegistry,
+				{
+					title: book.title,
+					author: book.authors?.[0]?.name,
+					currentImage: book.image,
+					region,
+					credentials,
+					logger: request.log
+				},
+				squareCache
+			)
 			return square ? { ...book, imageSquare: square } : book
 		}
 
