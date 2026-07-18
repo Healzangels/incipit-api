@@ -29,6 +29,7 @@ function isAudioEdition(c: ScoredCandidate): boolean {
 const PROVIDER_RANK: Record<string, number> = {
 	audible: 0,
 	hardcover: 1,
+	apple: 2,
 	storytel: 2,
 	libro: 2,
 	openlibrary: 3

@@ -1,3 +1,4 @@
+import AppleBooksProvider from '#helpers/providers/AppleBooksProvider'
 import AudibleProvider from '#helpers/providers/AudibleProvider'
 import HardcoverProvider from '#helpers/providers/HardcoverProvider'
 import OpenLibraryProvider from '#helpers/providers/OpenLibraryProvider'
@@ -29,6 +30,12 @@ const providers: BookProvider[] = [
 // (useful for mainstream/European catalogs). Placed before OpenLibrary so the
 // provider-richness tiebreak prefers its audio edition over a book-level record.
 if (process.env.STORYTEL_ENABLED === 'true') providers.push(new StorytelProvider())
+
+// Apple Books (iTunes) — keyless English-audiobook catalog with square covers.
+// Fills the gap where Audible + Hardcover miss. On by default; a wrong match is
+// held out by the confidence floor. Set APPLE_ENABLED=false to disable. Placed
+// before OpenLibrary so its audiobook record outranks a book-level fallback.
+if (process.env.APPLE_ENABLED !== 'false') providers.push(new AppleBooksProvider())
 
 providers.push(new OpenLibraryProvider({ contact: process.env.OL_CONTACT }))
 

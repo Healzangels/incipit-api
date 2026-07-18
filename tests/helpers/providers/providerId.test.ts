@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
 	decodeProviderId,
+	encodeAppleAudiobook,
 	encodeHardcoverBook,
 	encodeHardcoverEdition,
 	encodeOpenLibraryWork,
@@ -13,7 +14,8 @@ describe('provider id encoding', () => {
 		const ids = [
 			encodeHardcoverEdition(31501578),
 			encodeHardcoverBook(119295),
-			encodeOpenLibraryWork('/works/OL80870W')
+			encodeOpenLibraryWork('/works/OL80870W'),
+			encodeAppleAudiobook(1565808256)
 		]
 		for (const id of ids) {
 			expect(id).not.toMatch(/[:/_]/)
@@ -36,6 +38,10 @@ describe('provider id round-trips', () => {
 		[
 			encodeOpenLibraryWork('/works/OL80870W'),
 			{ provider: 'openlibrary', kind: 'works', nativeId: '/works/OL80870W' }
+		],
+		[
+			encodeAppleAudiobook(1565808256),
+			{ provider: 'apple', kind: 'audiobook', nativeId: '1565808256' }
 		]
 	]
 	for (const [id, expected] of cases) {
