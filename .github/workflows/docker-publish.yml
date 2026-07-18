@@ -6,6 +6,8 @@ name: Docker
 # documentation.
 
 on:
+  # NOTE: on a fork, GitHub suppresses event-triggered runs (push/schedule);
+  # publish via `gh workflow run docker-publish.yml --ref main` until detached.
   # Manual trigger — build and publish an image from any branch on demand
   # (e.g. the multi-provider work before it lands on main).
   workflow_dispatch:
