@@ -88,9 +88,9 @@ describe('bestSquareCover', () => {
 		expect(right).toContain('1400x1400bb')
 	})
 
-	test("keeps a provider's own cover (Hardcover/OpenLibrary) instead of an Apple lookup", async () => {
-		// A Hardcover match already has a (possibly square, correct-edition) cover;
-		// don't replace it with a same-title Apple cover that may be another edition.
+	test('squares a portrait Hardcover/OpenLibrary cover with an Apple lookup', async () => {
+		// Provider covers (Hardcover/OL/Storytel) are portrait book covers, so a
+		// same-book Apple square (gated by title + author) is preferred for the poster.
 		const registry = appleRegistry([appleResult(1, 'Project Hail Mary (Unabridged)')])
 		const out = await bestSquareCover(registry, {
 			title: 'Project Hail Mary',
@@ -98,7 +98,7 @@ describe('bestSquareCover', () => {
 			currentImage: 'https://assets.hardcover.app/edition/audio.jpg',
 			region: 'us'
 		})
-		expect(out).toBeNull() // kept as-is, no Apple override
+		expect(out).toContain('1400x1400bb')
 	})
 
 	test('returns null when Apple is not registered or the lookup throws', async () => {

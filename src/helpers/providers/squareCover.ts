@@ -72,16 +72,13 @@ export async function bestSquareCover(
 	q: SquareCoverQuery,
 	cache?: ProviderSearchCache
 ): Promise<string | null> {
-	// The matched cover is already a native square (e.g. Apple won the match):
-	// just serve it at high resolution, no extra lookup.
+	// The matched cover is already a native square (Apple mzstatic): just serve it
+	// at high resolution, no extra lookup. Every other source (Audible/Amazon,
+	// Hardcover, OpenLibrary, Storytel) ships PORTRAIT book covers, so look up
+	// Apple's square for those — the title + author floors below keep it the same
+	// book. (Earlier this was Amazon-only, which wrongly left Hardcover matches
+	// with a portrait poster.)
 	if (isAppleSquare(q.currentImage)) return highRes(q.currentImage as string)
-
-	// Only replace a portrait Audible/Amazon cover (or a missing one) with Apple's
-	// square. A provider's own cover (Hardcover/OpenLibrary/Storytel) is left
-	// alone — it may already be square and, crucially, the correct edition, whereas
-	// Apple could return a different edition's cover for the same title/author.
-	const currentIsAmazon = !!q.currentImage && q.currentImage.indexOf('amazon') !== -1
-	if (q.currentImage && !currentIsAmazon) return null
 
 	const apple = registry.get('apple') as AppleBooksProvider | undefined
 	if (!apple || !q.title) return null
