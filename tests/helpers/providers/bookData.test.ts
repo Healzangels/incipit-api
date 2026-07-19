@@ -54,17 +54,35 @@ describe('HardcoverProvider.fetchBook', () => {
 		})
 	})
 
-	test('resolves an edition id to its parent book first', async () => {
+	test('fetches the exact edition, then its parent book, and combines them', async () => {
 		const seen: string[] = []
+		const edition = {
+			id: 13647826,
+			book_id: 119295,
+			asin: 'B0EDITIONX',
+			audio_seconds: 41000,
+			reading_format_id: 2,
+			release_date: '2008-05-01',
+			cached_image: { url: 'https://assets.hardcover.app/matched-edition.jpg' },
+			publisher: { name: 'Recorded Books' },
+			contributions: [{ author: { name: 'Traber Burns' }, contribution: 'Narrator' }]
+		}
 		const trackingGql: HardcoverGql = async <T>(query: string): Promise<T> => {
-			seen.push(query.includes('IncipitEditionBook') ? 'edition-lookup' : 'book')
-			if (query.includes('IncipitEditionBook')) return { editions: [{ book_id: 119295 }] } as T
+			if (query.includes('IncipitEditionFull')) {
+				seen.push('edition-lookup')
+				return { editions: [edition] } as T
+			}
+			seen.push('book')
 			return { books: [hcBook] } as T
 		}
 		const p = new HardcoverProvider({ token: 'tok', gql: trackingGql })
 		const book = await p.fetchBook('13647826', 'edition', { region: 'us' })
-		expect(seen[0]).toBe('edition-lookup')
+		expect(seen).toEqual(['edition-lookup', 'book'])
+		// Book-level fields from the book; edition-level fields from the matched edition.
 		expect(book?.title).toBe('A Spell for Chameleon')
+		expect(book?.asin).toBe('B0EDITIONX')
+		expect(book?.releaseDate).toBe('2008-05-01')
+		expect(book?.narrators).toEqual([{ name: 'Traber Burns' }])
 	})
 
 	test('returns null without a token', async () => {

@@ -183,6 +183,89 @@ describe('HardcoverProvider', () => {
 	})
 })
 
+describe('HardcoverProvider.fetchBook', () => {
+	// Route by operation name: the exact-edition lookup, then the book lookup.
+	function fetchGql(edition: unknown, book: unknown): HardcoverGql {
+		return async <T>(query: string): Promise<T> => {
+			if (query.includes('IncipitEditionFull')) return { editions: edition ? [edition] : [] } as T
+			if (query.includes('IncipitBook')) return { books: book ? [book] : [] } as T
+			return {} as T
+		}
+	}
+
+	const matchedEdition = {
+		id: 31501578,
+		book_id: 427578,
+		asin: 'B08GB58KD5',
+		audio_seconds: 58200,
+		reading_format_id: 2,
+		release_date: '2021-05-04',
+		cached_image: { url: 'https://assets.hardcover.app/edition/audio.jpg' },
+		publisher: { name: 'Audible Studios' },
+		contributions: [
+			{ author: { name: 'Andy Weir' }, contribution: null },
+			{ author: { name: 'Ray Porter' }, contribution: 'Narrator' }
+		]
+	}
+
+	// The parent book, whose OWN editions list is led by an unrelated, more-popular
+	// PRINT edition — exactly what the old code re-picked and applied by mistake.
+	const parentBook = {
+		id: 427578,
+		title: 'Project Hail Mary',
+		description: 'A lone astronaut.',
+		rating: 4.5,
+		cached_image: { url: 'https://assets.hardcover.app/book-cover.jpg' },
+		contributions: [{ author: { name: 'Andy Weir' }, contribution: null }],
+		book_series: [],
+		editions: [
+			{
+				id: 999,
+				asin: 'PRINTASIN0',
+				reading_format_id: 1, // print
+				release_date: '1999-01-01',
+				cached_image: { url: 'https://assets.hardcover.app/print.jpg' },
+				publisher: { name: 'Paperback Co' }
+			}
+		]
+	}
+
+	test('applies the MATCHED edition, not a popularity re-pick of the book editions', async () => {
+		const p = new HardcoverProvider({ gql: fetchGql(matchedEdition, parentBook) })
+		const book = await p.fetchBook('31501578', 'edition', { region: 'us', credentials: { hardcover: 'tok' } })
+		// asin/date/cover/publisher/narrators come from the matched AUDIO edition,
+		// never the print edition that leads the book's own editions list.
+		expect(book?.asin).toBe('B08GB58KD5')
+		expect(book?.releaseDate).toBe('2021-05-04')
+		expect(book?.image).toBe('https://assets.hardcover.app/edition/audio.jpg')
+		expect(book?.publisherName).toBe('Audible Studios')
+		expect(book?.narrators).toEqual([{ name: 'Ray Porter' }])
+		// Book-level fields still come from the book.
+		expect(book?.title).toBe('Project Hail Mary')
+		expect(book?.authors).toEqual([{ name: 'Andy Weir' }])
+	})
+
+	test('returns null when the edition is not found', async () => {
+		const p = new HardcoverProvider({ gql: fetchGql(null, parentBook) })
+		expect(
+			await p.fetchBook('404', 'edition', { region: 'us', credentials: { hardcover: 'tok' } })
+		).toBeNull()
+	})
+
+	test('a book-level id still resolves via the book pick', async () => {
+		const p = new HardcoverProvider({ gql: fetchGql(null, parentBook) })
+		const book = await p.fetchBook('427578', 'book', { region: 'us', credentials: { hardcover: 'tok' } })
+		expect(book?.title).toBe('Project Hail Mary')
+		// Only a print edition exists on the book, so it's the fallback pick.
+		expect(book?.asin).toBe('PRINTASIN0')
+	})
+
+	test('returns null with no token', async () => {
+		const p = new HardcoverProvider({ gql: fetchGql(matchedEdition, parentBook) })
+		expect(await p.fetchBook('31501578', 'edition', { region: 'us' })).toBeNull()
+	})
+})
+
 describe('HardcoverProvider.fetchAuthorImage', () => {
 	const authorGql =
 		(authors: unknown): HardcoverGql =>

@@ -87,9 +87,25 @@ const BOOK_BY_ID_QUERY = `query IncipitBook($id: Int!) {
 	}
 }`
 
-// Resolve an edition id to its parent book, then reuse the book path.
-const BOOK_ID_FOR_EDITION_QUERY = `query IncipitEditionBook($id: Int!) {
-	editions(where: { id: { _eq: $id } }, limit: 1) { book_id }
+// Full fields for the SPECIFIC matched edition (GET /books/hardcover-edition-{id}).
+// The candidate id points at one exact edition, so the data lookup must return
+// THAT edition's asin/runtime/cover/date/publisher/narrators — not a popularity
+// re-pick of the book's editions (which could be a different, even print,
+// edition). All fields are the ones already selected (and live-verified) in
+// BOOKS_QUERY / BOOK_BY_ID_QUERY; book_id threads to the book-level fields.
+const EDITION_FULL_QUERY = `query IncipitEditionFull($id: Int!) {
+	editions(where: { id: { _eq: $id } }, limit: 1) {
+		id
+		book_id
+		asin
+		audio_seconds
+		reading_format_id
+		release_date
+		cached_image
+		language { language }
+		publisher { name }
+		contributions { author { name } contribution }
+	}
 }`
 
 // Author photo by name. NOTE: unlike books, the authors table's `cached_image`
@@ -146,6 +162,7 @@ interface HardcoverSeries {
 }
 interface HardcoverEdition {
 	id: number
+	book_id?: number | null
 	asin?: string | null
 	audio_seconds?: number | null
 	reading_format_id?: number | null
@@ -244,20 +261,25 @@ function narratorsOf(contributions?: HardcoverContribution[] | null): string[] {
 		.filter((n): n is string => !!n)
 }
 
-/** Map a full Hardcover book to the data-lookup ProviderBook shape. */
-function toProviderBook(book: HardcoverBook): ProviderBook {
-	const editions = book.editions ?? []
-	// Prefer an audio edition for narrator/publisher/date; else the top edition.
-	const audioEdition = editions.find((e) => e.reading_format_id === 2 && e.audio_seconds)
-	const edition = audioEdition ?? editions[0]
-
-	const series = (book.book_series ?? [])
+/** Normalized series list from a book's book_series rows. */
+function buildSeries(book: HardcoverBook): { name: string; position?: string }[] {
+	return (book.book_series ?? [])
 		.filter((s) => s.series?.name)
 		.map((s) => ({
 			name: s.series?.name as string,
 			position: s.position != null ? String(s.position) : undefined
 		}))
+}
 
+/**
+ * Build the data-lookup ProviderBook from book-level fields plus ONE specific
+ * edition's fields (asin/runtime/cover/date/publisher/narrators). The edition is
+ * chosen by the caller — the exact matched edition for an edition id, or the
+ * best-audio pick for a book id — so the returned metadata always matches the
+ * edition the caller intends.
+ */
+function providerBook(book: HardcoverBook, edition: HardcoverEdition | undefined): ProviderBook {
+	const series = buildSeries(book)
 	return {
 		asin: edition?.asin ?? null,
 		title: book.title ?? '',
@@ -273,6 +295,17 @@ function toProviderBook(book: HardcoverBook): ProviderBook {
 		seriesPrimary: series[0],
 		seriesSecondary: series[1]
 	}
+}
+
+/**
+ * Map a full Hardcover book to a ProviderBook for a BOOK-level match (no specific
+ * edition was matched): prefer an audio edition for narrator/publisher/date, else
+ * the top edition.
+ */
+function toProviderBook(book: HardcoverBook): ProviderBook {
+	const editions = book.editions ?? []
+	const audioEdition = editions.find((e) => e.reading_format_id === 2 && e.audio_seconds)
+	return providerBook(book, audioEdition ?? editions[0])
 }
 
 export default class HardcoverProvider implements BookProvider {
@@ -373,25 +406,32 @@ export default class HardcoverProvider implements BookProvider {
 			return null
 		}
 
-		// An edition id must first resolve to its parent book id.
-		let bookId = Number(nativeId)
+		// An edition id: fetch THAT exact edition's fields, then its parent book for
+		// the book-level fields, and combine — so the applied asin/cover/date/
+		// publisher/narrators are the edition that was matched, not a popularity
+		// re-pick of the book's editions (which could be a different, even print,
+		// edition — the bug this path had).
 		if (kind === 'edition') {
-			const ed = await this.gql<{ editions?: { book_id?: number }[] }>(
-				BOOK_ID_FOR_EDITION_QUERY,
+			const edData = await this.gql<{ editions?: HardcoverEdition[] }>(
+				EDITION_FULL_QUERY,
 				{ id: Number(nativeId) },
 				token
 			)
-			const resolved = ed?.editions?.[0]?.book_id
-			if (!resolved) return null
-			bookId = resolved
+			const edition = edData?.editions?.[0]
+			if (!edition?.book_id) return null
+			const bookData = await this.gql<{ books?: HardcoverBook[] }>(
+				BOOK_BY_ID_QUERY,
+				{ id: edition.book_id },
+				token
+			)
+			const book = bookData?.books?.[0]
+			return book ? providerBook(book, edition) : null
 		}
-		if (!Number.isInteger(bookId)) return null
 
-		const data = await this.gql<{ books?: HardcoverBook[] }>(
-			BOOK_BY_ID_QUERY,
-			{ id: bookId },
-			token
-		)
+		// A book id: no specific edition was matched, so let toProviderBook pick one.
+		const bookId = Number(nativeId)
+		if (!Number.isInteger(bookId)) return null
+		const data = await this.gql<{ books?: HardcoverBook[] }>(BOOK_BY_ID_QUERY, { id: bookId }, token)
 		const book = data?.books?.[0]
 		return book ? toProviderBook(book) : null
 	}
