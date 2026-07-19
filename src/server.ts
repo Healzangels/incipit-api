@@ -22,6 +22,7 @@ declare module 'fastify' {
 }
 import { initialize } from '#config/papr'
 import { registerPerformanceHooks } from '#config/performance/hooks'
+import { rateLimitAllowList } from '#config/rateLimitAllowList'
 import deleteAuthor from '#config/routes/authors/delete'
 import searchAuthor from '#config/routes/authors/search/show'
 import showAuthor from '#config/routes/authors/show'
@@ -31,7 +32,7 @@ import deleteBook from '#config/routes/books/delete'
 import searchBook from '#config/routes/books/search/show'
 import showBook from '#config/routes/books/show'
 import health from '#config/routes/health'
-import { registerMetricsRoute } from '#config/routes/metrics'
+import { parseEnvArray, registerMetricsRoute } from '#config/routes/metrics'
 import { warnIfDeletesDisabled } from '#config/routes/writeAuth'
 import { getAllIps as getCloudflareIps } from '#helpers/utils/cloudflareIps'
 import UpdateScheduler from '#helpers/utils/UpdateScheduler'
@@ -113,9 +114,23 @@ async function registerPlugins() {
 		// whole API shares one rate-limit bucket. (Reading the leftmost XFF entry
 		// here instead would trust a client-spoofable value.)
 		max: Number(process.env.MAX_REQUESTS) || 100,
+		// Exempt trusted callers (comma-separated IPs / CIDR ranges in
+		// RATE_LIMIT_ALLOWLIST) from the limit. A local Plex agent legitimately
+		// bursts hundreds of GETs during a from-scratch library scan — Plex
+		// re-matches an album once per track and a multi-file audiobook holds
+		// 100+ tracks — which trips this shared-IP bucket and 429s its own scan
+		// even though provider results are already cached. Unconfigured →
+		// allowList returns false for all → every client is limited (unchanged).
+		allowList: rateLimitAllowList,
 		redis: process.env.REDIS_URL ? server.redis : undefined,
 		timeWindow: '1 minute'
 	})
+	const rateLimitAllow = parseEnvArray(process.env.RATE_LIMIT_ALLOWLIST)
+	if (rateLimitAllow) {
+		server.log.info(
+			`Rate-limit allowlist: ${rateLimitAllow.length} entr${rateLimitAllow.length === 1 ? 'y' : 'ies'}`
+		)
+	}
 	// Send 429 if rate limit is reached
 	// Check for custom error status codes (404, 400, etc.)
 	server.setErrorHandler(function (
