@@ -102,7 +102,9 @@ describe('AppleBooksProvider.fetchBook', () => {
 			authors: [{ name: 'Andy Weir' }],
 			narrators: [{ name: 'Ray Porter' }],
 			summary: '<b>Scraped</b> synopsis.',
-			image: 'https://is1-ssl.mzstatic.com/hi-res.jpg',
+			// The reliable iTunes SQUARE artwork wins over the page JSON-LD image,
+			// which for audiobooks is a 1200x630 wide social-share banner, not a cover.
+			image: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/7b/rm_image.jpg/600x600bb.jpg',
 			publisherName: 'Audible Studios',
 			releaseDate: '2021-05-04T00:00:00.000Z'
 		})

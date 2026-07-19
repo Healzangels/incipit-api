@@ -267,7 +267,11 @@ export default class AppleBooksProvider implements BookProvider {
 			authors: base.artistName ? [{ name: base.artistName }] : [],
 			narrators: asArray(ld?.readBy).map((name) => ({ name })),
 			summary: stripHtml(ld?.description ?? base.description),
-			image: ld?.image ?? squareCover(base.artworkUrl100),
+			// Prefer the iTunes SQUARE artwork over the page's JSON-LD `image`, which
+			// for audiobooks is a 1200x630 wide social-share banner, not a cover
+			// (matches the search path's `cover`). Fall back to ld.image only when
+			// there is no artwork URL.
+			image: squareCover(base.artworkUrl100) ?? ld?.image,
 			publisherName: publisherFromCopyright(base.copyright),
 			releaseDate: ld?.datePublished ?? base.releaseDate
 		}
