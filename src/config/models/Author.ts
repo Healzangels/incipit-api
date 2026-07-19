@@ -18,6 +18,7 @@ const authorSchema = schema(
 			})
 		),
 		image: types.string(),
+		imageAlt: types.string(),
 		links: types.array(
 			types.object({
 				link: types.string({ required: true }),
