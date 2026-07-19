@@ -74,6 +74,21 @@ describe('normalizeTitle keeps date-shaped titles but still strips track prefixe
 	})
 })
 
+describe('normalizeTitle strips a series-first "<Series>, Book N:" prefix', () => {
+	test('extracts the real title from a colon or dash series-first tag', () => {
+		expect(normalizeTitle('Dresden Files, Book 16: Peace Talks')).toBe('Peace Talks')
+		expect(normalizeTitle('Dresden Files, Book 16 - Peace Talks')).toBe('Peace Talks')
+		expect(normalizeTitle('Redwall, Book 1: The Wall')).toBe('The Wall')
+	})
+
+	test('does not touch a title-first "<Title>: <Series>, Book N" (handled by the suffix)', () => {
+		// The suffix rule runs first, so this reduces to the title, not the series.
+		expect(normalizeTitle('Task Force Hammer: Expeditionary Force, Book 17')).toBe(
+			'Task Force Hammer'
+		)
+	})
+})
+
 describe('titleSim matches Python difflib-based similarity', () => {
 	for (const c of oracle.title_sim) {
 		test(`sim("${c.a}", "${c.b}") == ${c.expected}`, () => {

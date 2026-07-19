@@ -46,9 +46,13 @@ const NOISE_PATTERNS: RegExp[] = [
 // can't eat titles like "Fahrenheit 451".
 const SERIES_PREFIX: RegExp[] = [
 	/^\s*[A-Za-z'’. ]{2,25}\s+#?\d{1,3}\s*[-–—]\s+/,
-	// "<Series>, Book N - <Title>": must run before the generic \bbook \d+\b noise
-	// rule, which would otherwise strand a dangling ", - " in the middle.
-	/^\s*[^,]{2,30},\s*book\s+\d+\s*[-–—]\s+/i,
+	// "<Series>, Book N - <Title>" and the colon form "<Series>, Book N: <Title>"
+	// (series-FIRST, e.g. "Dresden Files, Book 16: Peace Talks" -> "Peace Talks").
+	// The colon separator is the mirror of the title-first SERIES_SUFFIX below;
+	// SERIES_SUFFIX runs first, so a title-first "Title: Series, Book N" is already
+	// reduced before this can touch it. Must run before the generic \bbook \d+\b
+	// noise rule, which would otherwise strand a dangling ", - " / ", : " fragment.
+	/^\s*[^,]{2,30},\s*book\s+\d+\s*[-–—:]\s+/i,
 	// A GLUED series code from a folder/rip convention: "DW23 - Carpe Jugulum",
 	// "GOT1 - ...". Deliberately narrow to avoid touching real titles:
 	//  - 2-5 UPPERCASE letters immediately followed by 1-3 digits (a code, not a
