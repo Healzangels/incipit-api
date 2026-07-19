@@ -440,6 +440,46 @@ describe('BookSearchHelper track-title scoring', () => {
 		expect(out[0].confidence).toBeCloseTo(1.0, 2) // article-insensitive title → 1.0 + duration
 	})
 
+	test('a co-authored credit matches an edition that lists only one author', async () => {
+		// File credits "Robert Jordan, Brandon Sanderson"; the Audible edition lists
+		// only "Robert Jordan". Splitting the credit lets the component match → 1.0.
+		const audible = candidate({
+			id: 'tgs',
+			provider: 'audible',
+			title: 'The Gathering Storm',
+			authors: ['Robert Jordan'],
+			audioSeconds: 118720
+		})
+		const out = await new BookSearchHelper(new ProviderRegistry([stubProvider('p', [audible])]), {
+			title: 'The Gathering Storm',
+			author: 'Robert Jordan, Brandon Sanderson',
+			duration: 118720 * 1000,
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('tgs')
+		expect(out[0].confidence).toBeCloseTo(1.0, 2) // title 1.0 + author 1.0 + duration
+	})
+
+	test('splitting the credit cannot inflate a wrong author to a match', async () => {
+		// A same-title book by an unrelated author must not reach a corroborated
+		// score just because the wanted credit was split — no component matches it.
+		const wrong = candidate({
+			id: 'no',
+			title: 'The Gathering Storm',
+			authors: ['Julia Brannan'],
+			audioSeconds: 118720 // even with a matching duration, the author gates it
+		})
+		const out = await new BookSearchHelper(new ProviderRegistry([stubProvider('p', [wrong])]), {
+			title: 'The Gathering Storm',
+			author: 'Robert Jordan, Brandon Sanderson',
+			duration: 118720 * 1000,
+			region: 'us'
+		}).search()
+		// Contrast with the co-authored test above (→ ~1.0): here no author
+		// component matches, so it stays far below a real match even with duration.
+		if (out.length) expect(out[0].confidence).toBeLessThan(0.85)
+	})
+
 	test('article stripping needs a real article token — Anansi Boys is untouched', async () => {
 		// "Anansi" must NOT be read as the article "an": the wrong book stays below floor.
 		const wrong = stubProvider('p', [

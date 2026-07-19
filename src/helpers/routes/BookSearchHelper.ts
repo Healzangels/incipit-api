@@ -32,6 +32,26 @@ function stripLeadingArticle(s: string): string {
 	return s.replace(LEADING_ARTICLE, '')
 }
 
+// Co-author separators (mirrors the bundle's split): a rip's author field is
+// often the full credit ("Robert Jordan, Brandon Sanderson") while a provider
+// edition lists just one ("Robert Jordan"). \band\b is whitespace-bounded so a
+// name like "Anderson"/"Sanderson" is never split.
+const AUTHOR_SEP = /\s*(?:,|&|;|\/|\band\b)\s*/i
+function splitAuthors(author: string | null | undefined): string[] {
+	const full = (author ?? '').trim()
+	// No author (many album searches) → one empty entry keeps the title-only
+	// scoring path; never add '' when an author IS present, or a wrong-author
+	// candidate could score on title+duration alone.
+	if (!full) return ['']
+	const parts = full
+		.split(AUTHOR_SEP)
+		.map((s) => s.trim())
+		.filter(Boolean)
+	// Full string first (best when the edition also credits everyone), then each
+	// component; deduped so a single-author name isn't scored twice.
+	return [...new Set([full, ...parts])]
+}
+
 /**
  * Whether a candidate is an actual audiobook edition (has an audio runtime or a
  * narrator) rather than a book-level record (OpenLibrary / a Hardcover book with
@@ -177,15 +197,15 @@ export default class BookSearchHelper {
 		altTitle: string | null,
 		wantAsin: string | null
 	): ScoredCandidate[] {
-		const author = this.options.author ?? ''
+		const authorParts = splitAuthors(this.options.author)
 		const scored: ScoredCandidate[] = candidates.map((c) => {
 			// Score against the album title and (when present) the track title,
-			// keeping the higher. Both go through the same scoreCandidate (author +
-			// duration identical), so taking the max only ever swaps in a better
-			// TITLE similarity; it can't relax the author/duration checks.
-			let best = this.scorePair(primaryTitle, c)
+			// keeping the higher. Both go through the same scoreCandidate (duration
+			// identical), so taking the max only ever swaps in a better TITLE (or,
+			// via scorePair, a better co-author) match — it can't relax the checks.
+			let best = this.scorePair(primaryTitle, c, authorParts)
 			if (altTitle) {
-				const alt = this.scorePair(altTitle, c)
+				const alt = this.scorePair(altTitle, c, authorParts)
 				if (alt.confidence > best.confidence) best = alt
 			}
 			// An exact ASIN match is a definitive identity confirmation — it beats
@@ -223,24 +243,34 @@ export default class BookSearchHelper {
 	 * @param {ProviderCandidate} c the candidate
 	 * @returns {CandidateScore} the better of the raw and article-stripped scores
 	 */
-	private scorePair(wantTitle: string, c: ProviderCandidate): CandidateScore {
+	private scorePair(
+		wantTitle: string,
+		c: ProviderCandidate,
+		authorParts: string[]
+	): CandidateScore {
 		const durationMs = this.options.duration ?? null
-		const author = this.options.author ?? ''
-		let best = scoreCandidate(wantTitle, author, c.title, c.authors, durationMs, c.audioSeconds)
-
 		const wantStripped = stripLeadingArticle(wantTitle)
 		const candStripped = stripLeadingArticle(c.title)
-		// Only worth a second scoring pass when stripping actually changed a side.
-		if (wantStripped !== wantTitle || candStripped !== c.title) {
-			const stripped = scoreCandidate(
-				wantStripped,
-				author,
-				candStripped,
-				c.authors,
-				durationMs,
-				c.audioSeconds
-			)
-			if (stripped.confidence > best.confidence) best = stripped
+		const hasStripped = wantStripped !== wantTitle || candStripped !== c.title
+
+		// Try each co-author against the candidate (a rip crediting both authors
+		// shouldn't lose points to an edition that lists one), and — when a leading
+		// article differs — the article-stripped title too. Keep the best.
+		let best: CandidateScore = { confidence: 0, durationDeltaPct: null }
+		for (const author of authorParts) {
+			const raw = scoreCandidate(wantTitle, author, c.title, c.authors, durationMs, c.audioSeconds)
+			if (raw.confidence > best.confidence) best = raw
+			if (hasStripped) {
+				const s = scoreCandidate(
+					wantStripped,
+					author,
+					candStripped,
+					c.authors,
+					durationMs,
+					c.audioSeconds
+				)
+				if (s.confidence > best.confidence) best = s
+			}
 		}
 		return best
 	}
