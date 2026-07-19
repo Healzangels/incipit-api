@@ -95,10 +95,17 @@ const BOOK_ID_FOR_EDITION_QUERY = `query IncipitEditionBook($id: Int!) {
 // Author photo by name. NOTE: unlike books, the authors table's `cached_image`
 // is null — the real photo is the `image` object relation, selected as
 // `image { url }` (verified live against the schema).
-// NOTE: Hardcover's Hasura rejects `_ilike` ("not permitted on this server"),
-// which silently threw and made every author-image lookup return null. Use
-// `_eq` (permitted); case differences are tolerated by the client-side match
-// below, and same-name duplicates are covered by limit: 5.
+// NOTE: Hardcover's Hasura rejects `_ilike` and related pattern ops ("not
+// permitted on this server"), which silently threw and made every author-image
+// lookup return null. `_eq` is permitted but EXACT and case/punctuation
+// sensitive: it only returns rows whose name string equals `$name` byte-for-byte
+// (bar case, which Hasura's text collation folds). So if Audible's stored name
+// differs in punctuation/spacing from Hardcover's ("J.R.R. Tolkien" vs
+// "J. R. R. Tolkien"), the query returns zero rows and no portrait is found —
+// the client-side match below can only pick AMONG returned rows, it cannot
+// recover a variant the query never returned. Known limitation; a fuzzy
+// author `search()` (like the book path) would close it but needs its own live
+// verification. limit: 5 covers exact same-name duplicates.
 const AUTHOR_IMAGE_QUERY = `query IncipitAuthorImage($name: String!) {
 	authors(where: { name: { _eq: $name } }, limit: 5) {
 		name
