@@ -102,8 +102,9 @@ describe('AppleBooksProvider.fetchBook', () => {
 			authors: [{ name: 'Andy Weir' }],
 			narrators: [{ name: 'Ray Porter' }],
 			summary: '<b>Scraped</b> synopsis.',
-			// The reliable iTunes SQUARE artwork wins over the page JSON-LD image,
-			// which for audiobooks is a 1200x630 wide social-share banner, not a cover.
+			// `image` is the iTunes SQUARE artwork; the page JSON-LD image (a
+			// 1200x630 wide social banner for audiobooks) is deliberately ignored,
+			// even though it is present in this fixture's pageHtml.
 			image: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/7b/rm_image.jpg/600x600bb.jpg',
 			publisherName: 'Audible Studios',
 			releaseDate: '2021-05-04T00:00:00.000Z'
@@ -148,6 +149,32 @@ describe('AppleBooksProvider.fetchBook', () => {
 			opts
 		)
 		expect(book).toBeNull()
+	})
+
+	test('upsizes a non-bb / non-jpg artwork suffix (png, -75 quality tag)', async () => {
+		// iTunes sometimes serves the thumb as .png or with a -NN quality tag; the
+		// rewrite must still produce the 600px square, not pass the raw 100px thumb.
+		for (const suffix of ['100x100bb.png', '100x100-75.jpg', '100x100sr.jpg']) {
+			const artwork = `https://is1-ssl.mzstatic.com/image/thumb/x/rm_image.jpg/${suffix}`
+			const book = await new AppleBooksProvider({
+				lookupFetch: async () => ({ ...phm, artworkUrl100: artwork }),
+				pageFetch: async () => '<html></html>'
+			}).fetchBook('1565808256', 'audiobook', opts)
+			expect(book?.image).toBe(
+				'https://is1-ssl.mzstatic.com/image/thumb/x/rm_image.jpg/600x600bb.jpg'
+			)
+		}
+	})
+
+	test('leaves image null (never the wide banner) when the lookup has no artwork', async () => {
+		// No artworkUrl100 -> no square cover. `image` must be null, NOT the page
+		// JSON-LD banner (pageHtml carries a 1200x630-style image we must not use).
+		const noArt = { ...phm, artworkUrl100: undefined }
+		const book = await new AppleBooksProvider({
+			lookupFetch: async () => noArt,
+			pageFetch: async () => pageHtml
+		}).fetchBook('1565808256', 'audiobook', opts)
+		expect(book?.image).toBeNull()
 	})
 })
 

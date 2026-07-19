@@ -122,10 +122,19 @@ export function cleanAppleTitle(name: string): string {
 	return name.replace(/\s*\((?:un)?abridged\)\s*$/i, '').trim()
 }
 
-/** Upsize an iTunes artwork URL (…/100x100bb.jpg) to a square 600px cover. */
+/**
+ * Upsize an iTunes artwork URL to a square 600px cover.
+ *
+ * iTunes artwork always ends in a resize segment `/<W>x<H><suffix>.<ext>`
+ * (usually `…/100x100bb.jpg`, but the suffix/extension vary — `.png`, a `-75`
+ * quality tag, `sr`/`bf` fit modes). Rewrite just that segment. Return `null`
+ * when the input is empty OR has no resize segment to rewrite, so the caller
+ * falls back rather than serving a raw 100px thumbnail as if it were a cover.
+ */
 function squareCover(artworkUrl100?: string): string | null {
 	if (!artworkUrl100) return null
-	return artworkUrl100.replace(/\/\d+x\d+bb\.jpg$/, '/600x600bb.jpg')
+	const squared = artworkUrl100.replace(/\/\d+x\d+[^/]*$/, '/600x600bb.jpg')
+	return squared === artworkUrl100 ? null : squared
 }
 
 /** Strip HTML tags and collapse whitespace (iTunes descriptions are HTML). */
@@ -267,11 +276,12 @@ export default class AppleBooksProvider implements BookProvider {
 			authors: base.artistName ? [{ name: base.artistName }] : [],
 			narrators: asArray(ld?.readBy).map((name) => ({ name })),
 			summary: stripHtml(ld?.description ?? base.description),
-			// Prefer the iTunes SQUARE artwork over the page's JSON-LD `image`, which
-			// for audiobooks is a 1200x630 wide social-share banner, not a cover
-			// (matches the search path's `cover`). Fall back to ld.image only when
-			// there is no artwork URL.
-			image: squareCover(base.artworkUrl100) ?? ld?.image,
+			// Use the iTunes SQUARE artwork (matches the search path's `cover`).
+			// Deliberately NOT `?? ld?.image`: the page's JSON-LD `image` for an
+			// audiobook is a 1200x630 wide social-share banner, never a cover, so a
+			// missing square is better left null (the route's imageSquare enrichment
+			// still supplies a poster) than filled with the banner.
+			image: squareCover(base.artworkUrl100),
 			publisherName: publisherFromCopyright(base.copyright),
 			releaseDate: ld?.datePublished ?? base.releaseDate
 		}
