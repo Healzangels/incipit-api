@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  # This is a fork; push-triggered Actions are suppressed, so expose a manual
+  # trigger to build :latest and fire the Coolify redeploy webhook on demand.
+  workflow_dispatch:
 
 jobs:
   deploy:
