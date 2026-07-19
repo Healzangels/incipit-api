@@ -30,6 +30,10 @@ services:
       PORT: "3000"
       LOG_LEVEL: ${LOG_LEVEL:-info}
       DEFAULT_REGION: ${DEFAULT_REGION:-us}
+      # Rate limiting. Allowlist the source IP the API sees for the Plex agent
+      # so a from-scratch scan can't 429 itself (often the Docker bridge gateway,
+      # not the Plex host — check the container logs' remoteAddress). CIDR-aware.
+      RATE_LIMIT_ALLOWLIST: ${RATE_LIMIT_ALLOWLIST:-}
       # Providers. Every token here is the operator's own or a keyless public
       # source — nothing is bundled. Hardcover is optional; blank simply skips it.
       HARDCOVER_TOKEN: ${HARDCOVER_TOKEN:-}
