@@ -315,6 +315,52 @@ describe('BookSearchHelper track-title fallback', () => {
 	})
 })
 
+describe('BookSearchHelper track-title scoring', () => {
+	// The Redwall/GraphicAudio case: Plex hands the album as "16 Loamhedge" — a
+	// leading track number normalizeTitle deliberately won't strip (it would risk
+	// real numeric titles like "1984"). Scoring only against that noisy tag capped
+	// the correct match below Plex's auto-match line. The clean track title the
+	// bundle already sends recovers the true similarity WITHOUT a second search or
+	// any loosened threshold.
+	const provider = stubProvider('p', [
+		candidate({ id: 'loam', title: 'Loamhedge (Redwall)', authors: ['Brian Jacques'] })
+	])
+
+	test('a noisy album tag is rescued by scoring against the track title', async () => {
+		const base = { title: '16 Loamhedge', author: 'Brian Jacques', region: 'us' as const }
+
+		// Album tag alone: the "16 " prefix drags title similarity down.
+		const albumOnly = await new BookSearchHelper(new ProviderRegistry([provider]), base).search()
+		// Same candidate, now also scored against the clean "Loamhedge".
+		const withTrack = await new BookSearchHelper(new ProviderRegistry([provider]), {
+			...base,
+			trackTitle: 'Loamhedge'
+		}).search()
+
+		expect(albumOnly).toHaveLength(1)
+		expect(withTrack).toHaveLength(1)
+		// The clean title lifts the score; it never lowers it.
+		expect(withTrack[0].confidence).toBeGreaterThan(albumOnly[0].confidence)
+		// Perfect title (1.0) + perfect author (1.0): 0.55 + 0.30 = 0.85.
+		expect(withTrack[0].confidence).toBeCloseTo(0.85, 2)
+	})
+
+	test('the track title only ever raises the score, never admits a worse match', async () => {
+		// A wrong candidate that matches neither title stays below the floor even
+		// with the track title in play — the max-of-two only helps a real match.
+		const wrong = stubProvider('p', [
+			candidate({ id: 'no', title: 'A Completely Different Book', authors: ['Someone Else'] })
+		])
+		const out = await new BookSearchHelper(new ProviderRegistry([wrong]), {
+			title: '16 Loamhedge',
+			trackTitle: 'Loamhedge',
+			author: 'Brian Jacques',
+			region: 'us'
+		}).search()
+		expect(out).toHaveLength(0)
+	})
+})
+
 describe('BookSearchHelper ASIN handling (Audiobookshelf / seanap conventions)', () => {
 	test('strips a bracketed series token from the searched title (recall)', async () => {
 		let searchedTitle = ''

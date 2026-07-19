@@ -98,13 +98,23 @@ export default class BookSearchHelper {
 	async search(): Promise<ScoredCandidate[]> {
 		const asin = this.effectiveAsin()
 		const primary = normalizeTitle(extractAsinAndClean(this.rawTitle).title)
-		const accepted = await this.searchWith(primary, asin)
+		const track = normalizeTitle(extractAsinAndClean(this.options.trackTitle ?? '').title)
+		// The track title often carries the real book name when the ALBUM tag is
+		// noisy (e.g. "16 Loamhedge" — a leading track number normalizeTitle can't
+		// strip without risking real numeric titles). Score the album-pass
+		// candidates against BOTH titles and keep the better score, so a correct
+		// match isn't capped just because the album tag is messy. Only a cleaner
+		// title can raise a score here — it never lowers the floor or admits a
+		// candidate that fails both titles.
+		const altTitle = track && track.toLowerCase() !== primary.toLowerCase() ? track : null
+		const accepted = await this.searchWith(primary, asin, altTitle)
 		if (accepted.length) return accepted
 
-		const fallback = normalizeTitle(extractAsinAndClean(this.options.trackTitle ?? '').title)
-		if (fallback && fallback.toLowerCase() !== primary.toLowerCase()) {
-			this.logger?.debug({ fallback }, 'book search: album title missed, trying track title')
-			return this.searchWith(fallback, asin)
+		// Album pass cleared nothing: fall back to searching providers ON the track
+		// title too (recovers rips whose ALBUM tag is a bare series+number).
+		if (altTitle) {
+			this.logger?.debug({ fallback: altTitle }, 'book search: album title missed, trying track title')
+			return this.searchWith(altTitle, asin)
 		}
 		return accepted
 	}
@@ -118,7 +128,8 @@ export default class BookSearchHelper {
 	 */
 	private async searchWith(
 		normalizedTitle: string,
-		wantAsin: string | null
+		wantAsin: string | null,
+		altTitle: string | null = null
 	): Promise<ScoredCandidate[]> {
 		if (!normalizedTitle) return []
 		const author = this.options.author ?? ''
@@ -134,7 +145,11 @@ export default class BookSearchHelper {
 		const candidates = await this.registry.searchAll(query, this.logger, this.cache)
 
 		const scored: ScoredCandidate[] = candidates.map((c) => {
-			const { confidence, durationDeltaPct } = scoreCandidate(
+			// Score against the album title, and — when present — the track title
+			// too, keeping whichever scores higher. Both go through the same
+			// scoreCandidate (author + duration identical), so this only ever swaps
+			// in a better TITLE similarity; it can't relax the author/duration checks.
+			let best = scoreCandidate(
 				normalizedTitle,
 				author,
 				c.title,
@@ -142,10 +157,25 @@ export default class BookSearchHelper {
 				this.options.duration ?? null,
 				c.audioSeconds
 			)
+			if (altTitle) {
+				const alt = scoreCandidate(
+					altTitle,
+					author,
+					c.title,
+					c.authors,
+					this.options.duration ?? null,
+					c.audioSeconds
+				)
+				if (alt.confidence > best.confidence) best = alt
+			}
 			// An exact ASIN match is a definitive identity confirmation — it beats
 			// any fuzzy score, so pin it to full confidence.
 			const asinMatch = wantAsin != null && c.asin?.toUpperCase() === wantAsin
-			return { ...c, confidence: asinMatch ? 1 : confidence, durationDeltaPct }
+			return {
+				...c,
+				confidence: asinMatch ? 1 : best.confidence,
+				durationDeltaPct: best.durationDeltaPct
+			}
 		})
 
 		const accepted = scored.filter((c) => c.confidence >= CONFIDENCE_FLOOR)
