@@ -281,19 +281,56 @@ describe('BookSearchHelper track-title fallback', () => {
 		expect(out[0].id).toBe('swell')
 	})
 
-	test('does not use the track title when the album title already matched', async () => {
-		const exact = stubProvider('p', [
-			candidate({ id: 'a', title: 'A Spell for Chameleon', authors: ['Piers Anthony'] })
-		])
-		const helper = new BookSearchHelper(new ProviderRegistry([exact]), {
+	test('a duration-corroborated album match skips the track-title search', async () => {
+		let calls = 0
+		const strong: BookProvider = {
+			name: 'strong',
+			async search() {
+				calls++
+				return [
+					candidate({
+						id: 'a',
+						title: 'A Spell for Chameleon',
+						authors: ['Piers Anthony'],
+						audioSeconds: 36000
+					})
+				]
+			}
+		}
+		const helper = new BookSearchHelper(new ProviderRegistry([strong]), {
 			title: 'A Spell for Chameleon',
 			trackTitle: 'Something Else Entirely',
 			author: 'Piers Anthony',
+			duration: 36000 * 1000, // matches audioSeconds → +0.15 → 1.0 (≥ STRONG_MATCH)
 			region: 'us'
 		})
 		const out = await helper.search()
 		expect(out).toHaveLength(1)
 		expect(out[0].id).toBe('a')
+		expect(calls).toBe(1) // strong album hit → no second fan-out
+	})
+
+	test('a weak (no-duration) album match still widens to the track title', async () => {
+		let calls = 0
+		const weak: BookProvider = {
+			name: 'weak',
+			async search() {
+				calls++
+				return [
+					candidate({ id: 'a', title: 'A Spell for Chameleon', authors: ['Piers Anthony'] })
+				]
+			}
+		}
+		const helper = new BookSearchHelper(new ProviderRegistry([weak]), {
+			title: 'A Spell for Chameleon',
+			trackTitle: 'Something Else Entirely',
+			author: 'Piers Anthony',
+			region: 'us'
+		})
+		await helper.search()
+		// Album pass scores 0.85 (title+author, no duration) < STRONG_MATCH, and a
+		// distinct track title exists → widen with a second fan-out.
+		expect(calls).toBe(2)
 	})
 
 	test('does not retry when the track title normalizes to the album title', async () => {
@@ -343,6 +380,43 @@ describe('BookSearchHelper track-title scoring', () => {
 		expect(withTrack[0].confidence).toBeGreaterThan(albumOnly[0].confidence)
 		// Perfect title (1.0) + perfect author (1.0): 0.55 + 0.30 = 0.85.
 		expect(withTrack[0].confidence).toBeCloseTo(0.85, 2)
+	})
+
+	test('a better source found only via the track-title query wins the merge', async () => {
+		// The album query "16 Loamhedge" returns a weak, duration-less hit; the
+		// clean "Loamhedge" query returns a duration-corroborated edition the noisy
+		// query never surfaces. The merge must let the better source win.
+		const weakOnly = candidate({
+			id: 'weak',
+			provider: 'apple',
+			title: 'Loamhedge (Redwall)',
+			authors: ['Brian Jacques']
+		})
+		const better = candidate({
+			id: 'better',
+			provider: 'audible',
+			title: 'Loamhedge',
+			authors: ['Brian Jacques'],
+			audioSeconds: 48000
+		})
+		const perQuery: BookProvider = {
+			name: 'pq',
+			async search(q: BookSearchQuery) {
+				if (q.title === '16 Loamhedge') return [weakOnly]
+				if (q.title === 'Loamhedge') return [better]
+				return []
+			}
+		}
+		const out = await new BookSearchHelper(new ProviderRegistry([perQuery]), {
+			title: '16 Loamhedge',
+			trackTitle: 'Loamhedge',
+			author: 'Brian Jacques',
+			duration: 48000 * 1000, // corroborates the better edition
+			region: 'us'
+		}).search()
+
+		expect(out[0].id).toBe('better')
+		expect(out[0].confidence).toBeCloseTo(1.0, 2) // 0.55 + 0.30 + 0.15 duration
 	})
 
 	test('the track title only ever raises the score, never admits a worse match', async () => {

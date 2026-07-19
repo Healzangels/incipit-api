@@ -10,7 +10,17 @@ import {
 } from '#helpers/providers/matchScorer'
 import type ProviderRegistry from '#helpers/providers/ProviderRegistry'
 import type ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
-import type { BookSearchQuery, ScoredCandidate } from '#helpers/providers/types'
+import type {
+	BookSearchQuery,
+	ProviderCandidate,
+	ScoredCandidate
+} from '#helpers/providers/types'
+
+// An album match at or above this makes a second (track-title) provider search
+// pointless: duration corroboration (+0.15) or an ASIN pin lands here, but a bare
+// title+author match (ceiling 0.85) does not — so a noisy album tag still widens
+// to the track title, while an already-confirmed hit skips the extra fan-out.
+const STRONG_MATCH = 0.9
 
 /**
  * Whether a candidate is an actual audiobook edition (has an audio runtime or a
@@ -86,54 +96,51 @@ export default class BookSearchHelper {
 	}
 
 	/**
-	 * Execute the search, with a track-title fallback.
+	 * Execute the search across the album title and, when it differs, the track
+	 * title too.
 	 *
-	 * Searches on the album title first (with any ASIN/bracket noise stripped). If
-	 * that clears no candidate above the floor and a track title was supplied that
-	 * normalizes to something different, it searches again on the track title —
-	 * recovering rips whose ALBUM tag is a bare series+number but whose track
-	 * carries the real book title.
+	 * A noisy ALBUM tag ("16 Loamhedge" — a leading track number normalizeTitle
+	 * can't strip without risking real numeric titles) hurts matching two ways:
+	 * it drags title similarity down AND it's the string sent to providers, so the
+	 * best edition may never come back at all (a clean "Loamhedge" query returns a
+	 * duration-corroborating source the noisy query misses). So we search the
+	 * album title first; if that didn't already yield a STRONG match and a distinct
+	 * track title exists, we ALSO search on the track title and merge the pools,
+	 * scoring every candidate against both titles and keeping the higher score.
+	 * This only ever raises a score or widens recall — it never lowers the floor
+	 * or admits a candidate that fails both titles.
 	 * @returns {Promise<ScoredCandidate[]>} accepted candidates, ranked best-first
 	 */
 	async search(): Promise<ScoredCandidate[]> {
 		const asin = this.effectiveAsin()
 		const primary = normalizeTitle(extractAsinAndClean(this.rawTitle).title)
 		const track = normalizeTitle(extractAsinAndClean(this.options.trackTitle ?? '').title)
-		// The track title often carries the real book name when the ALBUM tag is
-		// noisy (e.g. "16 Loamhedge" — a leading track number normalizeTitle can't
-		// strip without risking real numeric titles). Score the album-pass
-		// candidates against BOTH titles and keep the better score, so a correct
-		// match isn't capped just because the album tag is messy. Only a cleaner
-		// title can raise a score here — it never lowers the floor or admits a
-		// candidate that fails both titles.
 		const altTitle = track && track.toLowerCase() !== primary.toLowerCase() ? track : null
-		const accepted = await this.searchWith(primary, asin, altTitle)
-		if (accepted.length) return accepted
+		if (!primary && !altTitle) return []
 
-		// Album pass cleared nothing: fall back to searching providers ON the track
-		// title too (recovers rips whose ALBUM tag is a bare series+number).
-		if (altTitle) {
-			this.logger?.debug({ fallback: altTitle }, 'book search: album title missed, trying track title')
-			return this.searchWith(altTitle, asin)
+		const albumCandidates = primary ? await this.fanOut(primary) : []
+		let ranked = this.scoreAndRank(albumCandidates, primary, altTitle, asin)
+
+		// Widen to the track title when the album pass didn't already nail it.
+		// STRONG_MATCH is above the title+author-only ceiling (0.85), so a bare
+		// name match still triggers the wider search, but a duration-corroborated
+		// or ASIN-pinned album hit skips the extra fan-out. Bounded to the
+		// ambiguous case: only when a distinct track title exists.
+		const topAlbum = ranked.length ? ranked[0].confidence : 0
+		if (altTitle && topAlbum < STRONG_MATCH) {
+			this.logger?.debug({ altTitle, topAlbum }, 'book search: widening to the track title')
+			const trackCandidates = await this.fanOut(altTitle)
+			ranked = this.scoreAndRank([...albumCandidates, ...trackCandidates], primary, altTitle, asin)
 		}
-		return accepted
+		return ranked
 	}
 
 	/**
-	 * Run one search pass for a given normalized title: fan out, score, apply the
-	 * ASIN override, filter, dedupe, rank.
-	 * @param {string} normalizedTitle the title to search and score against
-	 * @param {string | null} wantAsin the definitive ASIN to confirm matches against
-	 * @returns {Promise<ScoredCandidate[]>} accepted candidates, ranked best-first
+	 * Fan a single normalized title out across every provider.
+	 * @param {string} normalizedTitle the title to search on
+	 * @returns {Promise<ProviderCandidate[]>} the raw candidate union
 	 */
-	private async searchWith(
-		normalizedTitle: string,
-		wantAsin: string | null,
-		altTitle: string | null = null
-	): Promise<ScoredCandidate[]> {
-		if (!normalizedTitle) return []
-		const author = this.options.author ?? ''
-
+	private async fanOut(normalizedTitle: string): Promise<ProviderCandidate[]> {
 		const query: BookSearchQuery = {
 			title: normalizedTitle,
 			author: this.options.author,
@@ -141,16 +148,32 @@ export default class BookSearchHelper {
 			region: this.options.region,
 			credentials: this.credentials
 		}
+		return this.registry.searchAll(query, this.logger, this.cache)
+	}
 
-		const candidates = await this.registry.searchAll(query, this.logger, this.cache)
-
+	/**
+	 * Score a candidate pool against the album title and (when present) the track
+	 * title, keeping the higher score; then apply the ASIN override, filter to the
+	 * floor, dedupe, and rank.
+	 * @param {ProviderCandidate[]} candidates the raw candidate pool
+	 * @param {string} primaryTitle the normalized album title
+	 * @param {string | null} altTitle the normalized track title, if it differs
+	 * @param {string | null} wantAsin the definitive ASIN to confirm matches against
+	 * @returns {ScoredCandidate[]} accepted candidates, ranked best-first
+	 */
+	private scoreAndRank(
+		candidates: ProviderCandidate[],
+		primaryTitle: string,
+		altTitle: string | null,
+		wantAsin: string | null
+	): ScoredCandidate[] {
+		const author = this.options.author ?? ''
 		const scored: ScoredCandidate[] = candidates.map((c) => {
-			// Score against the album title, and — when present — the track title
-			// too, keeping whichever scores higher. Both go through the same
-			// scoreCandidate (author + duration identical), so this only ever swaps
-			// in a better TITLE similarity; it can't relax the author/duration checks.
+			// Both titles go through the same scoreCandidate (author + duration
+			// identical), so taking the max only ever swaps in a better TITLE
+			// similarity; it can't relax the author/duration checks.
 			let best = scoreCandidate(
-				normalizedTitle,
+				primaryTitle,
 				author,
 				c.title,
 				c.authors,
