@@ -31,7 +31,6 @@ import {
 	ErrorMessageParse,
 	ErrorMessageProductDelisted,
 	ErrorMessageRegion,
-	ErrorMessageReleaseDate,
 	ErrorMessageRequiredKey
 } from '#static/messages'
 import { regions } from '#static/regions'
@@ -193,13 +192,13 @@ class ApiHelper {
 	 */
 	getReleaseDate() {
 		if (!this.audibleResponse) throw new Error(ErrorMessageNoData(this.asin, 'ApiHelper'))
-		const releaseDate = this.audibleResponse.release_date
+		// A future release_date is NOT rejected here. audnexus threw to avoid caching
+		// pre-orders, but incipit-api is stateless and is queried for books already in
+		// a user's library — a just-released/future-dated Audible edition (e.g. a new
+		// narration) must still return its metadata instead of 500-ing the fetch.
+		return this.audibleResponse.release_date
 			? new Date(this.audibleResponse.release_date)
 			: new Date(this.audibleResponse.issue_date)
-
-		// Check that release date isn't in the future
-		if (releaseDate > new Date()) throw new Error(ErrorMessageReleaseDate(this.asin))
-		return releaseDate
 	}
 
 	/**

@@ -401,7 +401,9 @@ describe('ApiHelper edge cases should', () => {
 			).mockResolvedValue(state)
 			try {
 				const emptyProductResponse = { product: {} } as AudibleProduct
-				await expect(helper.parseResponse(emptyProductResponse)).rejects.toBeInstanceOf(NotFoundError)
+				await expect(helper.parseResponse(emptyProductResponse)).rejects.toBeInstanceOf(
+					NotFoundError
+				)
 				await expect(helper.parseResponse(emptyProductResponse)).rejects.toMatchObject({
 					name: 'NotFoundError',
 					statusCode: 404,
@@ -443,10 +445,14 @@ describe('ApiHelper should throw error when', () => {
 		expect(() => helper.getFinalData()).toThrow('No input data')
 	})
 
-	test('release_date is in the future', async () => {
+	test('release_date in the future is returned, not rejected', async () => {
+		// A user can own a just-released/future-dated Audible edition; it must return
+		// its date, not 500 the fetch (audnexus threw here; incipit-api does not).
 		helper.audibleResponse = mockResponse.product
 		helper.audibleResponse!.release_date = '2080-01-01'
-		expect(() => helper.getReleaseDate()).toThrow('Release date is in the future')
+		const date = helper.getReleaseDate()
+		expect(date).toBeInstanceOf(Date)
+		expect(date.getFullYear()).toBe(2080)
 	})
 
 	test('category is invalid', () => {
