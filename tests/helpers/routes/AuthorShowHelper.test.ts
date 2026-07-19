@@ -56,6 +56,7 @@ import {
 	setPerformanceConfig
 } from '#config/performance'
 import { ApiAuthorProfile } from '#config/types'
+import defaultRegistry from '#helpers/providers/registry'
 import AuthorShowHelper from '#helpers/routes/AuthorShowHelper'
 import {
 	authorWithoutProjection,
@@ -134,6 +135,27 @@ describe('AuthorShowHelper should', () => {
 
 	test('create or update a author', async () => {
 		await expect(helper.createOrUpdateData()).resolves.toStrictEqual(parsedAuthor)
+	})
+
+	test('backfills the description from Hardcover only when Audible left it empty', async () => {
+		const fakeHc = {
+			fetchAuthorInfo: mock().mockResolvedValue({ image: null, bio: 'Backfilled bio.' })
+		}
+		const getSpy = spyOn(defaultRegistry, 'get').mockReturnValue(
+			fakeHc as unknown as ReturnType<typeof defaultRegistry.get>
+		)
+
+		// Audible returned an empty description → Hardcover fills it.
+		mockScrapeProcess.mockResolvedValue({ ...parsedAuthor, description: '' })
+		const filled = (await helper.getNewData()) as ApiAuthorProfile
+		expect(filled.description).toBe('Backfilled bio.')
+
+		// Audible already has a description → Hardcover must NOT overwrite it.
+		mockScrapeProcess.mockResolvedValue({ ...parsedAuthor, description: 'Audible bio.' })
+		const kept = (await helper.getNewData()) as ApiAuthorProfile
+		expect(kept.description).toBe('Audible bio.')
+
+		getSpy.mockRestore()
 	})
 
 	test('returns original author if it was updated recently when trying to update', async () => {

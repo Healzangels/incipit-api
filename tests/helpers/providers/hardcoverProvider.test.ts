@@ -234,3 +234,62 @@ describe('HardcoverProvider.fetchAuthorImage', () => {
 		).toBeNull()
 	})
 })
+
+describe('HardcoverProvider.fetchAuthorInfo (image + bio)', () => {
+	const authorGql =
+		(authors: unknown): HardcoverGql =>
+		async <T>() =>
+			({ authors }) as T
+
+	test('picks image and bio from DIFFERENT same-name records (the Stephen Fry case)', async () => {
+		// Canonical record has the photo but no bio; a duplicate has the bio.
+		const gql = authorGql([
+			{ name: 'Stephen Fry', bio: null, image: { url: 'https://assets.hardcover.app/fry.png' } },
+			{ name: 'Stephen Fry', bio: 'Stephen John Fry is a British actor and writer.', image: null }
+		])
+		const info = await new HardcoverProvider({ token: 'tok', gql }).fetchAuthorInfo('Stephen Fry', {
+			region: 'us'
+		})
+		expect(info.image).toBe('https://assets.hardcover.app/fry.png')
+		expect(info.bio).toBe('Stephen John Fry is a British actor and writer.')
+	})
+
+	test('prefers the longest exact-name bio and cleans markdown/footnotes', async () => {
+		const gql = authorGql([
+			{ name: 'Stephen Fry', bio: 'Short stub.', image: null },
+			{
+				name: 'Stephen Fry',
+				bio: 'Fry wrote *The Liar* (1993).\r\n\r\n([Source][1])\r\n\r\n\r\n  [1]: http://en.wikipedia.org/wiki/Stephen_Fry',
+				image: null
+			}
+		])
+		const info = await new HardcoverProvider({ token: 'tok', gql }).fetchAuthorInfo('Stephen Fry', {
+			region: 'us'
+		})
+		// Longest bio chosen; asterisks, "([Source][1])" and the "[1]: …" line stripped.
+		expect(info.bio).toBe('Fry wrote The Liar (1993).')
+	})
+
+	test('bio is null when no record carries one; image still resolves', async () => {
+		const gql = authorGql([
+			{ name: 'Andy Weir', bio: null, image: { url: 'https://assets.hardcover.app/aw.jpg' } }
+		])
+		const info = await new HardcoverProvider({ token: 'tok', gql }).fetchAuthorInfo('Andy Weir', {
+			region: 'us'
+		})
+		expect(info.image).toBe('https://assets.hardcover.app/aw.jpg')
+		expect(info.bio).toBeNull()
+	})
+
+	test('no token or a query error yields both null', async () => {
+		expect(await new HardcoverProvider({ gql: authorGql([]) }).fetchAuthorInfo('X', { region: 'us' })).toEqual(
+			{ image: null, bio: null }
+		)
+		const throwing: HardcoverGql = async () => {
+			throw new Error('boom')
+		}
+		expect(
+			await new HardcoverProvider({ token: 'tok', gql: throwing }).fetchAuthorInfo('X', { region: 'us' })
+		).toEqual({ image: null, bio: null })
+	})
+})

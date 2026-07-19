@@ -67,18 +67,24 @@ export default class AuthorShowHelper extends GenericShowHelper {
 
 		const author = data as ApiAuthorProfile
 		const hardcover = defaultRegistry.get('hardcover') as HardcoverProvider | undefined
-		if (!hardcover?.fetchAuthorImage) return data
+		if (!hardcover?.fetchAuthorInfo) return data
 
-		const hardcoverImage = await hardcover.fetchAuthorImage(author.name, {
-			region: this.options.region,
-			logger: this.logger
-		})
+		const { image: hardcoverImage, bio: hardcoverBio } = await hardcover.fetchAuthorInfo(
+			author.name,
+			{ region: this.options.region, logger: this.logger }
+		)
 		if (hardcoverImage && hardcoverImage !== author.image) {
 			this.logger?.info({ author: author.name }, 'author image: preferring Hardcover portrait')
 			// Keep Audible's image (if any) as the secondary option, then make
 			// Hardcover's portrait the primary.
 			if (author.image) author.imageAlt = author.image
 			author.image = hardcoverImage
+		}
+		// Backfill the description ONLY when Audible left it empty — Audible's bio,
+		// when present, is the preferred source, so Hardcover never overwrites it.
+		if (hardcoverBio && !author.description?.trim()) {
+			this.logger?.info({ author: author.name }, 'author description: filled from Hardcover')
+			author.description = hardcoverBio
 		}
 		return author
 	}

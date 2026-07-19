@@ -106,14 +106,32 @@ const BOOK_ID_FOR_EDITION_QUERY = `query IncipitEditionBook($id: Int!) {
 // recover a variant the query never returned. Known limitation; a fuzzy
 // author `search()` (like the book path) would close it but needs its own live
 // verification. limit: 5 covers exact same-name duplicates.
-const AUTHOR_IMAGE_QUERY = `query IncipitAuthorImage($name: String!) {
+// Also pulls `bio` for the description backfill (Audible leaves many authors with
+// no bio). The bio can live on a DIFFERENT same-name record than the photo — e.g.
+// Stephen Fry's portrait is on the 94-book canonical record (bio null) while the
+// full bio is on a 1-book duplicate — so image and bio are picked independently.
+const AUTHOR_INFO_QUERY = `query IncipitAuthorInfo($name: String!) {
 	authors(where: { name: { _eq: $name } }, limit: 5) {
 		name
+		bio
 		image {
 			url
 		}
 	}
 }`
+
+// Hardcover bios are Wikipedia-sourced markdown: strip the emphasis markers, the
+// reference-style footnotes ("([Source][1])") and their trailing definitions
+// ("  [1]: http://…"), and normalize newlines, so Plex shows clean prose.
+function cleanHardcoverBio(raw: string): string {
+	return raw
+		.replace(/\r\n/g, '\n')
+		.replace(/^[ \t]*\[\d+\]:\s*\S+.*$/gm, '') // trailing "  [1]: http://…"
+		.replace(/\s*\(?\[[^\]]+\]\[\d+\]\)?/g, '') // inline "([Source][1])"
+		.replace(/\*/g, '') // markdown italics/bold markers
+		.replace(/\n{3,}/g, '\n\n')
+		.trim()
+}
 
 interface HardcoverImage {
 	url?: string | null
@@ -379,32 +397,56 @@ export default class HardcoverProvider implements BookProvider {
 	}
 
 	/**
-	 * Fetch an author photo URL by name — the fallback used when the primary
-	 * (Audible) author page has no image. Returns null (never throws) when there
-	 * is no token, no match, or the lookup fails, so a miss is a no-op rather than
-	 * a broken author update.
+	 * Fetch an author's photo URL and bio by name — the fallback used when the
+	 * primary (Audible) author page has no image and/or no description. Image and
+	 * bio are picked INDEPENDENTLY across same-name matches (they can live on
+	 * different records). Returns nulls (never throws) when there is no token, no
+	 * match, or the lookup fails, so a miss is a no-op rather than a broken update.
 	 * @param {string} name the author name to look up
+	 * @param {FetchBookOptions} opts region, credentials, logger
+	 * @returns {Promise<{ image: string | null; bio: string | null }>}
+	 */
+	async fetchAuthorInfo(
+		name: string,
+		opts: FetchBookOptions
+	): Promise<{ image: string | null; bio: string | null }> {
+		const token = opts.credentials?.[HARDCOVER_NAME] ?? this.defaultToken
+		if (!token || !name) return { image: null, bio: null }
+		try {
+			const data = await this.gql<{
+				authors?: { name?: string | null; bio?: string | null; image?: HardcoverImage | null }[]
+			}>(AUTHOR_INFO_QUERY, { name }, token)
+			const authors = data?.authors ?? []
+			const lc = name.toLowerCase()
+
+			// Image: prefer an exact name match with one; else the first with one.
+			const exactImg = authors.find((a) => a.name?.toLowerCase() === lc && a.image?.url)
+			const anyImg = authors.find((a) => a.image?.url)
+			const image = (exactImg ?? anyImg)?.image?.url ?? null
+
+			// Bio: prefer exact-name matches, then the longest non-empty bio (a
+			// fuller record over a stub) — independent of which record had the image.
+			const withBio = authors.filter((a) => a.bio && a.bio.trim())
+			const exactBios = withBio.filter((a) => a.name?.toLowerCase() === lc)
+			const bioPick = (exactBios.length ? exactBios : withBio).sort(
+				(a, b) => (b.bio as string).length - (a.bio as string).length
+			)[0]
+			const bio = bioPick?.bio ? cleanHardcoverBio(bioPick.bio) : null
+
+			return { image, bio }
+		} catch (err) {
+			opts.logger?.debug({ err, name }, 'hardcover: author info lookup failed')
+			return { image: null, bio: null }
+		}
+	}
+
+	/**
+	 * Back-compat convenience: the author photo URL alone.
+	 * @param {string} name the author name
 	 * @param {FetchBookOptions} opts region, credentials, logger
 	 * @returns {Promise<string | null>} an image URL, or null
 	 */
 	async fetchAuthorImage(name: string, opts: FetchBookOptions): Promise<string | null> {
-		const token = opts.credentials?.[HARDCOVER_NAME] ?? this.defaultToken
-		if (!token || !name) return null
-		try {
-			const data = await this.gql<{
-				authors?: { name?: string | null; image?: HardcoverImage | null }[]
-			}>(AUTHOR_IMAGE_QUERY, { name }, token)
-			const authors = data?.authors ?? []
-			// Prefer an exact (case-insensitive) name match with an image; otherwise
-			// the first result that has one.
-			const exact = authors.find(
-				(a) => a.name?.toLowerCase() === name.toLowerCase() && a.image?.url
-			)
-			const anyWithImage = authors.find((a) => a.image?.url)
-			return (exact ?? anyWithImage)?.image?.url ?? null
-		} catch (err) {
-			opts.logger?.debug({ err, name }, 'hardcover: author image lookup failed')
-			return null
-		}
+		return (await this.fetchAuthorInfo(name, opts)).image
 	}
 }
