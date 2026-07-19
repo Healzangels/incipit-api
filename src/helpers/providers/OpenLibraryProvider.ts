@@ -75,6 +75,52 @@ function baseTitle(s: string): string {
 	return beforeDash.split(/\s*[:(]\s*/)[0].trim()
 }
 
+// Connecting words kept lowercase inside a title (never first/last word).
+const TITLE_SMALL_WORDS = new Set([
+	'a',
+	'an',
+	'and',
+	'as',
+	'at',
+	'but',
+	'by',
+	'for',
+	'from',
+	'in',
+	'nor',
+	'of',
+	'on',
+	'or',
+	'the',
+	'to',
+	'via',
+	'vs',
+	'with'
+])
+
+/**
+ * Title-case a SENTENCE-cased title (OpenLibrary's house style — "Cube route",
+ * "Heaven cent") so an OL-matched book reads like every other provider's title.
+ * Acts ONLY when the title is genuinely sentence-cased (no capital past the
+ * first character), so an already-title-cased title, an acronym, or any
+ * intentional casing is returned untouched. Small connecting words stay
+ * lowercase unless they are the first or last word.
+ * @param {string} title the raw provider title
+ * @returns {string} the title-cased title, or the input unchanged
+ */
+export function titleCaseSentence(title: string): string {
+	if (!title || /[A-Z]/.test(title.slice(1))) return title
+	const words = title.split(' ')
+	return words
+		.map((w, i) => {
+			if (!w) return w
+			const bare = w.replace(/[^a-z]/gi, '').toLowerCase()
+			if (i > 0 && i < words.length - 1 && TITLE_SMALL_WORDS.has(bare)) return w
+			return w.charAt(0).toUpperCase() + w.slice(1)
+		})
+		.join(' ')
+}
+
 /** Fetches a JSON document; injectable so the data lookup needs no network in tests. */
 export type OpenLibraryGetJson = (url: string, contact: string | undefined) => Promise<unknown>
 
@@ -126,7 +172,7 @@ export default class OpenLibraryProvider implements BookProvider {
 			// OpenLibrary work key, e.g. "/works/OL27448W" — always present, namespaced.
 			id: d.key ? encodeOpenLibraryWork(d.key) : `openlibrary-works-unknown`,
 			asin: null,
-			title: d.title ?? '',
+			title: titleCaseSentence(d.title ?? ''),
 			authors: d.author_name ?? [],
 			narrators: [],
 			audioSeconds: null,
@@ -177,7 +223,7 @@ export default class OpenLibraryProvider implements BookProvider {
 		const coverId = work.covers?.find((c) => c > 0)
 		return {
 			asin: null,
-			title: work.title,
+			title: titleCaseSentence(work.title),
 			authors,
 			narrators: [],
 			summary: description,

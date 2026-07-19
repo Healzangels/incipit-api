@@ -2,7 +2,8 @@ import { describe, expect, test } from 'bun:test'
 
 import OpenLibraryProvider, {
 	type OpenLibraryDoc,
-	type OpenLibraryFetch
+	type OpenLibraryFetch,
+	titleCaseSentence
 } from '#helpers/providers/OpenLibraryProvider'
 
 const spellDoc: OpenLibraryDoc = {
@@ -28,6 +29,18 @@ describe('OpenLibraryProvider', () => {
 			audioSeconds: null,
 			cover: 'https://covers.openlibrary.org/b/id/6453925-L.jpg'
 		})
+	})
+
+	test("title-cases OpenLibrary's sentence-cased titles (Cube route -> Cube Route)", async () => {
+		const fetchDocs: OpenLibraryFetch = async () => [
+			{ key: '/works/OL1W', title: 'Cube route', author_name: ['Piers Anthony'] },
+			{ key: '/works/OL2W', title: 'heaven cent', author_name: ['Piers Anthony'] }
+		]
+		const out = await new OpenLibraryProvider({ fetchDocs }).search({
+			title: 'Cube Route',
+			region: 'us'
+		})
+		expect(out.map((c) => c.title)).toEqual(['Cube Route', 'Heaven Cent'])
 	})
 
 	test('retries on the pre-subtitle stem when the full title misses', async () => {
@@ -104,5 +117,30 @@ describe('OpenLibraryProvider', () => {
 	test('returns [] for an empty title', async () => {
 		const p = new OpenLibraryProvider({ fetchDocs: async () => [spellDoc] })
 		expect(await p.search({ title: '', region: 'us' })).toEqual([])
+	})
+})
+
+describe('titleCaseSentence', () => {
+	test('title-cases a sentence-cased title, keeping small words lowercase', () => {
+		expect(titleCaseSentence('cube route')).toBe('Cube Route')
+		expect(titleCaseSentence('heaven cent')).toBe('Heaven Cent')
+		expect(titleCaseSentence('the color of magic')).toBe('The Color of Magic')
+		// First-capital-only is still sentence case -> title-cased.
+		expect(titleCaseSentence('Cube route')).toBe('Cube Route')
+	})
+
+	test('leaves an already-cased title, an acronym, or intentional casing untouched', () => {
+		// Interior capitals -> not sentence case -> returned as-is.
+		expect(titleCaseSentence('A Spell for Chameleon')).toBe('A Spell for Chameleon')
+		expect(titleCaseSentence('The Hunt for Red October')).toBe('The Hunt for Red October')
+		expect(titleCaseSentence('Esrever Doom: A Fun-Filled Adventure')).toBe(
+			'Esrever Doom: A Fun-Filled Adventure'
+		)
+		expect(titleCaseSentence('NASA and the Moon')).toBe('NASA and the Moon')
+	})
+
+	test('handles empty and single-word input', () => {
+		expect(titleCaseSentence('')).toBe('')
+		expect(titleCaseSentence('dune')).toBe('Dune')
 	})
 })
