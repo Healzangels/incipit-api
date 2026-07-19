@@ -295,8 +295,23 @@ async function stopServer() {
 	}
 }
 
-// Start the server
-startServer()
+// Last-resort handlers: the bootstrap awaits (trusted proxies, plugins, routes)
+// run before the server logger exists, so without these a rejection there — or
+// any stray async error — would exit ambiguously with no log line. Fail loudly.
+process.on('unhandledRejection', (reason) => {
+	console.error('Unhandled promise rejection:', reason)
+	process.exit(1)
+})
+process.on('uncaughtException', (err) => {
+	console.error('Uncaught exception:', err)
+	process.exit(1)
+})
+
+// Start the server; surface a bootstrap failure that happens before the logger.
+startServer().catch((err) => {
+	console.error('Failed to start server:', err)
+	process.exit(1)
+})
 
 // Handle SIGTERM and SIGINT
 process.on('SIGTERM', stopServer)
