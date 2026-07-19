@@ -169,18 +169,18 @@ export default class PaprAudibleAuthorHelper {
 					modified: false
 				}
 			}
-			// Check state of existing author
-			// Only update if either genres exist and can be checked
-			// -or if genres exist on new item but not old
-			if (data.genres || (!data.genres && this.authorData.genres)) {
-				// Only update if it's not nuked data
-				if (this.authorData.genres?.length) {
-					this.logger?.info(NoticeUpdateAsin(this.asin, 'author'))
-					// Update
-					return this.update()
-				}
+			// Only update when the new scrape is real, not "nuked" (a failed fetch).
+			// The book helper uses genres as that proxy, but AUTHOR pages never carry
+			// genres (always []), so copying that gate here disabled ALL author
+			// updates — a re-scrape (e.g. a now-available Hardcover portrait/bio)
+			// could never land, and the only way to refresh an author was to delete
+			// its Mongo doc. An author's `name` is the right presence signal instead.
+			if (this.authorData.name) {
+				this.logger?.info(NoticeUpdateAsin(this.asin, 'author'))
+				// Update
+				return this.update()
 			}
-			// No update performed, return original
+			// No update performed (nuked data), return original
 			return findInDb
 		}
 

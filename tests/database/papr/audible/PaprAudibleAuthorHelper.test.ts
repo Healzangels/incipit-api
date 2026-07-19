@@ -176,8 +176,10 @@ describe('PaprAudibleAuthorHelper should', () => {
 		helper.setData(parsedAuthor)
 		await expect(helper.createOrUpdate()).resolves.toEqual(obj)
 	})
-	test('createOrUpdate genres on old, but not on new', async () => {
-		const obj = { data: parsedAuthor, modified: false }
+	test('createOrUpdate updates an author with no genres (authors never have them) when it has a name', async () => {
+		// Authors always have genres: [] — the old genre gate wrongly blocked ALL
+		// author updates. A named re-scrape must now land.
+		const obj = { data: parsedAuthor, modified: true }
 		mockIsEqualData.mockReturnValue(false)
 		mockFindOne
 			.mockResolvedValueOnce(parsedAuthor as unknown as AuthorDocument)
@@ -186,14 +188,14 @@ describe('PaprAudibleAuthorHelper should', () => {
 		helper.setData(parsedAuthorWithoutGenres)
 		await expect(helper.createOrUpdate()).resolves.toEqual(obj)
 	})
-	test('createOrUpdate no genres on new or old', async () => {
+	test('createOrUpdate does not update when the new scrape is nuked (no name)', async () => {
 		const obj = { data: parsedAuthorWithoutGenres, modified: false }
 		mockIsEqualData.mockReturnValue(false)
 		mockFindOne
 			.mockResolvedValueOnce(parsedAuthorWithoutGenres as unknown as AuthorDocument)
 			.mockResolvedValueOnce(authorWithoutGenresWithoutProjection)
 			.mockResolvedValue(parsedAuthorWithoutGenres as unknown as AuthorDocument)
-		helper.setData(parsedAuthorWithoutGenres)
+		helper.setData({ ...parsedAuthorWithoutGenres, name: '' })
 		await expect(helper.createOrUpdate()).resolves.toEqual(obj)
 	})
 	test('createOrUpdate logs info when updating', async () => {
