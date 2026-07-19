@@ -263,6 +263,71 @@ describe('BookSearchHelper scoring and ranking', () => {
 	})
 })
 
+describe('BookSearchHelper authorless title-only guard', () => {
+	// The observed production false positive: an album tagged "Hell Bent" with NO
+	// artist (a narrator-mistag, or Plex just didn't pass the author) searched
+	// against a transient garbage Hardcover edition whose book-level title was
+	// "Hell Bent: Groucho Marx, Sein Leben" (a different book). The subtitle-stem
+	// match scores title 1.0, and the authorless path turned that into confidence
+	// 1.0 → a silent wrong auto-match. Without an author or duration to verify it,
+	// it must stay below STRONG_MATCH (a confirm-me suggestion), not auto-apply.
+	test('a garbage subtitle stem-match cannot auto-match an authorless query', async () => {
+		const reg = new ProviderRegistry([
+			stubProvider('p', [
+				candidate({ id: 'garbage', title: 'Hell Bent: Groucho Marx, Sein Leben', authors: [] }),
+				candidate({ id: 'real', title: 'Hell Bent', authors: [] })
+			])
+		])
+		const out = await new BookSearchHelper(reg, { title: 'Hell Bent', region: 'us' }).search()
+		// Both are unverifiable without an author/duration, so NEITHER may reach the
+		// 0.9 auto-match line — they can only surface as suggestions.
+		for (const c of out) expect(c.confidence).toBeLessThan(0.9)
+	})
+
+	test('an authorless exact-title match with no duration is a suggestion, not an auto-match', async () => {
+		// A correctly-tagged but artist-less album: still capped at the 0.85 ceiling
+		// until a corroborating signal arrives, mirroring the authored path.
+		const reg = new ProviderRegistry([
+			stubProvider('p', [candidate({ id: 'ok', title: 'Project Hail Mary', authors: [] })])
+		])
+		const out = await new BookSearchHelper(reg, { title: 'Project Hail Mary', region: 'us' }).search()
+		expect(out).toHaveLength(1)
+		expect(out[0].confidence).toBeCloseTo(0.85, 2)
+	})
+
+	test('a duration corroboration lifts an authorless match back to auto-match', async () => {
+		// The steady state once files are analyzed: the runtime confirms the edition,
+		// so the guard releases and the correct book auto-matches without an author.
+		const reg = new ProviderRegistry([
+			stubProvider('p', [
+				candidate({ id: 'right', title: 'The Stars, Like Dust', authors: [], audioSeconds: 29598 })
+			])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'The Stars, Like Dust',
+			duration: 29598000,
+			region: 'us'
+		}).search()
+		expect(out).toHaveLength(1)
+		expect(out[0].confidence).toBeGreaterThanOrEqual(0.9)
+	})
+
+	test('a wrong-runtime authorless candidate is not rescued (and cannot auto-match)', async () => {
+		// Duration present but contradicting → no corroboration → stays capped.
+		const reg = new ProviderRegistry([
+			stubProvider('p', [
+				candidate({ id: 'wrongrun', title: 'Hell Bent', authors: [], audioSeconds: 100000 })
+			])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Hell Bent',
+			duration: 58593210, // ~58593s vs 100000s → far outside tolerance
+			region: 'us'
+		}).search()
+		for (const c of out) expect(c.confidence).toBeLessThan(0.9)
+	})
+})
+
 describe('BookSearchHelper track-title fallback', () => {
 	// A provider that only knows the real book title, not the series+number tag.
 	const swellFoopProvider = stubProvider('p', [

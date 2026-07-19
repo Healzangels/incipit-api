@@ -5,6 +5,7 @@ import { dedupeCandidates } from '#helpers/providers/dedupe'
 import {
 	type CandidateScore,
 	CONFIDENCE_FLOOR,
+	DURATION_TOLERANCE,
 	extractAsinAndClean,
 	normalizeTitle,
 	scoreCandidate
@@ -22,6 +23,18 @@ import type {
 // title+author match (ceiling 0.85) does not — so a noisy album tag still widens
 // to the track title, while an already-confirmed hit skips the extra fan-out.
 const STRONG_MATCH = 0.9
+
+// The authored path ceilings a duration-less title+author match at 0.85 (0.55 +
+// 0.30) — below STRONG_MATCH — so it needs a duration corroboration to auto-match.
+// An AUTHORLESS query has no such ceiling: scoreCandidate scores it on title
+// alone, so a bare title reaches 1.0. That is the "Hell Bent" false-positive
+// vector — a title-only match is unverifiable: distinct books share a title, and
+// a shared main-title stem matches an unrelated subtitle ("Hell Bent" vs "Hell
+// Bent: Groucho Marx, Sein Leben"). Re-impose the same 0.85 ceiling on authorless
+// matches unless a duration corroborates the edition, so an uncorroborated hit
+// surfaces as a confirm-me suggestion instead of auto-applying. Kept in the
+// consumer so the Gate-0-pinned scoreCandidate stays bit-for-bit with the oracle.
+const TITLE_ONLY_CEILING = 0.85
 
 // A leading article ("The"/"A"/"An") is title noise — libraries even sort past
 // it, and rips routinely drop or add it ("Taggerung" vs "The Taggerung"). The
@@ -198,6 +211,7 @@ export default class BookSearchHelper {
 		wantAsin: string | null
 	): ScoredCandidate[] {
 		const authorParts = splitAuthors(this.options.author)
+		const hasAuthor = !!this.options.author?.trim()
 		const scored: ScoredCandidate[] = candidates.map((c) => {
 			// Score against the album title and (when present) the track title,
 			// keeping the higher. Both go through the same scoreCandidate (duration
@@ -211,9 +225,19 @@ export default class BookSearchHelper {
 			// An exact ASIN match is a definitive identity confirmation — it beats
 			// any fuzzy score, so pin it to full confidence.
 			const asinMatch = wantAsin != null && c.asin?.toUpperCase() === wantAsin
+			let confidence = asinMatch ? 1 : best.confidence
+			// Authorless title-only guard (see TITLE_ONLY_CEILING): with no author to
+			// verify identity, hold a fuzzy title match below STRONG_MATCH unless its
+			// duration corroborates the edition — so a bare "Hell Bent" can't silently
+			// auto-match the wrong book. An ASIN pin and a duration match are exempt.
+			if (!asinMatch && !hasAuthor) {
+				const durCorroborated =
+					best.durationDeltaPct != null && best.durationDeltaPct <= DURATION_TOLERANCE
+				if (!durCorroborated) confidence = Math.min(confidence, TITLE_ONLY_CEILING)
+			}
 			return {
 				...c,
-				confidence: asinMatch ? 1 : best.confidence,
+				confidence,
 				durationDeltaPct: best.durationDeltaPct
 			}
 		})
