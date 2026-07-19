@@ -264,7 +264,10 @@ describe('HardcoverProvider.fetchBook', () => {
 
 	test('applies the MATCHED edition, not a popularity re-pick of the book editions', async () => {
 		const p = new HardcoverProvider({ gql: fetchGql(matchedEdition, parentBook) })
-		const book = await p.fetchBook('31501578', 'edition', { region: 'us', credentials: { hardcover: 'tok' } })
+		const book = await p.fetchBook('31501578', 'edition', {
+			region: 'us',
+			credentials: { hardcover: 'tok' }
+		})
 		// asin/date/cover/publisher/narrators come from the matched AUDIO edition,
 		// never the print edition that leads the book's own editions list.
 		expect(book?.asin).toBe('B08GB58KD5')
@@ -286,7 +289,10 @@ describe('HardcoverProvider.fetchBook', () => {
 
 	test('a book-level id still resolves via the book pick', async () => {
 		const p = new HardcoverProvider({ gql: fetchGql(null, parentBook) })
-		const book = await p.fetchBook('427578', 'book', { region: 'us', credentials: { hardcover: 'tok' } })
+		const book = await p.fetchBook('427578', 'book', {
+			region: 'us',
+			credentials: { hardcover: 'tok' }
+		})
 		expect(book?.title).toBe('Project Hail Mary')
 		// Only a print edition exists on the book, so it's the fallback pick.
 		expect(book?.asin).toBe('PRINTASIN0')
@@ -397,14 +403,16 @@ describe('HardcoverProvider.fetchAuthorInfo (image + bio)', () => {
 	})
 
 	test('no token or a query error yields both null', async () => {
-		expect(await new HardcoverProvider({ gql: authorGql([]) }).fetchAuthorInfo('X', { region: 'us' })).toEqual(
-			{ image: null, bio: null }
-		)
+		expect(
+			await new HardcoverProvider({ gql: authorGql([]) }).fetchAuthorInfo('X', { region: 'us' })
+		).toEqual({ image: null, bio: null })
 		const throwing: HardcoverGql = async () => {
 			throw new Error('boom')
 		}
 		expect(
-			await new HardcoverProvider({ token: 'tok', gql: throwing }).fetchAuthorInfo('X', { region: 'us' })
+			await new HardcoverProvider({ token: 'tok', gql: throwing }).fetchAuthorInfo('X', {
+				region: 'us'
+			})
 		).toEqual({ image: null, bio: null })
 	})
 })

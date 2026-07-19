@@ -439,7 +439,11 @@ export default class HardcoverProvider implements BookProvider {
 		// A book id: no specific edition was matched, so let toProviderBook pick one.
 		const bookId = Number(nativeId)
 		if (!Number.isInteger(bookId)) return null
-		const data = await this.gql<{ books?: HardcoverBook[] }>(BOOK_BY_ID_QUERY, { id: bookId }, token)
+		const data = await this.gql<{ books?: HardcoverBook[] }>(
+			BOOK_BY_ID_QUERY,
+			{ id: bookId },
+			token
+		)
 		const book = data?.books?.[0]
 		return book ? toProviderBook(book) : null
 	}
