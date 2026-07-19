@@ -95,8 +95,12 @@ const BOOK_ID_FOR_EDITION_QUERY = `query IncipitEditionBook($id: Int!) {
 // Author photo by name. NOTE: unlike books, the authors table's `cached_image`
 // is null — the real photo is the `image` object relation, selected as
 // `image { url }` (verified live against the schema).
+// NOTE: Hardcover's Hasura rejects `_ilike` ("not permitted on this server"),
+// which silently threw and made every author-image lookup return null. Use
+// `_eq` (permitted); case differences are tolerated by the client-side match
+// below, and same-name duplicates are covered by limit: 5.
 const AUTHOR_IMAGE_QUERY = `query IncipitAuthorImage($name: String!) {
-	authors(where: { name: { _ilike: $name } }, limit: 5) {
+	authors(where: { name: { _eq: $name } }, limit: 5) {
 		name
 		image {
 			url
