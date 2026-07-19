@@ -60,6 +60,20 @@ describe('normalizeTitle strips a glued series-code prefix (DW23 -) safely', () 
 	})
 })
 
+describe('normalizeTitle keeps date-shaped titles but still strips track prefixes', () => {
+	test('a leading number-dash is kept when another number follows (a date)', () => {
+		// The leading "NN - " strip must not eat the first field of a date.
+		expect(normalizeTitle('11-22-63')).toBe('11-22-63')
+		expect(normalizeTitle('9-11')).toBe('9-11')
+	})
+
+	test('a leading track number-dash before a real title is still stripped', () => {
+		expect(normalizeTitle('01 - Dead I Well May Be')).toBe('Dead I Well May Be')
+		expect(normalizeTitle('1. The Gunslinger')).toBe('The Gunslinger')
+		expect(normalizeTitle('16 - Loamhedge')).toBe('Loamhedge')
+	})
+})
+
 describe('titleSim matches Python difflib-based similarity', () => {
 	for (const c of oracle.title_sim) {
 		test(`sim("${c.a}", "${c.b}") == ${c.expected}`, () => {

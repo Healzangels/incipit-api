@@ -29,7 +29,11 @@ const NOISE_PATTERNS: RegExp[] = [
 	/\bvol(ume)?\.?\s*\d+\b/gi,
 	/\bpart\s+\d+\b/gi,
 	/\bdisc\s+\d+\b/gi,
-	/^\s*\d{1,3}\s*[-._]\s*/gi, // leading "01 - "
+	// Leading track number + separator: "01 - ", "1. ", "3_". The (?=\D) guard
+	// only strips when a real title word (a non-digit) follows, so a date-shaped
+	// title survives intact: "11-22-63" stays "11-22-63" instead of losing "11-"
+	// and becoming "22-63". (The slash form "11/22/63" was already safe.)
+	/^\s*\d{1,3}\s*[-._]\s*(?=\D)/gi,
 	/^\s*\[\d{1,3}\]\s*/gi, // leading "[01] "
 	// Leading zero-padded track number with only a space: "01 The Stars, Like Dust".
 	// The zero pad guard keeps real titles starting with a number ("1984") intact.
