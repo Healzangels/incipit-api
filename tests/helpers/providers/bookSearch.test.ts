@@ -419,6 +419,40 @@ describe('BookSearchHelper track-title scoring', () => {
 		expect(out[0].confidence).toBeCloseTo(1.0, 2) // 0.55 + 0.30 + 0.15 duration
 	})
 
+	test('a dropped leading article does not cap a correct match (Taggerung ≈ The Taggerung)', async () => {
+		// File tagged "Taggerung"; Audible has "The Taggerung" with a corroborating
+		// duration. Without article-normalization the missing "The" caps it at ~0.90.
+		const audible = candidate({
+			id: 'tag',
+			provider: 'audible',
+			title: 'The Taggerung',
+			authors: ['Brian Jacques'],
+			audioSeconds: 45561
+		})
+		const out = await new BookSearchHelper(new ProviderRegistry([stubProvider('p', [audible])]), {
+			title: '14 Taggerung',
+			trackTitle: 'Taggerung',
+			author: 'Brian Jacques',
+			duration: 45561 * 1000,
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('tag')
+		expect(out[0].confidence).toBeCloseTo(1.0, 2) // article-insensitive title → 1.0 + duration
+	})
+
+	test('article stripping needs a real article token — Anansi Boys is untouched', async () => {
+		// "Anansi" must NOT be read as the article "an": the wrong book stays below floor.
+		const wrong = stubProvider('p', [
+			candidate({ id: 'no', title: 'Boys of Summer', authors: ['Brian Jacques'] })
+		])
+		const out = await new BookSearchHelper(new ProviderRegistry([wrong]), {
+			title: 'Anansi Boys',
+			author: 'Brian Jacques',
+			region: 'us'
+		}).search()
+		expect(out).toHaveLength(0)
+	})
+
 	test('the track title only ever raises the score, never admits a worse match', async () => {
 		// A wrong candidate that matches neither title stays below the floor even
 		// with the track title in play — the max-of-two only helps a real match.

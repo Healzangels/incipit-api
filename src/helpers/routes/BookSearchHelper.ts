@@ -3,6 +3,7 @@ import type { FastifyBaseLogger } from 'fastify'
 import type { BookSearchQueryString } from '#config/types'
 import { dedupeCandidates } from '#helpers/providers/dedupe'
 import {
+	type CandidateScore,
 	CONFIDENCE_FLOOR,
 	extractAsinAndClean,
 	normalizeTitle,
@@ -21,6 +22,15 @@ import type {
 // title+author match (ceiling 0.85) does not — so a noisy album tag still widens
 // to the track title, while an already-confirmed hit skips the extra fan-out.
 const STRONG_MATCH = 0.9
+
+// A leading article ("The"/"A"/"An") is title noise — libraries even sort past
+// it, and rips routinely drop or add it ("Taggerung" vs "The Taggerung"). The
+// trailing \s+ means a bare "The"/"A" or a word like "Anansi"/"Theodore" is left
+// intact; only a real leading-article token followed by more title is removed.
+const LEADING_ARTICLE = /^\s*(?:the|a|an)\s+/i
+function stripLeadingArticle(s: string): string {
+	return s.replace(LEADING_ARTICLE, '')
+}
 
 /**
  * Whether a candidate is an actual audiobook edition (has an audio runtime or a
@@ -169,26 +179,13 @@ export default class BookSearchHelper {
 	): ScoredCandidate[] {
 		const author = this.options.author ?? ''
 		const scored: ScoredCandidate[] = candidates.map((c) => {
-			// Both titles go through the same scoreCandidate (author + duration
-			// identical), so taking the max only ever swaps in a better TITLE
-			// similarity; it can't relax the author/duration checks.
-			let best = scoreCandidate(
-				primaryTitle,
-				author,
-				c.title,
-				c.authors,
-				this.options.duration ?? null,
-				c.audioSeconds
-			)
+			// Score against the album title and (when present) the track title,
+			// keeping the higher. Both go through the same scoreCandidate (author +
+			// duration identical), so taking the max only ever swaps in a better
+			// TITLE similarity; it can't relax the author/duration checks.
+			let best = this.scorePair(primaryTitle, c)
 			if (altTitle) {
-				const alt = scoreCandidate(
-					altTitle,
-					author,
-					c.title,
-					c.authors,
-					this.options.duration ?? null,
-					c.audioSeconds
-				)
+				const alt = this.scorePair(altTitle, c)
 				if (alt.confidence > best.confidence) best = alt
 			}
 			// An exact ASIN match is a definitive identity confirmation — it beats
@@ -215,5 +212,36 @@ export default class BookSearchHelper {
 			// Still tied: prefer the richer/more-authoritative source.
 			return providerRank(a) - providerRank(b)
 		})
+	}
+
+	/**
+	 * Score one want-title against a candidate, also trying both sides with a
+	 * leading article stripped so "Taggerung" ≈ "The Taggerung". Keeps the higher
+	 * of the two — the stripped variant can only RAISE title similarity, never
+	 * relax author/duration — and leaves the Gate-0-pinned scoreCandidate untouched.
+	 * @param {string} wantTitle the normalized Plex-side title
+	 * @param {ProviderCandidate} c the candidate
+	 * @returns {CandidateScore} the better of the raw and article-stripped scores
+	 */
+	private scorePair(wantTitle: string, c: ProviderCandidate): CandidateScore {
+		const durationMs = this.options.duration ?? null
+		const author = this.options.author ?? ''
+		let best = scoreCandidate(wantTitle, author, c.title, c.authors, durationMs, c.audioSeconds)
+
+		const wantStripped = stripLeadingArticle(wantTitle)
+		const candStripped = stripLeadingArticle(c.title)
+		// Only worth a second scoring pass when stripping actually changed a side.
+		if (wantStripped !== wantTitle || candStripped !== c.title) {
+			const stripped = scoreCandidate(
+				wantStripped,
+				author,
+				candStripped,
+				c.authors,
+				durationMs,
+				c.audioSeconds
+			)
+			if (stripped.confidence > best.confidence) best = stripped
+		}
+		return best
 	}
 }
