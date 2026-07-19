@@ -191,11 +191,19 @@ const REGION_LANGUAGE: Record<string, string> = {
 	jp: 'Japanese'
 }
 
-/** Keep only editions in the preferred language; fall back to all if none match. */
+/** Keep the preferred language AND untagged editions; fall back to all if none. */
 function preferLanguage(editions: HardcoverEdition[], region: string): HardcoverEdition[] {
 	const want = REGION_LANGUAGE[region]
 	if (!want) return editions
-	const inLang = editions.filter((e) => e.language?.language === want)
+	// Keep the wanted language and editions whose language is UNSET — Hardcover's
+	// language data is patchy and a real English audio edition often carries no
+	// language tag, so dropping nulls (in favor of a worse tagged edition, or
+	// losing the book entirely) regressed matching. Only fall back to ALL editions
+	// when nothing matches even this looser filter.
+	const inLang = editions.filter((e) => {
+		const lang = e.language?.language
+		return lang === want || lang == null
+	})
 	return inLang.length ? inLang : editions
 }
 interface HardcoverBook {

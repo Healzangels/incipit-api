@@ -137,6 +137,38 @@ describe('HardcoverProvider', () => {
 		expect(fallback[0].id).toBe('hardcover-edition-3')
 	})
 
+	test('keeps untagged (null-language) editions alongside the preferred language', async () => {
+		// A patchy-data book: one English-tagged edition and one with no language.
+		// Both must survive a US query — the untagged one is very likely English.
+		const withNull = {
+			...projectHailMary,
+			editions: [
+				{ ...projectHailMary.editions[0], id: 10, language: { language: 'English' } },
+				{ ...projectHailMary.editions[0], id: 11, language: null }
+			]
+		}
+		const kept = await new HardcoverProvider({ gql: gqlWith([1], [withNull]) }).search({
+			...baseQuery,
+			title: 'Project Hail Mary'
+		})
+		expect(kept.map((c) => c.id).sort()).toEqual(['hardcover-edition-10', 'hardcover-edition-11'])
+	})
+
+	test('drops a foreign-tagged edition but keeps the untagged one', async () => {
+		const frAndNull = {
+			...projectHailMary,
+			editions: [
+				{ ...projectHailMary.editions[0], id: 20, language: { language: 'French' } },
+				{ ...projectHailMary.editions[0], id: 21, language: null }
+			]
+		}
+		const out = await new HardcoverProvider({ gql: gqlWith([1], [frAndNull]) }).search({
+			...baseQuery,
+			title: 'Project Hail Mary'
+		})
+		expect(out.map((c) => c.id)).toEqual(['hardcover-edition-21'])
+	})
+
 	test('falls back to the edition id when an audio edition has no asin', async () => {
 		const noAsin = {
 			...projectHailMary,
