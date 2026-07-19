@@ -12,11 +12,7 @@ import {
 } from '#helpers/providers/matchScorer'
 import type ProviderRegistry from '#helpers/providers/ProviderRegistry'
 import type ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
-import type {
-	BookSearchQuery,
-	ProviderCandidate,
-	ScoredCandidate
-} from '#helpers/providers/types'
+import type { BookSearchQuery, ProviderCandidate, ScoredCandidate } from '#helpers/providers/types'
 
 // An album match at or above this makes a second (track-title) provider search
 // pointless: duration corroboration (+0.15) or an ASIN pin lands here, but a bare
@@ -169,9 +165,26 @@ export default class BookSearchHelper {
 		// name match still triggers the wider search, but a duration-corroborated
 		// or ASIN-pinned album hit skips the extra fan-out. Bounded to the
 		// ambiguous case: only when a distinct track title exists.
+		//
+		// EXCEPTION — a strong hit is NOT trustworthy when the album title is a NOISY
+		// SUPERSET of the track title (a leading track-number / prefix the album tag
+		// carries and the track title doesn't, e.g. album "28 The Amazing Maurice…"
+		// vs track "The Amazing Maurice…"). There the strong hit came from the
+		// polluted query, which can miss the correct edition entirely: a wrong
+		// LANGUAGE edition corroborated on author+duration still reaches STRONG_MATCH
+		// and, left unchecked, suppresses the widening and auto-applies the wrong
+		// book (the "una historia del mundodisco" Spanish false-100). So also widen
+		// whenever the album title fully contains the track title — the merge only
+		// adds candidates and keeps the best, so the clean query's correct edition
+		// (e.g. the English audiobook that only the clean title surfaces) can win.
 		const topAlbum = ranked.length ? ranked[0].confidence : 0
-		if (altTitle && topAlbum < STRONG_MATCH) {
-			this.logger?.debug({ altTitle, topAlbum }, 'book search: widening to the track title')
+		const albumIsNoisySuperset =
+			altTitle != null && primary.toLowerCase().includes(altTitle.toLowerCase())
+		if (altTitle && (topAlbum < STRONG_MATCH || albumIsNoisySuperset)) {
+			this.logger?.debug(
+				{ altTitle, topAlbum, albumIsNoisySuperset },
+				'book search: widening to the track title'
+			)
 			const trackCandidates = await this.fanOut(altTitle)
 			ranked = this.scoreAndRank([...albumCandidates, ...trackCandidates], primary, altTitle, asin)
 		}

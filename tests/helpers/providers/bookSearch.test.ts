@@ -290,7 +290,10 @@ describe('BookSearchHelper authorless title-only guard', () => {
 		const reg = new ProviderRegistry([
 			stubProvider('p', [candidate({ id: 'ok', title: 'Project Hail Mary', authors: [] })])
 		])
-		const out = await new BookSearchHelper(reg, { title: 'Project Hail Mary', region: 'us' }).search()
+		const out = await new BookSearchHelper(reg, {
+			title: 'Project Hail Mary',
+			region: 'us'
+		}).search()
 		expect(out).toHaveLength(1)
 		expect(out[0].confidence).toBeCloseTo(0.85, 2)
 	})
@@ -381,9 +384,7 @@ describe('BookSearchHelper track-title fallback', () => {
 			name: 'weak',
 			async search() {
 				calls++
-				return [
-					candidate({ id: 'a', title: 'A Spell for Chameleon', authors: ['Piers Anthony'] })
-				]
+				return [candidate({ id: 'a', title: 'A Spell for Chameleon', authors: ['Piers Anthony'] })]
 			}
 		}
 		const helper = new BookSearchHelper(new ProviderRegistry([weak]), {
@@ -396,6 +397,55 @@ describe('BookSearchHelper track-title fallback', () => {
 		// Album pass scores 0.85 (title+author, no duration) < STRONG_MATCH, and a
 		// distinct track title exists → widen with a second fan-out.
 		expect(calls).toBe(2)
+	})
+
+	test('a strong hit on a noisy-superset album title still widens (the Amazing Maurice case)', async () => {
+		// Album tag "28 The Amazing Maurice…" is a noisy SUPERSET of the track title.
+		// The polluted album query returns only a wrong-LANGUAGE edition that still
+		// corroborates on author+duration (→ 1.0 ≥ STRONG_MATCH); the clean
+		// track-title query is the only one that surfaces the correct English audio
+		// edition. A strong-but-noisy album hit must NOT suppress that widening.
+		let albumCalls = 0
+		let trackCalls = 0
+		const spanish = candidate({
+			id: 'es',
+			provider: 'hardcover',
+			title: 'The Amazing Maurice and His Educated Rodents: una historia del mundodisco',
+			authors: ['Terry Pratchett'],
+			audioSeconds: 29272
+		})
+		const english = candidate({
+			id: 'en',
+			provider: 'audible',
+			asin: 'B0C6R9GKPS',
+			title: 'The Amazing Maurice and His Educated Rodents',
+			authors: ['Terry Pratchett'],
+			audioSeconds: 29272
+		})
+		const provider: BookProvider = {
+			name: 'p',
+			async search(q: BookSearchQuery): Promise<ProviderCandidate[]> {
+				// The album query carries the "28 " prefix; the widened query is clean.
+				if (/^\d/.test(q.title.trim())) {
+					albumCalls++
+					return [spanish]
+				}
+				trackCalls++
+				return [english]
+			}
+		}
+		const out = await new BookSearchHelper(new ProviderRegistry([provider]), {
+			title: '28 The Amazing Maurice and His Educated Rodents',
+			trackTitle: 'The Amazing Maurice and His Educated Rodents',
+			author: 'Terry Pratchett',
+			duration: 29272 * 1000,
+			region: 'us'
+		}).search()
+		expect(albumCalls).toBe(1)
+		expect(trackCalls).toBe(1) // widening fired despite the strong album hit
+		// The correct English audio edition wins the merge (audible outranks the
+		// same-confidence hardcover Spanish edition).
+		expect(out[0].id).toBe('en')
 	})
 
 	test('does not retry when the track title normalizes to the album title', async () => {
