@@ -2,6 +2,67 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.15.0](https://github.com/Healzangels/incipit-api/compare/v1.14.0...v1.15.0) (2026-07-20)
+
+
+### Features
+
+* Audible catalog fallback for author search ([9cf345d](https://github.com/Healzangels/incipit-api/commit/9cf345d6c3b820828e4ba9ab4a05b7c778c4d145))
+* **author:** backfill description from Hardcover when Audible has none ([10e7806](https://github.com/Healzangels/incipit-api/commit/10e78062ebf8983d8d7be991d8734650e07b722e))
+* **books:** serve non-Audible book data by id ([22a6156](https://github.com/Healzangels/incipit-api/commit/22a61560b5d16d3ab2e284f7e95a15856d520503))
+* **language:** capture edition language on every candidate ([577e6f3](https://github.com/Healzangels/incipit-api/commit/577e6f39321039e80856d7f02a57961454f840fb))
+* **language:** demote wrong-language editions instead of letting provider order decide ([879d41f](https://github.com/Healzangels/incipit-api/commit/879d41f5f219b5fd6f6ee2421862fed29afdce71))
+* **match:** ignore a leading article in title similarity ([bad87f8](https://github.com/Healzangels/incipit-api/commit/bad87f86949f626db96ce50b1a2439a3bd536b5b))
+* **match:** match co-authors component-wise, not as one string ([af33bae](https://github.com/Healzangels/incipit-api/commit/af33baec8505662670297936f1be71f1a5597051))
+* **match:** score book candidates against the track title too ([7bc62cd](https://github.com/Healzangels/incipit-api/commit/7bc62cd9db4cb085e9364224f64dc860e743644c))
+* **match:** widen search to the clean track title, not just scoring ([4cf0e99](https://github.com/Healzangels/incipit-api/commit/4cf0e99da02727ebcbb936e871cccb568868153a))
+* **providers:** add provider registry and Audible, Hardcover, OpenLibrary providers ([77bd9ec](https://github.com/Healzangels/incipit-api/commit/77bd9ece39dbe456a09af867d49635bbe0d7389a))
+* **providers:** GUID-safe reversible candidate ids ([3901dae](https://github.com/Healzangels/incipit-api/commit/3901daea388d2ef94cbdea25939904e4d962069b))
+* **scorer:** port validated audiobook match scorer to TypeScript ([12b5fa9](https://github.com/Healzangels/incipit-api/commit/12b5fa9b0af2ffd7ccd10addbfb004df437e0c58))
+* **search:** add GET /books multi-provider search route ([dac64c2](https://github.com/Healzangels/incipit-api/commit/dac64c208cf6bfd77a5ed980d05e0cdd801f13ce))
+* **search:** cache provider search results in Redis ([6f97974](https://github.com/Healzangels/incipit-api/commit/6f9797400c988e46d137443801bc266d85a6bec9))
+* **search:** dedupe candidates across providers, edition-aware ([3e0fab8](https://github.com/Healzangels/incipit-api/commit/3e0fab84f24de31958656cd01fc8331208130c70))
+* **search:** handle Audiobookshelf/seanap ASIN and bracket conventions ([5aa9b80](https://github.com/Healzangels/incipit-api/commit/5aa9b8069cdc123d7587188ab449c0794562c8ec))
+* **security:** gate the destructive DELETE routes (default closed) ([e433c00](https://github.com/Healzangels/incipit-api/commit/e433c00c6c9c054de56ac9586081f6323260a423))
+* Storytel provider (opt-in) + provider-richness tiebreak ([5121230](https://github.com/Healzangels/incipit-api/commit/512123010a47c41ceb4d1629cbff1f0e2df40321))
+* strip a glued series-code prefix (DW23 -) from titles ([fafc70a](https://github.com/Healzangels/incipit-api/commit/fafc70a32592e6c71b8f59119c0b9ba80c835fe1))
+* **telemetry:** record a match-quality decision per search ([3b53e85](https://github.com/Healzangels/incipit-api/commit/3b53e85e8b388995e70ad064652b346448917e3c))
+* **utils:** support POST in fetchPlus for GraphQL providers ([50f118c](https://github.com/Healzangels/incipit-api/commit/50f118cc8296407e2294b3784b2f40ff328a6cc4))
+
+
+### Bug Fixes
+
+* accept Hardcover audiobook editions without audio_seconds ([3e10107](https://github.com/Healzangels/incipit-api/commit/3e101079b649382543ba1a74a0df56f6aac919fd))
+* **apple:** harden squareCover; never fall back to the wide banner ([a3cc195](https://github.com/Healzangels/incipit-api/commit/a3cc1957cbfb285f3b29427a96c5c86fb47bb0da))
+* **apple:** use square cover for `image`, not the wide social banner ([ae0260d](https://github.com/Healzangels/incipit-api/commit/ae0260def40ddecd60ddd01cfa0110470fc3b271))
+* **audible:** don't 500 on a future-dated edition; return its release date ([387aa8d](https://github.com/Healzangels/incipit-api/commit/387aa8d16817b717ecdbc10c7b725fbac0b64dc2))
+* **author:** allow author records to actually update (genre-gate was dead) ([3da7dec](https://github.com/Healzangels/incipit-api/commit/3da7dec8b071303c1ae380913b717b32559e5e1b))
+* **author:** allow imageAlt on the Papr author model ([13e6e0c](https://github.com/Healzangels/incipit-api/commit/13e6e0ce8913477e9072aebfaacd95d419d5227e))
+* create the author text index on init (fresh-Mongo author search) ([f9bfc11](https://github.com/Healzangels/incipit-api/commit/f9bfc1138ae51105e9fb41300e2f0799c22c1c11))
+* **dedupe:** collapse same-runtime editions across different ASINs ([5433071](https://github.com/Healzangels/incipit-api/commit/5433071940512a2de7b93a312aab7a25b749f6ff))
+* don't return a loose-token author cache hit ([fb637eb](https://github.com/Healzangels/incipit-api/commit/fb637eb0a7d7cd30fd500d336f104a3adeaa3e17))
+* Hardcover candidate id must route data fetch to Hardcover ([e0c0919](https://github.com/Healzangels/incipit-api/commit/e0c09191103711058df03667fef0daa42bab841a))
+* **hardcover:** fetch the matched edition, not a popularity re-pick ([8e7c614](https://github.com/Healzangels/incipit-api/commit/8e7c6146beece21c44b3f36dcc18825064d18642))
+* **hardcover:** keep untagged (null-language) editions in preferLanguage ([3c220bb](https://github.com/Healzangels/incipit-api/commit/3c220bb3c950fe9a6131df7fb82f60c04b090a60))
+* **hardcover:** use _eq for author image query (_ilike is rejected) ([76e1bf6](https://github.com/Healzangels/incipit-api/commit/76e1bf6a33ab64d943d354eb6cc96da432b2fa19))
+* harden infrastructure-failure seams found by silent-failure audit ([cb5fdcd](https://github.com/Healzangels/incipit-api/commit/cb5fdcdcb824c8e5a46d540df8f719de53ba4ca8))
+* match album searches that arrive without an author ([4a8b5b0](https://github.com/Healzangels/incipit-api/commit/4a8b5b0f788f8d974b626a3fa0358e925f949371))
+* **match:** grade the duration dead zone so a wrong-runtime edition can't tie ([b8a345e](https://github.com/Healzangels/incipit-api/commit/b8a345e674a4af0c77b8c47017fa229e1c487b98))
+* **match:** guard authorless title-only matches against false positives ([15d789f](https://github.com/Healzangels/incipit-api/commit/15d789f9d861c7e94b821ee4682966092eec5f38))
+* **match:** keep date-shaped titles (11-22-63) intact when normalizing ([089f64b](https://github.com/Healzangels/incipit-api/commit/089f64b6753886d17ee2c78ae8e92f3f4dab7609))
+* **match:** strip a series-FIRST '&lt;Series&gt;, Book N:' prefix ([817deb6](https://github.com/Healzangels/incipit-api/commit/817deb6e4a4679772489acf64ef15a90b0502c74))
+* **match:** unify "&" with "and" in title scoring (Faun & Games) ([a2c704d](https://github.com/Healzangels/incipit-api/commit/a2c704d8fe656b8436e65b4f2090e9441494acad))
+* **match:** widen to the track title on a noisy-superset album hit ([fc38231](https://github.com/Healzangels/incipit-api/commit/fc38231323f2f4951ef9457e2e92bb99b4f020fb))
+* never 400 on a bad duration; drop it instead ([d97962d](https://github.com/Healzangels/incipit-api/commit/d97962dbd686d06d0b3461b694b73c1d833ccbc7))
+* **openlibrary:** title-case sentence-cased titles ([119b0f2](https://github.com/Healzangels/incipit-api/commit/119b0f2821418d6e60f069f13114dadda2dd533f))
+* prefer region-language Hardcover editions ([814100b](https://github.com/Healzangels/incipit-api/commit/814100bb4df23b0ea1a655457715b26f105dc48a))
+* prefer the audiobook edition over a book-level record on a tie ([484bfb9](https://github.com/Healzangels/incipit-api/commit/484bfb9552f01710e5e0b5b0fb3cd5495d1a248a))
+* **ratelimit:** exempt trusted callers via RATE_LIMIT_ALLOWLIST ([8d45a02](https://github.com/Healzangels/incipit-api/commit/8d45a02daf9e6ced532ba7fb51cf274177ac7936))
+* reject shared-name author cache collisions (Karevik/Rowe) ([1c10057](https://github.com/Healzangels/incipit-api/commit/1c10057fbee7091b448c93adad7ffcfa89180c9c))
+* require both Docker Hub secrets before attempting that login ([b9f6abb](https://github.com/Healzangels/incipit-api/commit/b9f6abbe7ebb2d2de6f1faef953332514e4a0059))
+* **security:** sanitize fetch errors so auth tokens can't reach logs ([32153d7](https://github.com/Healzangels/incipit-api/commit/32153d7eaf04e8a1af5a3b0b5071a633b0b4d6d7))
+* **server:** fail loudly on unhandled rejections and bootstrap errors ([007ee71](https://github.com/Healzangels/incipit-api/commit/007ee71c43791c0808bcd7bba42166d9d360c522))
+
 ## [1.14.0](https://github.com/laxamentumtech/audnexus/compare/v1.13.0...v1.14.0) (2026-05-23)
 
 
