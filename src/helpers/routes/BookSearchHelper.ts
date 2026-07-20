@@ -41,6 +41,17 @@ function stripLeadingArticle(s: string): string {
 	return s.replace(LEADING_ARTICLE, '')
 }
 
+// "&" and "and" are the same word in a title — rips write one, providers the
+// other ("Faun and Games" vs Hardcover's "Faun & Games"), and sim() deleting
+// the "&" outright left that pair at ~0.78, under the auto-match bar. Unifying
+// to "and" before scoring makes them identical.
+function unifyAmpersand(s: string): string {
+	return s
+		.replace(/\s*&\s*/g, ' and ')
+		.replace(/\s{2,}/g, ' ')
+		.trim()
+}
+
 // Co-author separators (mirrors the bundle's split): a rip's author field is
 // often the full credit ("Robert Jordan, Brandon Sanderson") while a provider
 // edition lists just one ("Robert Jordan"). \band\b is whitespace-bounded so a
@@ -272,13 +283,14 @@ export default class BookSearchHelper {
 	}
 
 	/**
-	 * Score one want-title against a candidate, also trying both sides with a
-	 * leading article stripped so "Taggerung" ≈ "The Taggerung". Keeps the higher
-	 * of the two — the stripped variant can only RAISE title similarity, never
-	 * relax author/duration — and leaves the Gate-0-pinned scoreCandidate untouched.
+	 * Score one want-title against a candidate, also trying title variants that
+	 * can only RAISE similarity — leading article stripped ("Taggerung" ≈ "The
+	 * Taggerung") and ampersand unified ("Faun and Games" ≈ "Faun & Games"),
+	 * composed both ways. Keeps the best — a variant never relaxes
+	 * author/duration — and leaves the Gate-0-pinned scoreCandidate untouched.
 	 * @param {string} wantTitle the normalized Plex-side title
 	 * @param {ProviderCandidate} c the candidate
-	 * @returns {CandidateScore} the better of the raw and article-stripped scores
+	 * @returns {CandidateScore} the best score across all title variants
 	 */
 	private scorePair(
 		wantTitle: string,
@@ -286,26 +298,31 @@ export default class BookSearchHelper {
 		authorParts: string[]
 	): CandidateScore {
 		const durationMs = this.options.duration ?? null
-		const wantStripped = stripLeadingArticle(wantTitle)
-		const candStripped = stripLeadingArticle(c.title)
-		const hasStripped = wantStripped !== wantTitle || candStripped !== c.title
+
+		// Base + ampersand-unified, each also article-stripped when that differs.
+		const pairs: Array<[string, string]> = []
+		const bases: Array<[string, string]> = [
+			[wantTitle, c.title],
+			[unifyAmpersand(wantTitle), unifyAmpersand(c.title)]
+		]
+		for (const [w, cand] of bases) {
+			pairs.push([w, cand])
+			const ws = stripLeadingArticle(w)
+			const cs = stripLeadingArticle(cand)
+			if (ws !== w || cs !== cand) pairs.push([ws, cs])
+		}
 
 		// Try each co-author against the candidate (a rip crediting both authors
-		// shouldn't lose points to an edition that lists one), and — when a leading
-		// article differs — the article-stripped title too. Keep the best.
+		// shouldn't lose points to an edition that lists one) for every distinct
+		// title variant. Keep the best.
+		const seen = new Set<string>()
 		let best: CandidateScore = { confidence: 0, durationDeltaPct: null }
-		for (const author of authorParts) {
-			const raw = scoreCandidate(wantTitle, author, c.title, c.authors, durationMs, c.audioSeconds)
-			if (raw.confidence > best.confidence) best = raw
-			if (hasStripped) {
-				const s = scoreCandidate(
-					wantStripped,
-					author,
-					candStripped,
-					c.authors,
-					durationMs,
-					c.audioSeconds
-				)
+		for (const [w, candTitle] of pairs) {
+			const key = w + '\u0000' + candTitle
+			if (seen.has(key)) continue
+			seen.add(key)
+			for (const author of authorParts) {
+				const s = scoreCandidate(w, author, candTitle, c.authors, durationMs, c.audioSeconds)
 				if (s.confidence > best.confidence) best = s
 			}
 		}

@@ -555,6 +555,25 @@ describe('BookSearchHelper track-title scoring', () => {
 		expect(out[0].confidence).toBeCloseTo(1.0, 2) // article-insensitive title → 1.0 + duration
 	})
 
+	test('an ampersand title matches its "and" spelling (Faun and Games ≈ Faun & Games)', async () => {
+		// File tagged "Faun and Games"; Hardcover's record is "Faun & Games".
+		// sim() deletes the "&" outright, leaving ~0.78 — under the auto-match
+		// bar — so the only Xanth book with an ampersand title sat unmatched.
+		const hardcover = candidate({
+			id: 'faun',
+			provider: 'hardcover',
+			title: 'Faun & Games',
+			authors: ['Piers Anthony']
+		})
+		const out = await new BookSearchHelper(new ProviderRegistry([stubProvider('p', [hardcover])]), {
+			title: 'Faun and Games',
+			author: 'Piers Anthony',
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('faun')
+		expect(out[0].confidence).toBeCloseTo(0.85, 2) // unified title 1.0 → 0.55 + 0.30
+	})
+
 	test('a co-authored credit matches an edition that lists only one author', async () => {
 		// File credits "Robert Jordan, Brandon Sanderson"; the Audible edition lists
 		// only "Robert Jordan". Splitting the credit lets the component match → 1.0.
