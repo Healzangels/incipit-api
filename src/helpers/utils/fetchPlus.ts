@@ -4,6 +4,36 @@ import pooledAxios from '#helpers/utils/connectionPool'
 import sleep from '#helpers/utils/sleep'
 
 /**
+ * A sanitized fetch failure. Carries ONLY what consumers read (`status` for an
+ * HTTP failure, `code` for a network/timeout failure, plus `message`) and NONE
+ * of the axios internals — critically not `config.headers`, which holds the
+ * caller's `Authorization: Bearer <hardcover-token>` and would otherwise be
+ * serialized verbatim into logs by pino's default error serializer when a
+ * consumer logs `{ err }` (e.g. ProviderRegistry on a provider failure).
+ */
+export class FetchError extends Error {
+	status?: number
+	code?: string
+	constructor(message: string, status?: number, code?: string) {
+		super(message)
+		this.name = 'FetchError'
+		this.status = status
+		this.code = code
+	}
+}
+
+/** Build a FetchError from a non-200 AxiosResponse (HTTP-status failure). */
+function fromResponse(response: AxiosResponse): FetchError {
+	return new FetchError('Request failed with status ' + response.status, response.status)
+}
+
+/** Build a FetchError from an AxiosError (network failure / timeout). */
+function fromAxiosError(error: AxiosError): FetchError {
+	// A network error has no response; carry its code (ECONNABORTED, etc.).
+	return new FetchError(error.message, error.response?.status, error.code)
+}
+
+/**
  * Calculates the delay for retry attempts with exponential backoff.
  * For 429 status, uses exponential backoff starting at 1s, doubling each retry (max 8s).
  * Respects Retry-After header if present (includes delay-in-seconds and HTTP-date formats).
@@ -76,7 +106,7 @@ function fetchPlus(
 				if (response.status === 200) {
 					resolve(response)
 				} else {
-					reject(response)
+					reject(fromResponse(response))
 				}
 			})
 			.catch(async (reason: AxiosError) => {
@@ -92,11 +122,11 @@ function fetchPlus(
 						.then(resolve)
 						.catch(reject)
 				} else {
-					// A network error/timeout has no `response` — reject with the
-					// AxiosError itself rather than `undefined`, so catch handlers can
-					// safely read `.status`/`.code`/`.message` instead of TypeError-ing
-					// (which turned designed degrade-gracefully paths into opaque 500s).
-					reject(reason.response ?? reason)
+					// Reject with a sanitized FetchError (status/code/message only).
+					// Rejecting the raw AxiosError/AxiosResponse here leaked the
+					// caller's Authorization header into logs; consumers read only
+					// `.status`/`.code`/`.message`, all preserved.
+					reject(fromAxiosError(reason))
 				}
 			})
 	})

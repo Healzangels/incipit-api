@@ -42,6 +42,19 @@ describe('rateLimitAllowList predicate', () => {
 		expect(rateLimitAllowList(req('192.0.2.5'))).toBe(true)
 		expect(rateLimitAllowList(req('8.8.8.8'))).toBe(false)
 	})
+
+	it('re-parses when the env value changes (memo keyed on the raw string)', () => {
+		process.env.RATE_LIMIT_ALLOWLIST = '192.0.2.10'
+		expect(rateLimitAllowList(req('192.0.2.10'))).toBe(true)
+		expect(rateLimitAllowList(req('198.51.100.10'))).toBe(false)
+		// Change the env: the memo must invalidate, not serve the old list.
+		process.env.RATE_LIMIT_ALLOWLIST = '198.51.100.10'
+		expect(rateLimitAllowList(req('198.51.100.10'))).toBe(true)
+		expect(rateLimitAllowList(req('192.0.2.10'))).toBe(false)
+		// Unset entirely: back to "everyone limited".
+		delete process.env.RATE_LIMIT_ALLOWLIST
+		expect(rateLimitAllowList(req('198.51.100.10'))).toBe(false)
+	})
 })
 
 describe('@fastify/rate-limit honours the allowlist end-to-end', () => {

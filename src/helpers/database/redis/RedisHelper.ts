@@ -5,6 +5,10 @@ import { ApiBook } from '#config/types'
 import getErrorMessage from '#helpers/utils/getErrorMessage'
 import { ErrorMessageRedisDelete, ErrorMessageRedisSet } from '#static/messages'
 
+// Book/author/chapter cache entries expire after 5 days. Single source of truth
+// so the atomic SET+EX in setOne and setExpiration can never drift apart.
+const CACHE_TTL_SECONDS = 432000
+
 export default class RedisHelper {
 	instance: FastifyRedis | null
 	key: string
@@ -99,7 +103,7 @@ export default class RedisHelper {
 	 */
 	async setExpiration(): Promise<void> {
 		try {
-			await this.instance?.expire(this.key, 432000)
+			await this.instance?.expire(this.key, CACHE_TTL_SECONDS)
 		} catch (error) {
 			const message = getErrorMessage(error)
 			this.logger?.error(message)
@@ -117,7 +121,7 @@ export default class RedisHelper {
 			// Atomic SET+EX: the old set-then-expire pair could leave a key with
 			// NO TTL if the expire half failed (or the process died between the
 			// two), turning a 5-day cache entry into a permanently stale one.
-			const set = await this.instance?.set(this.key, JSON.stringify(data), 'EX', 432000)
+			const set = await this.instance?.set(this.key, JSON.stringify(data), 'EX', CACHE_TTL_SECONDS)
 			return set
 		} catch (error) {
 			const message = getErrorMessage(error)

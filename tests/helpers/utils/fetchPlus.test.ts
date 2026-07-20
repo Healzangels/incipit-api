@@ -19,7 +19,7 @@ mock.module('#helpers/utils/sleep', () => {
 import type { AxiosResponse } from 'axios'
 
 import pooledAxios from '#helpers/utils/connectionPool'
-import fetchPlus from '#helpers/utils/fetchPlus'
+import fetchPlus, { FetchError } from '#helpers/utils/fetchPlus'
 
 let mockStatus: { status: number; headers?: Record<string, string> }
 
@@ -50,7 +50,7 @@ describe('fetchPlus should', () => {
 			return Promise.reject(error)
 		})
 
-		await expect(fetchPlus('test.com')).rejects.toEqual(mockStatus)
+		await expect(fetchPlus('test.com')).rejects.toMatchObject({ status: 500 })
 		expect(pooledAxios.get).toHaveBeenCalledTimes(4)
 	})
 
@@ -68,6 +68,35 @@ describe('fetchPlus should', () => {
 			code: 'ECONNABORTED',
 			message: 'timeout of 30000ms'
 		})
+	})
+
+	test('the rejected error carries no axios config/headers (no auth-token leak)', async () => {
+		// An AxiosError's `config.headers` holds the caller's Authorization
+		// header; rejecting it raw let pino serialize the bearer token into logs.
+		const leaky = Object.assign(new Error('socket hang up'), {
+			code: 'ECONNRESET',
+			isAxiosError: true,
+			config: { headers: { Authorization: 'Bearer SECRET_TOKEN' } }
+		})
+		mockGet.mockImplementation(() => Promise.reject(leaky))
+
+		// retries=3 → reject immediately with the sanitized error.
+		await expect(fetchPlus('test.com', {}, 3)).rejects.toMatchObject({
+			name: 'FetchError',
+			code: 'ECONNRESET'
+		})
+		const err = await fetchPlus('test.com', {}, 3).catch((e) => e)
+		expect(err instanceof FetchError).toBe(true)
+		expect((err as Record<string, unknown>).config).toBeUndefined()
+		// Nothing pino could serialize (own-enumerable props + message/stack) may
+		// contain the token.
+		const serialized = JSON.stringify({
+			...(err as object),
+			message: (err as Error).message,
+			stack: (err as Error).stack
+		})
+		expect(serialized).not.toContain('SECRET_TOKEN')
+		expect(serialized).not.toContain('Authorization')
 	})
 
 	test('retry on non-200', async () => {
@@ -88,7 +117,7 @@ describe('fetchPlus should', () => {
 			return Promise.reject(error)
 		})
 
-		await expect(fetchPlus('test.com', {}, 2)).rejects.toEqual(mockStatus)
+		await expect(fetchPlus('test.com', {}, 2)).rejects.toMatchObject({ status: 500 })
 		expect(pooledAxios.get).toHaveBeenCalledTimes(2)
 	})
 
@@ -176,7 +205,7 @@ describe('fetchPlus should', () => {
 			return Promise.reject(error)
 		})
 
-		await expect(fetchPlus('test.com')).rejects.toEqual(mockStatus)
+		await expect(fetchPlus('test.com')).rejects.toMatchObject({ status: 500 })
 		expect(pooledAxios.get).toHaveBeenCalledTimes(4)
 		expect(sleepDelays).toEqual([])
 	})

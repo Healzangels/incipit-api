@@ -3,8 +3,13 @@
 import { regions } from '#static/regions'
 
 // Problem with HTTP fetch
-export const ErrorMessageHTTPFetch = (asin: string, error: number, source: string) =>
-	`An error occured while fetching data from ${source}. Response: ${error}, ASIN: ${asin}`
+export const ErrorMessageHTTPFetch = (
+	asin: string,
+	// Callers pass an HTTP status (number) on an HTTP failure, or a network
+	// error code string ('ECONNABORTED') / undefined on a transport failure.
+	error: number | string | undefined,
+	source: string
+) => `An error occured while fetching data from ${source}. Response: ${error}, ASIN: ${asin}`
 // Missing environment variable
 export const ErrorMessageMissingEnv = (env: string) => `Missing environment variable(s): ${env}`
 // Missing Class object data
