@@ -29,6 +29,16 @@ export interface MatchDecision {
 	hasDuration: boolean
 	/** No author tag — the sharpest false-positive risk factor. */
 	authorless: boolean
+	/** Language expected for this search (ISO-639-1), or null if undetermined. */
+	wantLanguage: string | null
+	/** Language of the winning candidate, or null when the provider gave no signal. */
+	matchedLanguage: string | null
+	/**
+	 * How many candidates the wrong-language demotion hit. Makes the language
+	 * gate's real effect measurable — if this stays 0 across a full library scan,
+	 * foreign editions were never actually competing here.
+	 */
+	languageDemoted: number
 
 	/** At least one candidate survived the confidence floor. */
 	matched: boolean
@@ -68,6 +78,10 @@ export interface MatchMetrics {
 	widened: number
 	asinPinned: number
 	durationCorroborated: number
+	/** Searches where at least one candidate was demoted for wrong language. */
+	languageDemotedSearches: number
+	/** Total candidates demoted for wrong language, across all searches. */
+	languageDemotedCandidates: number
 	/** Confidence distribution of matched searches. */
 	byConfidence: Record<string, number>
 	avgConfidence: number | null
@@ -87,6 +101,8 @@ const store: {
 	widened: number
 	asinPinned: number
 	durationCorroborated: number
+	languageDemotedSearches: number
+	languageDemotedCandidates: number
 	confidenceSum: number
 	byConfidence: Map<string, number>
 	recent: MatchDecision[]
@@ -99,6 +115,8 @@ const store: {
 	widened: 0,
 	asinPinned: 0,
 	durationCorroborated: 0,
+	languageDemotedSearches: 0,
+	languageDemotedCandidates: 0,
 	confidenceSum: 0,
 	byConfidence: new Map(),
 	recent: []
@@ -131,6 +149,10 @@ export function recordMatchDecision(decision: MatchDecision): void {
 	if (decision.widened) store.widened += 1
 	if (decision.asinPinned) store.asinPinned += 1
 	if (decision.durationCorroborated) store.durationCorroborated += 1
+	if (decision.languageDemoted > 0) {
+		store.languageDemotedSearches += 1
+		store.languageDemotedCandidates += decision.languageDemoted
+	}
 
 	if (decision.matched && decision.confidence != null) {
 		store.confidenceSum += decision.confidence
@@ -158,6 +180,8 @@ export function getMatchMetrics(): MatchMetrics {
 		widened: store.widened,
 		asinPinned: store.asinPinned,
 		durationCorroborated: store.durationCorroborated,
+		languageDemotedSearches: store.languageDemotedSearches,
+		languageDemotedCandidates: store.languageDemotedCandidates,
 		byConfidence: Object.fromEntries(store.byConfidence),
 		avgConfidence: matched > 0 ? store.confidenceSum / matched : null,
 		recent: [...store.recent]
@@ -174,6 +198,8 @@ export function resetMatchMetrics(): void {
 	store.widened = 0
 	store.asinPinned = 0
 	store.durationCorroborated = 0
+	store.languageDemotedSearches = 0
+	store.languageDemotedCandidates = 0
 	store.confidenceSum = 0
 	store.byConfidence.clear()
 	store.recent.length = 0

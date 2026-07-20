@@ -13,6 +13,7 @@ import {
 import type ProviderRegistry from '#helpers/providers/ProviderRegistry'
 import type ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
 import type { BookSearchQuery, ProviderCandidate, ScoredCandidate } from '#helpers/providers/types'
+import { languageConflict, regionLanguage } from '#helpers/utils/language'
 import { type MatchDecision, recordMatchDecision } from '#helpers/utils/matchTelemetry'
 
 // An album match at or above this makes a second (track-title) provider search
@@ -32,6 +33,27 @@ const STRONG_MATCH = 0.9
 // surfaces as a confirm-me suggestion instead of auto-applying. Kept in the
 // consumer so the Gate-0-pinned scoreCandidate stays bit-for-bit with the oracle.
 const TITLE_ONLY_CEILING = 0.85
+
+// A candidate whose edition language positively CONFLICTS with the wanted one is
+// the same book in the wrong language. Its title and author match perfectly —
+// author names don't translate, and titles like "Dune"/"It"/"1984" don't either —
+// so it scores identically to the correct edition, and a translation's runtime
+// usually lands in the duration veto's 5–25% dead zone, so nothing vetoes it.
+// Without this the winner falls to providerRank, i.e. WHICH SOURCE returned it
+// decides the language the operator gets.
+//
+// A penalty, not a hard drop: language data is patchy, and languageConflict()
+// already fires only when BOTH sides are positively known and differ (unknown is
+// never a conflict).
+//
+// Sized at 0.15 deliberately. A title+author match ceilings at 0.85, so 0.15
+// lands it at 0.70 — clearly beaten by a correct-language edition, but still
+// ABOVE the 0.65 acceptance floor, so a book published ONLY in another language
+// still matches instead of vanishing. 0.25 would drop it to 0.60 and delete it
+// from the results entirely, trading a foreign-edition false positive for a
+// no-match false negative.
+// Consumer-side, so the Gate-0-pinned scoreCandidate stays bit-for-bit.
+const LANGUAGE_CONFLICT_PENALTY = 0.15
 
 // A leading article ("The"/"A"/"An") is title noise — libraries even sort past
 // it, and rips routinely drop or add it ("Taggerung" vs "The Taggerung"). The
@@ -116,6 +138,10 @@ export default class BookSearchHelper {
 	// access logs. Forwarded to providers via the internal BookSearchQuery.
 	private credentials?: Record<string, string>
 	private cache?: ProviderSearchCache
+	// How many candidates the wrong-language demotion hit on the last scoring
+	// pass. Reported in telemetry so the gate's real-world effect is measurable
+	// rather than assumed.
+	private languageDemoted = 0
 
 	constructor(
 		registry: ProviderRegistry,
@@ -241,6 +267,9 @@ export default class BookSearchHelper {
 			region: this.options.region ?? null,
 			hasDuration: this.options.duration != null && this.options.duration > 0,
 			authorless: !this.options.author?.trim(),
+			wantLanguage: regionLanguage(this.options.region),
+			matchedLanguage: top?.language ?? null,
+			languageDemoted: this.languageDemoted,
 			matched: top != null,
 			provider: top?.provider ?? null,
 			matchedTitle: top?.title ?? null,
@@ -293,6 +322,11 @@ export default class BookSearchHelper {
 	): ScoredCandidate[] {
 		const authorParts = splitAuthors(this.options.author)
 		const hasAuthor = !!this.options.author?.trim()
+		// The language we expect. Derived from region for now, which conflates
+		// marketplace with language; an explicit per-request `language` param is the
+		// follow-up that makes genuinely non-English LIBRARIES work.
+		const wantLanguage = regionLanguage(this.options.region)
+		this.languageDemoted = 0
 		const scored: ScoredCandidate[] = candidates.map((c) => {
 			// Score against the album title and (when present) the track title,
 			// keeping the higher. Both go through the same scoreCandidate (duration
@@ -316,6 +350,13 @@ export default class BookSearchHelper {
 					best.durationDeltaPct != null && best.durationDeltaPct <= DURATION_TOLERANCE
 				if (!durCorroborated) confidence = Math.min(confidence, TITLE_ONLY_CEILING)
 			}
+			// Wrong-language demotion. Exempt an ASIN pin: an exact ASIN is a
+			// definitive identity the caller asked for by name, so honour it even
+			// when its language differs.
+			if (!asinMatch && languageConflict(c.language, wantLanguage)) {
+				confidence = Math.max(0, confidence - LANGUAGE_CONFLICT_PENALTY)
+				this.languageDemoted += 1
+			}
 			return {
 				...c,
 				confidence,
@@ -334,6 +375,14 @@ export default class BookSearchHelper {
 			// half OpenLibrary) with inconsistent series/sort metadata.
 			const byAudio = Number(isAudioEdition(b)) - Number(isAudioEdition(a))
 			if (byAudio !== 0) return byAudio
+			// Still tied: prefer the edition in the wanted language. This sits ABOVE
+			// providerRank deliberately — otherwise which SOURCE returned a candidate
+			// decides which language wins, which is how a German "Dune" from a
+			// higher-ranked provider beat the English one.
+			const byLanguage =
+				Number(languageConflict(a.language, wantLanguage)) -
+				Number(languageConflict(b.language, wantLanguage))
+			if (byLanguage !== 0) return byLanguage
 			// Still tied: prefer the richer/more-authoritative source.
 			return providerRank(a) - providerRank(b)
 		})
