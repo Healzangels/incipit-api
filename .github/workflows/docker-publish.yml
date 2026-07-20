@@ -6,19 +6,18 @@ name: Docker
 # documentation.
 
 on:
-  # NOTE: on a fork, GitHub suppresses event-triggered runs (push/schedule);
-  # publish via `gh workflow run docker-publish.yml --ref main` until detached.
-  # Manual trigger — build and publish an image from any branch on demand
-  # (e.g. the multi-provider work before it lands on main).
+  # NOTE: on a fork, GitHub can suppress event-triggered runs (push/schedule);
+  # publish via `gh workflow run docker-publish.yml --ref nightly` if a push
+  # doesn't build. Manual trigger also builds from any branch on demand.
   workflow_dispatch:
   push:
     branches:
-      - develop
-      - main
+      - nightly
+      - release
     # Publish semver tags as releases.
     tags: [ 'v*.*.*' ]
   pull_request:
-    branches: [ main ]
+    branches: [ nightly, release ]
 
 env:
   # GitHub Container Registry — always published (uses the built-in GITHUB_TOKEN).
@@ -72,9 +71,10 @@ jobs:
           images: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
             ${{ env.DOCKERHUB_IMAGE }}
-          # :latest tracks the default branch (main); :<branch> and semver :<tag> too.
+          # :nightly and :release come from the branch name; :latest tracks the
+          # stable `release` branch; semver :<tag> from version tags.
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/release' }}
             type=ref,event=branch
             type=semver,pattern={{version}}
 
