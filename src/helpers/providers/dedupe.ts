@@ -19,19 +19,30 @@ function normKey(s: string): string {
 	return s.toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
-/** The identity key a candidate dedupes on. */
-function dedupeKey(c: ScoredCandidate): string {
-	if (c.asin) return `asin:${c.asin.toUpperCase()}`
+/**
+ * The identity keys a candidate shares with its duplicates. A candidate is the
+ * SAME edition as another if they share ANY key:
+ *  - `asin:<ASIN>`                    — same store listing.
+ *  - `dur:<title>|<author>|<minutes>` — same audio content: identical
+ *    title+author+runtime-to-the-minute IS the same audiobook even under a
+ *    DIFFERENT store ASIN (a regional re-release lists the same narration under
+ *    a new ASIN). Editions that genuinely differ carry a different runtime, so
+ *    they land in a different minute bucket and stay separate.
+ *  - `book:<title>|<author>`          — a book-level entry with no audio edition.
+ * Returning multiple keys (via union-find below) collapses a re-release cluster
+ * that a single ASIN-first key would leave as N look-alike candidates.
+ */
+function dedupeKeys(c: ScoredCandidate): string[] {
+	const keys: string[] = []
+	if (c.asin) keys.push(`asin:${c.asin.toUpperCase()}`)
 	const title = normKey(c.title)
 	const author = normKey(c.authors[0] ?? '')
 	if (c.audioSeconds != null) {
-		// Bucket to the nearest minute so near-identical runtimes from different
-		// sources collapse, while distinct editions (which carry ASINs) do not
-		// reach this branch.
-		const minutes = Math.round(c.audioSeconds / 60)
-		return `dur:${title}|${author}|${minutes}`
+		keys.push(`dur:${title}|${author}|${Math.round(c.audioSeconds / 60)}`)
+	} else if (!c.asin) {
+		keys.push(`book:${title}|${author}`)
 	}
-	return `book:${title}|${author}`
+	return keys
 }
 
 /** How much usable data a candidate carries — the tie-breaker within a group. */
@@ -57,11 +68,45 @@ function isBetter(a: ScoredCandidate, b: ScoredCandidate): boolean {
  * @returns {ScoredCandidate[]} one candidate per distinct edition/book
  */
 export function dedupeCandidates(candidates: ScoredCandidate[]): ScoredCandidate[] {
-	const byKey = new Map<string, ScoredCandidate>()
-	for (const c of candidates) {
-		const key = dedupeKey(c)
-		const existing = byKey.get(key)
-		if (!existing || isBetter(c, existing)) byKey.set(key, c)
+	const n = candidates.length
+	// Union-find: a candidate can share MORE than one identity key (an ASIN and a
+	// runtime), so a single-key map can't express "same as A via ASIN, same as B
+	// via runtime". Union everything that shares any key, then keep the best per
+	// group.
+	const parent = Array.from({ length: n }, (_, i) => i)
+	const find = (i: number): number => {
+		while (parent[i] !== i) {
+			parent[i] = parent[parent[i]]
+			i = parent[i]
+		}
+		return i
 	}
-	return [...byKey.values()]
+	const firstByKey = new Map<string, number>()
+	candidates.forEach((c, i) => {
+		for (const key of dedupeKeys(c)) {
+			const prev = firstByKey.get(key)
+			if (prev === undefined) firstByKey.set(key, i)
+			else parent[find(i)] = find(prev)
+		}
+	})
+
+	// Best (highest confidence, then richest) representative per group.
+	const best = new Map<number, ScoredCandidate>()
+	candidates.forEach((c, i) => {
+		const root = find(i)
+		const cur = best.get(root)
+		if (!cur || isBetter(c, cur)) best.set(root, c)
+	})
+
+	// One winner per group, in first-seen group order for stability.
+	const emitted = new Set<number>()
+	const out: ScoredCandidate[] = []
+	candidates.forEach((_, i) => {
+		const root = find(i)
+		if (!emitted.has(root)) {
+			emitted.add(root)
+			out.push(best.get(root) as ScoredCandidate)
+		}
+	})
+	return out
 }

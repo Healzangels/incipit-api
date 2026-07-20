@@ -40,10 +40,42 @@ describe('dedupeCandidates', () => {
 		expect(out[0].provider).toBe('audible')
 	})
 
-	test('does NOT merge different editions of the same book (different ASINs)', () => {
+	test('does NOT merge different editions of the same book (different runtimes)', () => {
+		// Different ASINs AND runtimes a minute apart (970 vs 971) → genuinely
+		// distinct editions the duration signal is meant to choose between.
 		const a = scored({ asin: 'B08GB58KD5', title: 'Project Hail Mary', audioSeconds: 58200 })
 		const b = scored({ asin: 'B08G9PRS1K', title: 'Project Hail Mary', audioSeconds: 58253 })
 		expect(dedupeCandidates([a, b])).toHaveLength(2)
+	})
+
+	test('collapses same title+author+runtime editions across different ASINs (re-releases)', () => {
+		// The "Horns" case: one audiobook re-listed under three store ASINs, all
+		// the identical 49800s runtime — same audio content, must collapse to one.
+		const a = scored({
+			provider: 'audible',
+			asin: 'B0036KOD4U',
+			title: 'Horns',
+			authors: ['Joe Hill'],
+			narrators: ['Fred Berman'],
+			audioSeconds: 49800
+		})
+		const b = scored({
+			provider: 'hardcover',
+			asin: 'B00545O098',
+			title: 'Horns',
+			authors: ['Joe Hill'],
+			audioSeconds: 49800
+		})
+		const c = scored({
+			provider: 'hardcover',
+			asin: 'B00FGG1TK8',
+			title: 'Horns',
+			authors: ['Joe Hill'],
+			audioSeconds: 49800
+		})
+		const out = dedupeCandidates([a, b, c])
+		expect(out).toHaveLength(1)
+		expect(out[0].provider).toBe('audible') // richest (narrator) wins the group
 	})
 
 	test('collapses book-level duplicates of a title with no audio edition', () => {
