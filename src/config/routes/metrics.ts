@@ -4,6 +4,7 @@ import ipRangeCheck from 'ip-range-check'
 
 import { getPerformanceConfig } from '#config/performance'
 import { getPerformanceMetrics } from '#config/performance/hooks'
+import { getMatchMetrics } from '#helpers/utils/matchTelemetry'
 
 /**
  * Parse comma-separated environment variable into array
@@ -117,7 +118,11 @@ export function registerMetricsRoute(fastify: FastifyInstance): void {
 		}
 
 		const metrics = getPerformanceMetrics()
-		return metrics
+		// Match-quality aggregates alongside the request/memory ones. Request counts
+		// and latency say nothing about whether the matcher picked the RIGHT book,
+		// which is its actual failure mode — this makes quality a number to watch
+		// during a bulk import rather than something found by eyeballing shelves.
+		return { ...metrics, match: getMatchMetrics() }
 	})
 }
 

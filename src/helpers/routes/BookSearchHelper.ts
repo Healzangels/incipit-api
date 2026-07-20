@@ -13,6 +13,7 @@ import {
 import type ProviderRegistry from '#helpers/providers/ProviderRegistry'
 import type ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
 import type { BookSearchQuery, ProviderCandidate, ScoredCandidate } from '#helpers/providers/types'
+import { type MatchDecision, recordMatchDecision } from '#helpers/utils/matchTelemetry'
 
 // An album match at or above this makes a second (track-title) provider search
 // pointless: duration corroboration (+0.15) or an ASIN pin lands here, but a bare
@@ -170,6 +171,8 @@ export default class BookSearchHelper {
 
 		const albumCandidates = primary ? await this.fanOut(primary) : []
 		let ranked = this.scoreAndRank(albumCandidates, primary, altTitle, asin)
+		let poolSize = albumCandidates.length
+		let widened = false
 
 		// Widen to the track title when the album pass didn't already nail it.
 		// STRONG_MATCH is above the title+author-only ceiling (0.85), so a bare
@@ -197,9 +200,63 @@ export default class BookSearchHelper {
 				'book search: widening to the track title'
 			)
 			const trackCandidates = await this.fanOut(altTitle)
+			widened = true
+			poolSize += trackCandidates.length
 			ranked = this.scoreAndRank([...albumCandidates, ...trackCandidates], primary, altTitle, asin)
 		}
+		this.recordDecision(ranked, primary || (altTitle ?? ''), asin, widened, poolSize)
 		return ranked
+	}
+
+	/**
+	 * Emit one match-quality decision per search: a structured log line plus the
+	 * in-memory aggregates behind /metrics.
+	 *
+	 * This is the only place the confidence a search actually acted on is
+	 * preserved — it was previously computed and discarded, so a CONFIDENT WRONG
+	 * match was invisible until someone eyeballed the library, and a dead provider
+	 * token degraded quality with no signal at all. `risky` marks a match nothing
+	 * corroborated (no ASIN, no duration); `risky && authorless` is exactly the
+	 * conjunction behind the known false-positive class.
+	 * @param {ScoredCandidate[]} ranked the accepted candidates, best-first
+	 * @param {string} searchedTitle the normalized title actually searched
+	 * @param {string | null} wantAsin the definitive ASIN, if one was supplied
+	 * @param {boolean} widened whether the track-title widening pass fired
+	 * @param {number} candidates the raw candidate pool size
+	 */
+	private recordDecision(
+		ranked: ScoredCandidate[],
+		searchedTitle: string,
+		wantAsin: string | null,
+		widened: boolean,
+		candidates: number
+	): void {
+		const top = ranked.length ? ranked[0] : null
+		const durationCorroborated =
+			top != null && top.durationDeltaPct != null && top.durationDeltaPct <= DURATION_TOLERANCE
+		const asinPinned = top != null && wantAsin != null && top.asin?.toUpperCase() === wantAsin
+		const decision: MatchDecision = {
+			title: searchedTitle,
+			author: this.options.author ?? null,
+			region: this.options.region ?? null,
+			hasDuration: this.options.duration != null && this.options.duration > 0,
+			authorless: !this.options.author?.trim(),
+			matched: top != null,
+			provider: top?.provider ?? null,
+			matchedTitle: top?.title ?? null,
+			asin: top?.asin ?? null,
+			confidence: top?.confidence ?? null,
+			durationDeltaPct: top?.durationDeltaPct ?? null,
+			runnerUpConfidence: ranked.length > 1 ? ranked[1].confidence : null,
+			asinPinned,
+			durationCorroborated,
+			widened,
+			candidates,
+			accepted: ranked.length,
+			risky: top != null && !asinPinned && !durationCorroborated
+		}
+		recordMatchDecision(decision)
+		this.logger?.info(decision, 'book match decision')
 	}
 
 	/**
