@@ -15,9 +15,11 @@ function fakeRedis(fail = false) {
 			if (fail) throw new Error('redis down')
 			return store.get(k) ?? null
 		},
-		async set(k: string, v: string) {
+		async set(k: string, v: string, mode?: string, ttl?: number) {
 			if (fail) throw new Error('redis down')
 			store.set(k, v)
+			// Atomic SET+EX form records its TTL just like a separate expire would.
+			if (mode === 'EX' && ttl != null) expires.set(k, ttl)
 			return 'OK'
 		},
 		async expire(k: string, ttl: number) {

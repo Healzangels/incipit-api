@@ -114,8 +114,10 @@ export default class RedisHelper {
 	 */
 	async setOne(data: object): Promise<string | undefined> {
 		try {
-			const set = await this.instance?.set(this.key, JSON.stringify(data))
-			this.setExpiration()
+			// Atomic SET+EX: the old set-then-expire pair could leave a key with
+			// NO TTL if the expire half failed (or the process died between the
+			// two), turning a 5-day cache entry into a permanently stale one.
+			const set = await this.instance?.set(this.key, JSON.stringify(data), 'EX', 432000)
 			return set
 		} catch (error) {
 			const message = getErrorMessage(error)

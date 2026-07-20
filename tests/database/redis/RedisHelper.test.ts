@@ -39,7 +39,6 @@ const createMockContext = (): MockContext => {
 	}
 }
 
-
 beforeEach(() => {
 	asin = 'B079LRSMNN'
 	ctx = createMockContext()
@@ -95,7 +94,9 @@ describe('RedisHelper should', () => {
 		expect(ctx.client.get).toHaveBeenCalledWith(`${region}-book-${asin}`)
 		expect(ctx.client.set).toHaveBeenCalledWith(
 			`${region}-book-${asin}`,
-			JSON.stringify(parsedBook)
+			JSON.stringify(parsedBook),
+			'EX',
+			432000
 		)
 	})
 	test('setExpiration', async () => {
@@ -132,12 +133,20 @@ describe('RedisHelper should catch error when', () => {
 		expect(ctx.client.get).toHaveBeenCalledWith(`${region}-book-${asin}`)
 		expect(ctx.client.set).toHaveBeenCalledWith(
 			`${region}-book-${asin}`,
-			JSON.stringify(parsedBook)
+			JSON.stringify(parsedBook),
+			'EX',
+			432000
 		)
 	})
 	test('setExpiration rejects', async () => {
 		const mockLogger = createMockLogger()
-		const helperWithLogger = new RedisHelper(ctx.client, 'book', asin, region, mockLogger as unknown as FastifyBaseLogger)
+		const helperWithLogger = new RedisHelper(
+			ctx.client,
+			'book',
+			asin,
+			region,
+			mockLogger as unknown as FastifyBaseLogger
+		)
 		ctx.client.expire.mockRejectedValue(
 			new Error(`An error occurred while setting expiration for ${region}-book-${asin} in redis`)
 		)

@@ -74,7 +74,7 @@ export default class ProviderSearchCache {
 			const cached = await this.redis.get(key)
 			if (cached) return JSON.parse(cached) as ProviderCandidate[]
 		} catch (error) {
-			this.logger?.debug({ err: getErrorMessage(error) }, 'provider search cache read failed')
+			this.logger?.warn({ err: getErrorMessage(error) }, 'provider search cache read failed')
 		}
 
 		const result = await fetch()
@@ -85,10 +85,13 @@ export default class ProviderSearchCache {
 		// key for the whole TTL, silently disabling the provider for every user.
 		if (result.length > 0) {
 			try {
-				await this.redis.set(key, JSON.stringify(result))
-				await this.redis.expire(key, this.ttl)
+				// Atomic SET+EX: set-then-expire could leave an eternal key if the
+				// expire half failed, serving a stale candidate list forever.
+				await this.redis.set(key, JSON.stringify(result), 'EX', this.ttl)
 			} catch (error) {
-				this.logger?.debug({ err: getErrorMessage(error) }, 'provider search cache write failed')
+				// warn, not debug: a dying Redis here means every search silently
+				// degrades to live rate-limited provider calls — operator-visible.
+				this.logger?.warn({ err: getErrorMessage(error) }, 'provider search cache write failed')
 			}
 		}
 

@@ -372,7 +372,9 @@ class ApiHelper {
 				return json
 			})
 			.catch((error) => {
-				throw new Error(ErrorMessageHTTPFetch(this.asin, error.status, 'Audible API'))
+				throw new Error(
+					ErrorMessageHTTPFetch(this.asin, error?.status ?? error?.code, 'Audible API')
+				)
 			})
 	}
 	/**

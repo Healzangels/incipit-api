@@ -92,7 +92,11 @@ function fetchPlus(
 						.then(resolve)
 						.catch(reject)
 				} else {
-					reject(reason.response)
+					// A network error/timeout has no `response` — reject with the
+					// AxiosError itself rather than `undefined`, so catch handlers can
+					// safely read `.status`/`.code`/`.message` instead of TypeError-ing
+					// (which turned designed degrade-gracefully paths into opaque 500s).
+					reject(reason.response ?? reason)
 				}
 			})
 	})

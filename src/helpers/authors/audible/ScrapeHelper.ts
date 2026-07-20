@@ -46,7 +46,9 @@ class ScrapeHelper {
 				return cheerio.load(text)
 			})
 			.catch((error) => {
-				throw new Error(ErrorMessageHTTPFetch(this.asin, error.status, 'Audible HTML'))
+				throw new Error(
+					ErrorMessageHTTPFetch(this.asin, error?.status ?? error?.code, 'Audible HTML')
+				)
 			})
 	}
 

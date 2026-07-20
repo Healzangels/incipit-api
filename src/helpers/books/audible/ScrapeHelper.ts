@@ -33,8 +33,11 @@ class ScrapeHelper {
 				return cheerio.load(text)
 			})
 			.catch((error) => {
-				const message = ErrorMessageHTTPFetch(this.asin, error.status, 'HTML')
-				if (error.status !== 404) {
+				// error may be a response (has .status) or an AxiosError (network
+				// failure); either way this scrape is best-effort and must degrade.
+				const status = error?.status ?? error?.code
+				const message = ErrorMessageHTTPFetch(this.asin, status, 'HTML')
+				if (status !== 404) {
 					this.logger?.info(message)
 				}
 				return undefined

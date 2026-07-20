@@ -54,6 +54,22 @@ describe('fetchPlus should', () => {
 		expect(pooledAxios.get).toHaveBeenCalledTimes(4)
 	})
 
+	test('rejects with the error itself when there is no response (network failure)', async () => {
+		// A timeout/DNS/socket error has no `response`; rejecting with undefined
+		// made downstream `.status` reads TypeError inside their catch blocks.
+		mockGet.mockImplementation(() => {
+			const error: Error & { code: string } = Object.assign(new Error('timeout of 30000ms'), {
+				code: 'ECONNABORTED'
+			})
+			return Promise.reject(error)
+		})
+
+		await expect(fetchPlus('test.com', {}, 2)).rejects.toMatchObject({
+			code: 'ECONNABORTED',
+			message: 'timeout of 30000ms'
+		})
+	})
+
 	test('retry on non-200', async () => {
 		mockStatus = { status: 200 }
 		mockGet
@@ -85,9 +101,7 @@ describe('fetchPlus should', () => {
 		}
 		const successResponse = { data: 'success', status: 200 } as AxiosResponse
 
-		mockGet
-			.mockRejectedValueOnce(mockError)
-			.mockResolvedValueOnce(successResponse)
+		mockGet.mockRejectedValueOnce(mockError).mockResolvedValueOnce(successResponse)
 
 		const response = await fetchPlus('test.com')
 		expect(response).toEqual(successResponse)
@@ -104,9 +118,7 @@ describe('fetchPlus should', () => {
 		}
 		const successResponse = { data: 'success', status: 200 } as AxiosResponse
 
-		mockGet
-			.mockRejectedValueOnce(mockError)
-			.mockResolvedValueOnce(successResponse)
+		mockGet.mockRejectedValueOnce(mockError).mockResolvedValueOnce(successResponse)
 
 		const response = await fetchPlus('test.com')
 
@@ -145,9 +157,7 @@ describe('fetchPlus should', () => {
 		}
 		const successResponse = { data: 'success', status: 200 } as AxiosResponse
 
-		mockGet
-			.mockRejectedValueOnce(mockError)
-			.mockResolvedValueOnce(successResponse)
+		mockGet.mockRejectedValueOnce(mockError).mockResolvedValueOnce(successResponse)
 
 		const response = await fetchPlus('test.com')
 

@@ -18,7 +18,17 @@ import { isIpAllowed, parseEnvArray } from '#config/routes/metrics'
  * @param {FastifyRequest} request the incoming request
  * @returns {boolean} true if this request should bypass the rate limit
  */
+// Memoized on the raw env value: this predicate runs on EVERY request inside
+// the rate-limit hook, and the env var never changes at runtime — but keying
+// the memo on the raw string (rather than parsing once at import) keeps tests
+// that set the env per-case working.
+let memoRaw: string | undefined
+let memoList: string[] | undefined
 export function rateLimitAllowList(request: FastifyRequest): boolean {
-	const allow = parseEnvArray(process.env.RATE_LIMIT_ALLOWLIST)
-	return allow ? isIpAllowed(request, allow) : false
+	const raw = process.env.RATE_LIMIT_ALLOWLIST
+	if (raw !== memoRaw) {
+		memoRaw = raw
+		memoList = parseEnvArray(raw)
+	}
+	return memoList ? isIpAllowed(request, memoList) : false
 }

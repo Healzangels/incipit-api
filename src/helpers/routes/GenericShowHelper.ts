@@ -169,7 +169,10 @@ export default class GenericShowHelper {
 		const data = await this.getDataWithProjection()
 
 		// 4. Update or create the data in redis
-		this.redisHelper.setOne(data)
+		// Fire-and-forget by design, but MUST swallow: setOne logs and rethrows,
+		// and an unhandled rejection exits the process — a Redis blip mid-run
+		// would crash-loop the API even though the cache is optional.
+		this.redisHelper.setOne(data).catch(() => undefined)
 
 		return data
 	}
@@ -272,7 +275,10 @@ export default class GenericShowHelper {
 			const data = await this.getDataWithProjection()
 
 			// Re-set the data in redis
-			this.redisHelper.setOne(data)
+			// Fire-and-forget by design, but MUST swallow: setOne logs and rethrows,
+			// and an unhandled rejection exits the process — a Redis blip mid-run
+			// would crash-loop the API even though the cache is optional.
+			this.redisHelper.setOne(data).catch(() => undefined)
 
 			return data
 		}

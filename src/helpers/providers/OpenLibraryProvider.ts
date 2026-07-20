@@ -210,15 +210,23 @@ export default class OpenLibraryProvider implements BookProvider {
 			.map((a) => a.author?.key)
 			.filter((k): k is string => !!k)
 			.slice(0, MAX_AUTHORS)
-		const authors: { name: string }[] = []
-		for (const key of authorKeys) {
-			try {
-				const a = (await this.getJson(`${OL_BASE}${key}.json`, this.contact)) as { name?: string }
-				if (a?.name) authors.push({ name: a.name })
-			} catch (err) {
-				opts.logger?.debug({ err, key }, 'openlibrary: author resolve failed')
-			}
-		}
+		// Resolve author keys in parallel — sequential awaits cost up to
+		// MAX_AUTHORS-1 extra HTTP round trips per lookup for no ordering benefit
+		// (order is preserved by Promise.all's result array).
+		const authorResults = await Promise.all(
+			authorKeys.map(async (key) => {
+				try {
+					const a = (await this.getJson(`${OL_BASE}${key}.json`, this.contact)) as {
+						name?: string
+					}
+					return a?.name ? { name: a.name } : null
+				} catch (err) {
+					opts.logger?.debug({ err, key }, 'openlibrary: author resolve failed')
+					return null
+				}
+			})
+		)
+		const authors = authorResults.filter((a): a is { name: string } => a !== null)
 
 		const coverId = work.covers?.find((c) => c > 0)
 		return {

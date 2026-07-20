@@ -87,7 +87,15 @@ async function getIps(): Promise<CloudflareIpsResult> {
 			cache.lastFetchTime = now
 			return freshData
 		})
-		.catch(() => {
+		.catch((error) => {
+			// Boot-time, no logger yet — console is correct here. Without this line
+			// the failure is invisible: getIps never rejects, so server.ts's own
+			// warn path can never fire, and behind Cloudflare the rate limiter
+			// silently keys on the CF edge IP (one shared bucket, spurious 429s).
+			console.warn(
+				'Failed to fetch Cloudflare IPs; trusted proxies fall back to TRUSTED_PROXIES only:',
+				error instanceof Error ? error.message : error
+			)
 			// If fetch fails, return cached data if available (even if expired)
 			if (cache.data) {
 				return cache.data

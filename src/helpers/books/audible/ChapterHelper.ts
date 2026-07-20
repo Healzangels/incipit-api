@@ -148,7 +148,11 @@ class ChapterHelper {
 				return json
 			})
 			.catch((error) => {
-				this.logger?.error(ErrorMessageHTTPFetch(this.asin, error.status, 'chapters'))
+				// error may be a response (has .status) or an AxiosError (network
+				// failure — use .code, e.g. ECONNABORTED, so timeouts are readable).
+				this.logger?.error(
+					ErrorMessageHTTPFetch(this.asin, error?.status ?? error?.code, 'chapters')
+				)
 				return undefined
 			})
 	}
