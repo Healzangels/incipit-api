@@ -55,6 +55,22 @@ const TITLE_ONLY_CEILING = 0.85
 // Consumer-side, so the Gate-0-pinned scoreCandidate stays bit-for-bit.
 const LANGUAGE_CONFLICT_PENALTY = 0.15
 
+// scoreCandidate rewards a runtime within 5% (+0.15) and vetoes one beyond 25%
+// (-0.3), but gives a gap BETWEEN those exactly zero weight. That dead zone is
+// not theoretical: "Demons Don't Dream" matched an edition 14% off, narrated by
+// James Fouhey against a Bruce Huntey file — a verified WRONG EDITION. Three
+// candidates were accepted, the top two tied at 0.85 (neither corroborated), and
+// the tie fell through to providerRank. The 14% gap was the one piece of evidence
+// that could have broken that tie correctly, and it counted for nothing.
+//
+// So grade the dead zone: penalty ramps linearly from 0 at 5% to the full veto
+// magnitude at 25%, where scoreCandidate's own -0.3 takes over. Continuous by
+// construction, and a worse runtime now always ranks below a better one instead
+// of tying with it. Applied in the consumer off the durationDeltaPct the scorer
+// already returns, so the Gate-0-pinned scoreCandidate stays bit-for-bit.
+const DURATION_VETO_THRESHOLD = 0.25
+const DURATION_DEADZONE_MAX_PENALTY = 0.3
+
 // A leading article ("The"/"A"/"An") is title noise — libraries even sort past
 // it, and rips routinely drop or add it ("Taggerung" vs "The Taggerung"). The
 // trailing \s+ means a bare "The"/"A" or a word like "Anansi"/"Theodore" is left
@@ -142,6 +158,10 @@ export default class BookSearchHelper {
 	// pass. Reported in telemetry so the gate's real-world effect is measurable
 	// rather than assumed.
 	private languageDemoted = 0
+	// How many candidates the graded duration dead-zone penalty hit on the last
+	// scoring pass. Instrumented like the language gate so its effect is measured
+	// rather than assumed.
+	private durationDeadzoned = 0
 
 	constructor(
 		registry: ProviderRegistry,
@@ -270,6 +290,7 @@ export default class BookSearchHelper {
 			wantLanguage: regionLanguage(this.options.region),
 			matchedLanguage: top?.language ?? null,
 			languageDemoted: this.languageDemoted,
+			durationDeadzoned: this.durationDeadzoned,
 			matched: top != null,
 			provider: top?.provider ?? null,
 			matchedTitle: top?.title ?? null,
@@ -327,6 +348,7 @@ export default class BookSearchHelper {
 		// follow-up that makes genuinely non-English LIBRARIES work.
 		const wantLanguage = regionLanguage(this.options.region)
 		this.languageDemoted = 0
+		this.durationDeadzoned = 0
 		const scored: ScoredCandidate[] = candidates.map((c) => {
 			// Score against the album title and (when present) the track title,
 			// keeping the higher. Both go through the same scoreCandidate (duration
@@ -356,6 +378,22 @@ export default class BookSearchHelper {
 			if (!asinMatch && languageConflict(c.language, wantLanguage)) {
 				confidence = Math.max(0, confidence - LANGUAGE_CONFLICT_PENALTY)
 				this.languageDemoted += 1
+			}
+			// Graded duration dead zone (see DURATION_DEADZONE_MAX_PENALTY): a gap
+			// between the corroboration and veto thresholds must cost SOMETHING, or a
+			// wrong-runtime edition ties with a better one and the winner falls to
+			// provider order. ASIN pins are exempt — the caller named that edition.
+			const durDelta = best.durationDeltaPct
+			if (
+				!asinMatch &&
+				durDelta != null &&
+				durDelta > DURATION_TOLERANCE &&
+				durDelta < DURATION_VETO_THRESHOLD
+			) {
+				const through =
+					(durDelta - DURATION_TOLERANCE) / (DURATION_VETO_THRESHOLD - DURATION_TOLERANCE)
+				confidence = Math.max(0, confidence - through * DURATION_DEADZONE_MAX_PENALTY)
+				this.durationDeadzoned += 1
 			}
 			return {
 				...c,

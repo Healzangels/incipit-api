@@ -39,6 +39,12 @@ export interface MatchDecision {
 	 * foreign editions were never actually competing here.
 	 */
 	languageDemoted: number
+	/**
+	 * How many candidates the graded duration dead-zone penalty hit — a runtime
+	 * gap between the corroboration and veto thresholds. Non-zero means the flat
+	 * dead zone was previously letting wrong-runtime editions tie.
+	 */
+	durationDeadzoned: number
 
 	/** At least one candidate survived the confidence floor. */
 	matched: boolean
@@ -82,6 +88,8 @@ export interface MatchMetrics {
 	languageDemotedSearches: number
 	/** Total candidates demoted for wrong language, across all searches. */
 	languageDemotedCandidates: number
+	/** Searches where at least one candidate hit the graded duration dead zone. */
+	durationDeadzonedSearches: number
 	/** Confidence distribution of matched searches. */
 	byConfidence: Record<string, number>
 	avgConfidence: number | null
@@ -103,6 +111,7 @@ const store: {
 	durationCorroborated: number
 	languageDemotedSearches: number
 	languageDemotedCandidates: number
+	durationDeadzonedSearches: number
 	confidenceSum: number
 	byConfidence: Map<string, number>
 	recent: MatchDecision[]
@@ -117,6 +126,7 @@ const store: {
 	durationCorroborated: 0,
 	languageDemotedSearches: 0,
 	languageDemotedCandidates: 0,
+	durationDeadzonedSearches: 0,
 	confidenceSum: 0,
 	byConfidence: new Map(),
 	recent: []
@@ -153,6 +163,7 @@ export function recordMatchDecision(decision: MatchDecision): void {
 		store.languageDemotedSearches += 1
 		store.languageDemotedCandidates += decision.languageDemoted
 	}
+	if (decision.durationDeadzoned > 0) store.durationDeadzonedSearches += 1
 
 	if (decision.matched && decision.confidence != null) {
 		store.confidenceSum += decision.confidence
@@ -182,6 +193,7 @@ export function getMatchMetrics(): MatchMetrics {
 		durationCorroborated: store.durationCorroborated,
 		languageDemotedSearches: store.languageDemotedSearches,
 		languageDemotedCandidates: store.languageDemotedCandidates,
+		durationDeadzonedSearches: store.durationDeadzonedSearches,
 		byConfidence: Object.fromEntries(store.byConfidence),
 		avgConfidence: matched > 0 ? store.confidenceSum / matched : null,
 		recent: [...store.recent]
@@ -200,6 +212,7 @@ export function resetMatchMetrics(): void {
 	store.durationCorroborated = 0
 	store.languageDemotedSearches = 0
 	store.languageDemotedCandidates = 0
+	store.durationDeadzonedSearches = 0
 	store.confidenceSum = 0
 	store.byConfidence.clear()
 	store.recent.length = 0
