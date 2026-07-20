@@ -3,6 +3,7 @@ import type { FastifyBaseLogger } from 'fastify'
 import type { BookProvider, BookSearchQuery, ProviderCandidate } from './types'
 
 import fetch from '#helpers/utils/fetchPlus'
+import { normalizeLanguage } from '#helpers/utils/language'
 import { regions } from '#static/regions'
 
 /**
@@ -31,6 +32,8 @@ interface AudibleProduct {
 	authors?: AudibleContributor[]
 	narrators?: AudibleContributor[]
 	product_images?: Record<string, string>
+	/** Edition language, e.g. "english" — supplied by the product_details group. */
+	language?: string
 }
 
 /** Transport for an Audible catalog search; injectable so tests need no network. */
@@ -94,6 +97,9 @@ export default class AudibleProvider implements BookProvider {
 				provider: AUDIBLE_NAME,
 				id: p.asin as string,
 				asin: p.asin as string,
+				// product_details reports a language NAME ("english"); normalize so it
+				// compares against Storytel's ISO codes and OpenLibrary's MARC codes.
+				language: normalizeLanguage(p.language),
 				title: p.title ?? '',
 				authors: (p.authors ?? []).map((a) => a.name).filter((n): n is string => !!n),
 				narrators: (p.narrators ?? []).map((n) => n.name).filter((n): n is string => !!n),

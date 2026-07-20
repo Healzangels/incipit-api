@@ -43,6 +43,16 @@ export interface ProviderCandidate {
 	narrators: string[]
 	audioSeconds: number | null
 	cover: string | null
+	/**
+	 * Edition language as ISO-639-1 (see helpers/utils/language), or null when the
+	 * provider gives no signal. REQUIRED — not optional — so adding a provider
+	 * forces an explicit decision rather than silently omitting the field.
+	 *
+	 * null means "unknown", never "mismatch": provider language data is patchy and
+	 * real English audio editions often carry no tag, so an absent value must not
+	 * demote a candidate. Only a positively-known clash is actionable.
+	 */
+	language: string | null
 }
 
 /** A candidate after scoring against the query. */

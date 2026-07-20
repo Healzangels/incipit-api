@@ -45,6 +45,9 @@ describe('AppleBooksProvider.search', () => {
 			provider: 'apple',
 			id: 'apple-audiobook-1565808256',
 			asin: null,
+			// Apple's search API exposes no language field, so the candidate reports
+			// null ("no signal") rather than assuming the store country's language.
+			language: null,
 			title: 'Project Hail Mary',
 			authors: ['Andy Weir'],
 			narrators: [],

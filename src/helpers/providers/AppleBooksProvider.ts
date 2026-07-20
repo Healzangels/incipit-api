@@ -227,6 +227,11 @@ export default class AppleBooksProvider implements BookProvider {
 				provider: APPLE_NAME,
 				id: encodeAppleAudiobook(r.collectionId as number),
 				asin: null,
+				// The iTunes Search API exposes no language field (see the header
+				// note), so a US-store query can still surface a foreign edition.
+				// null = "no signal", which the matcher treats as non-actionable
+				// rather than as agreement.
+				language: null,
 				title: cleanAppleTitle(r.collectionName as string),
 				authors: r.artistName ? [r.artistName] : [],
 				narrators: [],

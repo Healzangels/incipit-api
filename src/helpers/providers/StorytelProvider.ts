@@ -10,6 +10,7 @@ import type {
 } from './types'
 
 import fetch from '#helpers/utils/fetchPlus'
+import { normalizeLanguage, regionLanguage } from '#helpers/utils/language'
 
 /**
  * Storytel provider — a large subscription audiobook catalog, keyless public
@@ -28,21 +29,6 @@ const SEARCH_URL = `${STORYTEL_BASE}/api/search.action`
 const DETAIL_URL = `${STORYTEL_BASE}/api/getBookInfoForContent.action`
 const STORYTEL_NAME = 'storytel'
 const LIMIT = 8
-
-// Region -> the Storytel language ISO code we prefer, mirroring the Hardcover
-// language filter. A global catalog otherwise returns every translation.
-const REGION_LANG: Record<string, string> = {
-	us: 'en',
-	uk: 'en',
-	ca: 'en',
-	au: 'en',
-	in: 'en',
-	de: 'de',
-	es: 'es',
-	fr: 'fr',
-	it: 'it',
-	jp: 'ja'
-}
 
 interface StorytelName {
 	name?: string | null
@@ -76,13 +62,17 @@ export type StorytelDetailFetch = (consumableId: string) => Promise<StorytelResu
 
 const defaultSearch: StorytelSearchFetch = async (query, locale): Promise<StorytelResult[]> => {
 	const qs = new URLSearchParams({ request_locale: locale, q: query })
-	const res = await fetch(`${SEARCH_URL}?${qs.toString()}`, { headers: { Accept: 'application/json' } })
+	const res = await fetch(`${SEARCH_URL}?${qs.toString()}`, {
+		headers: { Accept: 'application/json' }
+	})
 	return res.data?.books ?? []
 }
 
 const defaultDetail: StorytelDetailFetch = async (consumableId): Promise<StorytelResult | null> => {
 	const qs = new URLSearchParams({ consumableId })
-	const res = await fetch(`${DETAIL_URL}?${qs.toString()}`, { headers: { Accept: 'application/json' } })
+	const res = await fetch(`${DETAIL_URL}?${qs.toString()}`, {
+		headers: { Accept: 'application/json' }
+	})
 	return res.data?.slb ?? null
 }
 
@@ -97,9 +87,9 @@ function coverUrl(largeCover?: string | null): string | null {
 
 /** Keep only results in the region's language; fall back to all if none match. */
 function preferLanguage(results: StorytelResult[], region: string): StorytelResult[] {
-	const want = REGION_LANG[region]
+	const want = regionLanguage(region)
 	if (!want) return results
-	const inLang = results.filter((r) => r.book?.language?.isoValue === want)
+	const inLang = results.filter((r) => normalizeLanguage(r.book?.language?.isoValue) === want)
 	return inLang.length ? inLang : results
 }
 
@@ -124,31 +114,36 @@ export default class StorytelProvider implements BookProvider {
 
 		let results: StorytelResult[]
 		try {
-			results = await this.searchFetch(query.title, REGION_LANG[query.region] ?? 'en')
+			results = await this.searchFetch(query.title, regionLanguage(query.region) ?? 'en')
 		} catch (err) {
 			logger?.error({ err }, 'storytel: search failed')
 			return []
 		}
 
-		return preferLanguage(results, query.region)
-			// Audiobooks only — an ebook-only hit has no `abook`.
-			.filter((r) => r.abook && r.book?.consumableId != null && r.book?.name)
-			.slice(0, LIMIT)
-			.map((r) => {
-				const book = r.book as StorytelBookObj
-				const abook = r.abook as StorytelAbook
-				const lengthMs = typeof abook.length === 'number' ? abook.length : 0
-				return {
-					provider: STORYTEL_NAME,
-					id: encodeStorytel(book.consumableId as string | number),
-					asin: null,
-					title: book.name ?? '',
-					authors: names(book.authors),
-					narrators: names(abook.narrators),
-					audioSeconds: lengthMs > 0 ? Math.round(lengthMs / 1000) : null,
-					cover: coverUrl(book.largeCover)
-				}
-			})
+		return (
+			preferLanguage(results, query.region)
+				// Audiobooks only — an ebook-only hit has no `abook`.
+				.filter((r) => r.abook && r.book?.consumableId != null && r.book?.name)
+				.slice(0, LIMIT)
+				.map((r) => {
+					const book = r.book as StorytelBookObj
+					const abook = r.abook as StorytelAbook
+					const lengthMs = typeof abook.length === 'number' ? abook.length : 0
+					return {
+						provider: STORYTEL_NAME,
+						id: encodeStorytel(book.consumableId as string | number),
+						asin: null,
+						// Storytel reports ISO-639-1 already; normalize anyway so locale
+						// tags and casing can't produce a spurious mismatch.
+						language: normalizeLanguage(book.language?.isoValue),
+						title: book.name ?? '',
+						authors: names(book.authors),
+						narrators: names(abook.narrators),
+						audioSeconds: lengthMs > 0 ? Math.round(lengthMs / 1000) : null,
+						cover: coverUrl(book.largeCover)
+					}
+				})
+		)
 	}
 
 	/**
@@ -185,7 +180,10 @@ export default class StorytelProvider implements BookProvider {
 			publisherName: abook?.publisher ?? undefined,
 			releaseDate: abook?.releaseDate ?? undefined,
 			seriesPrimary: series?.name
-				? { name: series.name, position: book.seriesOrder != null ? String(book.seriesOrder) : undefined }
+				? {
+						name: series.name,
+						position: book.seriesOrder != null ? String(book.seriesOrder) : undefined
+					}
 				: undefined
 		}
 	}

@@ -10,6 +10,7 @@ import type {
 } from './types'
 
 import fetch from '#helpers/utils/fetchPlus'
+import { normalizeLanguage, regionLanguage } from '#helpers/utils/language'
 
 /**
  * Hardcover provider — the strongest source in the Gate 0 benchmark (93% of the
@@ -173,27 +174,9 @@ interface HardcoverEdition {
 	contributions?: HardcoverContribution[] | null
 }
 
-// Region → the Hardcover `languages.language` name we prefer. A global catalog
-// returns editions in every language; without this, a French or German audio
-// edition of "Small Gods" scores as high as the English one on title+author.
-// Prefer the region's language, but fall back to all editions so a book only
-// available in one language still matches.
-const REGION_LANGUAGE: Record<string, string> = {
-	us: 'English',
-	uk: 'English',
-	ca: 'English',
-	au: 'English',
-	in: 'English',
-	de: 'German',
-	es: 'Spanish',
-	fr: 'French',
-	it: 'Italian',
-	jp: 'Japanese'
-}
-
 /** Keep the preferred language AND untagged editions; fall back to all if none. */
 function preferLanguage(editions: HardcoverEdition[], region: string): HardcoverEdition[] {
-	const want = REGION_LANGUAGE[region]
+	const want = regionLanguage(region)
 	if (!want) return editions
 	// Keep the wanted language and editions whose language is UNSET — Hardcover's
 	// language data is patchy and a real English audio edition often carries no
@@ -201,7 +184,9 @@ function preferLanguage(editions: HardcoverEdition[], region: string): Hardcover
 	// losing the book entirely) regressed matching. Only fall back to ALL editions
 	// when nothing matches even this looser filter.
 	const inLang = editions.filter((e) => {
-		const lang = e.language?.language
+		// Normalize the edition's language NAME to a code before comparing, since
+		// `want` is now the shared ISO-639-1 value.
+		const lang = normalizeLanguage(e.language?.language)
 		return lang === want || lang == null
 	})
 	return inLang.length ? inLang : editions
@@ -372,6 +357,9 @@ export default class HardcoverProvider implements BookProvider {
 						// in the `asin` field for dedup + the exact-match pin.
 						id: encodeHardcoverEdition(ed.id),
 						asin: ed.asin ?? null,
+						// Hardcover reports a language NAME ("German"); normalize to a
+						// code so it compares with the other providers' notations.
+						language: normalizeLanguage(ed.language?.language),
 						title,
 						authors: authorsOf(ed.contributions).length ? authorsOf(ed.contributions) : bookAuthors,
 						narrators: narratorsOf(ed.contributions),
@@ -385,6 +373,8 @@ export default class HardcoverProvider implements BookProvider {
 					provider: HARDCOVER_NAME,
 					id: encodeHardcoverBook(book.id),
 					asin: null,
+					// Book-level fallback: no edition, so no edition language to report.
+					language: null,
 					title,
 					authors: bookAuthors,
 					narrators: [],

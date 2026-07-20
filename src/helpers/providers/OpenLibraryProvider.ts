@@ -10,6 +10,7 @@ import type {
 } from './types'
 
 import fetch from '#helpers/utils/fetchPlus'
+import { normalizeLanguage } from '#helpers/utils/language'
 
 /**
  * OpenLibrary provider — the fallback source. No auth, no audio editions (so no
@@ -29,7 +30,10 @@ import fetch from '#helpers/utils/fetchPlus'
 const OL_BASE = 'https://openlibrary.org'
 const SEARCH_URL = `${OL_BASE}/search.json`
 const OPENLIBRARY_NAME = 'openlibrary'
-const FIELDS = 'key,title,author_name,first_publish_year,cover_i'
+// `language` is requested but NOT used as a query filter: a hard filter would
+// drop works whose language OpenLibrary simply hasn't tagged, costing recall.
+// Capture the signal and let the matcher weigh it instead.
+const FIELDS = 'key,title,author_name,first_publish_year,cover_i,language'
 const LIMIT = 5
 // Cap author-key resolutions per book lookup (each is a separate request).
 const MAX_AUTHORS = 4
@@ -40,6 +44,8 @@ export interface OpenLibraryDoc {
 	author_name?: string[]
 	first_publish_year?: number
 	cover_i?: number
+	/** ISO-639-2/MARC codes, e.g. ["eng"] — a work can list several. */
+	language?: string[]
 }
 
 interface OpenLibraryWork {
@@ -172,6 +178,9 @@ export default class OpenLibraryProvider implements BookProvider {
 			// OpenLibrary work key, e.g. "/works/OL27448W" — always present, namespaced.
 			id: d.key ? encodeOpenLibraryWork(d.key) : `openlibrary-works-unknown`,
 			asin: null,
+			// MARC codes ("eng"); take the first — a multi-language work is
+			// ambiguous, and normalizeLanguage returns null for anything unmapped.
+			language: normalizeLanguage(d.language?.[0]),
 			title: titleCaseSentence(d.title ?? ''),
 			authors: d.author_name ?? [],
 			narrators: [],
