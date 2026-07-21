@@ -8,6 +8,7 @@ import {
 	setPerformanceConfig
 } from '#config/performance'
 import { isIpAllowed, parseEnvArray, registerMetricsRoute } from '#config/routes/metrics'
+import { recordMatchDecision, resetMatchMetrics } from '#helpers/utils/matchTelemetry'
 
 const createTestConfig = (overrides: Partial<PerformanceConfig>): PerformanceConfig => ({
 	USE_PARALLEL_SCHEDULER: false,
@@ -530,6 +531,101 @@ describe('isIpAllowed', () => {
 			const mockRequest = createMockRequest('10.0.0.1', undefined)
 			const result = isIpAllowed(mockRequest, ['10.0.0.1'])
 			expect(result).toBe(true)
+		})
+	})
+
+	describe('open-mode content redaction', () => {
+		// With no auth configured /metrics is publicly reachable, and the recent
+		// match decisions carry the titles/authors/ASINs of what the operator
+		// owns — an ops endpoint must not disclose the library catalog. Open
+		// mode keeps aggregates + per-decision quality numbers; the identifying
+		// strings require auth.
+		const seedDecision = () =>
+			recordMatchDecision({
+				title: 'project hail mary',
+				author: 'Andy Weir',
+				region: 'us',
+				hasDuration: true,
+				authorless: false,
+				wantLanguage: 'en',
+				matchedLanguage: 'en',
+				languageDemoted: 0,
+				durationDeadzoned: 0,
+				matched: true,
+				provider: 'audible',
+				matchedTitle: 'Project Hail Mary',
+				asin: 'B08G9PRS1K',
+				confidence: 1,
+				durationDeltaPct: 0.01,
+				runnerUpConfidence: null,
+				asinPinned: false,
+				durationCorroborated: true,
+				widened: false,
+				candidates: 3,
+				accepted: 1,
+				risky: false
+			})
+
+		const getMetrics = async () => {
+			setPerformanceConfig(createTestConfig({ METRICS_ENABLED: true }))
+			const fastify = Fastify()
+			registerMetricsRoute(fastify)
+			await fastify.ready()
+			const response = await fastify.inject({
+				method: 'GET',
+				url: '/metrics',
+				headers: process.env.METRICS_AUTH_TOKEN
+					? { 'x-metrics-token': process.env.METRICS_AUTH_TOKEN }
+					: {}
+			})
+			await fastify.close()
+			expect(response.statusCode).toBe(200)
+			return response.json().match
+		}
+
+		it('redacts recent decisions when no auth is configured, keeping the quality numbers', async () => {
+			delete process.env.METRICS_AUTH_TOKEN
+			delete process.env.METRICS_ALLOWED_IPS
+			resetMatchMetrics()
+			seedDecision()
+
+			const match = await getMetrics()
+			expect(match.recentRedacted).toBe(true)
+			expect(match.recent).toHaveLength(1)
+			// Library content gone...
+			expect(match.recent[0].title).toBeNull()
+			expect(match.recent[0].author).toBeNull()
+			expect(match.recent[0].matchedTitle).toBeNull()
+			expect(match.recent[0].asin).toBeNull()
+			// ...quality signal and aggregates intact.
+			expect(match.recent[0].confidence).toBe(1)
+			expect(match.recent[0].risky).toBe(false)
+			expect(match.total).toBe(1)
+		})
+
+		it('serves the full decisions when auth is configured and satisfied', async () => {
+			process.env.METRICS_AUTH_TOKEN = 'sekret'
+			delete process.env.METRICS_ALLOWED_IPS
+			resetMatchMetrics()
+			seedDecision()
+
+			const match = await getMetrics()
+			expect(match.recentRedacted).toBeUndefined()
+			expect(match.recent[0].title).toBe('project hail mary')
+			expect(match.recent[0].asin).toBe('B08G9PRS1K')
+		})
+
+		it('does not mutate the stored decisions when redacting', async () => {
+			delete process.env.METRICS_AUTH_TOKEN
+			delete process.env.METRICS_ALLOWED_IPS
+			resetMatchMetrics()
+			seedDecision()
+
+			await getMetrics() // open request redacts its response...
+			process.env.METRICS_AUTH_TOKEN = 'sekret'
+			const match = await getMetrics()
+			// ...but an authed request afterwards still sees the original data.
+			expect(match.recent[0].title).toBe('project hail mary')
 		})
 	})
 })

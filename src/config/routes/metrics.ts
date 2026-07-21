@@ -4,7 +4,44 @@ import ipRangeCheck from 'ip-range-check'
 
 import { getPerformanceConfig } from '#config/performance'
 import { getPerformanceMetrics } from '#config/performance/hooks'
-import { getMatchMetrics } from '#helpers/utils/matchTelemetry'
+import { getMatchMetrics, type MatchMetrics } from '#helpers/utils/matchTelemetry'
+
+/**
+ * Strip the library-content fields from the recent match decisions.
+ *
+ * `recent` carries the title, author, matched title and ASIN of the last ~50
+ * searches — i.e. what books the operator owns. On an instance with no auth
+ * configured, /metrics is publicly reachable (only a warn log), which turned an
+ * ops endpoint into a catalog disclosure. Open mode keeps every aggregate and
+ * the per-decision quality numbers (confidence, risky, provider, flags) so the
+ * dashboard use survives; the identifying strings need auth. New objects, not
+ * mutations — the store's decision objects are shared.
+ */
+type RedactedMatchMetrics = Omit<MatchMetrics, 'recent'> & {
+	recentRedacted: true
+	recent: Array<
+		Omit<MatchMetrics['recent'][number], 'title' | 'author' | 'matchedTitle' | 'asin'> & {
+			title: null
+			author: null
+			matchedTitle: null
+			asin: null
+		}
+	>
+}
+
+function redactMatchMetrics(match: MatchMetrics): RedactedMatchMetrics {
+	return {
+		...match,
+		recentRedacted: true,
+		recent: match.recent.map((d) => ({
+			...d,
+			title: null,
+			author: null,
+			matchedTitle: null,
+			asin: null
+		}))
+	}
+}
 
 /**
  * Parse comma-separated environment variable into array
@@ -122,7 +159,15 @@ export function registerMetricsRoute(fastify: FastifyInstance): void {
 		// and latency say nothing about whether the matcher picked the RIGHT book,
 		// which is its actual failure mode — this makes quality a number to watch
 		// during a bulk import rather than something found by eyeballing shelves.
-		return { ...metrics, match: getMatchMetrics() }
+		//
+		// With NO auth configured this endpoint is open (validateMetricsAuth
+		// passes everyone), so the recent decisions' library-content fields are
+		// redacted — aggregates and per-decision quality numbers survive; the
+		// titles/authors/ASINs of what the operator owns require auth.
+		const authConfigured =
+			!!process.env.METRICS_AUTH_TOKEN || !!parseEnvArray(process.env.METRICS_ALLOWED_IPS)
+		const match = getMatchMetrics()
+		return { ...metrics, match: authConfigured ? match : redactMatchMetrics(match) }
 	})
 }
 
