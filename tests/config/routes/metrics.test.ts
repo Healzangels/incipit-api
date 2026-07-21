@@ -540,6 +540,19 @@ describe('isIpAllowed', () => {
 		// owns — an ops endpoint must not disclose the library catalog. Open
 		// mode keeps aggregates + per-decision quality numbers; the identifying
 		// strings require auth.
+		//
+		// Own env save/restore: the enclosing describe's afterEach restores only
+		// METRICS_ALLOWED_IPS, and these tests set METRICS_AUTH_TOKEN — without
+		// this the token leaked past the suite and later open-mode tests became
+		// order-dependent.
+		let savedToken: string | undefined
+		beforeEach(() => {
+			savedToken = process.env.METRICS_AUTH_TOKEN
+		})
+		afterEach(() => {
+			if (savedToken === undefined) delete process.env.METRICS_AUTH_TOKEN
+			else process.env.METRICS_AUTH_TOKEN = savedToken
+		})
 		const seedDecision = () =>
 			recordMatchDecision({
 				title: 'project hail mary',

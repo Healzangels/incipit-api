@@ -147,6 +147,84 @@ describe('dedupeCandidates', () => {
 		expect(dedupeCandidates([tagged, untagged])).toHaveLength(1)
 	})
 
+	test('an UNKNOWN-language candidate cannot bridge two conflicting languages into one group', () => {
+		// Union-find is transitive while pairwise compatibility is not: with the
+		// old occupant-only check, en merged with the untagged candidate and de
+		// then merged through it — one group, one language deleted, and the
+		// output depended on provider order. The conflict check is now against
+		// the whole group's known languages.
+		// en is strictly richer than unk so whichever group unk joins, the
+		// LANGUAGE-BEARING member wins it and the assertion below is stable.
+		const en = scored({
+			id: 'en',
+			title: 'Dune',
+			authors: ['Frank Herbert'],
+			audioSeconds: 49800,
+			language: 'en',
+			narrators: ['Someone']
+		})
+		const unk = scored({ id: 'unk', title: 'Dune', authors: ['Frank Herbert'], audioSeconds: 49805, language: null })
+		const de = scored({
+			id: 'de',
+			title: 'Dune',
+			authors: ['Frank Herbert'],
+			audioSeconds: 49810,
+			language: 'de',
+			cover: 'de.jpg',
+			narrators: ['Jemand Anderes']
+		})
+		// Every arrival order: en and de must NEVER share a group, so at least
+		// two groups always survive (the unknown may legitimately join either).
+		const orders = [
+			[en, unk, de],
+			[de, unk, en],
+			[unk, en, de],
+			[en, de, unk],
+			[de, en, unk],
+			[unk, de, en]
+		]
+		for (const order of orders) {
+			const out = dedupeCandidates(order)
+			expect(out.length).toBeGreaterThanOrEqual(2)
+			const langs = out.map((c) => c.language)
+			expect(langs).toContain('en')
+			expect(langs).toContain('de')
+		}
+	})
+
+	test('a PINNED candidate wins its dedupe group even against a richer rival', () => {
+		// The ranker's pinned-first tiebreak runs AFTER dedupe: if the pinned
+		// edition loses its group here (richness) it is deleted before that
+		// tiebreak exists, and the graft does not fire when the rival carries
+		// its own ASIN. The pin must outrank richness inside the group.
+		const pinned = scored({
+			provider: 'openlibrary',
+			id: 'pinned',
+			asin: 'B0PINNED01',
+			title: 'Horns',
+			authors: ['Joe Hill'],
+			audioSeconds: 49800,
+			confidence: 1
+		})
+		const richerRival = scored({
+			provider: 'audible',
+			id: 'rival',
+			asin: 'B0RIVAL001',
+			title: 'Horns',
+			authors: ['Joe Hill'],
+			audioSeconds: 49800, // same minute bucket -> same group
+			narrators: ['Fred Berman'],
+			cover: 'a.jpg',
+			confidence: 1
+		})
+		const out = dedupeCandidates([richerRival, pinned], 'B0PINNED01')
+		expect(out).toHaveLength(1)
+		expect(out[0].asin).toBe('B0PINNED01')
+		// Without the pin, the richer rival still wins as before.
+		const unpinned = dedupeCandidates([richerRival, pinned])
+		expect(unpinned[0].asin).toBe('B0RIVAL001')
+	})
+
 	test('grafts the store ASIN onto a group winner that lacks one', () => {
 		// The ASIN-less candidate is richer (narrator + cover) and wins the group,
 		// but the losing member carries the one identity key the caller can act

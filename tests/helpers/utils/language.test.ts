@@ -74,4 +74,34 @@ describe('languageConflict', () => {
 		expect(languageConflict('Klingon', 'English')).toBe(false)
 		expect(languageConflict('', 'de')).toBe(false)
 	})
+
+	test('Norwegian macrolanguage: nb/nn/nob/nno/Bokmål all fold to no — never self-conflict', () => {
+		// One provider tags 'nb', another 'Bokmål' for the SAME narration; a
+		// positive conflict here made dedupe refuse to merge identical-language
+		// editions and byLanguage treat them as rivals.
+		expect(normalizeLanguage('nb')).toBe('no')
+		expect(normalizeLanguage('nn')).toBe('no')
+		expect(normalizeLanguage('nob')).toBe('no')
+		expect(normalizeLanguage('Bokmål')).toBe('no')
+		expect(languageConflict('nb', 'Bokmål')).toBe(false)
+		expect(languageConflict('nn', 'Norwegian')).toBe(false)
+	})
+
+	test('multi-word provider names resolve instead of silently missing', () => {
+		expect(normalizeLanguage('Norwegian Bokmål')).toBe('no')
+		expect(normalizeLanguage('Simplified Chinese')).toBe('zh')
+		expect(normalizeLanguage('Brazilian Portuguese')).toBe('pt')
+	})
+
+	test('NFD input and ASCII-folded spellings both resolve', () => {
+		// macOS-originated metadata arrives NFD: 'a' + combining ring (U+030A),
+		// spelled explicitly so these literals cannot be silently NFC.
+		expect(normalizeLanguage('bokma\u030al')).toBe('no')
+		expect(normalizeLanguage('i\u0301slenska')).toBe('is')
+		// ASCII-folded catalog spellings, including the entries whose hand-added
+		// twins were missing before key folding became automatic at module init.
+		expect(normalizeLanguage('Islenska')).toBe('is')
+		expect(normalizeLanguage('Slovencina')).toBe('sk')
+		expect(normalizeLanguage('Slovenscina')).toBe('sl')
+	})
 })

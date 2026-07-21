@@ -208,23 +208,68 @@ const REGION_LANGUAGE: Record<string, string> = {
 	jp: 'ja'
 }
 
+// Macrolanguage folding for BARE ISO codes: Bokmål (nb/nob) and Nynorsk
+// (nn/nno) are both "Norwegian" for edition-matching purposes. Without this,
+// one provider's 'nb' and another's 'Bokmål' (→ 'no') POSITIVELY CONFLICT for
+// the same narration — dedupe refuses to merge and byLanguage treats
+// identical-language editions as rivals. Applied after every lookup so the
+// name tables and passthrough all converge on one code.
+const CODE_FOLD: Record<string, string> = {
+	nb: 'no',
+	nn: 'no'
+}
+
+/** One table probe: exact name, then 3-letter MARC, then bare ISO-639-1. */
+function lookupToken(token: string): string | null {
+	if (NAME_TO_CODE[token]) return NAME_TO_CODE[token]
+	if (token.length === 3 && THREE_TO_CODE[token]) return THREE_TO_CODE[token]
+	// A bare 2-letter token is already ISO-639-1.
+	if (/^[a-z]{2}$/.test(token)) return token
+	return null
+}
+
+/** Strip combining marks: "íslenska"/NFD "bokmål" → "islenska"/"bokmal". */
+function foldDiacritics(s: string): string {
+	return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
+// Register the ASCII-folded twin of every diacritic-bearing name at module
+// init ("slovenščina" → "slovenscina"), instead of hand-adding twins per entry
+// — the hand-added set had already drifted (some entries got twins, some
+// didn't), and a missed twin fails SILENTLY (null → no conflict → no
+// demotion). Folding the KEYS here plus the TOKEN at lookup covers both
+// directions with one rule.
+for (const [name, code] of Object.entries(NAME_TO_CODE)) {
+	const folded = foldDiacritics(name)
+	if (folded !== name && !(folded in NAME_TO_CODE)) NAME_TO_CODE[folded] = code
+}
+
 /**
  * Reduce any provider's language notation to a canonical ISO-639-1 code.
  * Accepts an English/native name ("German", "Deutsch"), an ISO-639-1 code
  * ("de"), or an ISO-639-2/MARC code ("ger"/"deu"). Handles locale tags
- * ("en-GB" → "en") and is whitespace/case tolerant.
+ * ("en-GB" → "en"), multi-word names ("Norwegian Bokmål", "Brazilian
+ * Portuguese" — each word is probed, so the qualifying adjective can't hide
+ * the language), NFD input and ASCII-folded spellings ("Islenska"), and is
+ * whitespace/case tolerant.
  * @param {string | null | undefined} raw the provider-reported language
  * @returns {string | null} the ISO-639-1 code, or null when unknown/absent
  */
 export function normalizeLanguage(raw: string | null | undefined): string | null {
 	if (!raw) return null
-	// Locale tags and underscores: "en-GB" / "pt_BR" -> primary subtag.
-	const cleaned = raw.trim().toLowerCase().split(/[-_]/)[0].trim()
+	// NFC first: macOS-originated metadata arrives NFD, where "bokmål" is
+	// 'a'+combining-ring and never matches an NFC object key.
+	const cleaned = raw.normalize('NFC').trim().toLowerCase().split(/[-_]/)[0].trim()
 	if (!cleaned) return null
-	if (NAME_TO_CODE[cleaned]) return NAME_TO_CODE[cleaned]
-	if (cleaned.length === 3 && THREE_TO_CODE[cleaned]) return THREE_TO_CODE[cleaned]
-	// A bare 2-letter token is already ISO-639-1.
-	if (/^[a-z]{2}$/.test(cleaned)) return cleaned
+	// Probe the full string, then each whitespace-separated word ("Simplified
+	// Chinese" → "chinese"), each also retried diacritic-folded. The failure
+	// mode of a miss is SILENT (unknown never conflicts, so the wrong-language
+	// demotion just doesn't fire), so err toward resolving.
+	const tokens = [cleaned, ...cleaned.split(/\s+/)]
+	for (const token of tokens) {
+		const hit = lookupToken(token) ?? lookupToken(foldDiacritics(token))
+		if (hit) return CODE_FOLD[hit] ?? hit
+	}
 	return null
 }
 

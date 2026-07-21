@@ -1,8 +1,9 @@
-import { describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, test } from 'bun:test'
 
 import type ProviderRegistry from '#helpers/providers/ProviderRegistry'
 import type { ProviderCandidate } from '#helpers/providers/types'
 import BookSearchHelper from '#helpers/routes/BookSearchHelper'
+import { resetMatchMetrics } from '#helpers/utils/matchTelemetry'
 
 /**
  * Tiebreak precedence in the final ranking.
@@ -42,6 +43,11 @@ function helperFor(candidates: ProviderCandidate[], options: Record<string, unkn
 const BASE = 10000 // candidate runtime in seconds
 
 describe('ranking tiebreaks', () => {
+	// Every search() records into the module-global telemetry store; without
+	// this reset the file leaks phantom decisions into later tests (the sibling
+	// duration/language files reset for the same reason).
+	beforeEach(() => resetMatchMetrics())
+
 	test('an explicitly-hinted ASIN beats a non-pinned candidate that also reaches 1.0', async () => {
 		// The rival: perfect title+author (0.85) + duration corroboration (+0.15)
 		// = 1.0, from the highest-ranked provider — so before the pin tiebreak it

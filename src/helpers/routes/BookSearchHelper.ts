@@ -193,6 +193,18 @@ export default class BookSearchHelper {
 	}
 
 	/**
+	 * THE definition of "this candidate is the explicitly-hinted edition" —
+	 * shared by scoring (confidence pin + veto exemptions), ranking (pinned-first
+	 * tiebreak) and telemetry (asinPinned). One definition, so the layers cannot
+	 * drift; dedupe receives the same wantAsin and applies it group-internally.
+	 * @param {{ asin: string | null }} c the candidate
+	 * @param {string | null} wantAsin the definitive ASIN, uppercased
+	 */
+	private isPinned(c: { asin: string | null }, wantAsin: string | null): boolean {
+		return wantAsin != null && c.asin?.toUpperCase() === wantAsin
+	}
+
+	/**
 	 * Execute the search across the album title and, when it differs, the track
 	 * title too.
 	 *
@@ -280,7 +292,7 @@ export default class BookSearchHelper {
 		const top = ranked.length ? ranked[0] : null
 		const durationCorroborated =
 			top != null && top.durationDeltaPct != null && top.durationDeltaPct <= DURATION_TOLERANCE
-		const asinPinned = top != null && wantAsin != null && top.asin?.toUpperCase() === wantAsin
+		const asinPinned = top != null && this.isPinned(top, wantAsin)
 		const decision: MatchDecision = {
 			title: searchedTitle,
 			author: this.options.author ?? null,
@@ -361,7 +373,7 @@ export default class BookSearchHelper {
 			}
 			// An exact ASIN match is a definitive identity confirmation — it beats
 			// any fuzzy score, so pin it to full confidence.
-			const asinMatch = wantAsin != null && c.asin?.toUpperCase() === wantAsin
+			const asinMatch = this.isPinned(c, wantAsin)
 			let confidence = asinMatch ? 1 : best.confidence
 			// Authorless title-only guard (see TITLE_ONLY_CEILING): with no author to
 			// verify identity, hold a fuzzy title match below STRONG_MATCH unless its
@@ -408,7 +420,10 @@ export default class BookSearchHelper {
 		})
 
 		const accepted = scored.filter((c) => c.confidence >= CONFIDENCE_FLOOR)
-		return dedupeCandidates(accepted).sort((a, b) => {
+		// wantAsin is passed into dedupe so a pinned candidate cannot lose its
+		// GROUP to a richer same-runtime rival — the pinned-first tiebreak below
+		// runs after dedupe and cannot resurrect a deleted candidate.
+		return dedupeCandidates(accepted, wantAsin).sort((a, b) => {
 			// The explicitly-hinted ASIN outranks EVERYTHING, including a confidence
 			// tie at 1.0: a perfect title+author+duration candidate also reaches 1.0,
 			// and if the two don't dedupe-merge (different ASIN and runtime bucket)
@@ -416,9 +431,7 @@ export default class BookSearchHelper {
 			// tie — i.e. the one edition the caller named by identity could lose a
 			// coin-flip. Nothing outscores a pin (1.0 is the ceiling), so this
 			// tiebreak leading is equivalent to pinned-first, stated explicitly.
-			const byPin =
-				Number(wantAsin != null && b.asin?.toUpperCase() === wantAsin) -
-				Number(wantAsin != null && a.asin?.toUpperCase() === wantAsin)
+			const byPin = Number(this.isPinned(b, wantAsin)) - Number(this.isPinned(a, wantAsin))
 			if (byPin !== 0) return byPin
 			const byConfidence = b.confidence - a.confidence
 			if (Math.abs(byConfidence) > 1e-9) return byConfidence
