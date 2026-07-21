@@ -117,4 +117,16 @@ describe('graded duration dead zone', () => {
 		expect(getMatchMetrics().durationDeadzonedSearches).toBe(1)
 		expect(getMatchMetrics().recent[0].durationDeadzoned).toBe(1)
 	})
+
+	test('EXACTLY 25% off pays the full veto — the boundary is not a free pass', async () => {
+		// The dead zone used to stop strictly below 0.25 and the scorer's veto
+		// starts strictly above it, so a candidate at exactly 25% paid nothing and
+		// sat at 0.85 while one at 24.9% paid ~0.3. At the boundary the ramp now
+		// evaluates to the full veto magnitude: 0.85 - 0.3 = 0.55, below the
+		// acceptance floor — same fate as a 26% contradiction.
+		const out = await helperFor([candidate({ audioSeconds: BASE })], {
+			duration: msForDelta(BASE, 0.25)
+		}).search()
+		expect(out).toHaveLength(0)
+	})
 })

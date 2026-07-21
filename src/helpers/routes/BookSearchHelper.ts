@@ -384,11 +384,16 @@ export default class BookSearchHelper {
 			// wrong-runtime edition ties with a better one and the winner falls to
 			// provider order. ASIN pins are exempt — the caller named that edition.
 			const durDelta = best.durationDeltaPct
+			// <= on the upper bound: scoreCandidate's own veto fires strictly ABOVE
+			// the threshold, so a candidate at exactly 25% off fell in neither range
+			// and paid nothing — the one discontinuity in an otherwise continuous
+			// ramp. At exactly the threshold the ramp evaluates to the full veto
+			// magnitude, so the two regimes meet without double-counting.
 			if (
 				!asinMatch &&
 				durDelta != null &&
 				durDelta > DURATION_TOLERANCE &&
-				durDelta < DURATION_VETO_THRESHOLD
+				durDelta <= DURATION_VETO_THRESHOLD
 			) {
 				const through =
 					(durDelta - DURATION_TOLERANCE) / (DURATION_VETO_THRESHOLD - DURATION_TOLERANCE)
@@ -404,23 +409,38 @@ export default class BookSearchHelper {
 
 		const accepted = scored.filter((c) => c.confidence >= CONFIDENCE_FLOOR)
 		return dedupeCandidates(accepted).sort((a, b) => {
+			// The explicitly-hinted ASIN outranks EVERYTHING, including a confidence
+			// tie at 1.0: a perfect title+author+duration candidate also reaches 1.0,
+			// and if the two don't dedupe-merge (different ASIN and runtime bucket)
+			// the pin used to fall through to byAudio/providerRank like any other
+			// tie — i.e. the one edition the caller named by identity could lose a
+			// coin-flip. Nothing outscores a pin (1.0 is the ceiling), so this
+			// tiebreak leading is equivalent to pinned-first, stated explicitly.
+			const byPin =
+				Number(wantAsin != null && b.asin?.toUpperCase() === wantAsin) -
+				Number(wantAsin != null && a.asin?.toUpperCase() === wantAsin)
+			if (byPin !== 0) return byPin
 			const byConfidence = b.confidence - a.confidence
 			if (Math.abs(byConfidence) > 1e-9) return byConfidence
-			// Equal confidence (e.g. an unanalyzed file gives no duration signal,
-			// so an audio edition and a book-level record both sit at the floor):
-			// prefer the ACTUAL audiobook edition. Otherwise the winner falls to
-			// provider order, and a series can split across sources (half Audible,
-			// half OpenLibrary) with inconsistent series/sort metadata.
-			const byAudio = Number(isAudioEdition(b)) - Number(isAudioEdition(a))
-			if (byAudio !== 0) return byAudio
-			// Still tied: prefer the edition in the wanted language. This sits ABOVE
-			// providerRank deliberately — otherwise which SOURCE returned a candidate
-			// decides which language wins, which is how a German "Dune" from a
-			// higher-ranked provider beat the English one.
+			// Equal confidence: prefer the edition in the wanted language FIRST. A
+			// duration-corroborated foreign edition (+0.15 corroboration, -0.15
+			// demotion = net even) ties an uncorroborated correct-language book
+			// record; when byAudio ran first it handed that tie to the foreign
+			// audio edition and the language preference never executed. Language is
+			// an identity property — the wrong-language book is the wrong BOOK —
+			// while audio-vs-book-level is a richness property, so identity ranks
+			// first.
 			const byLanguage =
 				Number(languageConflict(a.language, wantLanguage)) -
 				Number(languageConflict(b.language, wantLanguage))
 			if (byLanguage !== 0) return byLanguage
+			// Still tied (e.g. an unanalyzed file gives no duration signal, so an
+			// audio edition and a book-level record both sit at the floor): prefer
+			// the ACTUAL audiobook edition. Otherwise the winner falls to provider
+			// order, and a series can split across sources (half Audible, half
+			// OpenLibrary) with inconsistent series/sort metadata.
+			const byAudio = Number(isAudioEdition(b)) - Number(isAudioEdition(a))
+			if (byAudio !== 0) return byAudio
 			// Still tied: prefer the richer/more-authoritative source.
 			return providerRank(a) - providerRank(b)
 		})

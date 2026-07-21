@@ -1,4 +1,5 @@
 import type { ScoredCandidate } from '#helpers/providers/types'
+import { languageConflict } from '#helpers/utils/language'
 
 /**
  * Collapse candidates that refer to the same edition/book across providers,
@@ -81,21 +82,47 @@ export function dedupeCandidates(candidates: ScoredCandidate[]): ScoredCandidate
 		}
 		return i
 	}
-	const firstByKey = new Map<string, number>()
+	// A dur:/book: key match is only "the same edition" when the languages don't
+	// positively CONFLICT: a German narration can land in the same minute bucket
+	// as the English one (translations run close), but it is a different edition
+	// — merging them deletes one language from the results before the ranker's
+	// language preference ever runs. So those keys hold a LIST and each candidate
+	// unions with the first compatible occupant (unknown language is compatible
+	// with anything — provider data is patchy). An asin: match stays
+	// unconditional: the same store listing IS the same edition, whatever
+	// language each provider claims for it.
+	const byKey = new Map<string, number[]>()
 	candidates.forEach((c, i) => {
 		for (const key of dedupeKeys(c)) {
-			const prev = firstByKey.get(key)
-			if (prev === undefined) firstByKey.set(key, i)
-			else parent[find(i)] = find(prev)
+			const prev = byKey.get(key)
+			if (prev === undefined) {
+				byKey.set(key, [i])
+				continue
+			}
+			const compatible = key.startsWith('asin:')
+				? prev[0]
+				: prev.find((p) => !languageConflict(candidates[p].language, c.language))
+			if (compatible !== undefined) parent[find(i)] = find(compatible)
+			prev.push(i)
 		}
 	})
 
-	// Best (highest confidence, then richest) representative per group.
+	// Best (highest confidence, then richest) representative per group — plus the
+	// best ASIN-BEARING member, tracked separately: a group can merge an
+	// ASIN-less candidate (via its dur: key) that wins isBetter over the one
+	// carrying the real store ASIN, and emitting it as-is would discard the one
+	// identity key the caller can act on. The winner keeps its own metadata; only
+	// the missing ASIN is grafted from a losing member.
 	const best = new Map<number, ScoredCandidate>()
+	const bestWithAsin = new Map<number, ScoredCandidate>()
 	candidates.forEach((c, i) => {
 		const root = find(i)
 		const cur = best.get(root)
 		if (!cur || isBetter(c, cur)) best.set(root, c)
+		if (c.asin) {
+			const curAsin = bestWithAsin.get(root)
+			if (!curAsin || isBetter(c, curAsin)) bestWithAsin.set(root, c)
+		}
 	})
 
 	// One winner per group, in first-seen group order for stability.
@@ -105,7 +132,9 @@ export function dedupeCandidates(candidates: ScoredCandidate[]): ScoredCandidate
 		const root = find(i)
 		if (!emitted.has(root)) {
 			emitted.add(root)
-			out.push(best.get(root) as ScoredCandidate)
+			const winner = best.get(root) as ScoredCandidate
+			const donor = winner.asin ? null : bestWithAsin.get(root)
+			out.push(donor ? { ...winner, asin: donor.asin } : winner)
 		}
 	})
 	return out

@@ -116,4 +116,60 @@ describe('dedupeCandidates', () => {
 		const b = scored({ title: 'Book Two', authors: ['A'] })
 		expect(dedupeCandidates([a, b])).toHaveLength(2)
 	})
+
+	test('does NOT merge editions whose languages positively conflict, even in the same runtime bucket', () => {
+		// A German narration of an untranslated title ("Dune") can run within a
+		// minute of the English one. Merging them deletes one language from the
+		// results BEFORE the ranker's language preference runs — and the richer
+		// (cover-bearing) foreign edition used to be the one kept.
+		const en = scored({
+			id: 'en',
+			title: 'Dune',
+			authors: ['Frank Herbert'],
+			audioSeconds: 49800,
+			language: 'en'
+		})
+		const de = scored({
+			id: 'de',
+			title: 'Dune',
+			authors: ['Frank Herbert'],
+			audioSeconds: 49810,
+			language: 'de',
+			cover: 'de.jpg',
+			narrators: ['Jemand Anderes']
+		})
+		expect(dedupeCandidates([de, en])).toHaveLength(2)
+	})
+
+	test('an UNKNOWN language still merges with a tagged one (absence is not a conflict)', () => {
+		const tagged = scored({ title: 'Y', authors: ['A'], audioSeconds: 36000, language: 'en' })
+		const untagged = scored({ title: 'Y', authors: ['A'], audioSeconds: 36010, language: null })
+		expect(dedupeCandidates([tagged, untagged])).toHaveLength(1)
+	})
+
+	test('grafts the store ASIN onto a group winner that lacks one', () => {
+		// The ASIN-less candidate is richer (narrator + cover) and wins the group,
+		// but the losing member carries the one identity key the caller can act
+		// on — emitting the winner with asin:null would discard it.
+		const withAsin = scored({
+			provider: 'audible',
+			asin: 'B0GRAFT001',
+			title: 'Horns',
+			authors: ['Joe Hill'],
+			audioSeconds: 49800
+		})
+		const richerNoAsin = scored({
+			provider: 'hardcover',
+			asin: null,
+			title: 'Horns',
+			authors: ['Joe Hill'],
+			audioSeconds: 49800,
+			narrators: ['Fred Berman'],
+			cover: 'hc.jpg'
+		})
+		const out = dedupeCandidates([withAsin, richerNoAsin])
+		expect(out).toHaveLength(1)
+		expect(out[0].provider).toBe('hardcover') // richer still wins the group
+		expect(out[0].asin).toBe('B0GRAFT001') // but the ASIN survives
+	})
 })
