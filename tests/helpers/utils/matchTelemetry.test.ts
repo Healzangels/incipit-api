@@ -4,6 +4,7 @@ import {
 	confidenceBand,
 	getMatchMetrics,
 	type MatchDecision,
+	recordLanguageMismatchedLookup,
 	recordMatchDecision,
 	resetMatchMetrics
 } from '#helpers/utils/matchTelemetry'
@@ -116,6 +117,7 @@ describe('match telemetry aggregates', () => {
 
 	test('reset clears everything', () => {
 		recordMatchDecision(decision({ risky: true, authorless: true }))
+		recordLanguageMismatchedLookup()
 		resetMatchMetrics()
 		const m = getMatchMetrics()
 		expect(m.total).toBe(0)
@@ -123,5 +125,16 @@ describe('match telemetry aggregates', () => {
 		expect(m.riskyAuthorless).toBe(0)
 		expect(m.byConfidence).toEqual({})
 		expect(m.avgConfidence).toBeNull()
+		expect(m.languageMismatchedLookups).toBe(0)
+	})
+
+	test('counts region-vs-record language mismatches on item lookups', () => {
+		// The stale-ASIN early warning (the Dungeon Crawler Carl French-record
+		// case): a count only -- the identifying detail stays in the server log,
+		// so the open-mode /metrics payload remains content-free.
+		expect(getMatchMetrics().languageMismatchedLookups).toBe(0)
+		recordLanguageMismatchedLookup()
+		recordLanguageMismatchedLookup()
+		expect(getMatchMetrics().languageMismatchedLookups).toBe(2)
 	})
 })

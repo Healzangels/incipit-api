@@ -9,7 +9,36 @@ import { bestSquareCover } from '#helpers/providers/squareCover'
 import BookDataHelper from '#helpers/routes/BookDataHelper'
 import BookShowHelper from '#helpers/routes/BookShowHelper'
 import RouteCommonHelper from '#helpers/routes/RouteCommonHelper'
+import { languageConflict, regionLanguage } from '#helpers/utils/language'
+import { recordLanguageMismatchedLookup } from '#helpers/utils/matchTelemetry'
 import { MessageNotFoundInDb } from '#static/messages'
+
+/**
+ * Early warning for a stale/wrong pinned ASIN: an item lookup whose record
+ * language positively conflicts with the region's expected language is almost
+ * always a listing that changed hands (delisted edition, re-released series) --
+ * the Dungeon Crawler Carl case served a FRENCH record for a sidecar-pinned
+ * ASIN and the first symptom was a foreign album title on a shelf. Warn with
+ * the detail and bump the /metrics counter; deliberately NOT an error, because
+ * region conflates marketplace with language and a genuinely foreign library
+ * must keep working.
+ */
+function flagLanguageMismatch(
+	book: unknown,
+	region: string,
+	log: { warn: (obj: object, msg: string) => void }
+): void {
+	if (!book || typeof book !== 'object' || !('language' in book)) return
+	const language = (book as { language?: string | null }).language ?? null
+	const wantLanguage = regionLanguage(region)
+	if (languageConflict(language, wantLanguage)) {
+		log.warn(
+			{ language, region, wantLanguage },
+			'book lookup language conflicts with region -- stale or wrong ASIN?'
+		)
+		recordLanguageMismatchedLookup()
+	}
+}
 
 async function _show(fastify: FastifyInstance) {
 	fastify.get<RequestGeneric>('/books/:asin', async (request, reply) => {
@@ -68,6 +97,7 @@ async function _show(fastify: FastifyInstance) {
 
 		// Call helper handler
 		const book = await helper.handler()
+		flagLanguageMismatch(book, region, request.log)
 		return book && 'image' in book ? withSquareCover(book as ApiBook) : book
 	})
 }

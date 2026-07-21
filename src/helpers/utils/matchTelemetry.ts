@@ -90,6 +90,16 @@ export interface MatchMetrics {
 	languageDemotedCandidates: number
 	/** Searches where at least one candidate hit the graded duration dead zone. */
 	durationDeadzonedSearches: number
+	/**
+	 * Item lookups (/books/:asin) whose record language positively conflicts
+	 * with the request region's expected language. The early-warning for a
+	 * STALE/WRONG pinned ASIN: a delisted listing's ASIN resolving to another
+	 * edition (the Dungeon Crawler Carl case served a FRENCH record for a
+	 * sidecar-pinned ASIN) shows up here before anyone spots a foreign title
+	 * on a shelf. Count only — the asin/language detail goes to the server
+	 * log, so the open-mode /metrics payload stays content-free.
+	 */
+	languageMismatchedLookups: number
 	/** Confidence distribution of matched searches. */
 	byConfidence: Record<string, number>
 	avgConfidence: number | null
@@ -112,6 +122,7 @@ const store: {
 	languageDemotedSearches: number
 	languageDemotedCandidates: number
 	durationDeadzonedSearches: number
+	languageMismatchedLookups: number
 	confidenceSum: number
 	byConfidence: Map<string, number>
 	recent: MatchDecision[]
@@ -127,6 +138,7 @@ const store: {
 	languageDemotedSearches: 0,
 	languageDemotedCandidates: 0,
 	durationDeadzonedSearches: 0,
+	languageMismatchedLookups: 0,
 	confidenceSum: 0,
 	byConfidence: new Map(),
 	recent: []
@@ -194,10 +206,19 @@ export function getMatchMetrics(): MatchMetrics {
 		languageDemotedSearches: store.languageDemotedSearches,
 		languageDemotedCandidates: store.languageDemotedCandidates,
 		durationDeadzonedSearches: store.durationDeadzonedSearches,
+		languageMismatchedLookups: store.languageMismatchedLookups,
 		byConfidence: Object.fromEntries(store.byConfidence),
 		avgConfidence: matched > 0 ? store.confidenceSum / matched : null,
 		recent: [...store.recent]
 	}
+}
+
+/**
+ * Record one region-vs-record language mismatch on an item lookup.
+ * Caller logs the identifying detail; this keeps only the count.
+ */
+export function recordLanguageMismatchedLookup(): void {
+	store.languageMismatchedLookups += 1
 }
 
 /** Clear all aggregates (tests, and any future manual reset). */
@@ -213,6 +234,7 @@ export function resetMatchMetrics(): void {
 	store.languageDemotedSearches = 0
 	store.languageDemotedCandidates = 0
 	store.durationDeadzonedSearches = 0
+	store.languageMismatchedLookups = 0
 	store.confidenceSum = 0
 	store.byConfidence.clear()
 	store.recent.length = 0
