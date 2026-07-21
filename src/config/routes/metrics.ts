@@ -57,6 +57,17 @@ export function parseEnvArray(value: string | undefined): string[] | undefined {
 }
 
 /**
+ * THE definition of "metrics auth is configured" — used by the auth check, the
+ * startup warning, and the open-mode redaction gate. Three hand-rolled copies
+ * of this env test is how the redaction and the auth check drift apart (e.g. a
+ * future auth mechanism added to one but not the others silently reopens the
+ * catalog disclosure the redaction exists to close).
+ */
+export function metricsAuthConfigured(): boolean {
+	return !!process.env.METRICS_AUTH_TOKEN || !!parseEnvArray(process.env.METRICS_ALLOWED_IPS)
+}
+
+/**
  * Check if request IP is in allowed list
  * Supports single IPs and CIDR ranges (e.g., "192.168.1.0/24")
  */
@@ -91,13 +102,12 @@ export function isIpAllowed(request: FastifyRequest, allowedIps: string[]): bool
  * Returns true if access is allowed, false if denied
  */
 function validateMetricsAuth(request: FastifyRequest): boolean {
-	const authToken = process.env.METRICS_AUTH_TOKEN
-	const allowedIps = parseEnvArray(process.env.METRICS_ALLOWED_IPS)
-
 	// If neither auth token nor allowed IPs are configured, skip auth check
-	if (!authToken && !allowedIps) {
+	if (!metricsAuthConfigured()) {
 		return true
 	}
+	const authToken = process.env.METRICS_AUTH_TOKEN
+	const allowedIps = parseEnvArray(process.env.METRICS_ALLOWED_IPS)
 
 	// Check IP-based access first
 	if (allowedIps && allowedIps.length > 0) {
@@ -133,10 +143,7 @@ export function registerMetricsRoute(fastify: FastifyInstance): void {
 
 	// Check if metrics are enabled but no auth is configured
 	if (config.METRICS_ENABLED) {
-		const authToken = process.env.METRICS_AUTH_TOKEN
-		const allowedIps = parseEnvArray(process.env.METRICS_ALLOWED_IPS)
-
-		if (!authToken && !allowedIps) {
+		if (!metricsAuthConfigured()) {
 			fastify.log.warn(
 				'Metrics endpoint is enabled without authentication (METRICS_AUTH_TOKEN and METRICS_ALLOWED_IPS not set). The /metrics endpoint is publicly accessible.'
 			)
@@ -164,10 +171,8 @@ export function registerMetricsRoute(fastify: FastifyInstance): void {
 		// passes everyone), so the recent decisions' library-content fields are
 		// redacted — aggregates and per-decision quality numbers survive; the
 		// titles/authors/ASINs of what the operator owns require auth.
-		const authConfigured =
-			!!process.env.METRICS_AUTH_TOKEN || !!parseEnvArray(process.env.METRICS_ALLOWED_IPS)
 		const match = getMatchMetrics()
-		return { ...metrics, match: authConfigured ? match : redactMatchMetrics(match) }
+		return { ...metrics, match: metricsAuthConfigured() ? match : redactMatchMetrics(match) }
 	})
 }
 

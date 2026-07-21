@@ -16,6 +16,7 @@ function decision(over: Partial<MatchDecision> = {}): MatchDecision {
 		region: 'us',
 		hasDuration: true,
 		authorless: false,
+		manual: false,
 		matched: true,
 		provider: 'audible',
 		matchedTitle: 'Some Book',
@@ -113,6 +114,19 @@ describe('match telemetry aggregates', () => {
 		const m = getMatchMetrics()
 		m.recent.length = 0
 		expect(getMatchMetrics().recent).toHaveLength(1)
+	})
+
+	test('manual (typed Fix Match) searches never pollute the risk buckets', () => {
+		// A typed search is authorless by DESIGN — counting it in riskyAuthorless
+		// makes a manual-correction session read as a spike in the automatic
+		// false-positive class the operator is told to watch.
+		recordMatchDecision(decision({ manual: true, risky: true, authorless: true }))
+		const m = getMatchMetrics()
+		expect(m.manualSearches).toBe(1)
+		expect(m.total).toBe(1)
+		expect(m.risky).toBe(0)
+		expect(m.riskyAuthorless).toBe(0)
+		expect(m.authorless).toBe(0)
 	})
 
 	test('reset clears everything', () => {

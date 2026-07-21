@@ -560,6 +560,7 @@ describe('isIpAllowed', () => {
 				region: 'us',
 				hasDuration: true,
 				authorless: false,
+				manual: false,
 				wantLanguage: 'en',
 				matchedLanguage: 'en',
 				languageDemoted: 0,

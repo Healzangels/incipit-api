@@ -299,6 +299,7 @@ export default class BookSearchHelper {
 			region: this.options.region ?? null,
 			hasDuration: this.options.duration != null && this.options.duration > 0,
 			authorless: !this.options.author?.trim(),
+			manual: this.options.manual === true,
 			wantLanguage: regionLanguage(this.options.region),
 			matchedLanguage: top?.language ?? null,
 			languageDemoted: this.languageDemoted,

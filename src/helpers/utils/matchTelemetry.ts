@@ -29,6 +29,14 @@ export interface MatchDecision {
 	hasDuration: boolean
 	/** No author tag — the sharpest false-positive risk factor. */
 	authorless: boolean
+	/**
+	 * A human typed this query into Fix Match's Search Options. Typed searches
+	 * are deliberately context-free (authorless, no duration), so they are
+	 * counted separately and EXCLUDED from the risky/riskyAuthorless/authorless
+	 * aggregates — those exist to watch the AUTOMATIC false-positive class, and
+	 * a manual-correction session must not read as a quality regression.
+	 */
+	manual: boolean
 	/** Language expected for this search (ISO-639-1), or null if undetermined. */
 	wantLanguage: string | null
 	/** Language of the winning candidate, or null when the provider gave no signal. */
@@ -81,6 +89,8 @@ export interface MatchMetrics {
 	risky: number
 	riskyAuthorless: number
 	authorless: number
+	/** Human-typed Fix Match searches (excluded from the risk aggregates). */
+	manualSearches: number
 	widened: number
 	asinPinned: number
 	durationCorroborated: number
@@ -116,6 +126,8 @@ const store: {
 	risky: number
 	riskyAuthorless: number
 	authorless: number
+	/** Human-typed Fix Match searches (excluded from the risk aggregates). */
+	manualSearches: number
 	widened: number
 	asinPinned: number
 	durationCorroborated: number
@@ -132,6 +144,7 @@ const store: {
 	risky: 0,
 	riskyAuthorless: 0,
 	authorless: 0,
+	manualSearches: 0,
 	widened: 0,
 	asinPinned: 0,
 	durationCorroborated: 0,
@@ -165,9 +178,14 @@ export function confidenceBand(confidence: number): string {
 export function recordMatchDecision(decision: MatchDecision): void {
 	store.total += 1
 	if (decision.matched) store.matched += 1
-	if (decision.risky) store.risky += 1
-	if (decision.risky && decision.authorless) store.riskyAuthorless += 1
-	if (decision.authorless) store.authorless += 1
+	if (decision.manual) store.manualSearches += 1
+	// Risk buckets track the AUTOMATIC pipeline only: a typed search is
+	// authorless by design and lands here as noise, not signal.
+	if (!decision.manual) {
+		if (decision.risky) store.risky += 1
+		if (decision.risky && decision.authorless) store.riskyAuthorless += 1
+		if (decision.authorless) store.authorless += 1
+	}
 	if (decision.widened) store.widened += 1
 	if (decision.asinPinned) store.asinPinned += 1
 	if (decision.durationCorroborated) store.durationCorroborated += 1
@@ -200,6 +218,7 @@ export function getMatchMetrics(): MatchMetrics {
 		risky: store.risky,
 		riskyAuthorless: store.riskyAuthorless,
 		authorless: store.authorless,
+		manualSearches: store.manualSearches,
 		widened: store.widened,
 		asinPinned: store.asinPinned,
 		durationCorroborated: store.durationCorroborated,
@@ -228,6 +247,7 @@ export function resetMatchMetrics(): void {
 	store.risky = 0
 	store.riskyAuthorless = 0
 	store.authorless = 0
+	store.manualSearches = 0
 	store.widened = 0
 	store.asinPinned = 0
 	store.durationCorroborated = 0

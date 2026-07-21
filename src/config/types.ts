@@ -304,6 +304,13 @@ export const BookSearchQueryStringSchema = z.object({
 	// `.catch(undefined)` drops anything non-positive/non-numeric (Plex sends -1
 	// for an unanalyzed file) instead of 400-ing the request.
 	duration: z.coerce.number().int().positive().optional().catch(undefined),
+	// A human TYPED this query into Fix Match's Search Options. Typed searches
+	// are deliberately context-free (no author, no duration), so without this
+	// flag every one of them lands in the riskyAuthorless telemetry bucket —
+	// the exact counter the operator watches for the automatic false-positive
+	// class — and a manual-correction session reads as a quality regression.
+	// Affects TELEMETRY AGGREGATION only, never scoring.
+	manual: z.coerce.boolean().optional().catch(undefined),
 	region: RegionSchema
 })
 
