@@ -21,12 +21,10 @@ describe('isDeleteAllowed (destructive routes default CLOSED)', () => {
 		delete process.env.DELETE_ALLOWED_IPS
 	})
 	afterEach(() => {
-		token === undefined
-			? delete process.env.DELETE_AUTH_TOKEN
-			: (process.env.DELETE_AUTH_TOKEN = token)
-		ips === undefined
-			? delete process.env.DELETE_ALLOWED_IPS
-			: (process.env.DELETE_ALLOWED_IPS = ips)
+		if (token === undefined) delete process.env.DELETE_AUTH_TOKEN
+		else process.env.DELETE_AUTH_TOKEN = token
+		if (ips === undefined) delete process.env.DELETE_ALLOWED_IPS
+		else process.env.DELETE_ALLOWED_IPS = ips
 	})
 
 	it('denies when neither a token nor an allowlist is configured', () => {
@@ -59,9 +57,8 @@ describe('requireDeleteAuth preHandler', () => {
 		delete process.env.DELETE_AUTH_TOKEN
 	})
 	afterEach(() => {
-		token === undefined
-			? delete process.env.DELETE_AUTH_TOKEN
-			: (process.env.DELETE_AUTH_TOKEN = token)
+		if (token === undefined) delete process.env.DELETE_AUTH_TOKEN
+		else process.env.DELETE_AUTH_TOKEN = token
 	})
 
 	async function appWithGuardedRoute() {

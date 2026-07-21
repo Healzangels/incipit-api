@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify'
 
-import { RequestGeneric } from '#config/typing/requests'
 import { requireDeleteAuth } from '#config/routes/writeAuth'
+import { RequestGeneric } from '#config/typing/requests'
 import ChapterDeleteHelper from '#helpers/routes/ChapterDeleteHelper'
 import RouteCommonHelper from '#helpers/routes/RouteCommonHelper'
 import { MessageDeleted, MessageNotFoundInDb } from '#static/messages'

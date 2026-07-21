@@ -98,24 +98,24 @@ const NAME_TO_CODE: Record<string, string> = {
 	tamil: 'ta',
 	urdu: 'ur',
 	// Native names that reach us in the language's own script/diacritics.
-	'bokmål': 'no',
+	bokmål: 'no',
 	bokmal: 'no',
 	nynorsk: 'no',
-	'čeština': 'cs',
+	čeština: 'cs',
 	cestina: 'cs',
 	magyar: 'hu',
-	'română': 'ro',
+	română: 'ro',
 	romana: 'ro',
-	'українська': 'uk',
-	'русский': 'ru',
-	'türkçe': 'tr',
+	українська: 'uk',
+	русский: 'ru',
+	türkçe: 'tr',
 	turkce: 'tr',
-	'ελληνικά': 'el',
-	'עברית': 'he',
-	'العربية': 'ar',
-	'中文': 'zh',
-	'日本語': 'ja',
-	'한국어': 'ko'
+	ελληνικά: 'el',
+	עברית: 'he',
+	العربية: 'ar',
+	中文: 'zh',
+	日本語: 'ja',
+	한국어: 'ko'
 }
 
 /** ISO-639-2/B + /T (MARC, as OpenLibrary reports) → ISO-639-1. */

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 
-import BookSearchHelper from '#helpers/routes/BookSearchHelper'
 import type ProviderRegistry from '#helpers/providers/ProviderRegistry'
 import type { ProviderCandidate } from '#helpers/providers/types'
+import BookSearchHelper from '#helpers/routes/BookSearchHelper'
 import { getMatchMetrics, resetMatchMetrics } from '#helpers/utils/matchTelemetry'
 
 /**
