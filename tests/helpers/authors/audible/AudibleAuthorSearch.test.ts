@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
 	type AudibleAuthorFetch,
+	collapseInitialVariants,
 	dedupeAuthorsByName,
 	searchAudibleAuthors
 } from '#helpers/authors/audible/AudibleAuthorSearch'
@@ -84,5 +85,53 @@ describe('dedupeAuthorsByName', () => {
 			{ asin: 'A1', name: 'David Baldacci' },
 			{ asin: 'B1', name: 'Dan Brown' }
 		])
+	})
+})
+
+describe('collapseInitialVariants', () => {
+	// Audible carries an empty "Stephen Lawhead" stub alongside the populated
+	// "Stephen R. Lawhead". A client scores on name similarity against a tag that
+	// usually omits the initial, so the stub matches exactly (100) and beats the
+	// real record (89) -- the author then shows no photo and no bio.
+	test('keeps the populated record over the empty stub for one person', () => {
+		const out = collapseInitialVariants([
+			{ asin: 'B004MLGWG4', name: 'Stephen Lawhead', image: '', description: '' },
+			{ asin: 'B000AQ4NUC', name: 'Stephen R. Lawhead', image: 'photo.jpg', description: 'Bio.' }
+		])
+		expect(out).toHaveLength(1)
+		expect(out[0].asin).toBe('B000AQ4NUC')
+	})
+
+	test('keeps distinct people who differ by middle initial', () => {
+		const out = collapseInitialVariants([
+			{ asin: 'A1', name: 'John A. Smith', image: 'a.jpg', description: '' },
+			{ asin: 'B1', name: 'John B. Smith', image: 'b.jpg', description: '' }
+		])
+		expect(out).toHaveLength(2)
+	})
+
+	test('leaves lone authors untouched and preserves order', () => {
+		const out = collapseInitialVariants([
+			{ asin: 'X', name: 'Trevanian' },
+			{ asin: 'Y', name: 'Jessica Townsend' }
+		])
+		expect(out.map((a) => a.asin)).toEqual(['X', 'Y'])
+	})
+
+	test('on a richness tie the earlier (better-ranked) record survives', () => {
+		const out = collapseInitialVariants([
+			{ asin: 'FIRST', name: 'Iain Banks', image: '', description: '' },
+			{ asin: 'SECOND', name: 'Iain M. Banks', image: '', description: '' }
+		])
+		expect(out).toHaveLength(1)
+		expect(out[0].asin).toBe('FIRST')
+	})
+
+	test('a description alone is richer than nothing', () => {
+		const out = collapseInitialVariants([
+			{ asin: 'STUB', name: 'Ursula Le Guin', image: '', description: '' },
+			{ asin: 'REAL', name: 'Ursula K. Le Guin', image: '', description: 'Author of Earthsea.' }
+		])
+		expect(out[0].asin).toBe('REAL')
 	})
 })

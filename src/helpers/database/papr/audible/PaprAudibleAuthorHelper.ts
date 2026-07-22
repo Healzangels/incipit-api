@@ -85,7 +85,10 @@ export default class PaprAudibleAuthorHelper {
 		const found = await AuthorModel.find(
 			{ $text: { $search: this.options.name } },
 			{
-				projection: { _id: 0, asin: 1, name: 1 },
+				// image/description are not returned to the caller -- they are the
+				// signal for collapsing an empty stub into the populated record for
+				// the same person (see collapseInitialVariants).
+				projection: { _id: 0, asin: 1, name: 1, image: 1, description: 1 },
 				limit: 25,
 				sort: { score: { $meta: 'textScore' } }
 			}

@@ -68,6 +68,69 @@ export function dedupeAuthorsByName<T extends { name: string }>(authors: T[]): T
 	return out
 }
 
+/** Middle initials in a name, as a signature: "Stephen R. Lawhead" -> "r". */
+function initialsOf(name: string): string {
+	return normalizeName(name)
+		.split(' ')
+		.slice(1, -1)
+		.filter((t) => /^[a-z]\.?$/.test(t))
+		.map((t) => t[0])
+		.join('')
+}
+
+/** The name without its middle initials: both Lawheads key to "stephen lawhead". */
+function nameWithoutInitials(name: string): string {
+	const parts = normalizeName(name).split(' ')
+	if (parts.length < 3) return parts.join(' ')
+	return [parts[0], ...parts.slice(1, -1).filter((t) => !/^[a-z]\.?$/.test(t)), parts.at(-1)].join(
+		' '
+	)
+}
+
+/** Populated beats empty when choosing which duplicate survives. */
+function richness(author: { image?: string | null; description?: string | null }): number {
+	return (author.image?.trim() ? 2 : 0) + (author.description?.trim() ? 1 : 0)
+}
+
+/**
+ * Collapse middle-initial variants of ONE author to the richest record.
+ *
+ * Audible carries both a populated "Stephen R. Lawhead" and an empty
+ * "Stephen Lawhead" stub. dedupeAuthorsByName keys on the exact name, so both
+ * survive — and the stub then WINS, because a client scores on name similarity
+ * and the library's tag usually omits the initial: the stub is an exact match
+ * (100) while the real record scores lower (89). The result is an author with
+ * no photo and no bio.
+ *
+ * Two records collapse only when at most one of them carries middle initials.
+ * "John A. Smith" and "John B. Smith" both do, and differ, so they are kept
+ * apart — those are two people, not one person's stub.
+ * @param {T[]} authors authors ordered best-first
+ * @returns {T[]} one author per person, preferring the populated record
+ */
+export function collapseInitialVariants<
+	T extends { name: string; image?: string | null; description?: string | null }
+>(authors: T[]): T[] {
+	const groups = new Map<string, T[]>()
+	for (const author of authors) {
+		const key = nameWithoutInitials(author.name)
+		const group = groups.get(key)
+		if (group) group.push(author)
+		else groups.set(key, [author])
+	}
+	const out: T[] = []
+	for (const group of groups.values()) {
+		const signatures = new Set(group.map((a) => initialsOf(a.name)).filter(Boolean))
+		if (group.length === 1 || signatures.size > 1) {
+			out.push(...group)
+			continue
+		}
+		// One person: keep the richest, and the earliest (best-ranked) on a tie.
+		out.push(group.reduce((best, a) => (richness(a) > richness(best) ? a : best)))
+	}
+	return out
+}
+
 /** Build the Audible catalog URL for an author-name query. */
 function buildUrl(name: string, region: string): string {
 	const r = regions[region] ? region : 'us'

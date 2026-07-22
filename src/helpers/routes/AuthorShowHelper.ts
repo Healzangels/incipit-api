@@ -4,6 +4,7 @@ import type { FastifyBaseLogger } from 'fastify'
 import type { ApiAuthorProfile, ApiBook, ApiChapter } from '#config/types'
 import { ApiQueryString } from '#config/types'
 import {
+	collapseInitialVariants,
 	dedupeAuthorsByName,
 	searchAudibleAuthors
 } from '#helpers/authors/audible/AudibleAuthorSearch'
@@ -111,8 +112,16 @@ export default class AuthorShowHelper extends GenericShowHelper {
 		// this, Fix Match shows several identical rows scored 100/99/98 with no way
 		// to tell them apart. The cache is text-score ordered, so the first per name
 		// is the best-ranked one.
-		const close = dedupeAuthorsByName(cached.filter((a) => isSameAuthor(name, a.name)))
-		if (close.length) return close
+		// ...then collapse one person's middle-initial variants, keeping the
+		// populated record: Audible carries an empty "Stephen Lawhead" stub
+		// alongside the real "Stephen R. Lawhead", and since a client scores on
+		// name similarity against a tag that usually omits the initial, the stub
+		// would win outright and the author would show no photo and no bio.
+		const close = collapseInitialVariants(
+			dedupeAuthorsByName(cached.filter((a) => isSameAuthor(name, a.name)))
+		)
+		// The richness fields are an internal signal; keep the response shape.
+		if (close.length) return close.map((a) => ({ asin: a.asin, name: a.name }))
 
 		// Cache miss (empty on a fresh instance, or only loose matches): fall back
 		// to the Audible catalog so authors resolve out of the box. A picked author
