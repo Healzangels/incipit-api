@@ -156,6 +156,54 @@ describe('fetchPlus should', () => {
 		expect(sleepDelays).toEqual([2000])
 	})
 
+	test('stop retrying when Retry-After exceeds the cap (numeric seconds)', async () => {
+		// 'Retry-After: 3600' used to be honored verbatim → a one-hour sleep
+		// holding the socket. Over-cap must reject immediately, no sleep.
+		const mockError = {
+			response: {
+				status: 429,
+				headers: { 'retry-after': '3600' }
+			}
+		}
+		mockGet.mockRejectedValue(mockError)
+
+		await expect(fetchPlus('test.com')).rejects.toMatchObject({ status: 429 })
+		expect(pooledAxios.get).toHaveBeenCalledTimes(1)
+		expect(sleepDelays).toEqual([])
+	})
+
+	test('stop retrying when Retry-After is a far-future HTTP-date', async () => {
+		const mockError = {
+			response: {
+				status: 429,
+				headers: { 'retry-after': new Date(Date.now() + 3600_000).toUTCString() }
+			}
+		}
+		mockGet.mockRejectedValue(mockError)
+
+		await expect(fetchPlus('test.com')).rejects.toMatchObject({ status: 429 })
+		expect(pooledAxios.get).toHaveBeenCalledTimes(1)
+		expect(sleepDelays).toEqual([])
+	})
+
+	test('honor a Retry-After exactly at the cap', async () => {
+		const mockError = {
+			response: {
+				status: 429,
+				headers: { 'retry-after': '10' }
+			}
+		}
+		const successResponse = { data: 'success', status: 200 } as AxiosResponse
+
+		mockGet.mockRejectedValueOnce(mockError).mockResolvedValueOnce(successResponse)
+
+		const response = await fetchPlus('test.com')
+
+		expect(response).toEqual(successResponse)
+		expect(pooledAxios.get).toHaveBeenCalledTimes(2)
+		expect(sleepDelays).toEqual([10000])
+	})
+
 	test('retry with increasing exponential backoff on multiple 429s', async () => {
 		const mockError = {
 			response: {

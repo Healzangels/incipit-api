@@ -34,14 +34,23 @@ function fromAxiosError(error: AxiosError): FetchError {
 }
 
 /**
+ * Longest server-supplied Retry-After we will honor. Anything above this means
+ * the server wants a long backoff (e.g. 'Retry-After: 3600'); sleeping that
+ * long would hold the request (and its socket) for hours, so the caller stops
+ * retrying instead.
+ */
+const MAX_RETRY_AFTER_MS = 10_000
+
+/**
  * Calculates the delay for retry attempts with exponential backoff.
  * For 429 status, uses exponential backoff starting at 1s, doubling each retry (max 8s).
  * Respects Retry-After header if present (includes delay-in-seconds and HTTP-date formats).
  * @param {number} retries The current retry count
  * @param {AxiosError} error The axios error response
- * @returns {number} The delay in milliseconds
+ * @returns {number | null} The delay in milliseconds, or null when Retry-After
+ * exceeds MAX_RETRY_AFTER_MS and retrying should stop entirely
  */
-function calculateRetryDelay(retries: number, error: AxiosError): number {
+function calculateRetryDelay(retries: number, error: AxiosError): number | null {
 	if (!error.response || !error.response.headers) {
 		// No response or headers, fall back to exponential backoff
 		return Math.min(1000 * Math.pow(2, retries), 8000)
@@ -56,7 +65,8 @@ function calculateRetryDelay(retries: number, error: AxiosError): number {
 	// Retry-After can be a delay in seconds or an HTTP-date
 	const parsedAsNumber = parseInt(retryAfter, 10)
 	if (!isNaN(parsedAsNumber) && parsedAsNumber > 0) {
-		return parsedAsNumber * 1000
+		const delay = parsedAsNumber * 1000
+		return delay > MAX_RETRY_AFTER_MS ? null : delay
 	}
 
 	// Try parsing as HTTP-date (e.g., "Wed, 21 Oct 2015 07:28:00 GMT")
@@ -64,6 +74,9 @@ function calculateRetryDelay(retries: number, error: AxiosError): number {
 	if (!isNaN(parsedDate.getTime())) {
 		const now = Date.now()
 		const delay = parsedDate.getTime() - now
+		if (delay > MAX_RETRY_AFTER_MS) {
+			return null
+		}
 		if (delay > 0) {
 			return delay
 		}
@@ -115,6 +128,12 @@ function fetchPlus(
 					const status = reason.response?.status
 					if (status === 429) {
 						const delay = calculateRetryDelay(retries, reason)
+						if (delay === null) {
+							// Retry-After beyond the cap: fail now instead of
+							// hammering a server that asked for a long backoff.
+							reject(fromAxiosError(reason))
+							return
+						}
 						await sleep(delay)
 					}
 
