@@ -82,6 +82,7 @@ const BOOK_BY_ID_QUERY = `query IncipitBook($id: Int!) {
 			reading_format_id
 			release_date
 			cached_image
+			language { language }
 			publisher { name }
 			contributions { author { name } contribution }
 		}
@@ -282,6 +283,9 @@ function providerBook(book: HardcoverBook, edition: HardcoverEdition | undefined
 		summary: book.description ?? undefined,
 		image: edition?.cached_image?.url ?? book.cached_image?.url ?? null,
 		publisherName: edition?.publisher?.name ?? undefined,
+		// Hardcover reports a language NAME ("French"); normalize to a code so the
+		// lookup route's mismatch flag can compare it against the region.
+		language: normalizeLanguage(edition?.language?.language),
 		// Hardcover rates 0-5; the bundle stores rating as a string.
 		rating: typeof book.rating === 'number' ? book.rating.toFixed(2) : undefined,
 		releaseDate: edition?.release_date ?? undefined,

@@ -173,6 +173,7 @@ export default class StorytelProvider implements BookProvider {
 		return {
 			asin: null,
 			title: book.name,
+			language: normalizeLanguage(book.language?.isoValue),
 			authors: (names(book.authors) || []).map((name) => ({ name })),
 			narrators: names(abook?.narrators).map((name) => ({ name })),
 			summary: abook?.description ?? undefined,

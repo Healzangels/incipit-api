@@ -280,6 +280,36 @@ describe('HardcoverProvider.fetchBook', () => {
 		expect(book?.authors).toEqual([{ name: 'Andy Weir' }])
 	})
 
+	test('carries the matched edition language so the lookup route can flag a mismatch', async () => {
+		// The Dungeon Crawler Carl case: a FRENCH edition served over a provider id
+		// must reach the route WITH its language, or flagLanguageMismatch is a no-op.
+		const frenchEdition = { ...matchedEdition, language: { language: 'French' } }
+		const p = new HardcoverProvider({ gql: fetchGql(frenchEdition, parentBook) })
+		const book = await p.fetchBook('31501578', 'edition', {
+			region: 'us',
+			credentials: { hardcover: 'tok' }
+		})
+		expect(book?.language).toBe('fr')
+	})
+
+	test('a book-level fetch carries the picked edition language (query selects it)', async () => {
+		// Serve the edition's language ONLY when the book query selects the field —
+		// guards the GraphQL selection itself, not just the response mapping.
+		const gql: HardcoverGql = async <T>(query: string): Promise<T> => {
+			if (query.includes('IncipitEditionFull')) return { editions: [] } as T
+			const edition = query.includes('language')
+				? { ...parentBook.editions[0], language: { language: 'French' } }
+				: parentBook.editions[0]
+			return { books: [{ ...parentBook, editions: [edition] }] } as T
+		}
+		const p = new HardcoverProvider({ gql })
+		const book = await p.fetchBook('427578', 'book', {
+			region: 'us',
+			credentials: { hardcover: 'tok' }
+		})
+		expect(book?.language).toBe('fr')
+	})
+
 	test('returns null when the edition is not found', async () => {
 		const p = new HardcoverProvider({ gql: fetchGql(null, parentBook) })
 		expect(

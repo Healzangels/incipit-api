@@ -27,7 +27,10 @@ const audio = {
 		description: 'What if the hero of prophecy fails?'
 	}
 }
-const foreign = { ...audio, book: { ...audio.book, consumableId: 999, language: { isoValue: 'de' } } }
+const foreign = {
+	...audio,
+	book: { ...audio.book, consumableId: 999, language: { isoValue: 'de' } }
+}
 const ebookOnly = { book: { ...audio.book, consumableId: 111 }, abook: null }
 
 const q: BookSearchQuery = { title: 'The Final Empire', region: 'us' }
@@ -84,5 +87,13 @@ describe('StorytelProvider', () => {
 			publisherName: 'Recorded Books',
 			seriesPrimary: { name: 'Mistborn', position: '1' }
 		})
+	})
+
+	test('fetchBook carries the detail record language for the lookup mismatch flag', async () => {
+		const detailFetch: StorytelDetailFetch = async () => foreign
+		const book = await new StorytelProvider({ detailFetch }).fetchBook('999', 'book', {
+			region: 'us'
+		})
+		expect(book?.language).toBe('de')
 	})
 })

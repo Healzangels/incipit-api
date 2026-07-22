@@ -87,6 +87,13 @@ export interface ProviderBook {
 	releaseDate?: string
 	seriesPrimary?: ProviderBookSeries
 	seriesSecondary?: ProviderBookSeries
+	/**
+	 * Edition language as ISO-639-1 (see helpers/utils/language), or null/absent
+	 * when the provider gives no signal. The lookup route's language-mismatch flag
+	 * reads it — without it a foreign edition served over a provider id reaches
+	 * Plex unflagged (the Dungeon Crawler Carl French-edition case).
+	 */
+	language?: string | null
 }
 
 /** Options for a data-lookup fetch (per-request credentials, region, logger). */
