@@ -40,13 +40,17 @@ export function isSameAuthor(query: string, candidate: string): boolean {
 }
 
 export default class AuthorShowHelper extends GenericShowHelper {
+	credentials?: Record<string, string>
+
 	constructor(
 		asin: string,
 		options: ApiQueryString,
 		redis: FastifyRedis | null,
-		logger?: FastifyBaseLogger
+		logger?: FastifyBaseLogger,
+		credentials?: Record<string, string>
 	) {
 		super(asin, options, redis, 'author', logger)
+		this.credentials = credentials
 	}
 
 	/**
@@ -71,7 +75,7 @@ export default class AuthorShowHelper extends GenericShowHelper {
 
 		const { image: hardcoverImage, bio: hardcoverBio } = await hardcover.fetchAuthorInfo(
 			author.name,
-			{ region: this.options.region, logger: this.logger }
+			{ region: this.options.region, credentials: this.credentials, logger: this.logger }
 		)
 		if (hardcoverImage && hardcoverImage !== author.image) {
 			this.logger?.info({ author: author.name }, 'author image: preferring Hardcover portrait')

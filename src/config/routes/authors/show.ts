@@ -8,6 +8,14 @@ async function _show(fastify: FastifyInstance) {
 	fastify.get<RequestGeneric>('/authors/:asin', async (request, reply) => {
 		const asin = request.params.asin
 
+		// Per-request provider credentials (Hardcover portrait/bio backfill), with
+		// the env token as fallback when the header is absent.
+		const credentials: Record<string, string> = {}
+		const hardcoverToken = request.headers['x-hardcover-token']
+		if (typeof hardcoverToken === 'string' && hardcoverToken) {
+			credentials.hardcover = hardcoverToken
+		}
+
 		// Setup common helper first
 		const routeHelper = new RouteCommonHelper(asin, request.query, reply)
 		// Run common helper handler
@@ -17,7 +25,7 @@ async function _show(fastify: FastifyInstance) {
 
 		// Setup Helper
 		const { redis } = fastify
-		const helper = new AuthorShowHelper(asin, handler.options, redis, request.log)
+		const helper = new AuthorShowHelper(asin, handler.options, redis, request.log, credentials)
 
 		// Call helper handler
 		return helper.handler()

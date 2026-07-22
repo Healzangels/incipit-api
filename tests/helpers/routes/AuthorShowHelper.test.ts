@@ -159,6 +159,29 @@ describe('AuthorShowHelper should', () => {
 		getSpy.mockRestore()
 	})
 
+	test('threads per-request credentials into the Hardcover author lookup', async () => {
+		const fetchAuthorInfo = mock().mockResolvedValue({ image: null, bio: null })
+		const getSpy = spyOn(defaultRegistry, 'get').mockReturnValue({
+			fetchAuthorInfo
+		} as unknown as ReturnType<typeof defaultRegistry.get>)
+
+		// Header token present → it must reach the provider call.
+		helper = new AuthorShowHelper(asin, { region: 'us', update: undefined }, null, undefined, {
+			hardcover: 'user-token'
+		})
+		await helper.getNewData()
+		expect(fetchAuthorInfo.mock.calls[0]?.[1]).toMatchObject({
+			credentials: { hardcover: 'user-token' }
+		})
+
+		// No credentials → the provider sees none and falls back to its env token.
+		helper = new AuthorShowHelper(asin, { region: 'us', update: undefined }, null)
+		await helper.getNewData()
+		expect(fetchAuthorInfo.mock.calls[1]?.[1]?.credentials).toBeUndefined()
+
+		getSpy.mockRestore()
+	})
+
 	test('returns original author if it was updated recently when trying to update', async () => {
 		spyOn(helper.sharedHelper, 'isRecentlyUpdated').mockReturnValue(true)
 		helper.originalData = authorWithoutProjectionUpdatedNow
@@ -218,7 +241,9 @@ describe('AuthorShowHelper should throw error when', () => {
 
 	test('getDataWithProjection sorted author is not a author type', async () => {
 		setPerformanceConfig(createTestConfig({ USE_SORTED_KEYS: true }))
-		spyOn(helper.sharedHelper, 'sortObjectByKeys').mockReturnValue(null as unknown as ApiAuthorProfile)
+		spyOn(helper.sharedHelper, 'sortObjectByKeys').mockReturnValue(
+			null as unknown as ApiAuthorProfile
+		)
 		await expect(helper.getDataWithProjection()).rejects.toThrow(
 			`Data type for ${asin} is not ApiAuthorProfile`
 		)
