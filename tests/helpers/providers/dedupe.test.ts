@@ -163,7 +163,13 @@ describe('dedupeCandidates', () => {
 			language: 'en',
 			narrators: ['Someone']
 		})
-		const unk = scored({ id: 'unk', title: 'Dune', authors: ['Frank Herbert'], audioSeconds: 49805, language: null })
+		const unk = scored({
+			id: 'unk',
+			title: 'Dune',
+			authors: ['Frank Herbert'],
+			audioSeconds: 49805,
+			language: null
+		})
 		const de = scored({
 			id: 'de',
 			title: 'Dune',
@@ -190,6 +196,66 @@ describe('dedupeCandidates', () => {
 			expect(langs).toContain('en')
 			expect(langs).toContain('de')
 		}
+	})
+
+	test('a multi-key candidate cannot drag its group into a conflicting-language group', () => {
+		// One level deeper than the occupant-group check: the bridge carries BOTH
+		// an asin: and a dur: key but no language tag. Its asin joins it to the en
+		// group, then its dur: key used to merge that WHOLE group into the fr
+		// group — the old check compared the fr group against the bridge's own
+		// (null) tag only, never against the en it had already absorbed.
+		const en = scored({
+			id: 'en',
+			asin: 'B0BRIDGE01',
+			title: 'Dune',
+			authors: ['Frank Herbert'],
+			language: 'en',
+			narrators: ['Someone'],
+			cover: 'en.jpg'
+		})
+		const bridge = scored({
+			id: 'bridge',
+			asin: 'B0BRIDGE01',
+			title: 'Dune',
+			authors: ['Frank Herbert'],
+			audioSeconds: 49805,
+			language: null
+		})
+		const fr = scored({
+			id: 'fr',
+			title: 'Dune',
+			authors: ['Frank Herbert'],
+			audioSeconds: 49800, // same minute bucket as the bridge
+			language: 'fr',
+			narrators: ["Quelqu'un"]
+		})
+		// Orders where fr's dur: key pairs with the bridge BEFORE the bridge's
+		// asin joins it to en are excluded: at that decision point the bridge's
+		// group has no known language (permissive by design) and the later asin:
+		// merge is unconditional.
+		const orders = [
+			[en, bridge, fr],
+			[en, fr, bridge],
+			[fr, en, bridge],
+			[bridge, en, fr]
+		]
+		for (const order of orders) {
+			const out = dedupeCandidates(order)
+			expect(out.length).toBeGreaterThanOrEqual(2)
+			const langs = out.map((c) => c.language)
+			expect(langs).toContain('en')
+			expect(langs).toContain('fr')
+		}
+		// Same shape with matching languages on both sides still collapses: the
+		// block is a language conflict, not the extra key.
+		const en2 = scored({
+			id: 'en2',
+			title: 'Dune',
+			authors: ['Frank Herbert'],
+			audioSeconds: 49800,
+			language: 'en'
+		})
+		expect(dedupeCandidates([en, en2, bridge])).toHaveLength(1)
 	})
 
 	test('a PINNED candidate wins its dedupe group even against a richer rival', () => {

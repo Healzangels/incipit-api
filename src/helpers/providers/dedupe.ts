@@ -98,16 +98,18 @@ export function dedupeCandidates(
 	// — merging them deletes one language from the results before the ranker's
 	// language preference ever runs.
 	//
-	// The conflict check is against the occupant GROUP's whole known-language
-	// set, not the occupant's own tag: union-find is transitive while pairwise
-	// compatibility is not, so checking only the occupant let an UNKNOWN-language
-	// candidate bridge en and de into one group (proven by execution — the
-	// result depended on provider order). Each root carries the set of known
-	// languages among its members; a candidate may only join a group none of
-	// whose known languages conflict with its own, and joining adds its language
-	// to the set. An asin: match stays unconditional — the same store listing IS
-	// the same edition, whatever language each provider claims — but still
-	// merges the language sets so later dur:/book: checks see the union.
+	// The conflict check compares whole GROUP language sets on BOTH sides, not
+	// individual tags: union-find is transitive while pairwise compatibility is
+	// not. Checking only the occupant group against the joiner's OWN tag closed
+	// the first-level bridge (an unknown-language candidate merging en and de)
+	// but left the same hole one level deeper — a multi-key candidate with no
+	// language of its own joins the en group via its asin: key, then its dur:
+	// key dragged that whole group into a fr group. Each root carries the set
+	// of known languages among its members; a merge is blocked when the two
+	// groups' known languages conflict, and completing one unions the sets. An
+	// asin: match stays unconditional — the same store listing IS the same
+	// edition, whatever language each provider claims — but still merges the
+	// language sets so later dur:/book: checks see the union.
 	const keyLists = new Map<string, number[]>()
 	const byKey = (key: string): number[] => {
 		let list = keyLists.get(key)
@@ -127,11 +129,12 @@ export function dedupeCandidates(
 		}
 		return set
 	}
-	const groupConflicts = (root: number, lang: string | null): boolean => {
-		if (lang == null) return false
-		const set = rootLangs.get(root)
-		if (!set) return false
-		for (const known of set) if (known !== lang) return true
+	const groupsConflict = (a: number, b: number): boolean => {
+		if (a === b) return false
+		const left = rootLangs.get(a)
+		const right = rootLangs.get(b)
+		if (!left?.size || !right?.size) return false
+		for (const x of left) for (const y of right) if (x !== y) return true
 		return false
 	}
 	const union = (i: number, into: number): void => {
@@ -154,7 +157,8 @@ export function dedupeCandidates(
 			if (key.startsWith('asin:')) {
 				union(i, prev[0])
 			} else {
-				const compatible = prev.find((p) => !groupConflicts(find(p), langs[i]))
+				const root = find(i)
+				const compatible = prev.find((p) => !groupsConflict(find(p), root))
 				if (compatible !== undefined) union(i, compatible)
 			}
 			prev.push(i)
