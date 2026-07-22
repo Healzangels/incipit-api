@@ -47,6 +47,8 @@ export interface MatchDecision {
 	 * foreign editions were never actually competing here.
 	 */
 	languageDemoted: number
+	/** Candidates demoted for being a box set/omnibus when a single book was sought. */
+	bundleDemoted: number
 	/**
 	 * How many candidates the graded duration dead-zone penalty hit — a runtime
 	 * gap between the corroboration and veto thresholds. Non-zero means the flat

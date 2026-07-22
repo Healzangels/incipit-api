@@ -707,3 +707,80 @@ describe('BookSearchHelper ASIN handling (Audiobookshelf / seanap conventions)',
 		expect(out[0].confidence).toBe(1)
 	})
 })
+
+describe('bundle and foreign-edition demotion', () => {
+	// Measured on a 1341-book scan: a bundle carries the queried title as a
+	// substring, so it scores like the single book it contains. "Siege of
+	// Darkness" matched "Legacy of the Drow Gift Set" at 0.66, and "Leviathan
+	// Wakes" matched "Expanse Box Set Books 1-3" at 1.0 because a stale sidecar
+	// ASIN pinned it there.
+	const corey = (title: string, asin: string | null = null) =>
+		candidate({ id: asin ?? title, asin, title, authors: ['James S.A. Corey'] })
+
+	test('a box set loses to the single book it contains', async () => {
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [corey('Expanse Box Set Books 1-3'), corey('Leviathan Wakes')])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Leviathan Wakes',
+			author: 'James S.A. Corey',
+			region: 'us'
+		}).search()
+		expect(out[0].title).toBe('Leviathan Wakes')
+	})
+
+	test('a PINNED box set still loses -- a bundle is not the single book', async () => {
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [
+				corey('Expanse Box Set Books 1-3', 'B00BOXSET1'),
+				corey('Leviathan Wakes')
+			])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Leviathan Wakes',
+			author: 'James S.A. Corey',
+			region: 'us',
+			asin: 'B00BOXSET1'
+		}).search()
+		expect(out[0].title).toBe('Leviathan Wakes')
+	})
+
+	test('a bundle is still findable when the query asks for one', async () => {
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [
+				candidate({
+					id: 'au',
+					title: 'Arcanum Unbounded: The Cosmere Collection',
+					authors: ['Brandon Sanderson']
+				})
+			])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Arcanum Unbounded: The Cosmere Collection',
+			author: 'Brandon Sanderson',
+			region: 'us'
+		}).search()
+		expect(out.length).toBeGreaterThan(0)
+		expect(out[0].title).toContain('Arcanum Unbounded')
+	})
+
+	test('a title-marked foreign edition loses even with a null language field', async () => {
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [
+				candidate({
+					id: 'es',
+					title: 'Everfound (Spanish Edition)',
+					authors: ['Neal Shusterman'],
+					language: null
+				}),
+				candidate({ id: 'en', title: 'Everfound', authors: ['Neal Shusterman'], language: null })
+			])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Everfound',
+			author: 'Neal Shusterman',
+			region: 'us'
+		}).search()
+		expect(out[0].title).toBe('Everfound')
+	})
+})

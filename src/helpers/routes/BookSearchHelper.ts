@@ -71,6 +71,34 @@ const LANGUAGE_CONFLICT_PENALTY = 0.15
 const DURATION_VETO_THRESHOLD = 0.25
 const DURATION_DEADZONE_MAX_PENALTY = 0.3
 
+// A BUNDLE record -- "Legacy of the Drow Gift Set", "Expanse Box Set Books 1-3",
+// "The Stormlight Archive, Books 1-4" -- carries the queried book's title as a
+// substring, so it scores like the single book it contains and can win outright.
+// Measured on a 1341-book scan: Siege of Darkness matched the Drow gift set at
+// 0.66, Rhythm of War the Books 1-4 omnibus, and Leviathan Wakes the Expanse box
+// set at 1.0 because a stale sidecar ASIN pinned it there.
+//
+// Only fires when the QUERY does not itself ask for a bundle: "Arcanum Unbounded:
+// The Cosmere Collection" is the actual book the operator has, and searching for
+// it must still find it. Sized at 0.2 -- a title+author match at 0.85 lands at
+// 0.65, the acceptance floor, so a real single-book edition always beats the
+// bundle while a library that genuinely only has the box set still matches it.
+const BUNDLE_RE =
+	/\b(box(?:ed)?[- ]?set|gift[- ]?set|omnibus|collection|complete series|books? \d+\s*[-–—]\s*\d+|\d+[- ]book set|trilogy set)\b/i
+const BUNDLE_PENALTY = 0.2
+
+// A translated edition whose language field is NULL or mislabeled dodges the
+// language demotion entirely -- but says so in its own title: "Everfound
+// (Spanish Edition)" and "Medio rey [Half a King]" both won on the same scan,
+// and Hardcover's French Dungeon Crawler Carl edition is tagged "en" at source.
+// The marker is evidence the language field failed to carry, so treat it as a
+// language conflict and reuse that penalty rather than inventing a second scale.
+// Deliberately narrow: an explicit "<Language> Edition"/"edicion"/"ausgabe" tail,
+// or a bracketed [Original Title] after non-ASCII words -- not a bare foreign
+// word, which would demote legitimately foreign-titled English books.
+const FOREIGN_EDITION_RE =
+	/\b(spanish|french|german|italian|portuguese|dutch|polish|russian|japanese|chinese|swedish|norwegian|danish|finnish|czech|turkish|korean)\s+(edition|version)\b|\bedici[oó]n\b|\b[ée]dition\s+fran[cç]aise\b|\bausgabe\b|\bedizione\b/i
+
 // A leading article ("The"/"A"/"An") is title noise — libraries even sort past
 // it, and rips routinely drop or add it ("Taggerung" vs "The Taggerung"). The
 // trailing \s+ means a bare "The"/"A" or a word like "Anansi"/"Theodore" is left
@@ -158,6 +186,12 @@ export default class BookSearchHelper {
 	// pass. Reported in telemetry so the gate's real-world effect is measurable
 	// rather than assumed.
 	private languageDemoted = 0
+	private bundleDemoted = 0
+	// Ids of candidates the bundle penalty hit. A bundle forfeits its pinned-first
+	// privilege in the sort below: the pin is an identity claim, and a box set is
+	// structurally not the single book the caller asked for, so honouring the pin
+	// there is what let a stale sidecar ASIN win outright.
+	private bundleDemotedIds = new Set<string>()
 	// How many candidates the graded duration dead-zone penalty hit on the last
 	// scoring pass. Instrumented like the language gate so its effect is measured
 	// rather than assumed.
@@ -303,6 +337,7 @@ export default class BookSearchHelper {
 			wantLanguage: regionLanguage(this.options.region),
 			matchedLanguage: top?.language ?? null,
 			languageDemoted: this.languageDemoted,
+			bundleDemoted: this.bundleDemoted,
 			durationDeadzoned: this.durationDeadzoned,
 			matched: top != null,
 			provider: top?.provider ?? null,
@@ -361,6 +396,8 @@ export default class BookSearchHelper {
 		// follow-up that makes genuinely non-English LIBRARIES work.
 		const wantLanguage = regionLanguage(this.options.region)
 		this.languageDemoted = 0
+		this.bundleDemoted = 0
+		this.bundleDemotedIds.clear()
 		this.durationDeadzoned = 0
 		const scored: ScoredCandidate[] = candidates.map((c) => {
 			// Score against the album title and (when present) the track title,
@@ -391,6 +428,28 @@ export default class BookSearchHelper {
 			if (!asinMatch && languageConflict(c.language, wantLanguage)) {
 				confidence = Math.max(0, confidence - LANGUAGE_CONFLICT_PENALTY)
 				this.languageDemoted += 1
+			}
+			// A foreign-edition marker in the TITLE is evidence the language field
+			// failed to carry (null, or mislabeled at source). Same conflict, same
+			// penalty, same ASIN-pin exemption -- just a second way of detecting it.
+			// Guarded so it cannot double-charge a candidate the field already caught.
+			else if (
+				!asinMatch &&
+				FOREIGN_EDITION_RE.test(c.title ?? '') &&
+				!FOREIGN_EDITION_RE.test(primaryTitle)
+			) {
+				confidence = Math.max(0, confidence - LANGUAGE_CONFLICT_PENALTY)
+				this.languageDemoted += 1
+			}
+			// A bundle carries the queried title as a substring, so it scores like
+			// the single book it contains. Applied even to an ASIN pin: a stale
+			// sidecar ASIN pointing at a box set is exactly how "Leviathan Wakes"
+			// matched "Expanse Box Set Books 1-3" at 1.0, and a bundle is
+			// structurally not the single book regardless of what pinned it.
+			if (BUNDLE_RE.test(c.title ?? '') && !BUNDLE_RE.test(primaryTitle)) {
+				confidence = Math.max(0, confidence - BUNDLE_PENALTY)
+				this.bundleDemoted += 1
+				this.bundleDemotedIds.add(c.id)
 			}
 			// Graded duration dead zone (see DURATION_DEADZONE_MAX_PENALTY): a gap
 			// between the corroboration and veto thresholds must cost SOMETHING, or a
@@ -432,7 +491,9 @@ export default class BookSearchHelper {
 			// tie — i.e. the one edition the caller named by identity could lose a
 			// coin-flip. Nothing outscores a pin (1.0 is the ceiling), so this
 			// tiebreak leading is equivalent to pinned-first, stated explicitly.
-			const byPin = Number(this.isPinned(b, wantAsin)) - Number(this.isPinned(a, wantAsin))
+			const pinned = (c: ScoredCandidate) =>
+				this.isPinned(c, wantAsin) && !this.bundleDemotedIds.has(c.id)
+			const byPin = Number(pinned(b)) - Number(pinned(a))
 			if (byPin !== 0) return byPin
 			const byConfidence = b.confidence - a.confidence
 			if (Math.abs(byConfidence) > 1e-9) return byConfidence
