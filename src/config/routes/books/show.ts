@@ -81,6 +81,10 @@ async function _show(fastify: FastifyInstance) {
 		if (dataHelper.isProviderId) {
 			const book = await dataHelper.fetch()
 			if (!book) throw new NotFoundError(MessageNotFoundInDb(asin))
+			// This branch is how a provider EDITION record reaches Plex, and it
+			// is exactly where the Dungeon Crawler Carl French edition slipped
+			// through unflagged — the mismatch check must cover both serve paths.
+			flagLanguageMismatch(book, region, request.log)
 			return withSquareCover(book)
 		}
 
