@@ -446,3 +446,59 @@ describe('HardcoverProvider.fetchAuthorInfo (image + bio)', () => {
 		).toEqual({ image: null, bio: null })
 	})
 })
+
+describe('HardcoverProvider.fetchBookByAsin', () => {
+	// An edition's asin rides along on candidates for dedup and the exact-match
+	// pin, so a client can be holding an ASIN whose Audible product is delisted
+	// (404 on /books/:asin). Resolving it back to the edition that carries it is
+	// what keeps that id servable instead of freezing the item's metadata.
+	function asinGql(editionId: number | null, edition?: unknown, book?: unknown): HardcoverGql {
+		return async <T>(query: string): Promise<T> => {
+			if (query.includes('IncipitEditionByAsin')) {
+				return { editions: editionId == null ? [] : [{ id: editionId }] } as T
+			}
+			if (query.includes('IncipitEditionFull')) return { editions: [edition] } as T
+			return { books: [book] } as T
+		}
+	}
+
+	const edition = {
+		id: 32411759,
+		book_id: 991,
+		asin: 'B0FVG4C61Z',
+		audio_seconds: 4380,
+		reading_format_id: 2,
+		release_date: '2025-11-03',
+		cached_image: { url: 'https://assets.hardcover.app/edition/audio.jpg' },
+		language: { language: 'English' },
+		publisher: { name: 'Amazon Original Stories' },
+		contributions: [
+			{ author: { name: 'Peng Shepherd' }, contribution: null },
+			{ author: { name: 'Jonathan Davis' }, contribution: 'Narrator' }
+		]
+	}
+	const book = {
+		id: 991,
+		title: 'For a Limited Time Only',
+		cached_image: { url: 'https://assets.hardcover.app/book.jpg' },
+		contributions: [{ author: { name: 'Peng Shepherd' }, contribution: null }],
+		editions: [edition]
+	}
+
+	test('resolves a delisted ASIN to the edition carrying it', async () => {
+		const provider = new HardcoverProvider({ token: 'tok', gql: asinGql(32411759, edition, book) })
+		const result = await provider.fetchBookByAsin('B0FVG4C61Z', { region: 'us' })
+		expect(result?.title).toBe('For a Limited Time Only')
+		expect(result?.authors?.[0]?.name).toBe('Peng Shepherd')
+	})
+
+	test('returns null when no edition carries the ASIN', async () => {
+		const provider = new HardcoverProvider({ token: 'tok', gql: asinGql(null) })
+		expect(await provider.fetchBookByAsin('B0DEADDEAD', { region: 'us' })).toBeNull()
+	})
+
+	test('returns null without a token instead of throwing', async () => {
+		const provider = new HardcoverProvider({ gql: asinGql(32411759, edition, book) })
+		expect(await provider.fetchBookByAsin('B0FVG4C61Z', { region: 'us' })).toBeNull()
+	})
+})

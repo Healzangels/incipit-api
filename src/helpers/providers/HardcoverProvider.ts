@@ -110,6 +110,16 @@ const EDITION_FULL_QUERY = `query IncipitEditionFull($id: Int!) {
 	}
 }`
 
+// Resolve an ASIN to the edition that carries it, for the delisted-ASIN rescue
+// (see fetchBookByAsin). Only the id is needed; the full fetch reuses
+// EDITION_FULL_QUERY so the rescued record is identical to a normal edition
+// lookup rather than a second, subtly different shape.
+const EDITION_BY_ASIN_QUERY = `query IncipitEditionByAsin($asin: String!) {
+	editions(where: { asin: { _eq: $asin } }, limit: 1) {
+		id
+	}
+}`
+
 // Author photo by name. NOTE: unlike books, the authors table's `cached_image`
 // is null — the real photo is the `image` object relation, selected as
 // `image { url }` (verified live against the schema).
@@ -383,6 +393,33 @@ export default class HardcoverProvider implements BookProvider {
 	 * @param {FetchBookOptions} opts region, credentials, logger
 	 * @returns {Promise<ProviderBook | null>} the book, or null if not found
 	 */
+	/**
+	 * Resolve an ASIN Audible will not serve to the Hardcover edition carrying
+	 * it. An edition's `asin` rides along on our candidates for dedup and the
+	 * exact-match pin, so a client can end up storing an ASIN whose Audible
+	 * product is delisted; this keeps that id servable instead of freezing the
+	 * item's metadata. Returns null when no edition carries the ASIN.
+	 * @param {string} asin the ASIN to resolve
+	 * @param {FetchBookOptions} opts region, credentials, logger
+	 * @returns {Promise<ProviderBook | null>} the edition's book data, or null
+	 */
+	async fetchBookByAsin(asin: string, opts: FetchBookOptions): Promise<ProviderBook | null> {
+		const token = opts.credentials?.[HARDCOVER_NAME] ?? this.defaultToken
+		if (!token) {
+			opts.logger?.debug('hardcover: no token supplied, cannot resolve asin')
+			return null
+		}
+		const data = await this.gql<{ editions?: { id: number }[] }>(
+			EDITION_BY_ASIN_QUERY,
+			{ asin },
+			token
+		)
+		const editionId = data?.editions?.[0]?.id
+		if (!editionId) return null
+		opts.logger?.debug({ asin, editionId }, 'hardcover: resolved delisted asin to an edition')
+		return this.fetchBook(String(editionId), 'edition', opts)
+	}
+
 	async fetchBook(
 		nativeId: string,
 		kind: string,

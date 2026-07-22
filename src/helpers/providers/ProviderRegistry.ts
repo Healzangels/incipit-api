@@ -1,7 +1,13 @@
 import type { FastifyBaseLogger } from 'fastify'
 
 import type ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
-import type { BookProvider, BookSearchQuery, ProviderCandidate } from '#helpers/providers/types'
+import type {
+	BookProvider,
+	BookSearchQuery,
+	FetchBookOptions,
+	ProviderBook,
+	ProviderCandidate
+} from '#helpers/providers/types'
 
 /**
  * Holds the registered book providers and fans a search out across all of them
@@ -46,6 +52,32 @@ export default class ProviderRegistry {
 	/** The registered provider with this name, or undefined. */
 	get(name: string): BookProvider | undefined {
 		return this.providers.find((p) => p.name === name)
+	}
+
+	/**
+	 * Ask each provider that can resolve an ASIN itself to do so, in registration
+	 * order, and return the first hit. The rescue path for an ASIN Audible will
+	 * not serve (see BookProvider.fetchBookByAsin). Failure is isolated exactly
+	 * as in searchAll: a throwing provider is logged and skipped, never fatal.
+	 * @param {string} asin the ASIN to resolve
+	 * @param {FetchBookOptions} opts region, credentials, logger
+	 * @returns {Promise<ProviderBook | null>} the first provider's book, or null
+	 */
+	async fetchBookByAsin(asin: string, opts: FetchBookOptions): Promise<ProviderBook | null> {
+		for (const provider of this.providers) {
+			if (!provider.fetchBookByAsin) continue
+			try {
+				const book = await withTimeout(
+					provider.fetchBookByAsin(asin, opts),
+					PROVIDER_TIMEOUT_MS,
+					provider.name
+				)
+				if (book) return book
+			} catch (err) {
+				opts.logger?.debug({ err, provider: provider.name, asin }, 'provider asin rescue failed')
+			}
+		}
+		return null
 	}
 
 	/**

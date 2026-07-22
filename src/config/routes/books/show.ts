@@ -100,7 +100,29 @@ async function _show(fastify: FastifyInstance) {
 		const helper = new BookShowHelper(asin, handler.options, redis, request.log)
 
 		// Call helper handler
-		const book = await helper.handler()
+		let book
+		try {
+			book = await helper.handler()
+		} catch (err) {
+			// A DELISTED Audible product is not necessarily unservable. Our own
+			// search emits candidates that merely CARRY an ASIN -- a Hardcover
+			// edition exposes `asin` for dedup and the exact-match pin -- so a
+			// client can be holding an ASIN that was never an Audible id, or one
+			// whose listing died after the match. Rescue it through the providers
+			// instead of freezing the item's metadata forever. Only the
+			// availability codes are rescued; every other failure still throws.
+			const code = err instanceof NotFoundError ? err.details?.code : null
+			if (code !== 'PRODUCT_DELISTED' && code !== 'REGION_UNAVAILABLE') throw err
+			const rescued = await defaultRegistry.fetchBookByAsin(asin, {
+				region,
+				credentials,
+				logger: request.log
+			})
+			if (!rescued) throw err
+			request.log.warn({ asin, region, code }, 'delisted asin rescued via a provider record')
+			flagLanguageMismatch(rescued, region, request.log)
+			return withSquareCover(rescued)
+		}
 		flagLanguageMismatch(book, region, request.log)
 		return book && 'image' in book ? withSquareCover(book as ApiBook) : book
 	})

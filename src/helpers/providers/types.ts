@@ -111,9 +111,17 @@ export interface FetchBookOptions {
  * `fetchBook` resolves a matched non-Audible book to full metadata by its native
  * id (from a decoded candidate id). Providers that can be matched must implement
  * it; the data-lookup route dispatches to the right one.
+ *
+ * `fetchBookByAsin` is the rescue path for an ASIN Audible will not serve. A
+ * candidate can CARRY an ASIN without being an Audible record (a Hardcover
+ * edition exposes its `asin` for dedup and the exact-match pin), and a client
+ * may well have stored that ASIN as the item's id. When the Audible lookup
+ * comes back delisted, the data route asks providers to resolve the ASIN
+ * themselves, so anything a search emitted stays servable.
  */
 export interface BookProvider {
 	readonly name: string
 	search(query: BookSearchQuery, logger?: FastifyBaseLogger): Promise<ProviderCandidate[]>
 	fetchBook?(nativeId: string, kind: string, opts: FetchBookOptions): Promise<ProviderBook | null>
+	fetchBookByAsin?(asin: string, opts: FetchBookOptions): Promise<ProviderBook | null>
 }
