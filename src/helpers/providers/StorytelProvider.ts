@@ -10,7 +10,7 @@ import type {
 } from './types'
 
 import fetch from '#helpers/utils/fetchPlus'
-import { normalizeLanguage, regionLanguage } from '#helpers/utils/language'
+import { normalizeLanguage, preferLanguage, regionLanguage } from '#helpers/utils/language'
 
 /**
  * Storytel provider — a large subscription audiobook catalog, keyless public
@@ -19,7 +19,8 @@ import { normalizeLanguage, regionLanguage } from '#helpers/utils/language'
  * covers many international and indie titles. No token required.
  *
  * Caveats handled: the catalog mixes ebooks (skipped — no `abook`), foreign
- * languages (filtered to the region's language, falling back to all), and
+ * languages (filtered to the region's language, keeping untagged results and
+ * falling back to all), and
  * dramatized/"Summary & Analysis" editions (left to the scorer — a wrong author
  * or a vetoing duration keeps them from winning).
  */
@@ -85,14 +86,6 @@ function coverUrl(largeCover?: string | null): string | null {
 	return largeCover.startsWith('http') ? largeCover : `${STORYTEL_BASE}${largeCover}`
 }
 
-/** Keep only results in the region's language; fall back to all if none match. */
-function preferLanguage(results: StorytelResult[], region: string): StorytelResult[] {
-	const want = regionLanguage(region)
-	if (!want) return results
-	const inLang = results.filter((r) => normalizeLanguage(r.book?.language?.isoValue) === want)
-	return inLang.length ? inLang : results
-}
-
 export default class StorytelProvider implements BookProvider {
 	readonly name = STORYTEL_NAME
 	private searchFetch: StorytelSearchFetch
@@ -121,7 +114,7 @@ export default class StorytelProvider implements BookProvider {
 		}
 
 		return (
-			preferLanguage(results, query.region)
+			preferLanguage(results, query.region, (r) => r.book?.language?.isoValue)
 				// Audiobooks only — an ebook-only hit has no `abook`.
 				.filter((r) => r.abook && r.book?.consumableId != null && r.book?.name)
 				.slice(0, LIMIT)

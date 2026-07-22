@@ -10,7 +10,7 @@ import type {
 } from './types'
 
 import fetch from '#helpers/utils/fetchPlus'
-import { normalizeLanguage, regionLanguage } from '#helpers/utils/language'
+import { normalizeLanguage, preferLanguage } from '#helpers/utils/language'
 
 /**
  * Hardcover provider — the strongest source in the Gate 0 benchmark (93% of the
@@ -174,24 +174,6 @@ interface HardcoverEdition {
 	publisher?: { name?: string | null } | null
 	contributions?: HardcoverContribution[] | null
 }
-
-/** Keep the preferred language AND untagged editions; fall back to all if none. */
-function preferLanguage(editions: HardcoverEdition[], region: string): HardcoverEdition[] {
-	const want = regionLanguage(region)
-	if (!want) return editions
-	// Keep the wanted language and editions whose language is UNSET — Hardcover's
-	// language data is patchy and a real English audio edition often carries no
-	// language tag, so dropping nulls (in favor of a worse tagged edition, or
-	// losing the book entirely) regressed matching. Only fall back to ALL editions
-	// when nothing matches even this looser filter.
-	const inLang = editions.filter((e) => {
-		// Normalize the edition's language NAME to a code before comparing, since
-		// `want` is now the shared ISO-639-1 value.
-		const lang = normalizeLanguage(e.language?.language)
-		return lang === want || lang == null
-	})
-	return inLang.length ? inLang : editions
-}
 interface HardcoverBook {
 	id: number
 	title?: string | null
@@ -348,7 +330,11 @@ export default class HardcoverProvider implements BookProvider {
 			const title = book.title ?? ''
 			const bookAuthors = authorsOf(book.contributions)
 			const bookCover = book.cached_image?.url ?? null
-			const editions = preferLanguage(book.editions ?? [], query.region)
+			const editions = preferLanguage(
+				book.editions ?? [],
+				query.region,
+				(e) => e.language?.language
+			)
 
 			if (editions.length) {
 				for (const ed of editions) {

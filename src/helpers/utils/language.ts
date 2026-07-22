@@ -287,6 +287,32 @@ export function regionLanguage(region: string | null | undefined): string | null
 }
 
 /**
+ * Keep items in the region's preferred language AND items whose language is
+ * unknown; fall back to ALL items when nothing matches even that. The
+ * null-keeping is deliberate: provider language data is patchy and a real
+ * English audio edition often carries no language tag, so dropping untagged
+ * items (in favor of a worse tagged one, or losing the book entirely)
+ * regressed matching. Shared by providers so the semantics can't drift.
+ * @param {T[]} items the provider results to filter
+ * @param {string | null | undefined} region the request region (e.g. "us")
+ * @param {(item: T) => string | null | undefined} language reads an item's raw language
+ * @returns {T[]} the preferred-or-untagged items, or all when none qualify
+ */
+export function preferLanguage<T>(
+	items: T[],
+	region: string | null | undefined,
+	language: (item: T) => string | null | undefined
+): T[] {
+	const want = regionLanguage(region)
+	if (!want) return items
+	const inLang = items.filter((item) => {
+		const lang = normalizeLanguage(language(item))
+		return lang === want || lang == null
+	})
+	return inLang.length ? inLang : items
+}
+
+/**
  * True only when both languages are KNOWN and different.
  *
  * The null-tolerance is deliberate and load-bearing: provider language data is

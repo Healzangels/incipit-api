@@ -64,6 +64,20 @@ describe('StorytelProvider', () => {
 		expect(deOnly.map((c) => c.id)).toEqual(['storytel-999'])
 	})
 
+	test('keeps untagged (null-language) results alongside a tagged match', async () => {
+		// Storytel's private preferLanguage copy missed the null-keeping fix that
+		// Hardcover got (mirror drift): an untagged result was dropped whenever ANY
+		// tagged match existed. Both must survive now that the helper is shared.
+		const untagged = {
+			...audio,
+			book: { ...audio.book, consumableId: 555, language: null }
+		}
+		const out = await new StorytelProvider({
+			searchFetch: async () => [audio, untagged, foreign]
+		}).search(q)
+		expect(out.map((c) => c.id)).toEqual(['storytel-14117566', 'storytel-555'])
+	})
+
 	test('returns [] on an empty title or a search error', async () => {
 		const p = new StorytelProvider({
 			searchFetch: async () => {

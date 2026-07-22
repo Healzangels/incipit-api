@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 
-import { languageConflict, normalizeLanguage, regionLanguage } from '#helpers/utils/language'
+import {
+	languageConflict,
+	normalizeLanguage,
+	preferLanguage,
+	regionLanguage
+} from '#helpers/utils/language'
 
 describe('normalizeLanguage', () => {
 	test('accepts the three notations providers actually use', () => {
@@ -60,6 +65,45 @@ describe('regionLanguage', () => {
 		expect(regionLanguage('zz')).toBeNull()
 		expect(regionLanguage(null)).toBeNull()
 		expect(regionLanguage(undefined)).toBeNull()
+	})
+})
+
+describe('preferLanguage', () => {
+	// The ONE shared region-language filter. It used to exist per-provider and
+	// drifted: Storytel's copy missed the null-keeping fix and kept dropping
+	// untagged results whenever any tagged match existed. These pin the shared
+	// semantics; each provider test then only pins its own wiring.
+	const items = [
+		{ id: 1, lang: 'English' as string | null },
+		{ id: 2, lang: 'French' },
+		{ id: 3, lang: null }
+	]
+	const lang = (i: { lang: string | null }): string | null => i.lang
+
+	test('keeps the preferred language AND untagged items', () => {
+		expect(preferLanguage(items, 'us', lang).map((i) => i.id)).toEqual([1, 3])
+	})
+
+	test('drops a foreign-tagged item but keeps the untagged one', () => {
+		expect(preferLanguage(items.slice(1), 'us', lang).map((i) => i.id)).toEqual([3])
+	})
+
+	test('falls back to ALL items when nothing matches even the loose filter', () => {
+		const frOnly = [{ id: 2, lang: 'French' }]
+		expect(preferLanguage(frOnly, 'us', lang)).toEqual(frOnly)
+	})
+
+	test('unknown region filters nothing', () => {
+		expect(preferLanguage(items, 'zz', lang)).toEqual(items)
+	})
+
+	test('compares across notations (raw values are normalized)', () => {
+		// A Storytel-style ISO code must match `want` just like a Hardcover name.
+		const iso = [
+			{ id: 1, lang: 'en' },
+			{ id: 2, lang: 'fr' }
+		]
+		expect(preferLanguage(iso, 'us', lang).map((i) => i.id)).toEqual([1])
 	})
 })
 
