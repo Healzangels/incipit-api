@@ -173,17 +173,33 @@ describe('ScrapeHelper should', () => {
 })
 
 describe('ScrapeHelper should throw error when', () => {
-	test('no author', async () => {
+	// An author page Audible will not serve is a MISSING author, not our fault.
+	// These used to surface as a bare Error (HTTP 500), which made a routine
+	// "no such author" look like a server fault -- observed live on B002LFHNWA,
+	// which the author SEARCH still returns while ca/au answered 503.
+	test.each([404, 403, 503])('upstream %i is a 404, not a 500', async (status) => {
+		asin = asin.slice(0, -1)
+		helper = new ScrapeHelper(asin, region)
+		mock.restore()
+		spyOn(fetchPlus, 'default').mockImplementation(() => Promise.reject({ status }))
+		await expect(helper.fetchAuthor()).rejects.toThrow(
+			`Item not available in region '${region}' for ASIN: ${asin}`
+		)
+		await expect(helper.fetchAuthor()).rejects.toMatchObject({
+			statusCode: 404,
+			details: { code: 'REGION_UNAVAILABLE', upstreamStatus: status }
+		})
+	})
+
+	test('a genuine transport failure still surfaces as a server error', async () => {
 		asin = asin.slice(0, -1)
 		helper = new ScrapeHelper(asin, region)
 		mock.restore()
 		spyOn(fetchPlus, 'default').mockImplementation(() =>
-			Promise.reject({
-				status: 404
-			})
+			Promise.reject({ code: 'ECONNREFUSED' })
 		)
 		await expect(helper.fetchAuthor()).rejects.toThrow(
-			`An error occured while fetching data from Audible HTML. Response: 404, ASIN: ${asin}`
+			`An error occured while fetching data from Audible HTML. Response: ECONNREFUSED, ASIN: ${asin}`
 		)
 	})
 

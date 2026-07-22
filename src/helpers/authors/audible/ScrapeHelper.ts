@@ -46,9 +46,22 @@ class ScrapeHelper {
 				return cheerio.load(text)
 			})
 			.catch((error) => {
-				throw new Error(
-					ErrorMessageHTTPFetch(this.asin, error?.status ?? error?.code, 'Audible HTML')
-				)
+				const status = error?.status ?? error?.code
+				// An author page Audible will not serve is a MISSING author, not a
+				// fault on our side. It answers for a dead author ASIN with 404/403,
+				// and (observed live on B002LFHNWA in ca/au) 503 -- all of which were
+				// surfaced as a bare Error, i.e. HTTP 500. That made a routine
+				// "no such author" indistinguishable from a real server fault in the
+				// logs, and it is the same ASIN the author SEARCH still returns.
+				// Anything else (a genuine transport failure) keeps its 500.
+				if (status === 404 || status === 403 || status === 503) {
+					throw new NotFoundError(ErrorMessageRegion(this.asin, this.region), {
+						asin: this.asin,
+						code: 'REGION_UNAVAILABLE',
+						upstreamStatus: status
+					})
+				}
+				throw new Error(ErrorMessageHTTPFetch(this.asin, status, 'Audible HTML'))
 			})
 	}
 

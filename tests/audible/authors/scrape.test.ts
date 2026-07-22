@@ -112,12 +112,14 @@ describe('Audible Author HTML', () => {
 	})
 
 	describe('When fetching a 404 author from Audible', () => {
-		it('threw an error', async () => {
+		// A page Audible will not serve means the author is missing, so this is a
+		// 404 to our callers -- not the 500 a bare Error produced before.
+		it('reports it as not found, not a server error', async () => {
 			asin = '103940202X'
 			helper = new ScrapeHelper(asin, 'us')
 			spyOn(fetchPlus, 'default').mockImplementation(() => Promise.reject(Object.assign(new Error('Not Found'), { status: 404 })))
 			await expect(helper.fetchAuthor()).rejects.toThrow(
-				`An error occured while fetching data from Audible HTML. Response: 404, ASIN: ${asin}`
+				`Item not available in region 'us' for ASIN: ${asin}`
 			)
 		})
 	})
