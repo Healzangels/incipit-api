@@ -23,6 +23,20 @@ describe('normalizeLanguage', () => {
 		expect(normalizeLanguage('pt_BR')).toBe('pt')
 	})
 
+	test('a bare 2-letter code counts as ISO-639-1 only as the WHOLE value', () => {
+		// Alone (or as a locale tag) it is a code…
+		expect(normalizeLanguage('it')).toBe('it')
+		expect(normalizeLanguage('no')).toBe('no')
+		expect(normalizeLanguage('it-IT')).toBe('it')
+		// …but as a word inside a longer value it is just an English word: the
+		// per-word probe must not resolve 'it'→Italian, 'no'→Norwegian, 'in'→etc.
+		expect(normalizeLanguage('not it')).toBeNull()
+		expect(normalizeLanguage('no idea')).toBeNull()
+		expect(normalizeLanguage('made in usa')).toBeNull()
+		// Full language names still win per-word next to a stray 2-letter word.
+		expect(normalizeLanguage('in English')).toBe('en')
+	})
+
 	test('returns null for absent or unrecognized input rather than guessing', () => {
 		expect(normalizeLanguage(null)).toBeNull()
 		expect(normalizeLanguage(undefined)).toBeNull()

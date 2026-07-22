@@ -220,11 +220,13 @@ const CODE_FOLD: Record<string, string> = {
 }
 
 /** One table probe: exact name, then 3-letter MARC, then bare ISO-639-1. */
-function lookupToken(token: string): string | null {
+function lookupToken(token: string, wholeInput: boolean): string | null {
 	if (NAME_TO_CODE[token]) return NAME_TO_CODE[token]
 	if (token.length === 3 && THREE_TO_CODE[token]) return THREE_TO_CODE[token]
-	// A bare 2-letter token is already ISO-639-1.
-	if (/^[a-z]{2}$/.test(token)) return token
+	// A bare 2-letter token is ISO-639-1 only when it IS the whole value; during
+	// per-word probes a stray 2-letter English word ("it", "no", "in") would
+	// otherwise win as Italian/Norwegian/….
+	if (wholeInput && /^[a-z]{2}$/.test(token)) return token
 	return null
 }
 
@@ -267,7 +269,8 @@ export function normalizeLanguage(raw: string | null | undefined): string | null
 	// demotion just doesn't fire), so err toward resolving.
 	const tokens = [cleaned, ...cleaned.split(/\s+/)]
 	for (const token of tokens) {
-		const hit = lookupToken(token) ?? lookupToken(foldDiacritics(token))
+		const wholeInput = token === cleaned
+		const hit = lookupToken(token, wholeInput) ?? lookupToken(foldDiacritics(token), wholeInput)
 		if (hit) return CODE_FOLD[hit] ?? hit
 	}
 	return null
