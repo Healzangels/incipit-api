@@ -317,3 +317,59 @@ describe('dedupeCandidates', () => {
 		expect(out[0].asin).toBe('B0GRAFT001') // but the ASIN survives
 	})
 })
+
+describe('dedupe grafts metadata from a collapsed member', () => {
+	// Measured live on "The Blade Itself": a sidecar pinned a Hardcover edition
+	// with NO narrator, which collapsed the same-runtime Audible record narrated
+	// by Steven Pacey. The richer row was deleted outright -- the book matched
+	// with no narrator, and the Pacey edition could not even be picked from Fix
+	// Match, because dedupe had already removed it.
+	const at = (over: Partial<ScoredCandidate>): ScoredCandidate =>
+		({
+			provider: 'stub',
+			id: 'x',
+			asin: null,
+			title: 'The Blade Itself',
+			authors: ['Joe Abercrombie'],
+			narrators: [],
+			audioSeconds: 80100,
+			cover: null,
+			confidence: 0.85,
+			durationDeltaPct: null,
+			...over
+		}) as ScoredCandidate
+
+	test('a pinned winner inherits the narrator of the row it collapsed', () => {
+		const out = dedupeCandidates(
+			[
+				at({ id: 'hardcover-edition-31604983', asin: 'B014LLTNGK', confidence: 1 }),
+				at({ id: 'B014LL6R5U', asin: 'B014LL6R5U', narrators: ['Steven Pacey'] })
+			],
+			'B014LLTNGK'
+		)
+		expect(out).toHaveLength(1)
+		expect(out[0].asin).toBe('B014LLTNGK')
+		expect(out[0].narrators).toEqual(['Steven Pacey'])
+	})
+
+	test("the winner's own metadata is never overwritten", () => {
+		const out = dedupeCandidates(
+			[
+				at({ id: 'a', asin: 'B0KEEP', confidence: 1, narrators: ['Real Narrator'], cover: 'a.jpg' }),
+				at({ id: 'b', asin: 'B0OTHER', narrators: ['Wrong Narrator'], cover: 'b.jpg' })
+			],
+			'B0KEEP'
+		)
+		expect(out[0].narrators).toEqual(['Real Narrator'])
+		expect(out[0].cover).toBe('a.jpg')
+	})
+
+	test('a missing cover is grafted too', () => {
+		const out = dedupeCandidates([
+			at({ id: 'a', asin: 'B0A', confidence: 0.9 }),
+			at({ id: 'b', asin: 'B0B', cover: 'art.jpg' })
+		])
+		expect(out).toHaveLength(1)
+		expect(out[0].cover).toBe('art.jpg')
+	})
+})

@@ -173,6 +173,15 @@ export function dedupeCandidates(
 	// the missing ASIN is grafted from a losing member.
 	const best = new Map<number, ScoredCandidate>()
 	const bestWithAsin = new Map<number, ScoredCandidate>()
+	// Same reasoning for the DESCRIPTIVE fields a losing member may carry. A group
+	// is one edition, so a field only one member has still describes the winner --
+	// and dropping it loses real data. Measured live: a sidecar pinned "The Blade
+	// Itself" to a Hardcover edition with NO narrator, which then collapsed the
+	// same-runtime Audible record narrated by Steven Pacey. The richer row was
+	// deleted, so the book matched with no narrator at all and the Pacey edition
+	// could not even be picked from the Fix Match list.
+	const bestWithNarrators = new Map<number, ScoredCandidate>()
+	const bestWithCover = new Map<number, ScoredCandidate>()
 	// The pin outranks confidence/richness INSIDE a group too: the ranker's
 	// pinned-first tiebreak runs after dedupe, so a pinned candidate that loses
 	// its group here is gone before that tiebreak exists.
@@ -191,6 +200,14 @@ export function dedupeCandidates(
 			const curAsin = bestWithAsin.get(root)
 			if (!curAsin || isBetter(c, curAsin)) bestWithAsin.set(root, c)
 		}
+		if (c.narrators?.length) {
+			const curNarr = bestWithNarrators.get(root)
+			if (!curNarr || isBetter(c, curNarr)) bestWithNarrators.set(root, c)
+		}
+		if (c.cover) {
+			const curCover = bestWithCover.get(root)
+			if (!curCover || isBetter(c, curCover)) bestWithCover.set(root, c)
+		}
 	})
 
 	// One winner per group, in first-seen group order for stability.
@@ -201,8 +218,20 @@ export function dedupeCandidates(
 		if (!emitted.has(root)) {
 			emitted.add(root)
 			const winner = best.get(root) as ScoredCandidate
-			const donor = winner.asin ? null : bestWithAsin.get(root)
-			out.push(donor ? { ...winner, asin: donor.asin } : winner)
+			// Graft only what the winner is MISSING -- its own values always win.
+			const asinDonor = winner.asin ? null : bestWithAsin.get(root)
+			const narrDonor = winner.narrators?.length ? null : bestWithNarrators.get(root)
+			const coverDonor = winner.cover ? null : bestWithCover.get(root)
+			if (asinDonor || narrDonor || coverDonor) {
+				out.push({
+					...winner,
+					asin: asinDonor ? asinDonor.asin : winner.asin,
+					narrators: narrDonor ? narrDonor.narrators : winner.narrators,
+					cover: coverDonor ? coverDonor.cover : winner.cover
+				})
+			} else {
+				out.push(winner)
+			}
 		}
 	})
 	return out
