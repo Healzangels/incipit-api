@@ -784,3 +784,33 @@ describe('bundle and foreign-edition demotion', () => {
 		expect(out[0].title).toBe('Everfound')
 	})
 })
+
+describe('provider circuit breaker', () => {
+	// Measured on a 1341-book scan: Apple rate-limited us six minutes in, then
+	// refused 942 consecutive searches (751x 429, 191x 403). Every one was a
+	// doomed round-trip that also kept Apple unusable for the square-cover
+	// lookups running on every book response.
+	test('a repeatedly failing provider stops being called, others keep working', async () => {
+		let appleCalls = 0
+		const flaky: BookProvider = {
+			name: 'apple',
+			async search(): Promise<ProviderCandidate[]> {
+				appleCalls += 1
+				throw new Error('Request failed with status code 429')
+			}
+		}
+		const reg = new ProviderRegistry([
+			flaky,
+			stubProvider('audible', [candidate({ id: 'ok', title: 'Dune', authors: ['Frank Herbert'] })])
+		])
+		for (let i = 0; i < 20; i += 1) {
+			const out = await reg.searchAll({ title: 'Dune', author: 'Frank Herbert', region: 'us' })
+			// The healthy provider is unaffected on every single call.
+			expect(out).toHaveLength(1)
+		}
+		// Default failureThreshold is 5, so the circuit opens and the rest are skipped
+		// without a request -- rather than all 20 hitting the rate-limited source.
+		expect(appleCalls).toBeLessThanOrEqual(6)
+		expect(appleCalls).toBeGreaterThan(0)
+	})
+})

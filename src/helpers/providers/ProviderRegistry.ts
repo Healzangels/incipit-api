@@ -1,5 +1,6 @@
 import type { FastifyBaseLogger } from 'fastify'
 
+import { getPerformanceConfig } from '#config/performance'
 import type ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
 import type {
 	BookProvider,
@@ -8,6 +9,7 @@ import type {
 	ProviderBook,
 	ProviderCandidate
 } from '#helpers/providers/types'
+import CircuitBreaker from '#helpers/utils/CircuitBreaker'
 
 /**
  * Holds the registered book providers and fans a search out across all of them
@@ -32,8 +34,26 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 	return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
 }
 
+// Pass-through used when CIRCUIT_BREAKER_ENABLED is false: same shape, no state.
+const PASSTHROUGH = { execute: <T>(fn: () => Promise<T>) => fn() }
+
 export default class ProviderRegistry {
 	private providers: BookProvider[]
+	// One breaker per provider: a source that is rate-limiting us must not keep
+	// costing every later search a doomed round-trip, and must recover on its own
+	// once the limit resets (CLOSED -> OPEN -> HALF_OPEN -> CLOSED).
+	private breakers = new Map<string, CircuitBreaker>()
+
+	/** The breaker for one provider, created on first use. */
+	private breakerFor(name: string): { execute: <T>(fn: () => Promise<T>) => Promise<T> } {
+		if (!getPerformanceConfig().CIRCUIT_BREAKER_ENABLED) return PASSTHROUGH
+		let breaker = this.breakers.get(name)
+		if (!breaker) {
+			breaker = new CircuitBreaker()
+			this.breakers.set(name, breaker)
+		}
+		return breaker
+	}
 
 	constructor(providers: BookProvider[] = []) {
 		this.providers = providers
@@ -96,12 +116,23 @@ export default class ProviderRegistry {
 		cache?: ProviderSearchCache
 	): Promise<ProviderCandidate[]> {
 		const settled = await Promise.allSettled(
-			this.providers.map((p) => {
-				const call = cache
-					? cache.wrap(p.name, query, () => p.search(query, logger))
-					: p.search(query, logger)
-				return withTimeout(call, PROVIDER_TIMEOUT_MS, p.name)
-			})
+			this.providers.map((p) =>
+				// The breaker wraps a THUNK, so an open circuit costs no request at
+				// all. Measured on a 1341-book scan: Apple rate-limited us six
+				// minutes in and then refused 942 consecutive searches (751x 429,
+				// 191x 403) for the rest of the run -- every one of them a doomed
+				// round-trip that also kept Apple unusable for the square-cover
+				// lookups that run on every book response.
+				this.breakerFor(p.name).execute(() =>
+					withTimeout(
+						cache
+							? cache.wrap(p.name, query, () => p.search(query, logger))
+							: p.search(query, logger),
+						PROVIDER_TIMEOUT_MS,
+						p.name
+					)
+				)
+			)
 		)
 
 		const candidates: ProviderCandidate[] = []
@@ -109,10 +140,15 @@ export default class ProviderRegistry {
 			if (result.status === 'fulfilled') {
 				candidates.push(...result.value)
 			} else {
-				logger?.error(
-					{ provider: this.providers[i].name, err: result.reason },
-					'book search provider failed'
+				// An open circuit is a deliberate skip, not a new failure: logging it
+				// at error level would bury the ONE real failure under thousands of
+				// "we already know this source is down" lines.
+				const open = String((result.reason as Error)?.message ?? '').includes(
+					'Circuit breaker is OPEN'
 				)
+				const line = { provider: this.providers[i].name, err: result.reason }
+				if (open) logger?.debug(line, 'book search provider skipped: circuit open')
+				else logger?.error(line, 'book search provider failed')
 			}
 		})
 		return candidates
