@@ -309,8 +309,20 @@ export const BookSearchQueryStringSchema = z.object({
 	// flag every one of them lands in the riskyAuthorless telemetry bucket —
 	// the exact counter the operator watches for the automatic false-positive
 	// class — and a manual-correction session reads as a quality regression.
-	// Affects TELEMETRY AGGREGATION only, never scoring.
-	manual: z.coerce.boolean().optional().catch(undefined),
+	// Affects TELEMETRY AGGREGATION only, never scoring. Query values arrive as
+	// strings, so z.coerce.boolean() would turn '0'/'false' into TRUE — parse
+	// the literal token instead; anything unrecognized degrades to undefined.
+	manual: z
+		.string()
+		.optional()
+		.transform((value) => {
+			if (value === undefined) return undefined
+			const flag = value.toLowerCase()
+			if (flag === '1' || flag === 'true') return true
+			if (flag === '0' || flag === 'false') return false
+			return undefined
+		})
+		.catch(undefined),
 	region: RegionSchema
 })
 
