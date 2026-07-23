@@ -421,6 +421,25 @@ export default class BookSearchHelper {
 		// marketplace with language; an explicit per-request `language` param is the
 		// follow-up that makes genuinely non-English LIBRARIES work.
 		const wantLanguage = regionLanguage(this.options.region)
+		// Narrator hint, folded to comparison keys once rather than per compare.
+		// Split on commas and ampersands because a sidecar credits a cast as one
+		// string ("Stephen Fry & full cast") while providers list members
+		// separately -- matching ANY name is the useful test.
+		const narratorKey = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '')
+		const wantNarratorKeys = (this.options.narrator ?? '')
+			.split(/[,&]/)
+			.map((n) => narratorKey(n))
+			.filter((n) => n.length >= 4)
+		const narratorMatches = (c: ScoredCandidate): boolean => {
+			for (const got of c.narrators ?? []) {
+				const key = narratorKey(got)
+				if (!key) continue
+				for (const want of wantNarratorKeys) {
+					if (key.includes(want) || want.includes(key)) return true
+				}
+			}
+			return false
+		}
 		this.languageDemoted = 0
 		this.bundleDemoted = 0
 		this.bundleDemotedIds.clear()
@@ -548,6 +567,25 @@ export default class BookSearchHelper {
 			// OpenLibrary) with inconsistent series/sort metadata.
 			const byAudio = Number(isAudioEdition(b)) - Number(isAudioEdition(a))
 			if (byAudio !== 0) return byAudio
+			// The NARRATOR, when the caller told us who reads their copy.
+			//
+			// For a popular book the providers return several editions with
+			// identical title and author, so title/author scoring cannot
+			// separate them at all: Harry Potter and the Chamber of Secrets
+			// comes back as Jim Dale, Stephen Fry and a Full-Cast edition, all
+			// tied at 0.85. The narrator is the only field that says which one
+			// is on disk, and it is categorical where duration is fuzzy -- so
+			// it ranks above the runtime delta below.
+			//
+			// A RANKING signal, never a filter. It reorders candidates that
+			// already passed acceptance and can never discard one, so a
+			// missing, misspelt or differently-credited narrator ("Jim Dale"
+			// vs "Jim Dale and a full cast") costs nothing beyond the tiebreak
+			// it declines to decide. Same rule the ASIN pin follows.
+			if (wantNarratorKeys.length) {
+				const byNarrator = Number(narratorMatches(b)) - Number(narratorMatches(a))
+				if (byNarrator !== 0) return byNarrator
+			}
 			// Both corroborated on duration -- but one is CLOSER.
 			//
 			// DURATION_TOLERANCE is 5%, which is the right width for deciding

@@ -299,6 +299,19 @@ export const BookSearchQueryStringSchema = z.object({
 	// reliable match key, so a candidate with the same ASIN is treated as a
 	// definitive match. Also extracted from a bracketed title when not passed here.
 	asin: z.string().min(1).optional(),
+	// Narrator(s) from the item's sidecar metadata. For a popular book the
+	// providers return several editions with IDENTICAL title and author --
+	// Harry Potter and the Chamber of Secrets comes back as Jim Dale, Stephen
+	// Fry and a Full-Cast edition, all scoring the same -- and the narrator is
+	// the only field that says which one is actually on disk. A RANKING hint
+	// only, never a filter: a disagreeing narrator string must not discard a
+	// correct book, the same rule the ASIN pin follows.
+	narrator: z.string().min(1).optional(),
+	// Series name and position from the sidecar. Carried for scoring and
+	// telemetry; like the narrator, they can only reorder candidates that were
+	// already accepted.
+	series: z.string().min(1).optional(),
+	seriesPosition: z.string().min(1).optional(),
 	// Runtime of the local audio in MILLISECONDS (what Plex passes to the agent).
 	// An optional scoring hint, so a bad value must never fail the whole search:
 	// `.catch(undefined)` drops anything non-positive/non-numeric (Plex sends -1

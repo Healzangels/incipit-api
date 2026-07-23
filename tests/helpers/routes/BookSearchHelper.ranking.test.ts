@@ -234,4 +234,37 @@ describe('ranking tiebreaks', () => {
 
 		expect(out[0].id).toBe('fry')
 	})
+
+	const HP = () => [
+		candidate({ provider: 'audible', id: 'dale', asin: 'B0JIMDALE1',
+			narrators: ['Jim Dale'], audioSeconds: 32520 }),
+		candidate({ provider: 'audible', id: 'fullcast', asin: 'B0FULLCAST',
+			narrators: ['Hugh Laurie', 'Matthew Macfadyen'], audioSeconds: 34620 }),
+		candidate({ provider: 'audible', id: 'fry', asin: 'B0STEPHENF',
+			narrators: ['Stephen Fry'], audioSeconds: 34980 })
+	]
+
+	test('the NARRATOR picks the edition when title and author cannot', async () => {
+		// Harry Potter: every edition carries the same title and author, so
+		// title/author scoring ties them all and the winner fell to provider
+		// order -- picking a different narrator's recording at random. The
+		// narrator is the only field that says which one is actually on disk.
+		const out = await helperFor(HP(), { narrator: 'Stephen Fry' }).search()
+		expect(out[0].id).toBe('fry')
+	})
+
+	test('a cast credit still matches the individual narrator', async () => {
+		// A sidecar credits a cast as one string while providers list members
+		// separately, so matching ANY name is the useful test.
+		const out = await helperFor(HP(), { narrator: 'Hugh Laurie & full cast' }).search()
+		expect(out[0].id).toBe('fullcast')
+	})
+
+	test('a narrator matching nothing DISCARDS nothing', async () => {
+		// Ranking signal, never a filter -- the same rule the ASIN pin follows.
+		// A misspelt or differently-credited narrator must cost nothing beyond
+		// the tiebreak it declines to decide.
+		const out = await helperFor(HP(), { narrator: 'Nobody At All' }).search()
+		expect(out).toHaveLength(3)
+	})
 })
