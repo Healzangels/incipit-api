@@ -64,6 +64,92 @@ export interface GoodreadsSeriesResult {
 	secondary?: ProviderBookSeries
 }
 
+/** A book that may already carry a series, and the fields a lookup needs. */
+interface SeriesEnrichable {
+	title?: string
+	authors?: Array<{ name?: string }>
+	seriesPrimary?: { name?: string } | null
+	seriesSecondary?: unknown
+}
+
+/** Minimal shape of the redis client the route already holds. */
+interface RedisLike {
+	get(key: string): Promise<string | null>
+	set(key: string, value: string, mode: 'EX', ttl: number): Promise<unknown>
+}
+
+// A day: series membership is effectively immutable, and a miss is worth
+// remembering too so a sidecar-less book without a Goodreads hit does not
+// re-walk /search + /work on every metadata refresh.
+const CACHE_TTL_SECONDS = 86400
+const CACHE_PREFIX = 'grseries:v2:'
+
+function cacheKey(title: string, author: string | null): string {
+	return CACHE_PREFIX + normalizeTitle(title).toLowerCase() + '|' + (author || '').toLowerCase()
+}
+
+/**
+ * Fill a book's series from Goodreads when, and only when, the providers left
+ * it empty. Cached, best-effort, and it never touches a series the winning
+ * record already supplied -- Audible/Hardcover series stays authoritative;
+ * Goodreads is the backstop for the ~1 in 4 books that arrive with none.
+ *
+ * Returns the same object (enriched in place is avoided -- a shallow copy is
+ * returned) so it composes with the route's other response wrappers.
+ * @param {SeriesEnrichable} book the book response to enrich
+ * @param {RedisLike|null} redis the request's redis client, or null
+ * @param {FastifyBaseLogger} [logger] optional request logger
+ * @returns {Promise<T>} the book, with series filled if one was found
+ */
+export async function withGoodreadsSeries<T extends SeriesEnrichable>(
+	book: T,
+	redis: RedisLike | null,
+	logger?: FastifyBaseLogger
+): Promise<T> {
+	// Already has a series, or nothing to look one up by -> leave it exactly as
+	// the provider returned it. This is the common path and must be free.
+	if (book?.seriesPrimary?.name || !book?.title) return book
+
+	const title = book.title
+	const author = book.authors?.[0]?.name ?? null
+	const key = cacheKey(title, author)
+
+	let result: GoodreadsSeriesResult | null | undefined
+	if (redis) {
+		try {
+			const cached = await redis.get(key)
+			// The sentinel distinguishes a cached MISS from a cache absence, so a
+			// known-empty lookup is not repeated every refresh.
+			if (cached === 'null') return book
+			if (cached) result = JSON.parse(cached) as GoodreadsSeriesResult
+		} catch {
+			result = undefined
+		}
+	}
+
+	if (result === undefined) {
+		result = await fetchGoodreadsSeries(title, author, logger)
+		if (redis) {
+			try {
+				await redis.set(key, JSON.stringify(result), 'EX', CACHE_TTL_SECONDS)
+			} catch {
+				// A cache-write failure is not a request failure.
+			}
+		}
+	}
+
+	if (!result?.primary) return book
+	logger?.debug(
+		{ title, series: result },
+		'goodreads series: enriched a book with no provider series'
+	)
+	return {
+		...book,
+		seriesPrimary: result.primary,
+		seriesSecondary: book.seriesSecondary ?? result.secondary
+	}
+}
+
 async function getJson<T>(path: string): Promise<T | null> {
 	try {
 		const res = await fetch(`${BASE}${path}`, { timeout: TIMEOUT_MS })

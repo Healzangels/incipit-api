@@ -99,3 +99,71 @@ describe('goodreads series enrichment', () => {
 		expect(out?.primary).toEqual({ name: 'Someone Elses Series' })
 	})
 })
+
+describe('withGoodreadsSeries enrichment wrapper', () => {
+	const fakeRedis = () => {
+		const store = new Map<string, string>()
+		return {
+			store,
+			get: (k: string) => Promise.resolve(store.get(k) ?? null),
+			set: (k: string, v: string) => {
+				store.set(k, v)
+				return Promise.resolve('OK')
+			}
+		}
+	}
+
+	test('leaves a book that already has a series untouched (no lookup)', async () => {
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		fetchMock.mockReset()
+		const redis = fakeRedis()
+		const book = {
+			title: 'Some Book',
+			authors: [{ name: 'Someone' }],
+			seriesPrimary: { name: 'Existing Series', position: '3' }
+		}
+		const out = await withGoodreadsSeries(book, redis)
+		expect(out.seriesPrimary).toEqual({ name: 'Existing Series', position: '3' })
+		// The provider's series is authoritative -- nothing was fetched or cached.
+		expect(fetchMock).not.toHaveBeenCalled()
+		expect(redis.store.size).toBe(0)
+	})
+
+	test('fills a missing series from Goodreads and caches it', async () => {
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		respond([{ workId: 42 }], work())
+		const redis = fakeRedis()
+		const book = { title: 'The Grief of Stones', authors: [{ name: 'Katherine Addison' }] }
+		const out = await withGoodreadsSeries(book, redis)
+		expect(out.seriesPrimary).toEqual({ name: 'The Cemeteries of Amalo', position: '2' })
+
+		// Second call is served from cache -- no further upstream fetches.
+		fetchMock.mockReset()
+		const again = await withGoodreadsSeries(book, redis)
+		expect(again.seriesPrimary).toEqual({ name: 'The Cemeteries of Amalo', position: '2' })
+		expect(fetchMock).not.toHaveBeenCalled()
+	})
+
+	test('remembers a MISS so it is not re-fetched every refresh', async () => {
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		respond([]) // /search returns nothing -> null result
+		const redis = fakeRedis()
+		const book = { title: 'Standalone Novel', authors: [{ name: 'Nobody' }] }
+		const first = await withGoodreadsSeries(book, redis)
+		expect(first.seriesPrimary).toBeUndefined()
+
+		fetchMock.mockReset()
+		const second = await withGoodreadsSeries(book, redis)
+		expect(second.seriesPrimary).toBeUndefined()
+		// The cached miss short-circuits before any upstream call.
+		expect(fetchMock).not.toHaveBeenCalled()
+	})
+
+	test('never fails the response when the lookup throws', async () => {
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		respond(null) // /search rejects
+		const book = { title: 'Some Book', authors: [{ name: 'Someone' }] }
+		const out = await withGoodreadsSeries(book, null)
+		expect(out).toEqual(book)
+	})
+})

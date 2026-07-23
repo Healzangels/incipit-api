@@ -3,6 +3,7 @@ import { FastifyInstance } from 'fastify'
 import type { ApiBook } from '#config/types'
 import { RequestGeneric } from '#config/typing/requests'
 import { NotFoundError } from '#helpers/errors/ApiErrors'
+import { withGoodreadsSeries } from '#helpers/providers/goodreadsSeries'
 import ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
 import defaultRegistry from '#helpers/providers/registry'
 import { bestSquareCover } from '#helpers/providers/squareCover'
@@ -77,6 +78,23 @@ async function _show(fastify: FastifyInstance) {
 			return square ? { ...book, imageSquare: square } : book
 		}
 
+		// Every book response goes out through here: attach the square cover, then
+		// fill the series from Goodreads if the provider left it empty. Series
+		// enrichment is cached and only fires on a book with no seriesPrimary, so
+		// the common case costs one redis GET.
+		const finish = async <
+			T extends {
+				title?: string
+				authors?: { name?: string }[]
+				image?: string | null
+				seriesPrimary?: { name?: string } | null
+				seriesSecondary?: unknown
+			}
+		>(
+			book: T
+		): Promise<T> =>
+			withGoodreadsSeries(await withSquareCover(book), fastify.redis ?? null, request.log)
+
 		const dataHelper = new BookDataHelper(defaultRegistry, asin, region, credentials, request.log)
 		if (dataHelper.isProviderId) {
 			const book = await dataHelper.fetch()
@@ -85,7 +103,7 @@ async function _show(fastify: FastifyInstance) {
 			// is exactly where the Dungeon Crawler Carl French edition slipped
 			// through unflagged — the mismatch check must cover both serve paths.
 			flagLanguageMismatch(book, region, request.log)
-			return withSquareCover(book)
+			return finish(book)
 		}
 
 		// Setup common helper first
@@ -121,10 +139,10 @@ async function _show(fastify: FastifyInstance) {
 			if (!rescued) throw err
 			request.log.warn({ asin, region, code }, 'delisted asin rescued via a provider record')
 			flagLanguageMismatch(rescued, region, request.log)
-			return withSquareCover(rescued)
+			return finish(rescued)
 		}
 		flagLanguageMismatch(book, region, request.log)
-		return book && 'image' in book ? withSquareCover(book as ApiBook) : book
+		return book && 'image' in book ? finish(book as ApiBook) : book
 	})
 }
 
