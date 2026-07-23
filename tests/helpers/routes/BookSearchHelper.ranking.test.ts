@@ -202,4 +202,36 @@ describe('ranking tiebreaks', () => {
 		expect(out).toHaveLength(2)
 		expect(out[0].id).toBe('audio')
 	})
+
+	test('among duration-corroborated candidates, the CLOSEST runtime wins', async () => {
+		// Harry Potter, Chamber of Secrets, against a 34,968s file. Two Audible
+		// editions both clear the 5% DURATION_TOLERANCE -- Stephen Fry at 34,980s
+		// (0.03% off) and Full-Cast at 34,620s (1.0% off) -- so both took the same
+		// corroboration bonus, tied, and the tie fell through to provider order,
+		// picking an edition with the wrong narrator while the evidence to choose
+		// correctly was already in hand. Tolerance decides whether a candidate is
+		// the same BOOK; it is far too wide to separate narrations of it.
+		const WANT_MS = 34968 * 1000
+		const out = await helperFor(
+			[
+				candidate({
+					provider: 'audible',
+					id: 'fullcast',
+					asin: 'B0FULLCAST',
+					narrators: ['Hugh Laurie'],
+					audioSeconds: 34620
+				}),
+				candidate({
+					provider: 'audible',
+					id: 'fry',
+					asin: 'B0STEPHENF',
+					narrators: ['Stephen Fry'],
+					audioSeconds: 34980
+				})
+			],
+			{ duration: WANT_MS }
+		).search()
+
+		expect(out[0].id).toBe('fry')
+	})
 })

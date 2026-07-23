@@ -548,6 +548,26 @@ export default class BookSearchHelper {
 			// OpenLibrary) with inconsistent series/sort metadata.
 			const byAudio = Number(isAudioEdition(b)) - Number(isAudioEdition(a))
 			if (byAudio !== 0) return byAudio
+			// Both corroborated on duration -- but one is CLOSER.
+			//
+			// DURATION_TOLERANCE is 5%, which is the right width for deciding
+			// whether a candidate is the same book at all, and far too wide to
+			// separate two narrations OF that book. Measured on Harry Potter and
+			// the Chamber of Secrets against a 34,968s file: the Stephen Fry
+			// edition (34,980s) is 0.03% off and the Full-Cast edition (34,620s)
+			// is 1.0% off, so both cleared tolerance, both took the same
+			// corroboration bonus, and the tie fell through to provider order --
+			// picking an edition with the wrong narrator entirely while the
+			// evidence to choose correctly was already in hand.
+			//
+			// Ordering by the delta uses that evidence without changing what
+			// counts as a match: it only ranks candidates that ALREADY passed,
+			// and a null delta (no runtime to compare) never participates.
+			const aDelta = a.durationDeltaPct
+			const bDelta = b.durationDeltaPct
+			if (aDelta != null && bDelta != null && Math.abs(aDelta - bDelta) > 1e-9) {
+				return aDelta - bDelta
+			}
 			// Neither identity nor format separated them, so a residual gap inside
 			// the tolerance decides after all — the band only ever lets the two
 			// tiebreaks above jump a small deficit, it never discards confidence.
