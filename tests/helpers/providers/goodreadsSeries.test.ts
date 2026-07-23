@@ -59,22 +59,25 @@ describe('goodreads series enrichment', () => {
 		expect(await fetchGoodreadsSeries('The Grief of Stones', null)).toBeNull()
 	})
 
-	test('prefers the series Goodreads marks Primary', async () => {
+	test('prefers the PARENT series (more members) over its sub-series', async () => {
+		// Not the Goodreads "Primary" flag -- measured against how this operator
+		// organizes by hand, the parent is the wanted shelf (Chronicles of Osreth
+		// over Cemeteries of Amalo). The parent is the container, so it has more
+		// members; the ranking asks /series/{id} for each count.
 		respond(
 			[{ workId: 42 }],
 			work({
 				Series: [
-					{ Title: 'Sub Series', LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }] },
-					{
-						Title: 'Parent Series',
-						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '7', Primary: true }]
-					}
+					{ Title: 'Sub Series', ForeignId: 1, LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }] },
+					{ Title: 'Parent Series', ForeignId: 2, LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '7' }] }
 				]
-			})
+			}),
+			{ LinkItems: Array.from({ length: 4 }, (_, i) => i) }, // Sub: 4 members
+			{ LinkItems: Array.from({ length: 9 }, (_, i) => i) } // Parent: 9 members
 		)
 		const out = await fetchGoodreadsSeries('The Grief of Stones', null)
 		expect(out?.primary).toEqual({ name: 'Parent Series', position: '7' })
-		// The other one is still carried, so a consumer that disagrees can use it.
+		// The sub-series is still carried, so a consumer that disagrees can use it.
 		expect(out?.secondary).toEqual({ name: 'Sub Series', position: '1' })
 	})
 
@@ -99,6 +102,41 @@ describe('goodreads series enrichment', () => {
 		expect(out?.primary).toEqual({ name: 'Someone Elses Series' })
 	})
 })
+
+	describe('parent-series preference', () => {
+		// A work in a sub-series, its parent, and a variant. The variant has the
+		// most members but is an edition listing; the parent has more members than
+		// the sub. Order: search, work, then one /series/{id} per pooled series.
+		const multi = () => ({
+			Title: 'The Grief of Stones',
+			Series: [
+				{ Title: 'The Cemeteries of Amalo', ForeignId: 1,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '2' }] },
+				{ Title: 'The Chronicles of Osreth', ForeignId: 2,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '3' }] },
+				{ Title: 'Osreth Omnibus Edition', ForeignId: 3,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }] }
+			]
+		})
+		// member-count responses, in ForeignId order of the CLEAN pool (1 then 2)
+		const members = (n) => ({ LinkItems: Array.from({ length: n }, (_, i) => i) })
+
+		test('prefers the parent (more members) among clean series', async () => {
+			// clean pool = Cemeteries(1), Osreth(2); the Omnibus Edition is excluded
+			respond([{ workId: 42 }], multi(), members(6), members(9))
+			const out = await fetchGoodreadsSeries('The Grief of Stones', null)
+			expect(out?.primary).toEqual({ name: 'The Chronicles of Osreth', position: '3' })
+			expect(out?.secondary).toEqual({ name: 'The Cemeteries of Amalo', position: '2' })
+		})
+
+		test('excludes an edition/ordering variant even when it is largest', async () => {
+			// If the variant filter were off, Omnibus(#1) with a huge count could win.
+			respond([{ workId: 42 }], multi(), members(6), members(9))
+			const out = await fetchGoodreadsSeries('The Grief of Stones', null)
+			expect(out?.primary?.name).not.toContain('Omnibus')
+			expect(out?.secondary?.name).not.toContain('Omnibus')
+		})
+	})
 
 describe('withGoodreadsSeries enrichment wrapper', () => {
 	const fakeRedis = () => {

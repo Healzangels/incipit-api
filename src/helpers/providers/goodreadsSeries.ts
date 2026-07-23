@@ -49,7 +49,48 @@ interface WorkSeriesLink {
 
 interface WorkSeries {
 	Title?: string
+	ForeignId?: number
 	LinkItems?: WorkSeriesLink[]
+}
+
+interface SeriesResponse {
+	LinkItems?: unknown[]
+}
+
+// Member counts per Goodreads series id, memoized for the life of the process.
+// Series membership is effectively immutable, and the same umbrella series
+// (Chronicles of Osreth, The Legend of Drizzt) recurs across every book in it,
+// so this collapses N books' worth of /series lookups to one per series.
+const seriesCountMemo = new Map<number, number>()
+
+// A Goodreads "series" that is really an EDITION VARIANT or a whole-franchise
+// ORDERING, not the series a reader means. Both inflate member count -- a
+// split-volume edition doubles the entries, a franchise ordering sweeps in
+// hundreds -- so they beat the real series on a pure count and reintroduce
+// exactly the foreign/ordering names this is meant to avoid ("Harry Potter
+// Persian/Farsi Split-Volume Edition" over "Harry Potter", "Forgotten Realms -
+// Publication Order" over "The Legend of Drizzt"). Excluded from the parent
+// ranking, but only when a clean series remains -- never leaving a book with no
+// series because every listing happened to be a variant.
+const SERIES_VARIANT_RE =
+	/\b(publication order|chronological|split[\s-]?volume|omnibus|box[\s-]?set|edition)\b/i
+
+/**
+ * Number of members in a Goodreads series, or 0 when it can't be determined.
+ *
+ * Used to tell a sub-series from its parent: the parent is the container, so it
+ * has strictly more members ("Chronicles of Osreth" has 9, "Cemeteries of
+ * Amalo" 6). 0 on any failure, so an unreachable count simply sorts last rather
+ * than breaking the enrichment.
+ */
+async function seriesMemberCount(foreignId: number | undefined): Promise<number> {
+	if (typeof foreignId !== 'number') return 0
+	const memoized = seriesCountMemo.get(foreignId)
+	if (memoized !== undefined) return memoized
+	const series = await getJson<SeriesResponse>(`/series/${foreignId}`)
+	const count = Array.isArray(series?.LinkItems) ? series.LinkItems.length : 0
+	seriesCountMemo.set(foreignId, count)
+	return count
 }
 
 interface WorkResponse {
@@ -175,9 +216,17 @@ function positionFor(series: WorkSeries, workId: number): string | undefined {
 		links.find((l) => l.ForeignWorkId === workId) ?? (links.length === 1 ? links[0] : null)
 	if (!mine) return undefined
 	if (typeof mine.PositionInSeries === 'string' && mine.PositionInSeries.trim()) {
-		return mine.PositionInSeries.trim()
+		const trimmed = mine.PositionInSeries.trim()
+		// "0" is Goodreads' sentinel for "in this series but UNPOSITIONED" --
+		// common on whole-franchise "Publication Order" listings. It cannot
+		// order the book, so treat it as no position at all.
+		if (trimmed !== '0') return trimmed
 	}
-	if (typeof mine.SeriesPosition === 'number' && Number.isFinite(mine.SeriesPosition)) {
+	if (
+		typeof mine.SeriesPosition === 'number' &&
+		Number.isFinite(mine.SeriesPosition) &&
+		mine.SeriesPosition > 0
+	) {
 		return String(mine.SeriesPosition)
 	}
 	return undefined
@@ -231,13 +280,41 @@ export async function fetchGoodreadsSeries(
 		)
 		if (all.length === 0) return null
 
-		// Goodreads marks one link Primary; fall back to declaration order, which
-		// is what the site itself shows first.
-		const ranked = [...all].sort((x, y) => {
-			const xp = (x.LinkItems ?? []).some((l) => l.Primary) ? 0 : 1
-			const yp = (y.LinkItems ?? []).some((l) => l.Primary) ? 0 : 1
-			return xp - yp
-		})
+		// Rank the series a book belongs to so the PARENT wins.
+		//
+		// A book legitimately sits in several nested series -- "The Grief of
+		// Stones" is Cemeteries of Amalo #2 AND Chronicles of Osreth #3 -- and
+		// which one the shelf uses is a preference, not a fact. Measured against
+		// how this operator organizes by hand, the consistent choice is the
+		// PARENT (Chronicles of Osreth over Cemeteries of Amalo, The Legend of
+		// Drizzt over Legacy of the Drow). The parent is the container, so it has
+		// strictly more members; ordering by member count descending makes the
+		// automatic pick match the manual one. Declaration order breaks a tie,
+		// and an unavailable count sorts last rather than winning by accident.
+		//
+		// Only pay for the counts when there IS a choice -- a single-series book
+		// (the common case) skips the /series lookups entirely.
+		let ranked = all
+		if (all.length > 1) {
+			// Drop edition-variants and franchise orderings, but only if a clean
+			// series survives -- otherwise keep them, a variant series beats none.
+			const clean = all.filter((s) => !SERIES_VARIANT_RE.test(s.Title ?? ''))
+			const pool = clean.length ? clean : all
+			const counts = new Map<WorkSeries, number>()
+			for (const s of pool) {
+				counts.set(s, await seriesMemberCount(s.ForeignId))
+			}
+			// A series that cannot POSITION our book is useless for shelving
+			// however large, so positioned series rank first; among those the
+			// parent (most members) wins, which matched the manual choice on every
+			// case tested -- Chronicles of Osreth over Cemeteries of Amalo, The
+			// Legend of Drizzt over Legacy of the Drow, plain Harry Potter over the
+			// split-volume edition.
+			const positioned = (s: WorkSeries) => (positionFor(s, workId) ? 1 : 0)
+			ranked = [...pool].sort(
+				(x, y) => positioned(y) - positioned(x) || (counts.get(y) ?? 0) - (counts.get(x) ?? 0)
+			)
+		}
 
 		const toSeries = (s: WorkSeries): ProviderBookSeries => {
 			const position = positionFor(s, workId)
