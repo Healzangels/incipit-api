@@ -136,6 +136,47 @@ describe('goodreads series enrichment', () => {
 			expect(out?.primary?.name).not.toContain('Omnibus')
 			expect(out?.secondary?.name).not.toContain('Omnibus')
 		})
+
+		test('drops a franchise UMBRELLA (-verse/Universe) for the sub-series', async () => {
+			// Measured live: "The Enderverse" (18) and "Jack Ryan Universe" (45) beat
+			// the wanted sub-series on member count, so a size rule alone reintroduces
+			// them. They carry the tell in their NAME while a same-size TIGHT parent
+			// (The Legend of Drizzt) does not, so the name is what excludes them.
+			respond(
+				[{ workId: 42 }],
+				{
+					Title: 'Xenocide',
+					Series: [
+						{ Title: "Ender's Saga", ForeignId: 1, LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '3' }] },
+						{ Title: 'The Enderverse', ForeignId: 2, LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '14' }] }
+					]
+				},
+				{ LinkItems: Array.from({ length: 9 }, (_, i) => i) }, // Ender's Saga: 9
+				{ LinkItems: Array.from({ length: 18 }, (_, i) => i) } // Enderverse: 18 (larger)
+			)
+			const out = await fetchGoodreadsSeries('Xenocide', null)
+			// The umbrella is larger, but the sub-series is what a reader means.
+			expect(out?.primary).toEqual({ name: "Ender's Saga", position: '3' })
+		})
+
+		test('keeps a large TIGHT parent that carries no umbrella marker', async () => {
+			// The Legend of Drizzt (~37) dwarfs its sub-arc but IS the wanted series,
+			// so it must NOT be demoted the way a "-verse" umbrella is.
+			respond(
+				[{ workId: 42 }],
+				{
+					Title: 'Passage to Dawn',
+					Series: [
+						{ Title: 'Legacy of the Drow', ForeignId: 1, LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '4' }] },
+						{ Title: 'The Legend of Drizzt', ForeignId: 2, LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '10' }] }
+					]
+				},
+				{ LinkItems: Array.from({ length: 4 }, (_, i) => i) }, // sub-arc: 4
+				{ LinkItems: Array.from({ length: 37 }, (_, i) => i) } // parent: 37
+			)
+			const out = await fetchGoodreadsSeries('Passage to Dawn', null)
+			expect(out?.primary).toEqual({ name: 'The Legend of Drizzt', position: '10' })
+		})
 	})
 
 describe('withGoodreadsSeries enrichment wrapper', () => {

@@ -63,17 +63,26 @@ interface SeriesResponse {
 // so this collapses N books' worth of /series lookups to one per series.
 const seriesCountMemo = new Map<number, number>()
 
-// A Goodreads "series" that is really an EDITION VARIANT or a whole-franchise
-// ORDERING, not the series a reader means. Both inflate member count -- a
-// split-volume edition doubles the entries, a franchise ordering sweeps in
-// hundreds -- so they beat the real series on a pure count and reintroduce
-// exactly the foreign/ordering names this is meant to avoid ("Harry Potter
-// Persian/Farsi Split-Volume Edition" over "Harry Potter", "Forgotten Realms -
-// Publication Order" over "The Legend of Drizzt"). Excluded from the parent
-// ranking, but only when a clean series remains -- never leaving a book with no
-// series because every listing happened to be a variant.
+// A Goodreads "series" that is not the one a reader means. Three kinds, all of
+// which inflate member count and so would beat the real series on a raw count:
+//
+//   1. EDITION VARIANTS -- a split-volume or omnibus doubles the entries
+//      ("Harry Potter Persian/Farsi Split-Volume Edition" over "Harry Potter").
+//   2. FRANCHISE ORDERINGS -- a publication/chronological listing sweeps in the
+//      whole universe ("Forgotten Realms - Publication Order").
+//   3. FRANCHISE UMBRELLAS -- a "-verse"/"Universe" that BUNDLES several
+//      distinct sub-series ("The Enderverse" over "Ender's Saga", "Jack Ryan
+//      Universe" over "Jack Ryan"). Detected by name, not size, on purpose: a
+//      TIGHT parent can be just as large (The Legend of Drizzt, ~37 books, is
+//      the wanted series over its 4-book sub-arc), so a size ratio would wrongly
+//      demote it -- but the umbrella carries the tell in its name and the tight
+//      parent does not.
+//
+// Excluded from the ranking, but only when a clean series remains -- never
+// leaving a book with no series because every listing happened to be one of
+// these.
 const SERIES_VARIANT_RE =
-	/\b(publication order|chronological|split[\s-]?volume|omnibus|box[\s-]?set|edition)\b/i
+	/\b(publication order|chronological|split[\s-]?volume|omnibus|box[\s-]?set|edition)\b|\b\w*verse\b/i
 
 /**
  * Number of members in a Goodreads series, or 0 when it can't be determined.
