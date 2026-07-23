@@ -580,6 +580,30 @@ export default class BookSearchHelper {
 			[wantTitle, c.title],
 			[unifyAmpersand(wantTitle), unifyAmpersand(c.title)]
 		]
+		// The candidate title put through the SAME normalizer the want title
+		// already went through, making the comparison symmetric.
+		//
+		// titleSim's baseTitle() splits on ":" and "(", so "Dune: Book One" and
+		// "Dune (Unabridged)" both score 1.000 against "Dune" -- but nothing
+		// handles the trailing COMMA form. "Dune, Book 1" scores 0.533, and the
+		// real case that surfaced this, "A Warrior's Knowledge, Book 2", scored
+		// low enough to fall below CONFIDENCE_FLOOR and be discarded before
+		// ranking ran at all. So for one of the commonest audiobook title
+		// conventions there is, the audio edition was not out-ranked by the
+		// print record -- it was thrown away, taking its narrators, runtime and
+		// cover with it.
+		//
+		// Added as a VARIANT here rather than fixed inside baseTitle() so
+		// scoreCandidate stays bit-for-bit with the Gate-0 oracle. Like every
+		// other variant in this list it can only RAISE similarity: it is scored
+		// alongside the original and the best result wins, so a provider title
+		// that legitimately contains something the normalizer strips is never
+		// made worse off.
+		const candNormalized = normalizeTitle(c.title)
+		if (candNormalized && candNormalized !== c.title) {
+			bases.push([wantTitle, candNormalized])
+			bases.push([unifyAmpersand(wantTitle), unifyAmpersand(candNormalized)])
+		}
 		for (const [w, cand] of bases) {
 			pairs.push([w, cand])
 			const ws = stripLeadingArticle(w)

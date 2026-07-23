@@ -172,4 +172,34 @@ describe('ranking tiebreaks', () => {
 
 		expect(out[0].id).toBe('print')
 	})
+
+	test('a comma-suffixed audio title is scored, not discarded', async () => {
+		// titleSim's baseTitle() splits on ":" and "(", so "Dune: Book One" and
+		// "Dune (Unabridged)" both reach 1.000 against "Dune" -- but nothing
+		// handled the trailing COMMA form. "Dune, Book 1" scored 0.533 and the
+		// real case, "A Warrior's Knowledge, Book 2", fell below CONFIDENCE_FLOOR
+		// and was filtered out BEFORE ranking. For one of the commonest audiobook
+		// title conventions there is, the audio edition was not out-ranked by the
+		// print record, it was thrown away -- narrators, runtime and cover with
+		// it. Scoring the candidate through the same normalizer the want title
+		// already passes through makes the comparison symmetric.
+		const out = await helperFor(
+			[
+				candidate({ provider: 'openlibrary', id: 'print', title: 'Dune' }),
+				candidate({
+					provider: 'audible',
+					id: 'audio',
+					asin: 'B0COMMA001',
+					title: 'Dune, Book 1',
+					narrators: ['Scott Brick'],
+					audioSeconds: BASE
+				})
+			],
+			{}
+		).search()
+
+		// It must SURVIVE at all -- this returned a single result before.
+		expect(out).toHaveLength(2)
+		expect(out[0].id).toBe('audio')
+	})
 })
