@@ -118,4 +118,58 @@ describe('ranking tiebreaks', () => {
 
 		expect(out[0].id).toBe('audio-edition')
 	})
+
+	test('an audio edition wins a SMALL confidence deficit against a print-only record', async () => {
+		// The reporting case (Davis Ashura, "A Warrior's Knowledge"): an
+		// OpenLibrary work with no ASIN, no narrators and no runtime scored 0.85,
+		// while the Audible edition scored 0.768 -- lower precisely BECAUSE it is
+		// the audiobook, since audiobook titles carry the series suffix the
+		// catalogue entry omits. The print record won and took the match with it:
+		// no narrator, no runtime for the duration veto to check, and a portrait
+		// print-scan cover on an audiobook.
+		//
+		// Reproduced here through the author term (0.819 vs 0.850, a 0.031 gap)
+		// rather than a title suffix, because a comma-suffixed title falls below
+		// CONFIDENCE_FLOOR outright and never reaches the ranking at all.
+		const out = await helperFor(
+			[
+				candidate({ provider: 'openlibrary', id: 'print', title: 'Dune' }),
+				candidate({
+					provider: 'audible',
+					id: 'audio',
+					asin: 'B0AUDIO001',
+					title: 'Dune',
+					authors: ['Frank Herbert Jr'],
+					narrators: ['Scott Brick'],
+					audioSeconds: BASE
+				})
+			],
+			{}
+		).search()
+
+		expect(out[0].id).toBe('audio')
+	})
+
+	test('a confidence gap WIDER than the band still beats the audio preference', async () => {
+		// The band is bounded, not a blanket override. At 0.74 against 0.85 the
+		// gap is 0.11 -- outside the tolerance -- so confidence decides and a
+		// genuinely worse-matching audio edition cannot drag the match away from
+		// the right book.
+		const out = await helperFor(
+			[
+				candidate({ provider: 'openlibrary', id: 'print', title: 'Dune' }),
+				candidate({
+					provider: 'audible',
+					id: 'audio',
+					asin: 'B0AUDIO002',
+					title: 'Dune I',
+					narrators: ['Scott Brick'],
+					audioSeconds: BASE
+				})
+			],
+			{}
+		).search()
+
+		expect(out[0].id).toBe('print')
+	})
 })

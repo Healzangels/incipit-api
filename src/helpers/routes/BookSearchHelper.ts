@@ -149,6 +149,32 @@ function isAudioEdition(c: ScoredCandidate): boolean {
 	return (c.audioSeconds != null && c.audioSeconds > 0) || c.narrators.length > 0
 }
 
+/**
+ * How much confidence an audio edition may give up to a print-only record and
+ * still win.
+ *
+ * This service answers for an AUDIOBOOK library, but confidence is dominated by
+ * title similarity, and audiobook titles routinely carry the series suffix the
+ * print edition omits — "A Warrior's Knowledge, Book 2" against a catalogue
+ * entry of "A Warrior's Knowledge". The audio edition therefore scores slightly
+ * LOWER precisely because it is the audiobook, and the print record wins on a
+ * gap that reflects punctuation rather than identity.
+ *
+ * Measured on the reporting case: an OpenLibrary work with no ASIN, no
+ * narrators and no runtime beat the Audible edition 0.85 to 0.768 — and took
+ * the match with it, so the book landed with no narrator, no runtime (nothing
+ * for the duration veto to check) and a portrait print-scan cover.
+ *
+ * 0.10 is chosen to clear that 0.082 gap with a little room, and deliberately
+ * kept below LANGUAGE_CONFLICT_PENALTY (0.15) so it can never overturn a
+ * language decision — the wrong-language edition is the wrong BOOK, whereas
+ * audio-vs-print is a format preference within the right one. It is a bounded
+ * band, not a blanket override: a print record that is genuinely a better match
+ * by more than this still wins, and when no audio edition is present nothing
+ * changes.
+ */
+const AUDIO_EDITION_CONFIDENCE_TOLERANCE = 0.1
+
 // On a genuine tie (same confidence AND same audio-edition status), prefer the
 // richer/more-authoritative source so a win never *degrades* metadata: Audible's
 // full record beats a coin-flip, but a new provider still wins when it's actually
@@ -496,7 +522,13 @@ export default class BookSearchHelper {
 			const byPin = Number(pinned(b)) - Number(pinned(a))
 			if (byPin !== 0) return byPin
 			const byConfidence = b.confidence - a.confidence
-			if (Math.abs(byConfidence) > 1e-9) return byConfidence
+			// A clear confidence win still decides. Inside the audio tolerance the
+			// pair is treated as effectively tied, so the identity and format
+			// tiebreaks below get to run — see
+			// AUDIO_EDITION_CONFIDENCE_TOLERANCE for why a small gap between an
+			// audio edition and a print-only record usually reflects a series
+			// suffix in the title rather than a different book.
+			if (Math.abs(byConfidence) > AUDIO_EDITION_CONFIDENCE_TOLERANCE) return byConfidence
 			// Equal confidence: prefer the edition in the wanted language FIRST. A
 			// duration-corroborated foreign edition (+0.15 corroboration, -0.15
 			// demotion = net even) ties an uncorroborated correct-language book
@@ -516,7 +548,11 @@ export default class BookSearchHelper {
 			// OpenLibrary) with inconsistent series/sort metadata.
 			const byAudio = Number(isAudioEdition(b)) - Number(isAudioEdition(a))
 			if (byAudio !== 0) return byAudio
-			// Still tied: prefer the richer/more-authoritative source.
+			// Neither identity nor format separated them, so a residual gap inside
+			// the tolerance decides after all — the band only ever lets the two
+			// tiebreaks above jump a small deficit, it never discards confidence.
+			if (Math.abs(byConfidence) > 1e-9) return byConfidence
+			// Genuinely tied: prefer the richer/more-authoritative source.
 			return providerRank(a) - providerRank(b)
 		})
 	}
