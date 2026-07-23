@@ -87,6 +87,55 @@ const BUNDLE_RE =
 	/\b(box(?:ed)?[- ]?set|gift[- ]?set|omnibus|collection|complete series|books? \d+\s*[-–—]\s*\d+|\d+[- ]book set|trilogy set)\b/i
 const BUNDLE_PENALTY = 0.2
 
+// Volume/part markers that DISTINGUISH two otherwise-identical titles.
+// normalizeTitle strips "Part N"/"Book N"/"Vol N" as series noise -- correct for
+// "A Warrior's Knowledge, Book 2" (which must still match the bare print record),
+// but it also erases the ONLY difference between "KTF Part 1" and "KTF Part 2",
+// two genuinely different books. They then normalize to the same "KTF" and score
+// identically (both 0.85), so the tie fell to provider order and a search for
+// Part 2 could return Part 1. Recover the numbers from the RAW titles here so a
+// volume MISMATCH can be penalized WITHOUT touching scoreCandidate's Gate-0 pin.
+// Two branches: a marker WORD ("part 2", "book 3", "vol. 4", "volume 5") or a
+// bare "#N"; both require digits immediately after, so "The Book Thief" and
+// "Fahrenheit 451" carry no volume and are never touched.
+const VOLUME_MARKER_RE = /(?:\b(?:part|book|vol(?:ume)?\.?)\s*|#\s*)(\d{1,3})\b/gi
+
+/**
+ * The set of volume/part numbers a raw title advertises. Empty for the vast
+ * majority of titles, which carry no such marker.
+ * @param {string | null | undefined} raw a raw (un-normalized) title
+ * @returns {Set<number>} every "Part N"/"Book N"/"Vol N"/"#N" number found
+ */
+function volumeNumbers(raw: string | null | undefined): Set<number> {
+	const out = new Set<number>()
+	if (!raw) return out
+	VOLUME_MARKER_RE.lastIndex = 0
+	let m: RegExpExecArray | null
+	while ((m = VOLUME_MARKER_RE.exec(raw)) !== null) out.add(Number(m[1]))
+	return out
+}
+
+/**
+ * A volume conflict: the query and candidate BOTH carry volume markers and share
+ * NONE. Deliberately conservative -- a candidate with no marker (the bare print
+ * record) never conflicts, and titles that share ANY number ("Galaxy's Edge,
+ * Book 7: KTF Part 2" {7,2} vs a query for "KTF Part 2" {2}) do not either. It
+ * only fires on a clear numbered mismatch like {1} vs {2}, so it can demote a
+ * wrong sibling but never a right match.
+ * @param {Set<number>} want the query's volume numbers
+ * @param {Set<number>} cand the candidate's volume numbers
+ * @returns {boolean} true only when both are non-empty and disjoint
+ */
+function volumeConflict(want: Set<number>, cand: Set<number>): boolean {
+	if (want.size === 0 || cand.size === 0) return false
+	for (const n of cand) if (want.has(n)) return false
+	return true
+}
+// Sized like BUNDLE_PENALTY (0.2): a wrong sibling at 0.85 lands at 0.65, clear
+// of the AUDIO_EDITION_CONFIDENCE_TOLERANCE band so the right sibling wins the
+// ranking decisively rather than falling through to a coin-flip tiebreak.
+const VOLUME_MISMATCH_PENALTY = 0.2
+
 // A translated edition whose language field is NULL or mislabeled dodges the
 // language demotion entirely -- but says so in its own title: "Everfound
 // (Spanish Edition)" and "Medio rey [Half a King]" both won on the same scan,
@@ -218,6 +267,10 @@ export default class BookSearchHelper {
 	// structurally not the single book the caller asked for, so honouring the pin
 	// there is what let a stale sidecar ASIN win outright.
 	private bundleDemotedIds = new Set<string>()
+	// How many candidates the volume-mismatch penalty hit on the last scoring pass
+	// -- a numbered sibling ("KTF Part 1" against a query for "KTF Part 2"). Zero
+	// for the overwhelming majority of searches, which involve no numbered pair.
+	private volumeDemoted = 0
 	// How many candidates the graded duration dead-zone penalty hit on the last
 	// scoring pass. Instrumented like the language gate so its effect is measured
 	// rather than assumed.
@@ -365,6 +418,7 @@ export default class BookSearchHelper {
 			languageDemoted: this.languageDemoted,
 			bundleDemoted: this.bundleDemoted,
 			durationDeadzoned: this.durationDeadzoned,
+			volumeDemoted: this.volumeDemoted,
 			matched: top != null,
 			provider: top?.provider ?? null,
 			matchedTitle: top?.title ?? null,
@@ -444,6 +498,14 @@ export default class BookSearchHelper {
 		this.bundleDemoted = 0
 		this.bundleDemotedIds.clear()
 		this.durationDeadzoned = 0
+		this.volumeDemoted = 0
+		// The volume/part numbers the QUERY carries, read from the RAW titles
+		// (normalizeTitle strips them). Empty for almost every search; when
+		// present, a candidate carrying a DIFFERENT number is a different book.
+		const wantVolumes = new Set<number>([
+			...volumeNumbers(this.rawTitle),
+			...volumeNumbers(this.options.trackTitle)
+		])
 		const scored: ScoredCandidate[] = candidates.map((c) => {
 			// Score against the album title and (when present) the track title,
 			// keeping the higher. Both go through the same scoreCandidate (duration
@@ -495,6 +557,17 @@ export default class BookSearchHelper {
 				confidence = Math.max(0, confidence - BUNDLE_PENALTY)
 				this.bundleDemoted += 1
 				this.bundleDemotedIds.add(c.id)
+			}
+			// Wrong-volume demotion. The query named a "Part N"/"Book N"/"Vol N" and
+			// this candidate carries a DIFFERENT one -- a search for "KTF Part 2"
+			// looking at "KTF Part 1". normalizeTitle deleted both numbers before
+			// scoring, so the two tied at 0.85 and the wrong one could win on
+			// provider order; this restores the distinction the normalizer erased.
+			// ASIN-pin exempt, like the other demotions: the caller named that
+			// edition by identity even if its printed part number reads oddly.
+			if (!asinMatch && volumeConflict(wantVolumes, volumeNumbers(c.title))) {
+				confidence = Math.max(0, confidence - VOLUME_MISMATCH_PENALTY)
+				this.volumeDemoted += 1
 			}
 			// Graded duration dead zone (see DURATION_DEADZONE_MAX_PENALTY): a gap
 			// between the corroboration and veto thresholds must cost SOMETHING, or a
