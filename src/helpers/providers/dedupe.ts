@@ -62,6 +62,31 @@ function isBetter(a: ScoredCandidate, b: ScoredCandidate): boolean {
 	return richness(a) > richness(b)
 }
 
+/** Providers whose artwork is, by format, the SQUARE audiobook cover. */
+const AUDIOBOOK_COVER_PROVIDERS = new Set(['audible', 'apple', 'storytel'])
+
+/**
+ * True if this candidate's cover is audiobook artwork rather than a print scan.
+ *
+ * Cover choice used to ride along with match confidence, so a work-level record
+ * that won on confidence imposed its cover on the group. Measured live on Davis
+ * Ashura's "A Warrior's Knowledge": the OpenLibrary row won at 0.85 carrying a
+ * PORTRAIT scan of the print edition, while the Audible (0.768) and Apple
+ * (0.768) rows for the same book carried the square audiobook art. The match was
+ * right and the picture was wrong.
+ *
+ * Audiobook art is square because that is the format; print covers are portrait
+ * for the same reason. So classify by what the record IS, not by measuring
+ * pixels or sniffing image URLs: an audiobook-only provider, or any row carrying
+ * an Audible ASIN or a runtime, describes an audio edition and its cover is that
+ * edition's art. A Hardcover work-level row or an OpenLibrary scan is neither.
+ */
+function hasAudiobookCover(c: ScoredCandidate): boolean {
+	if (!c.cover) return false
+	if (AUDIOBOOK_COVER_PROVIDERS.has(c.provider)) return true
+	return c.asin != null || c.audioSeconds != null
+}
+
 /**
  * Dedupe a scored candidate list, keeping the highest-confidence (then richest)
  * candidate per identity key. Input order is otherwise preserved for stability.
@@ -182,6 +207,9 @@ export function dedupeCandidates(
 	// could not even be picked from the Fix Match list.
 	const bestWithNarrators = new Map<number, ScoredCandidate>()
 	const bestWithCover = new Map<number, ScoredCandidate>()
+	// Tracked separately from bestWithCover because this donor may override a
+	// cover the winner ALREADY has -- see hasAudiobookCover and the graft below.
+	const bestAudioCover = new Map<number, ScoredCandidate>()
 	// The pin outranks confidence/richness INSIDE a group too: the ranker's
 	// pinned-first tiebreak runs after dedupe, so a pinned candidate that loses
 	// its group here is gone before that tiebreak exists.
@@ -208,6 +236,10 @@ export function dedupeCandidates(
 			const curCover = bestWithCover.get(root)
 			if (!curCover || isBetter(c, curCover)) bestWithCover.set(root, c)
 		}
+		if (hasAudiobookCover(c)) {
+			const curAudio = bestAudioCover.get(root)
+			if (!curAudio || isBetter(c, curAudio)) bestAudioCover.set(root, c)
+		}
 	})
 
 	// One winner per group, in first-seen group order for stability.
@@ -221,7 +253,16 @@ export function dedupeCandidates(
 			// Graft only what the winner is MISSING -- its own values always win.
 			const asinDonor = winner.asin ? null : bestWithAsin.get(root)
 			const narrDonor = winner.narrators?.length ? null : bestWithNarrators.get(root)
-			const coverDonor = winner.cover ? null : bestWithCover.get(root)
+			// Cover is the one field a donor may override rather than only fill.
+			// The winner keeps its own cover when it already has audiobook art (or
+			// when no group member has any), but a PRINT-source cover yields to an
+			// audio edition's art from the same group -- same book, right picture.
+			const audioCoverDonor = bestAudioCover.get(root)
+			const coverDonor = winner.cover
+				? hasAudiobookCover(winner)
+					? null
+					: (audioCoverDonor ?? null)
+				: (audioCoverDonor ?? bestWithCover.get(root))
 			if (asinDonor || narrDonor || coverDonor) {
 				out.push({
 					...winner,

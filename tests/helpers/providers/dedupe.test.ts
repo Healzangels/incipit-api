@@ -372,4 +372,54 @@ describe('dedupe grafts metadata from a collapsed member', () => {
 		expect(out).toHaveLength(1)
 		expect(out[0].cover).toBe('art.jpg')
 	})
+
+	test('a print-source cover yields to audiobook art in the same group', () => {
+		// Mirrors Davis Ashura's "A Warrior's Knowledge": an OpenLibrary work won
+		// on confidence carrying a PORTRAIT scan of the print edition, while a
+		// same-book Apple row carried the square audiobook art. The match was
+		// right and the picture was wrong.
+		const out = dedupeCandidates([
+			scored({
+				provider: 'openlibrary',
+				id: 'ol',
+				confidence: 0.85,
+				cover: 'https://covers.openlibrary.org/b/id/10500107-L.jpg'
+			}),
+			scored({
+				provider: 'apple',
+				id: 'ap',
+				confidence: 0.768,
+				cover: 'https://is1-ssl.mzstatic.com/image/thumb/x/1400x1400bb.jpg'
+			})
+		])
+		expect(out).toHaveLength(1)
+		// Identity still belongs to the higher-confidence winner...
+		expect(out[0].provider).toBe('openlibrary')
+		// ...but the artwork comes from the audio edition.
+		expect(out[0].cover).toContain('mzstatic')
+	})
+
+	test('an audiobook winner keeps its own cover', () => {
+		// The override is one-directional: audiobook art displaces a print scan,
+		// never the reverse, and never another audiobook cover.
+		const out = dedupeCandidates([
+			scored({
+				provider: 'audible',
+				id: 'a',
+				asin: 'B0A',
+				audioSeconds: 66300,
+				confidence: 0.9,
+				cover: 'audible.jpg'
+			}),
+			scored({
+				provider: 'apple',
+				id: 'b',
+				audioSeconds: 66300,
+				confidence: 0.7,
+				cover: 'apple.jpg'
+			})
+		])
+		expect(out).toHaveLength(1)
+		expect(out[0].cover).toBe('audible.jpg')
+	})
 })
