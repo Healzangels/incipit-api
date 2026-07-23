@@ -18,6 +18,16 @@ RUN bun install --frozen-lockfile --production
 # prod
 FROM base AS prod
 
+# Build identity, surfaced by GET /version so a deploy can be verified in one
+# curl instead of inferred from "docker compose pull" output. Declared in THIS
+# stage only: an ARG in an earlier stage would invalidate that stage's layer
+# cache on every commit and force a full rebuild for a value only the final
+# image needs. Defaults keep a plain `docker build` working with no args.
+ARG GIT_SHA=unknown
+ARG BUILD_TIME=unknown
+ENV GIT_SHA=$GIT_SHA
+ENV BUILD_TIME=$BUILD_TIME
+
 # copy built app to /app
 COPY --from=build /app/dist ./dist
 COPY --from=prod-deps /app/node_modules ./node_modules

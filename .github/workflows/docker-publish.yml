@@ -78,6 +78,13 @@ jobs:
             type=ref,event=branch
             type=semver,pattern={{version}}
 
+      # Wall-clock build time for GET /version. Computed here rather than taken
+      # from a github.event field so it is present for every trigger, including
+      # workflow_dispatch (where repository/head_commit fields can be absent).
+      - name: Capture build timestamp
+        id: buildmeta
+        run: echo "time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       # Build and push Docker image with Buildx (don't push on PR)
       # https://github.com/docker/build-push-action
       - name: Build and push Docker image
@@ -87,3 +94,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Baked into the image and reported by GET /version, so a deploy can
+          # be confirmed against `git log` rather than inferred from pull output.
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+            BUILD_TIME=${{ steps.buildmeta.outputs.time }}

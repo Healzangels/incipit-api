@@ -33,6 +33,7 @@ import searchBook from '#config/routes/books/search/show'
 import showBook from '#config/routes/books/show'
 import health from '#config/routes/health'
 import { parseEnvArray, registerMetricsRoute } from '#config/routes/metrics'
+import version from '#config/routes/version'
 import { warnIfDeletesDisabled } from '#config/routes/writeAuth'
 import { getAllIps as getCloudflareIps } from '#helpers/utils/cloudflareIps'
 import UpdateScheduler from '#helpers/utils/UpdateScheduler'
@@ -215,6 +216,7 @@ async function registerRoutes() {
 		.register(deleteAuthor)
 		.register(searchAuthor)
 		.register(health)
+		.register(version)
 
 	warnIfDeletesDisabled(server)
 
