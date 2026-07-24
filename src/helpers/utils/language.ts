@@ -17,6 +17,8 @@
  */
 
 /** Canonical language names → ISO-639-1. Lowercased keys; accents included. */
+import { foldDiacritics } from '#helpers/utils/foldDiacritics'
+
 const NAME_TO_CODE: Record<string, string> = {
 	english: 'en',
 	german: 'de',
@@ -228,11 +230,6 @@ function lookupToken(token: string, wholeInput: boolean): string | null {
 	// otherwise win as Italian/Norwegian/….
 	if (wholeInput && /^[a-z]{2}$/.test(token)) return token
 	return null
-}
-
-/** Strip combining marks: "íslenska"/NFD "bokmål" → "islenska"/"bokmal". */
-function foldDiacritics(s: string): string {
-	return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
 
 // Register the ASCII-folded twin of every diacritic-bearing name at module

@@ -10,6 +10,7 @@
  *    that corroborates a right edition or vetoes a wrong one.
  */
 
+import { foldDiacritics } from '#helpers/utils/foldDiacritics'
 import { ratcliffObershelp } from '#helpers/utils/stringSimilarity'
 
 // Thresholds — validated in the bench; do not retune without re-running Gate 0.
@@ -144,8 +145,12 @@ export function extractAsinAndClean(raw: string | null | undefined): {
  */
 export function sim(a: string, b: string): number {
 	if (!a || !b) return 0.0
+	// Fold diacritics BEFORE the ASCII-only strip: without this, [^a-z0-9 ] deletes
+	// an accented letter outright ("Brontë" -> "bront"), lowering a correct match's
+	// score; folding turns it into its base letter ("bronte") so it survives. The
+	// fold is an identity on ASCII, so every Gate-0 (ASCII) oracle case is unchanged.
 	const clean = (s: string) =>
-		s
+		foldDiacritics(s)
 			.toLowerCase()
 			.replace(/[^a-z0-9 ]/g, '')
 			.trim()

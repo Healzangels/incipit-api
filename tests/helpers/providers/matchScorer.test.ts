@@ -143,6 +143,28 @@ describe('extractAsinAndClean (Audiobookshelf / seanap bracket conventions)', ()
 	})
 })
 
+describe('similarity folds diacritics instead of dropping them', () => {
+	// [^a-z0-9] used to DELETE an accented letter, shrinking a correct match; the
+	// fold turns it into its base letter so the accented and ASCII spellings agree.
+	const pairs: Array<[string, string]> = [
+		['Charlotte Brontë', 'Charlotte Bronte'],
+		['Gabriel García Márquez', 'Gabriel Garcia Marquez'],
+		['Motörhead', 'Motorhead'],
+		['Amélie', 'Amelie']
+	]
+	for (const [accented, ascii] of pairs) {
+		test(`"${accented}" ~ "${ascii}" is a perfect match`, () => {
+			expect(titleSim(accented, ascii)).toBeCloseTo(1, 12)
+		})
+	}
+
+	test('the fold leaves a pure-ASCII pair untouched (Gate 0 stays put)', () => {
+		// Sanity that folding did not perturb the ASCII path the oracle validates.
+		expect(titleSim('The Gunslinger', 'The Gunslinger')).toBe(1)
+		expect(titleSim('Dune', 'Dune Messiah')).toBeLessThan(1)
+	})
+})
+
 describe('the duration veto behaves as designed', () => {
 	// The Wandering Inn Volume 2: right title+author, wrong volume by runtime.
 	test('vetoes a >25% runtime mismatch below the acceptance floor', () => {
