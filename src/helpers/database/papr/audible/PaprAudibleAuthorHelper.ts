@@ -167,6 +167,14 @@ export default class PaprAudibleAuthorHelper {
 			// If the objects are the exact same return right away
 			const isEqual = this.sharedHelper.isEqualData(data, this.authorData)
 			if (isEqual) {
+				// Unchanged, but we DID re-fetch: advance updatedAt so the staleness
+				// throttle re-engages. Without this an unchanged record keeps its old
+				// timestamp and is re-fetched on EVERY cycle forever — the retry-waste
+				// that hits an image-less author (no source carries a portrait) hardest,
+				// now that it also calls a ToS-sensitive Goodreads mirror each time. This
+				// bounds the retry to once per staleness window while still letting a
+				// later-available portrait land.
+				await this.touchUpdatedAt()
 				return {
 					data: data,
 					modified: false
@@ -189,6 +197,22 @@ export default class PaprAudibleAuthorHelper {
 
 		// Create
 		return this.create()
+	}
+
+	/**
+	 * Advance only updatedAt, leaving the data untouched. Called when a re-fetch
+	 * returned IDENTICAL data so the throttle re-engages (see createOrUpdate).
+	 * Best-effort: a failure just leaves the pre-existing every-cycle behaviour.
+	 */
+	private async touchUpdatedAt(): Promise<void> {
+		try {
+			await AuthorModel.updateOne(
+				{ asin: this.asin, $or: [{ region: { $exists: false } }, { region: this.options.region }] },
+				{ $currentDate: { updatedAt: true } }
+			)
+		} catch (error) {
+			this.logger?.error(getErrorMessage(error))
+		}
 	}
 
 	/**

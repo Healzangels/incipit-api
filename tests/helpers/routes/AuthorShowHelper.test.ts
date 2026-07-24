@@ -37,6 +37,13 @@ mock.module('#helpers/authors/audible/ScrapeHelper', () => ({
 	}
 }))
 
+const mockFetchGoodreadsAuthorInfo = mock()
+mock.module('#helpers/providers/goodreadsSeries', () => ({
+	fetchGoodreadsAuthorInfo: mockFetchGoodreadsAuthorInfo,
+	withGoodreadsSeries: mock((book: unknown) => book),
+	fetchGoodreadsSeries: mock()
+}))
+
 mock.module('#helpers/database/redis/RedisHelper', () => ({
 	default: class RedisHelper {
 		findOne = mockRedisFindOne
@@ -57,6 +64,7 @@ import {
 	setPerformanceConfig
 } from '#config/performance'
 import { ApiAuthorProfile } from '#config/types'
+import { NotFoundError } from '#helpers/errors/ApiErrors'
 import defaultRegistry from '#helpers/providers/registry'
 import AuthorShowHelper from '#helpers/routes/AuthorShowHelper'
 import {
@@ -107,6 +115,7 @@ beforeEach(() => {
 	mockPaprCreateOrUpdate.mockResolvedValue({ data: parsedAuthor, modified: true })
 	mockPaprFindOne.mockResolvedValue({ data: authorWithoutProjection, modified: false })
 	mockScrapeProcess.mockResolvedValue(parsedAuthor)
+	mockFetchGoodreadsAuthorInfo.mockResolvedValue({ image: null, bio: null })
 	mockRedisFindOrCreate.mockResolvedValue(parsedAuthor)
 	mockPaprFindOneWithProjection.mockResolvedValue({ data: parsedAuthor, modified: false })
 	spyOn(helper.sharedHelper, 'sortObjectByKeys').mockReturnValue(parsedAuthor)
@@ -132,6 +141,50 @@ describe('AuthorShowHelper should', () => {
 
 	test('get new author data', async () => {
 		await expect(helper.getNewData()).resolves.toStrictEqual(parsedAuthor)
+	})
+
+	test('fills a dead-ASIN author from Goodreads using the supplied name', async () => {
+		// Audible has no page for the ASIN (delisted/region-locked); with a name the
+		// enrichment still runs and Goodreads fills the portrait/bio.
+		mockScrapeProcess.mockRejectedValue(
+			new NotFoundError('gone', { asin, code: 'REGION_UNAVAILABLE' })
+		)
+		const getSpy = spyOn(defaultRegistry, 'get').mockReturnValue({
+			fetchAuthorInfo: mock().mockResolvedValue({ image: null, bio: null })
+		} as unknown as ReturnType<typeof defaultRegistry.get>)
+		mockFetchGoodreadsAuthorInfo.mockResolvedValue({
+			image: 'https://gr/mcneill.jpg',
+			bio: 'A Warhammer author.'
+		})
+		helper = new AuthorShowHelper(
+			asin,
+			{ region: 'us', name: 'Graham McNeill', update: '1' } as never,
+			null
+		)
+		const out = (await helper.getNewData()) as ApiAuthorProfile
+		expect(out.name).toBe('Graham McNeill')
+		expect(out.image).toBe('https://gr/mcneill.jpg')
+		expect(out.description).toBe('A Warhammer author.')
+		expect(mockFetchGoodreadsAuthorInfo.mock.calls[0]?.[0]).toBe('Graham McNeill')
+		getSpy.mockRestore()
+	})
+
+	test('rethrows a dead-ASIN error when NO name is supplied (no overwrite)', async () => {
+		mockScrapeProcess.mockRejectedValue(
+			new NotFoundError('gone', { asin, code: 'REGION_UNAVAILABLE' })
+		)
+		helper = new AuthorShowHelper(asin, { region: 'us', update: '1' } as never, null)
+		await expect(helper.getNewData()).rejects.toThrow()
+	})
+
+	test('rethrows a non-availability error even when a name is supplied', async () => {
+		mockScrapeProcess.mockRejectedValue(new Error('network boom'))
+		helper = new AuthorShowHelper(
+			asin,
+			{ region: 'us', name: 'Graham McNeill', update: '1' } as never,
+			null
+		)
+		await expect(helper.getNewData()).rejects.toThrow('network boom')
 	})
 
 	test('create or update a author', async () => {
@@ -190,24 +243,6 @@ describe('AuthorShowHelper should', () => {
 
 	test('isUpdatedRecently returns false if no originalAuthor is present', () => {
 		expect(helper.isUpdatedRecently()).toBe(false)
-	})
-
-	test('isUpdatedRecently returns false for an image-less author even if recently updated', () => {
-		// A missing portrait is incompleteness, not staleness: the record must be
-		// allowed to re-fetch so a Hardcover portrait/bio can fill it, instead of the
-		// 7-day throttle freezing it empty. The incomplete check short-circuits before
-		// the recency check even runs.
-		spyOn(helper.sharedHelper, 'isRecentlyUpdated').mockReturnValue(true)
-		helper.originalData = { ...authorWithoutProjectionUpdatedNow, image: '' }
-		expect(helper.isUpdatedRecently()).toBe(false)
-	})
-
-	test('isUpdatedRecently still throttles a complete (image-bearing) author', () => {
-		// Regression guard: the incomplete override must not defeat the throttle for
-		// authors that already have a portrait.
-		spyOn(helper.sharedHelper, 'isRecentlyUpdated').mockReturnValue(true)
-		helper.originalData = authorWithoutProjectionUpdatedNow
-		expect(helper.isUpdatedRecently()).toBe(true)
 	})
 
 	test('run all update actions', async () => {

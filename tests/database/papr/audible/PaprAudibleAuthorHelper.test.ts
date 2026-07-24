@@ -39,7 +39,6 @@ import {
 	parsedAuthorWithoutGenres
 } from '#tests/datasets/helpers/authors'
 
-
 let asin: string
 let helper: PaprAudibleAuthorHelper
 let options: ApiQueryString
@@ -159,6 +158,17 @@ describe('PaprAudibleAuthorHelper should', () => {
 		helper.setData(parsedAuthor)
 		await expect(helper.createOrUpdate()).resolves.toEqual(obj)
 	})
+	test('createOrUpdate touches updatedAt on identical data so the retry throttle re-engages', async () => {
+		// Unchanged data must still advance updatedAt, or an image-less author whose
+		// re-fetch keeps coming back empty is re-fetched every cycle forever.
+		mockFindOne.mockResolvedValue(parsedAuthor as unknown as AuthorDocument)
+		mockIsEqualData.mockReturnValue(true)
+		helper.setData(parsedAuthor)
+		await helper.createOrUpdate()
+		expect(mockUpdateOne).toHaveBeenCalledWith(expect.objectContaining({ asin }), {
+			$currentDate: { updatedAt: true }
+		})
+	})
 	test('createOrUpdate needs to create', async () => {
 		const obj = { data: parsedAuthor, modified: true }
 		mockFindOne.mockResolvedValueOnce(null)
@@ -200,7 +210,11 @@ describe('PaprAudibleAuthorHelper should', () => {
 	})
 	test('createOrUpdate logs info when updating', async () => {
 		const mockLogger = createMockLogger()
-		const helperWithLogger = new PaprAudibleAuthorHelper(asin, options, mockLogger as unknown as FastifyBaseLogger)
+		const helperWithLogger = new PaprAudibleAuthorHelper(
+			asin,
+			options,
+			mockLogger as unknown as FastifyBaseLogger
+		)
 		mockIsEqualData.mockReturnValue(false)
 		mockFindOne
 			.mockResolvedValueOnce(parsedAuthor as unknown as AuthorDocument)
@@ -236,7 +250,11 @@ describe('PaprAudibleAuthorHelper should catch error when', () => {
 	})
 	test('create logs error on failure', async () => {
 		const mockLogger = createMockLogger()
-		const helperWithLogger = new PaprAudibleAuthorHelper(asin, options, mockLogger as unknown as FastifyBaseLogger)
+		const helperWithLogger = new PaprAudibleAuthorHelper(
+			asin,
+			options,
+			mockLogger as unknown as FastifyBaseLogger
+		)
 		mockInsertOne.mockRejectedValue(new Error('DB error'))
 		helperWithLogger.setData(parsedAuthor)
 		await expect(helperWithLogger.create()).rejects.toThrow()
@@ -250,7 +268,11 @@ describe('PaprAudibleAuthorHelper should catch error when', () => {
 	})
 	test('delete logs error on failure', async () => {
 		const mockLogger = createMockLogger()
-		const helperWithLogger = new PaprAudibleAuthorHelper(asin, options, mockLogger as unknown as FastifyBaseLogger)
+		const helperWithLogger = new PaprAudibleAuthorHelper(
+			asin,
+			options,
+			mockLogger as unknown as FastifyBaseLogger
+		)
 		mockDeleteOne.mockRejectedValue(new Error('DB error'))
 		await expect(helperWithLogger.delete()).rejects.toThrow()
 		expect(mockLogger.error).toHaveBeenCalledWith('DB error')
@@ -274,7 +296,11 @@ describe('PaprAudibleAuthorHelper should catch error when', () => {
 	})
 	test('update logs error on failure', async () => {
 		const mockLogger = createMockLogger()
-		const helperWithLogger = new PaprAudibleAuthorHelper(asin, options, mockLogger as unknown as FastifyBaseLogger)
+		const helperWithLogger = new PaprAudibleAuthorHelper(
+			asin,
+			options,
+			mockLogger as unknown as FastifyBaseLogger
+		)
 		mockFindOne.mockResolvedValueOnce(authorWithoutProjection)
 		mockUpdateOne.mockRejectedValue(new Error('DB error'))
 		helperWithLogger.setData(parsedAuthor)

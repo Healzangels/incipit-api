@@ -1,6 +1,7 @@
 import { FastifyRedis } from '@fastify/redis'
 import type { FastifyBaseLogger } from 'fastify'
 
+import type { AuthorDocument } from '#config/models/Author'
 import type { ApiAuthorProfile, ApiBook, ApiChapter } from '#config/types'
 import { ApiQueryString } from '#config/types'
 import {
@@ -9,6 +10,7 @@ import {
 	searchAudibleAuthors
 } from '#helpers/authors/audible/AudibleAuthorSearch'
 import PaprAudibleAuthorHelper from '#helpers/database/papr/audible/PaprAudibleAuthorHelper'
+import { NotFoundError } from '#helpers/errors/ApiErrors'
 import { fetchGoodreadsAuthorInfo } from '#helpers/providers/goodreadsSeries'
 import type HardcoverProvider from '#helpers/providers/HardcoverProvider'
 import defaultRegistry from '#helpers/providers/registry'
@@ -46,11 +48,61 @@ export default class AuthorShowHelper extends GenericShowHelper {
 	 * value in place rather than breaking the update.
 	 * @returns {Promise<ApiAuthorProfile | ApiBook | ApiChapter | undefined>}
 	 */
+	/** True when the Audible author page is permanently unavailable (not a blip). */
+	private isAudibleUnavailable(err: unknown): boolean {
+		return (
+			err instanceof NotFoundError &&
+			(err.details?.code === 'REGION_UNAVAILABLE' || err.details?.code === 'PRODUCT_DELISTED')
+		)
+	}
+
+	/**
+	 * A bare author profile carrying only the caller-supplied name, preserving any
+	 * fields an earlier scrape left behind. The starting point when Audible has no
+	 * page for the ASIN but the enrichment below can still fill a portrait/bio.
+	 */
+	private minimalAuthorProfile(name: string): ApiAuthorProfile {
+		const base = this.originalData as AuthorDocument | null
+		return {
+			asin: this.asin,
+			name,
+			region: this.options.region,
+			description: base?.description ?? '',
+			image: base?.image ?? '',
+			imageAlt: base?.imageAlt ?? '',
+			genres: base?.genres ?? [],
+			similar: base?.similar ?? []
+		}
+	}
+
 	async getNewData(): Promise<ApiAuthorProfile | ApiBook | ApiChapter | undefined> {
-		const data = await super.getNewData()
+		let data: ApiAuthorProfile | ApiBook | ApiChapter | undefined
+		try {
+			data = await super.getNewData()
+		} catch (err) {
+			// A dead or region-locked Audible ASIN throws here, which would leave the
+			// author with no name and no portrait — and because it throws, Hardcover
+			// and Goodreads never run. With a caller-supplied ?name= we build a bare
+			// profile and let the enrichment below fill it (the fix for Black Library /
+			// delisted authors whose Audible page is gone, e.g. Graham McNeill). Any
+			// other error keeps the existing handling (updateActions preserves the
+			// record on REGION_UNAVAILABLE, rethrows otherwise).
+			const fallbackName = this.options.name?.trim()
+			if (fallbackName && this.isAudibleUnavailable(err)) {
+				data = this.minimalAuthorProfile(fallbackName)
+			} else {
+				throw err
+			}
+		}
 		if (!data || !('image' in data)) return data
 
 		const author = data as ApiAuthorProfile
+		// A scrape can return a record with no usable name (a dead ASIN, or a stub);
+		// fall back to the caller-supplied name so the enrichment has something to
+		// search Hardcover/Goodreads on.
+		if (!author.name?.trim() && this.options.name?.trim()) {
+			author.name = this.options.name.trim()
+		}
 
 		// 1. Prefer Hardcover's curated (Wikipedia-sourced) portrait when it has one;
 		// keep Audible's as the secondary option, and backfill the bio only when

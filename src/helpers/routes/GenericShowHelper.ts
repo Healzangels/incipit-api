@@ -184,14 +184,6 @@ export default class GenericShowHelper {
 		if (!this.originalData) {
 			return false
 		}
-		// An author with no portrait is INCOMPLETE, not merely stale. Without this,
-		// the 7-day staleness throttle freezes a record first cached before a
-		// Hardcover portrait/bio was reachable — it never re-runs the Audible +
-		// Hardcover fetch and stays image-less forever. Treat a missing image as "due
-		// for refresh" so the next update=1 (a Plex refresh or the scheduler) heals it.
-		if (this.type === 'author' && !(this.originalData as AuthorDocument).image) {
-			return false
-		}
 		return this.sharedHelper.isRecentlyUpdated(this.originalData)
 	}
 
