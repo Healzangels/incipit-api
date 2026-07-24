@@ -33,16 +33,26 @@ describe('bestSquareCover', () => {
 		)
 	})
 
-	test('looks up Apple for a portrait cover and returns a hi-res square', async () => {
+	test('serves an Audible cover directly — already square, no Apple lookup', async () => {
+		// Audible/audnexus covers (m.media-amazon.com) are square by format. An Apple
+		// lookup is NOT run and could not win even if it were: Apple's bb-fit does not
+		// guarantee a square, so it would demote the genuine square Audible cover.
 		const registry = appleRegistry([appleResult(1, 'Project Hail Mary (Unabridged)')])
 		const out = await bestSquareCover(registry, {
 			title: 'Project Hail Mary',
 			currentImage: 'https://m.media-amazon.com/images/I/91gJiaPahBL.jpg',
 			region: 'us'
 		})
-		expect(out).toBe(
-			'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/7b/rm_image.jpg/1400x1400bb.jpg'
-		)
+		expect(out).toBe('https://m.media-amazon.com/images/I/91gJiaPahBL.jpg')
+	})
+
+	test('strips an Amazon size modifier so the Audible cover is served full-res', async () => {
+		const out = await bestSquareCover(appleRegistry([]), {
+			title: 'X',
+			currentImage: 'https://m.media-amazon.com/images/I/81abc._SL500_.jpg',
+			region: 'us'
+		})
+		expect(out).toBe('https://m.media-amazon.com/images/I/81abc.jpg')
 	})
 
 	test('picks the best title match and rejects a same-author different book', async () => {
@@ -52,7 +62,7 @@ describe('bestSquareCover', () => {
 		])
 		const out = await bestSquareCover(registry, {
 			title: 'Project Hail Mary',
-			currentImage: 'https://m.media-amazon.com/images/I/91gJiaPahBL.jpg',
+			currentImage: 'https://assets.hardcover.app/edition/portrait.jpg',
 			region: 'us'
 		})
 		expect(out).toContain('1400x1400bb')
@@ -60,7 +70,7 @@ describe('bestSquareCover', () => {
 		// Only the wrong book is available -> no square cover rather than a wrong one.
 		const wrongOnly = await bestSquareCover(appleRegistry([appleResult(1, 'Artemis')]), {
 			title: 'Project Hail Mary',
-			currentImage: 'https://m.media-amazon.com/images/I/91gJiaPahBL.jpg',
+			currentImage: 'https://assets.hardcover.app/edition/portrait.jpg',
 			region: 'us'
 		})
 		expect(wrongOnly).toBeNull()
@@ -73,7 +83,7 @@ describe('bestSquareCover', () => {
 		const wrong = await bestSquareCover(registry, {
 			title: 'Project Hail Mary',
 			author: 'Someone Else',
-			currentImage: 'https://m.media-amazon.com/images/I/91gJiaPahBL.jpg',
+			currentImage: 'https://assets.hardcover.app/edition/portrait.jpg',
 			region: 'us'
 		})
 		expect(wrong).toBeNull()
@@ -82,7 +92,7 @@ describe('bestSquareCover', () => {
 		const right = await bestSquareCover(registry, {
 			title: 'Project Hail Mary',
 			author: 'Andy Weir',
-			currentImage: 'https://m.media-amazon.com/images/I/91gJiaPahBL.jpg',
+			currentImage: 'https://assets.hardcover.app/edition/portrait.jpg',
 			region: 'us'
 		})
 		expect(right).toContain('1400x1400bb')
@@ -116,7 +126,7 @@ describe('bestSquareCover', () => {
 		expect(
 			await bestSquareCover(throwing, {
 				title: 'Dune',
-				currentImage: 'https://m.media-amazon.com/images/I/x.jpg',
+				currentImage: 'https://covers.openlibrary.org/b/id/123-L.jpg',
 				region: 'us'
 			})
 		).toBeNull()
