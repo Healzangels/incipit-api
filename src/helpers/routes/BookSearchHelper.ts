@@ -87,6 +87,30 @@ const BUNDLE_RE =
 	/\b(box(?:ed)?[- ]?set|gift[- ]?set|omnibus|collection|complete series|books? \d+\s*[-–—]\s*\d+|\d+[- ]book set|trilogy set)\b/i
 const BUNDLE_PENALTY = 0.2
 
+// Audible's catalog is increasingly polluted with AI-narrated "Virtual Voice"
+// editions: Amazon auto-generates a synthetic-narration listing for a real book
+// with a plausible title, author, and runtime, so it clears the confidence floor
+// and can even duration-corroborate to 1.0 — then, if a stale sidecar ASIN points
+// at it, PINS to 1.0 and out-ranks a real human-narrated edition from another
+// provider. The reliable tell is the narrator string itself: no human narrator is
+// named "Virtual Voice", so key off that rather than the noisier empty-narrator or
+// implausible-runtime signals (a junk listing can have a plausible runtime).
+//
+// Demote rather than drop: a library may legitimately hold a Virtual Voice file,
+// and it must still match when it is the only edition anywhere. Sized like the
+// bundle penalty (0.2): a duration-corroborated junk edition lands at 0.8 — beaten
+// by any human edition at 1.0, yet above the 0.65 floor and below the 0.9 auto-
+// apply bar, so a junk-only book is OFFERED, never silently applied. Applied even
+// to an ASIN pin (like BUNDLE_PENALTY), and the candidate is stripped of its
+// pinned-first status, so a stale junk pin cannot force 1.0 over a real edition.
+const AI_NARRATOR_RE = /\bvirtual voice\b/i
+const AI_NARRATION_PENALTY = 0.2
+
+/** True when a candidate's narrator marks it AI-generated (Amazon "Virtual Voice"). */
+function isAiNarrated(narrators: string[] | undefined): boolean {
+	return (narrators ?? []).some((n) => AI_NARRATOR_RE.test(n))
+}
+
 // Volume/part markers that DISTINGUISH two otherwise-identical titles.
 // normalizeTitle strips "Part N"/"Book N"/"Vol N" as series noise -- correct for
 // "A Warrior's Knowledge, Book 2" (which must still match the bare print record),
@@ -267,10 +291,14 @@ export default class BookSearchHelper {
 	// structurally not the single book the caller asked for, so honouring the pin
 	// there is what let a stale sidecar ASIN win outright.
 	private bundleDemotedIds = new Set<string>()
+	private aiNarratedIds = new Set<string>()
 	// How many candidates the volume-mismatch penalty hit on the last scoring pass
 	// -- a numbered sibling ("KTF Part 1" against a query for "KTF Part 2"). Zero
 	// for the overwhelming majority of searches, which involve no numbered pair.
 	private volumeDemoted = 0
+	// How many candidates the AI-narration demotion hit on the last scoring pass --
+	// an Amazon "Virtual Voice" synthetic edition. Zero for almost every search.
+	private aiNarrationDemoted = 0
 	// How many candidates the graded duration dead-zone penalty hit on the last
 	// scoring pass. Instrumented like the language gate so its effect is measured
 	// rather than assumed.
@@ -419,6 +447,7 @@ export default class BookSearchHelper {
 			bundleDemoted: this.bundleDemoted,
 			durationDeadzoned: this.durationDeadzoned,
 			volumeDemoted: this.volumeDemoted,
+			aiNarrationDemoted: this.aiNarrationDemoted,
 			matched: top != null,
 			provider: top?.provider ?? null,
 			matchedTitle: top?.title ?? null,
@@ -497,8 +526,10 @@ export default class BookSearchHelper {
 		this.languageDemoted = 0
 		this.bundleDemoted = 0
 		this.bundleDemotedIds.clear()
+		this.aiNarratedIds.clear()
 		this.durationDeadzoned = 0
 		this.volumeDemoted = 0
+		this.aiNarrationDemoted = 0
 		// The volume/part numbers the QUERY carries, read from the RAW titles
 		// (normalizeTitle strips them). Empty for almost every search; when
 		// present, a candidate carrying a DIFFERENT number is a different book.
@@ -558,6 +589,15 @@ export default class BookSearchHelper {
 				this.bundleDemoted += 1
 				this.bundleDemotedIds.add(c.id)
 			}
+			// An AI-narrated "Virtual Voice" edition (see AI_NARRATION_PENALTY):
+			// demote it below any human-narrated alternative and — like the bundle
+			// penalty — apply it even to an ASIN pin, then strip its pinned-first
+			// status below, so a stale junk pin cannot force 1.0 over a real edition.
+			if (isAiNarrated(c.narrators)) {
+				confidence = Math.max(0, confidence - AI_NARRATION_PENALTY)
+				this.aiNarrationDemoted += 1
+				this.aiNarratedIds.add(c.id)
+			}
 			// Wrong-volume demotion. The query named a "Part N"/"Book N"/"Vol N" and
 			// this candidate carries a DIFFERENT one -- a search for "KTF Part 2"
 			// looking at "KTF Part 1". normalizeTitle deleted both numbers before
@@ -610,7 +650,9 @@ export default class BookSearchHelper {
 			// coin-flip. Nothing outscores a pin (1.0 is the ceiling), so this
 			// tiebreak leading is equivalent to pinned-first, stated explicitly.
 			const pinned = (c: ScoredCandidate) =>
-				this.isPinned(c, wantAsin) && !this.bundleDemotedIds.has(c.id)
+				this.isPinned(c, wantAsin) &&
+				!this.bundleDemotedIds.has(c.id) &&
+				!this.aiNarratedIds.has(c.id)
 			const byPin = Number(pinned(b)) - Number(pinned(a))
 			if (byPin !== 0) return byPin
 			const byConfidence = b.confidence - a.confidence

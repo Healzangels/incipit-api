@@ -62,6 +62,12 @@ export interface MatchDecision {
 	 * was in the pool and would have tied but for this gate.
 	 */
 	volumeDemoted: number
+	/**
+	 * How many candidates the AI-narration demotion hit — an Amazon "Virtual
+	 * Voice" synthetic edition. Non-zero means a junk listing was competing and,
+	 * left unchecked, could have out-ranked a real human-narrated edition.
+	 */
+	aiNarrationDemoted: number
 
 	/** At least one candidate survived the confidence floor. */
 	matched: boolean
@@ -111,6 +117,8 @@ export interface MatchMetrics {
 	durationDeadzonedSearches: number
 	/** Searches where at least one numbered sibling was demoted (wrong Part/Book N). */
 	volumeDemotedSearches: number
+	/** Searches where at least one AI-narrated "Virtual Voice" edition was demoted. */
+	aiNarrationDemotedSearches: number
 	/**
 	 * Item lookups (/books/:asin) whose record language positively conflicts
 	 * with the request region's expected language. The early-warning for a
@@ -146,6 +154,7 @@ const store: {
 	languageDemotedCandidates: number
 	durationDeadzonedSearches: number
 	volumeDemotedSearches: number
+	aiNarrationDemotedSearches: number
 	languageMismatchedLookups: number
 	confidenceSum: number
 	byConfidence: Map<string, number>
@@ -164,6 +173,7 @@ const store: {
 	languageDemotedCandidates: 0,
 	durationDeadzonedSearches: 0,
 	volumeDemotedSearches: 0,
+	aiNarrationDemotedSearches: 0,
 	languageMismatchedLookups: 0,
 	confidenceSum: 0,
 	byConfidence: new Map(),
@@ -208,6 +218,7 @@ export function recordMatchDecision(decision: MatchDecision): void {
 	}
 	if (decision.durationDeadzoned > 0) store.durationDeadzonedSearches += 1
 	if (decision.volumeDemoted > 0) store.volumeDemotedSearches += 1
+	if (decision.aiNarrationDemoted > 0) store.aiNarrationDemotedSearches += 1
 
 	if (decision.matched && decision.confidence != null) {
 		store.confidenceSum += decision.confidence
@@ -240,6 +251,7 @@ export function getMatchMetrics(): MatchMetrics {
 		languageDemotedCandidates: store.languageDemotedCandidates,
 		durationDeadzonedSearches: store.durationDeadzonedSearches,
 		volumeDemotedSearches: store.volumeDemotedSearches,
+		aiNarrationDemotedSearches: store.aiNarrationDemotedSearches,
 		languageMismatchedLookups: store.languageMismatchedLookups,
 		byConfidence: Object.fromEntries(store.byConfidence),
 		avgConfidence: matched > 0 ? store.confidenceSum / matched : null,
@@ -270,6 +282,7 @@ export function resetMatchMetrics(): void {
 	store.languageDemotedCandidates = 0
 	store.durationDeadzonedSearches = 0
 	store.volumeDemotedSearches = 0
+	store.aiNarrationDemotedSearches = 0
 	store.languageMismatchedLookups = 0
 	store.confidenceSum = 0
 	store.byConfidence.clear()
