@@ -2,6 +2,7 @@ import AppleBooksProvider from '#helpers/providers/AppleBooksProvider'
 import AudibleProvider from '#helpers/providers/AudibleProvider'
 import HardcoverProvider from '#helpers/providers/HardcoverProvider'
 import OpenLibraryProvider from '#helpers/providers/OpenLibraryProvider'
+import OverDriveProvider from '#helpers/providers/OverDriveProvider'
 import ProviderRegistry from '#helpers/providers/ProviderRegistry'
 import StorytelProvider from '#helpers/providers/StorytelProvider'
 import type { BookProvider } from '#helpers/providers/types'
@@ -36,6 +37,18 @@ if (process.env.STORYTEL_ENABLED === 'true') providers.push(new StorytelProvider
 // held out by the confidence floor. Set APPLE_ENABLED=false to disable. Placed
 // before OpenLibrary so its audiobook record outranks a book-level fallback.
 if (process.env.APPLE_ENABLED !== 'false') providers.push(new AppleBooksProvider())
+
+// OverDrive (Libby) — keyless library-audiobook catalog that frequently carries
+// exactly what Audible lacks (Blackstone/Recorded Books, older & indie titles),
+// with narrator + runtime + cover, so its candidate is a real audio edition, not
+// a print fallback. Library-scoped: results reflect OVERDRIVE_LIBRARY's holdings
+// (default a large public library). SUPPLEMENT, never primary — it has no ASIN,
+// so a duration-confirmed Audible edition still outranks it. On by default; set
+// OVERDRIVE_ENABLED=false to disable. Placed before OpenLibrary so its audiobook
+// record outranks a book-level fallback.
+if (process.env.OVERDRIVE_ENABLED !== 'false') {
+	providers.push(new OverDriveProvider({ library: process.env.OVERDRIVE_LIBRARY }))
+}
 
 providers.push(new OpenLibraryProvider({ contact: process.env.OL_CONTACT }))
 

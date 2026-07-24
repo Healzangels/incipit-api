@@ -14,8 +14,8 @@
 const ASIN_RE = /^B[0-9A-Z]{9}$/
 
 export interface DecodedProviderId {
-	provider: 'hardcover' | 'openlibrary' | 'storytel' | 'apple'
-	kind: 'edition' | 'book' | 'works' | 'audiobook'
+	provider: 'hardcover' | 'openlibrary' | 'storytel' | 'apple' | 'overdrive'
+	kind: 'edition' | 'book' | 'works' | 'audiobook' | 'media'
 	nativeId: string
 }
 
@@ -27,6 +27,11 @@ export function encodeStorytel(consumableId: number | string): string {
 /** Apple Books audiobook collection -> "apple-audiobook-1565808256". */
 export function encodeAppleAudiobook(collectionId: number | string): string {
 	return `apple-audiobook-${collectionId}`
+}
+
+/** OverDrive (Thunder) media id -> "overdrive-265555". */
+export function encodeOverdrive(id: number | string): string {
+	return `overdrive-${id}`
 }
 
 /** Hardcover audio edition -> "hardcover-edition-31501578". */
@@ -65,6 +70,9 @@ export function decodeProviderId(id: string): DecodedProviderId | null {
 
 	const ap = id.match(/^apple-audiobook-(\d+)$/)
 	if (ap) return { provider: 'apple', kind: 'audiobook', nativeId: ap[1] }
+
+	const od = id.match(/^overdrive-(\d+)$/)
+	if (od) return { provider: 'overdrive', kind: 'media', nativeId: od[1] }
 
 	return null
 }
