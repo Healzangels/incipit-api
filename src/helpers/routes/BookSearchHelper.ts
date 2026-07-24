@@ -641,7 +641,7 @@ export default class BookSearchHelper {
 		// wantAsin is passed into dedupe so a pinned candidate cannot lose its
 		// GROUP to a richer same-runtime rival — the pinned-first tiebreak below
 		// runs after dedupe and cannot resurrect a deleted candidate.
-		return dedupeCandidates(accepted, wantAsin).sort((a, b) => {
+		return dedupeCandidates(accepted, wantAsin, this.aiNarratedIds).sort((a, b) => {
 			// The explicitly-hinted ASIN outranks EVERYTHING, including a confidence
 			// tie at 1.0: a perfect title+author+duration candidate also reaches 1.0,
 			// and if the two don't dedupe-merge (different ASIN and runtime bucket)

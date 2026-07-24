@@ -96,13 +96,23 @@ function hasAudiobookCover(c: ScoredCandidate): boolean {
  * tiebreak, so without this a same-runtime-bucket rival that wins on richness
  * would delete the pinned candidate — and with it the one identity the caller
  * asked for by name — before that tiebreak ever executes.
+ *
+ * `demotedIds` are candidates the consumer has demoted as junk (an AI-narrated
+ * "Virtual Voice" edition). They must NOT receive that pin privilege — a stale
+ * sidecar ASIN pointing at a junk edition would otherwise let it win its group
+ * and delete the real human edition it shares a runtime bucket with, before the
+ * ranker's AI exclusion runs — and they must not act as a metadata DONOR, or the
+ * junk's narrator/asin/cover would graft onto a real winner that merged with it.
+ * They still merge and can still win a group they are ALONE in (a junk-only book).
  * @param {ScoredCandidate[]} candidates scored candidates (any order)
  * @param {string | null} pinnedAsin definitive ASIN to keep as its group's winner
+ * @param {ReadonlySet<string>} demotedIds ids barred from pin-win and from donating
  * @returns {ScoredCandidate[]} one candidate per distinct edition/book
  */
 export function dedupeCandidates(
 	candidates: ScoredCandidate[],
-	pinnedAsin: string | null = null
+	pinnedAsin: string | null = null,
+	demotedIds: ReadonlySet<string> = new Set()
 ): ScoredCandidate[] {
 	const n = candidates.length
 	// Union-find: a candidate can share MORE than one identity key (an ASIN and a
@@ -213,8 +223,12 @@ export function dedupeCandidates(
 	// The pin outranks confidence/richness INSIDE a group too: the ranker's
 	// pinned-first tiebreak runs after dedupe, so a pinned candidate that loses
 	// its group here is gone before that tiebreak exists.
+	// A demoted-junk candidate never gets the pin privilege (else a stale junk
+	// ASIN deletes the real edition it shares a bucket with) and never donates its
+	// metadata to a winner (below) -- but it can still win a group it is alone in.
+	const isJunk = (c: ScoredCandidate): boolean => demotedIds.has(c.id)
 	const isPinned = (c: ScoredCandidate): boolean =>
-		pinnedAsin != null && c.asin?.toUpperCase() === pinnedAsin
+		pinnedAsin != null && c.asin?.toUpperCase() === pinnedAsin && !isJunk(c)
 	candidates.forEach((c, i) => {
 		const root = find(i)
 		const cur = best.get(root)
@@ -224,19 +238,21 @@ export function dedupeCandidates(
 			(isPinned(c) === isPinned(cur) && isBetter(c, cur))
 		)
 			best.set(root, c)
-		if (c.asin) {
+		// Donor selections skip junk: its asin/narrators/cover must not graft onto a
+		// real winner that merged with it (a Virtual Voice narrator on a human book).
+		if (c.asin && !isJunk(c)) {
 			const curAsin = bestWithAsin.get(root)
 			if (!curAsin || isBetter(c, curAsin)) bestWithAsin.set(root, c)
 		}
-		if (c.narrators?.length) {
+		if (c.narrators?.length && !isJunk(c)) {
 			const curNarr = bestWithNarrators.get(root)
 			if (!curNarr || isBetter(c, curNarr)) bestWithNarrators.set(root, c)
 		}
-		if (c.cover) {
+		if (c.cover && !isJunk(c)) {
 			const curCover = bestWithCover.get(root)
 			if (!curCover || isBetter(c, curCover)) bestWithCover.set(root, c)
 		}
-		if (hasAudiobookCover(c)) {
+		if (hasAudiobookCover(c) && !isJunk(c)) {
 			const curAudio = bestAudioCover.get(root)
 			if (!curAudio || isBetter(c, curAudio)) bestAudioCover.set(root, c)
 		}

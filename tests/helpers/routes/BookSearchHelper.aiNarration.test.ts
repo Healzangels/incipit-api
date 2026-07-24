@@ -98,4 +98,41 @@ describe('AI-narration (Virtual Voice) demotion', () => {
 		expect(getMatchMetrics().aiNarrationDemotedSearches).toBe(1)
 		expect(getMatchMetrics().recent[0].aiNarrationDemoted).toBe(1)
 	})
+
+	test('REGRESSION: a junk pin cannot delete a SAME-runtime human edition in dedupe', async () => {
+		// The junk and the human share a runtime bucket, so they MERGE in dedupe --
+		// which runs BEFORE the ranker's AI exclusion. Before the fix, dedupe's
+		// pin-awareness let the pinned junk win the merged group and delete the human
+		// outright. (The earlier tests dodge this by giving the human a different
+		// runtime; here the runtimes match to the minute.)
+		const out = await helperFor(
+			[
+				candidate({ id: 'junk', asin: 'B0JUNK00000' }),
+				human({ audioSeconds: WANT_SECONDS }) // same bucket as the junk
+			],
+			{ asin: 'B0JUNK00000' }
+		).search()
+
+		expect(out[0].id).toBe('human')
+		expect(out.find((c) => c.id === 'junk')).toBeUndefined() // merged away, not resurrected
+	})
+
+	test('a junk edition does not graft its Virtual Voice narrator onto a narrator-less winner', async () => {
+		// A real record with no narrators of its own wins the merged group; the junk
+		// must not be its narrator DONOR, or the book is tagged narrator "Virtual
+		// Voice" despite the demotion (which only touches ranking, not the field).
+		const out = await helperFor([
+			candidate({ id: 'junk', asin: 'B0JUNK00000' }),
+			candidate({
+				provider: 'hardcover',
+				id: 'real',
+				asin: null,
+				narrators: [], // work-level record, no narrator of its own
+				audioSeconds: WANT_SECONDS // same bucket -> merges with the junk
+			})
+		]).search()
+
+		expect(out[0].id).toBe('real')
+		expect(out[0].narrators).not.toContain('Virtual Voice')
+	})
 })
