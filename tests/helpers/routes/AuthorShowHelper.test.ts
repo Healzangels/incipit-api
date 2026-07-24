@@ -192,6 +192,24 @@ describe('AuthorShowHelper should', () => {
 		expect(helper.isUpdatedRecently()).toBe(false)
 	})
 
+	test('isUpdatedRecently returns false for an image-less author even if recently updated', () => {
+		// A missing portrait is incompleteness, not staleness: the record must be
+		// allowed to re-fetch so a Hardcover portrait/bio can fill it, instead of the
+		// 7-day throttle freezing it empty. The incomplete check short-circuits before
+		// the recency check even runs.
+		spyOn(helper.sharedHelper, 'isRecentlyUpdated').mockReturnValue(true)
+		helper.originalData = { ...authorWithoutProjectionUpdatedNow, image: '' }
+		expect(helper.isUpdatedRecently()).toBe(false)
+	})
+
+	test('isUpdatedRecently still throttles a complete (image-bearing) author', () => {
+		// Regression guard: the incomplete override must not defeat the throttle for
+		// authors that already have a portrait.
+		spyOn(helper.sharedHelper, 'isRecentlyUpdated').mockReturnValue(true)
+		helper.originalData = authorWithoutProjectionUpdatedNow
+		expect(helper.isUpdatedRecently()).toBe(true)
+	})
+
 	test('run all update actions', async () => {
 		helper.originalData = authorWithoutProjection
 		await expect(helper.updateActions()).resolves.toStrictEqual(parsedAuthor)
