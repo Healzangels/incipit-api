@@ -1,6 +1,7 @@
 import AppleBooksProvider from '#helpers/providers/AppleBooksProvider'
 import AudibleProvider from '#helpers/providers/AudibleProvider'
 import HardcoverProvider from '#helpers/providers/HardcoverProvider'
+import LibriVoxProvider from '#helpers/providers/LibriVoxProvider'
 import OpenLibraryProvider from '#helpers/providers/OpenLibraryProvider'
 import OverDriveProvider from '#helpers/providers/OverDriveProvider'
 import ProviderRegistry from '#helpers/providers/ProviderRegistry'
@@ -49,6 +50,22 @@ if (process.env.APPLE_ENABLED !== 'false') providers.push(new AppleBooksProvider
 if (process.env.OVERDRIVE_ENABLED !== 'false') {
 	providers.push(new OverDriveProvider({ library: process.env.OVERDRIVE_LIBRARY }))
 }
+
+// LibriVox — the volunteer public-domain catalogue. Keyless, explicitly built for
+// third-party use (no credential to expire, no ToS grey area), and it covers a
+// long tail nobody else does: classics whose ONLY audio edition is a LibriVox
+// recording, where Audible and OverDrive return nothing and the fan-out settles
+// for a print record. SUPPLEMENT, never primary — no ASIN and volunteer-read, so
+// any commercial edition outranks it on the existing scorer, no special-casing.
+//
+// OFF by default, for the same reason as Storytel: measured live, its API answers
+// in ~2.3s warm and up to ~17s cold, against ~0.3s for Audible and OverDrive.
+// searchAll awaits every provider, so enabling it makes LibriVox the pacer for
+// EVERY search — seconds per book across a full library scan — to serve a
+// catalogue most libraries have no titles from. Worth it only if you actually
+// hold public-domain classics: LIBRIVOX_ENABLED=true. Placed before OpenLibrary
+// so its audio record outranks a book-level fallback when it is on.
+if (process.env.LIBRIVOX_ENABLED === 'true') providers.push(new LibriVoxProvider())
 
 providers.push(new OpenLibraryProvider({ contact: process.env.OL_CONTACT }))
 
