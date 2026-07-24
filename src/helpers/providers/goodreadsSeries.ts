@@ -94,19 +94,22 @@ const SERIES_VARIANT_RE =
  * Amalo" 6). 0 on any failure, so an unreachable count simply sorts last rather
  * than breaking the enrichment.
  */
-async function seriesMemberCount(foreignId: number | undefined): Promise<number> {
+async function seriesMemberCount(
+	foreignId: number | undefined,
+	state?: LookupState
+): Promise<number> {
 	if (typeof foreignId !== 'number') return 0
 	const memoized = seriesCountMemo.get(foreignId)
 	if (memoized !== undefined) return memoized
-	const degradedBefore = fetchDegradedCount()
-	const series = await getJson<SeriesResponse>(`/series/${foreignId}`)
+	const probe = state ?? newLookupState()
+	const series = await getJson<SeriesResponse>(`/series/${foreignId}`, probe)
 	const count = Array.isArray(series?.LinkItems) ? series.LinkItems.length : 0
 	// Only memoize a count the mirror actually gave us. This memo has NO TTL, so a
 	// 0 recorded from a rate-limited or timed-out call would pin that series at
 	// "no members" for the life of the process -- and the count is exactly how a
 	// parent series is told from its sub-series, so a wrongly-0 parent loses the
 	// ranking and books get shelved under the narrower series.
-	if (fetchDegradedCount() === degradedBefore) seriesCountMemo.set(foreignId, count)
+	if (!probe.degraded) seriesCountMemo.set(foreignId, count)
 	return count
 }
 
@@ -186,13 +189,13 @@ export async function withGoodreadsSeries<T extends SeriesEnrichable>(
 	}
 
 	if (result === undefined) {
-		const degradedBefore = fetchDegradedCount()
-		result = await fetchGoodreadsSeries(title, author, logger)
+		const probe = newLookupState()
+		result = await fetchGoodreadsSeries(title, author, logger, probe)
 		// Only cache an answer the mirror actually gave us. A null produced while
 		// rate-limited/unreachable would otherwise pin "no series" on this book for
 		// the whole TTL -- the exact damage a throttling event during a full-library
 		// refresh would do.
-		if (redis && fetchDegradedCount() === degradedBefore) {
+		if (redis && !probe.degraded) {
 			try {
 				await redis.set(key, JSON.stringify(result), 'EX', CACHE_TTL_SECONDS)
 			} catch {
@@ -231,17 +234,29 @@ const BACKOFF_MS = 60000
 
 let nextAllowedAt = 0
 let backoffUntil = 0
-// Monotonic count of calls that failed for TRANSPORT reasons (a 429, a timeout, a
-// refusal) rather than answering "nothing found". A miss produced while degraded
-// is NOT a real miss, and caching it would blank a book's series or an author's
-// portrait for the whole TTL -- precisely the damage a throttling event during a
-// full-library refresh would otherwise do. Callers snapshot it around a lookup and
-// skip the cache write if it moved.
-let degradedCount = 0
 
-/** Snapshot for "did any call degrade during my lookup?" (see degradedCount). */
-function fetchDegradedCount(): number {
-	return degradedCount
+/**
+ * Per-lookup degradation flag, threaded through the calls ONE lookup makes.
+ *
+ * Set when a call failed for TRANSPORT reasons (429/503, a timeout, a refusal)
+ * rather than answering "nothing found". A miss produced while degraded is NOT a
+ * real miss, and caching it would blank a book's series or an author's portrait
+ * for the whole TTL -- precisely the damage a throttling event during a
+ * full-library refresh would otherwise do.
+ *
+ * Deliberately per-lookup rather than a module-wide counter: the scheduler runs
+ * several authors concurrently while the pacer serializes calls, so a shared
+ * counter let ONE request's failure invalidate every other in-flight request's
+ * perfectly good answer -- measured, the cache then barely populates under
+ * exactly the scan load it exists to protect.
+ */
+interface LookupState {
+	degraded: boolean
+}
+
+/** A fresh degradation scope for one logical lookup. */
+function newLookupState(): LookupState {
+	return { degraded: false }
 }
 
 /**
@@ -253,7 +268,6 @@ function fetchDegradedCount(): number {
 export function resetGoodreadsThrottle(): void {
 	nextAllowedAt = 0
 	backoffUntil = 0
-	degradedCount = 0
 	requestChain = Promise.resolve()
 }
 // Serializes the pacing arithmetic: without a shared tail, N concurrent callers
@@ -277,25 +291,37 @@ function takeSlot(): Promise<void> {
 	return slot
 }
 
-async function getJson<T>(path: string): Promise<T | null> {
+async function getJson<T>(path: string, state?: LookupState): Promise<T | null> {
 	// Standing down after a push-back: skip the call outright rather than adding
 	// to the pile. Counts as degraded -- the null we return says nothing about
 	// whether the data exists, so it must not be cached as a miss.
 	if (Date.now() < backoffUntil) {
-		degradedCount += 1
+		if (state) state.degraded = true
 		return null
 	}
 	await takeSlot()
 	try {
-		const res = await fetch(`${BASE}${path}`, { timeout: TIMEOUT_MS })
+		// retries=3 starts fetchPlus at its own retry ceiling, i.e. exactly ONE
+		// attempt. Its ladder fires up to 4 requests per call -- so a slot that the
+		// pacer budgets as one request became four, roughly 4x the intended rate
+		// and worst exactly while the server is pushing back. Retry policy for this
+		// mirror is the backoff below, not fetchPlus's.
+		const res = await fetch(`${BASE}${path}`, { timeout: TIMEOUT_MS }, 3)
 		return (await res.data) as T
 	} catch (err) {
-		// A 429 (or an outright refusal once it stops answering) means we are over
-		// the mirror's budget -- stop calling for a cooldown instead of retrying
-		// into the wall.
-		const status = (err as { response?: { status?: number }; status?: number })?.response?.status
+		// fetchPlus rejects with FetchError, which carries the status TOP-LEVEL --
+		// there is no `.response`, so reading err.response.status found nothing and
+		// the stand-down never fired (measured: 12 requests across 3 lookups against
+		// an always-429 mirror).
+		const status = (err as { status?: number })?.status
 		if (status === 429 || status === 503) backoffUntil = Date.now() + BACKOFF_MS
-		degradedCount += 1
+		// A 4xx OTHER than 429 is the mirror ANSWERING: 404 means no such work or
+		// author, which is a real miss worth caching. Only transport failures
+		// (429/503, timeouts, refusals -- no status at all) are degradation, or a
+		// missing record would never be cacheable and would be re-queried forever
+		// against the very mirror the pacing protects.
+		const answered = status != null && status >= 400 && status < 500 && status !== 429
+		if (!answered && state) state.degraded = true
 		// Enrichment is strictly best-effort: an outage, a 404 or a rate limit
 		// must never fail the request that asked for it.
 		return null
@@ -342,13 +368,14 @@ function positionFor(series: WorkSeries, workId: number): string | undefined {
 export async function fetchGoodreadsSeries(
 	title: string,
 	author: string | null,
-	logger?: FastifyBaseLogger
+	logger?: FastifyBaseLogger,
+	state?: LookupState
 ): Promise<GoodreadsSeriesResult | null> {
 	const want = normalizeTitle(title)
 	if (!want) return null
 
 	const q = encodeURIComponent([title, author].filter(Boolean).join(' '))
-	const hits = await getJson<SearchHit[]>(`/search?q=${q}`)
+	const hits = await getJson<SearchHit[]>(`/search?q=${q}`, state)
 	if (!Array.isArray(hits) || hits.length === 0) return null
 
 	// Only the first few: /search is relevance-ordered, and walking deeper trades
@@ -357,7 +384,7 @@ export async function fetchGoodreadsSeries(
 		const workId = hit.workId
 		if (typeof workId !== 'number') continue
 
-		const work = await getJson<WorkResponse>(`/work/${workId}`)
+		const work = await getJson<WorkResponse>(`/work/${workId}`, state)
 		if (!work) continue
 
 		// Verify before trusting. Compare against every title form the work
@@ -402,7 +429,7 @@ export async function fetchGoodreadsSeries(
 			const pool = clean.length ? clean : all
 			const counts = new Map<WorkSeries, number>()
 			for (const s of pool) {
-				counts.set(s, await seriesMemberCount(s.ForeignId))
+				counts.set(s, await seriesMemberCount(s.ForeignId, state))
 			}
 			// A series that cannot POSITION our book is useless for shelving
 			// however large, so positioned series rank first; among those the
@@ -472,11 +499,12 @@ interface GoodreadsAuthorResponse {
  */
 export async function fetchGoodreadsAuthorInfo(
 	name: string,
-	logger?: FastifyBaseLogger
+	logger?: FastifyBaseLogger,
+	state?: LookupState
 ): Promise<{ image: string | null; bio: string | null }> {
 	if (!name.trim()) return { image: null, bio: null }
 
-	const hits = await getJson<SearchHit[]>(`/search?q=${encodeURIComponent(name)}`)
+	const hits = await getJson<SearchHit[]>(`/search?q=${encodeURIComponent(name)}`, state)
 	if (!hits?.length) return { image: null, bio: null }
 
 	// Distinct author ids from the top hits, in relevance order.
@@ -487,7 +515,7 @@ export async function fetchGoodreadsAuthorInfo(
 	}
 
 	for (const id of ids) {
-		const author = await getJson<GoodreadsAuthorResponse>(`/author/${id}`)
+		const author = await getJson<GoodreadsAuthorResponse>(`/author/${id}`, state)
 		// FALSE-POSITIVE GATE: only trust a record whose name confirms it is the
 		// same person; a shared first name or a title-word hit is rejected here.
 		if (!author?.Name || !isSameAuthor(name, author.Name)) continue
@@ -535,12 +563,12 @@ export async function withGoodreadsAuthorInfo(
 		}
 	}
 
-	const degradedBefore = fetchDegradedCount()
-	const result = await fetchGoodreadsAuthorInfo(trimmed, logger)
+	const probe = newLookupState()
+	const result = await fetchGoodreadsAuthorInfo(trimmed, logger, probe)
 
 	// Only cache an answer the mirror actually gave us -- see withGoodreadsSeries.
 	// Caching a rate-limited null would blank this author's portrait for the TTL.
-	if (redis && fetchDegradedCount() === degradedBefore) {
+	if (redis && !probe.degraded) {
 		try {
 			await redis.set(key, JSON.stringify(result), 'EX', CACHE_TTL_SECONDS)
 		} catch {

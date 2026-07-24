@@ -104,15 +104,24 @@ function hasAudiobookCover(c: ScoredCandidate): boolean {
  * ranker's AI exclusion runs — and they must not act as a metadata DONOR, or the
  * junk's narrator/asin/cover would graft onto a real winner that merged with it.
  * They still merge and can still win a group they are ALONE in (a junk-only book).
+ *
+ * `pinBlockedIds` is the WEAKER form, for a candidate that is real but whose pin
+ * we no longer trust (a stale sidecar ASIN the file's runtime contradicts). It
+ * loses the pin privilege exactly like a demoted one, but its ASIN, narrators and
+ * cover are genuine store data and must still be donated — folding it into
+ * `demotedIds` stripped the identity off its group's winner and left the edition
+ * unpickable in Fix Match.
  * @param {ScoredCandidate[]} candidates scored candidates (any order)
  * @param {string | null} pinnedAsin definitive ASIN to keep as its group's winner
  * @param {ReadonlySet<string>} demotedIds ids barred from pin-win and from donating
+ * @param {ReadonlySet<string>} pinBlockedIds ids barred from pin-win only
  * @returns {ScoredCandidate[]} one candidate per distinct edition/book
  */
 export function dedupeCandidates(
 	candidates: ScoredCandidate[],
 	pinnedAsin: string | null = null,
-	demotedIds: ReadonlySet<string> = new Set()
+	demotedIds: ReadonlySet<string> = new Set(),
+	pinBlockedIds: ReadonlySet<string> = new Set()
 ): ScoredCandidate[] {
 	const n = candidates.length
 	// Union-find: a candidate can share MORE than one identity key (an ASIN and a
@@ -228,7 +237,10 @@ export function dedupeCandidates(
 	// metadata to a winner (below) -- but it can still win a group it is alone in.
 	const isJunk = (c: ScoredCandidate): boolean => demotedIds.has(c.id)
 	const isPinned = (c: ScoredCandidate): boolean =>
-		pinnedAsin != null && c.asin?.toUpperCase() === pinnedAsin && !isJunk(c)
+		pinnedAsin != null &&
+		c.asin?.toUpperCase() === pinnedAsin &&
+		!isJunk(c) &&
+		!pinBlockedIds.has(c.id)
 	// Winner precedence inside a group: a pin beats everything, then a REAL edition
 	// beats a demoted-junk one regardless of confidence -- so a junk that merged
 	// with the real book can never win by out-scoring a weaker human edition; it

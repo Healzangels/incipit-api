@@ -180,6 +180,46 @@ describe('AuthorShowHelper should', () => {
 		await expect(helper.getNewData()).rejects.toThrow()
 	})
 
+	test('a transient Audible failure does NOT rename the stored author', async () => {
+		// Audible maps 404/403/503 all to REGION_UNAVAILABLE, so a throttle blip lands
+		// here. The caller's ?name= is the raw Plex tag (a spelling variant, or in the
+		// swap case the NARRATOR) -- taking it would permanently rename the canonical
+		// record that feeds the author text index.
+		mockScrapeProcess.mockRejectedValue(
+			new NotFoundError('blip', { asin, code: 'REGION_UNAVAILABLE' })
+		)
+		helper = new AuthorShowHelper(
+			asin,
+			{ region: 'us', name: 'Stephen Lawhead', update: '1' } as never,
+			null
+		)
+		helper.originalData = { ...authorWithoutProjection, name: 'Stephen R. Lawhead' }
+		const out = (await helper.getNewData()) as ApiAuthorProfile
+		expect(out.name).toBe('Stephen R. Lawhead')
+	})
+
+	test('an empty enrichment pass does not blank a stored portrait or bio', async () => {
+		// Every source coming back empty (a Goodreads 429, a missing Hardcover token)
+		// must not persist '' over what we already had -- one throttled minute during
+		// a sweep would otherwise blank every author it touched.
+		const getSpy = spyOn(defaultRegistry, 'get').mockReturnValue({
+			fetchAuthorInfo: mock().mockResolvedValue({ image: null, bio: null })
+		} as unknown as ReturnType<typeof defaultRegistry.get>)
+		mockFetchGoodreadsAuthorInfo.mockResolvedValue({ image: null, bio: null })
+		mockScrapeProcess.mockResolvedValue({ ...parsedAuthor, image: '', description: '' })
+
+		helper = new AuthorShowHelper(asin, { region: 'us', update: '1' } as never, null)
+		helper.originalData = {
+			...authorWithoutProjection,
+			image: 'https://stored/portrait.jpg',
+			description: 'A stored bio.'
+		}
+		const out = (await helper.getNewData()) as ApiAuthorProfile
+		expect(out.image).toBe('https://stored/portrait.jpg')
+		expect(out.description).toBe('A stored bio.')
+		getSpy.mockRestore()
+	})
+
 	test('rethrows a non-availability error even when a name is supplied', async () => {
 		mockScrapeProcess.mockRejectedValue(new Error('network boom'))
 		helper = new AuthorShowHelper(

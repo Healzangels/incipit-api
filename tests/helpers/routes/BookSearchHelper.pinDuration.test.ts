@@ -111,4 +111,103 @@ describe('stale-pin override by duration', () => {
 		expect(out[0].id).toBe('pike')
 		expect(getMatchMetrics().recent[0].pinDurationOverridden).toBe(0)
 	})
+
+	test('REGRESSION: a pin on a DIFFERENT BOOK is caught (scored delta is null there)', async () => {
+		// The guard used to read scoreCandidate's durationDeltaPct, which is null
+		// whenever every scored variant clamps to 0 -- exactly what a wrong-BOOK pin
+		// does. The wrong book then kept a forced 1.0 and was returned first.
+		const out = await helperFor(
+			[
+				candidate({
+					id: 'wrongbook',
+					asin: 'B0PIKE00000',
+					title: 'Atomic Habits',
+					authors: ['James Clear'],
+					narrators: ['James Clear'],
+					audioSeconds: 18000
+				}),
+				reading()
+			],
+			{ duration: FILE_MS, asin: 'B0PIKE00000' }
+		).search()
+
+		expect(out[0].id).toBe('reading')
+		expect(getMatchMetrics().recent[0].pinDurationOverridden).toBeGreaterThan(0)
+	})
+
+	test('REGRESSION: an AI-narrated row cannot corroborate away a real pin', async () => {
+		// A Virtual Voice listing whose runtime happens to match must not be treated
+		// as ground truth: it would strip the pin and then win the ranking, inverting
+		// the AI-narration demotion.
+		const out = await helperFor(
+			[
+				pike(),
+				candidate({ id: 'junk', asin: null, narrators: ['Virtual Voice'], audioSeconds: 95640 })
+			],
+			{ duration: FILE_MS, asin: 'B0PIKE00000' }
+		).search()
+
+		expect(out[0].id).toBe('pike')
+		expect(getMatchMetrics().recent[0].pinDurationOverridden).toBe(0)
+	})
+
+	test('REGRESSION: a runtime-less twin of the stale ASIN cannot resurrect the pin', async () => {
+		// Hardcover audio rows routinely have a null runtime. Deciding per row let
+		// that twin keep the pin and win, with the wrong narrator.
+		const out = await helperFor(
+			[
+				pike(),
+				candidate({
+					provider: 'hardcover',
+					id: 'hc-pike',
+					asin: 'B0PIKE00000',
+					narrators: ['Rosamund Pike'],
+					audioSeconds: null
+				}),
+				reading()
+			],
+			{ duration: FILE_MS, asin: 'B0PIKE00000' }
+		).search()
+
+		expect(out[0].id).toBe('reading')
+		expect((out[0].narrators ?? []).join(' ')).toContain('Kate Reading')
+	})
+
+	test('REGRESSION: a contradicted pin is demoted, never dropped from the results', async () => {
+		// Withdrawing the pin re-exposes it to the language/dead-zone penalties, which
+		// could push it under the floor -- so asking for an ASIN returned a list with
+		// no row carrying it, and the operator could not pick it in Fix Match.
+		const out = await helperFor(
+			[pike({ language: 'de' }), reading({ language: 'en' })],
+			{ duration: FILE_MS, asin: 'B0PIKE00000', region: 'us' }
+		).search()
+
+		expect(out[0].id).toBe('reading')
+		expect(out.some((c) => c.asin === 'B0PIKE00000')).toBe(true)
+	})
+
+	test('an overridden pin still donates its ASIN and narrators in dedupe', async () => {
+		// It is a REAL edition whose pin we distrust, not junk: folding it into the
+		// junk set stripped the identity off its group's winner.
+		const out = await helperFor(
+			[
+				pike(),
+				candidate({ provider: 'apple', id: 'apple-pike', asin: null, narrators: [], audioSeconds: 102180 }),
+				reading()
+			],
+			{ duration: FILE_MS, asin: 'B0PIKE00000' }
+		).search()
+
+		const pikeGroup = out.find((c) => c.id === 'pike' || c.id === 'apple-pike')
+		expect(pikeGroup).toBeDefined()
+		expect(pikeGroup!.asin).toBe('B0PIKE00000')
+		expect((pikeGroup!.narrators ?? []).join(' ')).toContain('Rosamund Pike')
+	})
+
+	test('telemetry does not report an overridden pin as ASIN-confirmed', async () => {
+		await helperFor([pike(), reading()], { duration: FILE_MS, asin: 'B0PIKE00000' }).search()
+		const decision = getMatchMetrics().recent[0]
+		expect(decision.pinDurationOverridden).toBeGreaterThan(0)
+		expect(decision.asinPinned).toBe(false)
+	})
 })

@@ -440,7 +440,12 @@ export default class BookSearchHelper {
 		const top = ranked.length ? ranked[0] : null
 		const durationCorroborated =
 			top != null && top.durationDeltaPct != null && top.durationDeltaPct <= DURATION_TOLERANCE
-		const asinPinned = top != null && this.isPinned(top, wantAsin)
+		// An OVERRIDDEN pin is not a confirmed identity: the file's runtime just told
+		// us that ASIN is wrong. Counting it as pinned reported the match as
+		// ASIN-confirmed and therefore `risky: false` -- marking clean exactly the
+		// class of match this guard exists to flag.
+		const asinPinned =
+			top != null && this.isPinned(top, wantAsin) && !this.pinOverriddenIds.has(top.id)
 		const decision: MatchDecision = {
 			title: searchedTitle,
 			author: this.options.author ?? null,
@@ -552,13 +557,45 @@ export default class BookSearchHelper {
 		// whose edition runtime is clearly wrong for the file (>5% off) while a
 		// DIFFERENT edition corroborates it is trusting a bad ASIN over ground truth.
 		const wantSeconds = this.options.duration != null ? this.options.duration / 1000 : null
-		const durationCorroborates = (c: ProviderCandidate): boolean => {
-			if (wantSeconds == null || c.audioSeconds == null || c.audioSeconds <= 0) return false
-			return Math.abs(wantSeconds - c.audioSeconds) / c.audioSeconds <= DURATION_TOLERANCE
+		// ONE duration arithmetic for both sides of this decision. The pin's own
+		// delta used to be read from scoreCandidate's result, which is null whenever
+		// every scored variant clamps to 0 -- i.e. exactly when the pinned ASIN is a
+		// DIFFERENT BOOK, the case most in need of catching. Measuring it here means
+		// the contradiction is judged on the same basis as the corroboration.
+		const durationDelta = (c: ProviderCandidate): number | null => {
+			if (wantSeconds == null || c.audioSeconds == null || c.audioSeconds <= 0) return null
+			return Math.abs(wantSeconds - c.audioSeconds) / c.audioSeconds
 		}
+		const durationCorroborates = (c: ProviderCandidate): boolean => {
+			const delta = durationDelta(c)
+			return delta != null && delta <= DURATION_TOLERANCE
+		}
+		// The corroborator has to be something we would actually accept. An
+		// AI-narrated "Virtual Voice" listing whose runtime happens to match would
+		// otherwise strip a legitimate pin and then win the ranking outright --
+		// inverting AI_NARRATION_PENALTY, which exists precisely so junk cannot beat
+		// a real edition.
 		const corroboratedNonPinExists =
 			wantAsin != null &&
-			candidates.some((c) => !this.isPinned(c, wantAsin) && durationCorroborates(c))
+			candidates.some(
+				(c) => !this.isPinned(c, wantAsin) && !isAiNarrated(c.narrators) && durationCorroborates(c)
+			)
+		// Decide the contradiction ONCE for the pinned ASIN, over every row carrying
+		// it, rather than per row: providers routinely return the same edition twice
+		// and Hardcover audio rows often have a null runtime, so a per-row test let
+		// the runtime-less twin keep the pin and win anyway. A pin is stale only when
+		// rows that DO report a runtime all disagree with the file.
+		const pinnedDeltas =
+			wantAsin != null
+				? candidates
+						.filter((c) => this.isPinned(c, wantAsin))
+						.map(durationDelta)
+						.filter((d): d is number => d != null)
+				: []
+		const pinIsStale =
+			corroboratedNonPinExists &&
+			pinnedDeltas.length > 0 &&
+			pinnedDeltas.every((d) => d > DURATION_TOLERANCE)
 		const scored: ScoredCandidate[] = candidates.map((c) => {
 			// Score against the album title and (when present) the track title,
 			// keeping the higher. Both go through the same scoreCandidate (duration
@@ -577,11 +614,9 @@ export default class BookSearchHelper {
 			// and let the candidate score on its merits (the dead-zone penalty below),
 			// so the duration-corroborated edition wins instead of the wrong narrator.
 			const asinMatch = this.isPinned(c, wantAsin)
-			const pinContradicted =
-				asinMatch &&
-				best.durationDeltaPct != null &&
-				best.durationDeltaPct > DURATION_TOLERANCE &&
-				corroboratedNonPinExists
+			// Applies to EVERY row carrying the stale ASIN, including one with no
+			// runtime of its own -- otherwise that row keeps the pin and wins.
+			const pinContradicted = asinMatch && pinIsStale
 			if (pinContradicted) {
 				this.pinDurationOverridden += 1
 				this.pinOverriddenIds.add(c.id)
@@ -667,6 +702,13 @@ export default class BookSearchHelper {
 				confidence = Math.max(0, confidence - through * DURATION_DEADZONE_MAX_PENALTY)
 				this.durationDeadzoned += 1
 			}
+			// A contradicted pin is DEMOTED, never deleted. Withdrawing the override
+			// re-exposes it to the language/volume/dead-zone penalties, which together
+			// can push it under the acceptance floor -- so `GET /books?asin=X` could
+			// come back with no row carrying X at all, and the operator could not even
+			// pick their named edition in Fix Match. Hold it at the floor: it ranks
+			// well below the corroborated winner but stays offered.
+			if (pinContradicted) confidence = Math.max(confidence, CONFIDENCE_FLOOR)
 			return {
 				...c,
 				confidence,
@@ -678,98 +720,98 @@ export default class BookSearchHelper {
 		// wantAsin is passed into dedupe so a pinned candidate cannot lose its
 		// GROUP to a richer same-runtime rival — the pinned-first tiebreak below
 		// runs after dedupe and cannot resurrect a deleted candidate.
-		return dedupeCandidates(
-			accepted,
-			wantAsin,
-			new Set([...this.aiNarratedIds, ...this.pinOverriddenIds])
-		).sort((a, b) => {
-			// The explicitly-hinted ASIN outranks EVERYTHING, including a confidence
-			// tie at 1.0: a perfect title+author+duration candidate also reaches 1.0,
-			// and if the two don't dedupe-merge (different ASIN and runtime bucket)
-			// the pin used to fall through to byAudio/providerRank like any other
-			// tie — i.e. the one edition the caller named by identity could lose a
-			// coin-flip. Nothing outscores a pin (1.0 is the ceiling), so this
-			// tiebreak leading is equivalent to pinned-first, stated explicitly.
-			const pinned = (c: ScoredCandidate) =>
-				this.isPinned(c, wantAsin) &&
-				!this.bundleDemotedIds.has(c.id) &&
-				!this.aiNarratedIds.has(c.id) &&
-				!this.pinOverriddenIds.has(c.id)
-			const byPin = Number(pinned(b)) - Number(pinned(a))
-			if (byPin !== 0) return byPin
-			const byConfidence = b.confidence - a.confidence
-			// A clear confidence win still decides. Inside the audio tolerance the
-			// pair is treated as effectively tied, so the identity and format
-			// tiebreaks below get to run — see
-			// AUDIO_EDITION_CONFIDENCE_TOLERANCE for why a small gap between an
-			// audio edition and a print-only record usually reflects a series
-			// suffix in the title rather than a different book.
-			if (Math.abs(byConfidence) > AUDIO_EDITION_CONFIDENCE_TOLERANCE) return byConfidence
-			// Equal confidence: prefer the edition in the wanted language FIRST. A
-			// duration-corroborated foreign edition (+0.15 corroboration, -0.15
-			// demotion = net even) ties an uncorroborated correct-language book
-			// record; when byAudio ran first it handed that tie to the foreign
-			// audio edition and the language preference never executed. Language is
-			// an identity property — the wrong-language book is the wrong BOOK —
-			// while audio-vs-book-level is a richness property, so identity ranks
-			// first.
-			const byLanguage =
-				Number(languageConflict(a.language, wantLanguage)) -
-				Number(languageConflict(b.language, wantLanguage))
-			if (byLanguage !== 0) return byLanguage
-			// Still tied (e.g. an unanalyzed file gives no duration signal, so an
-			// audio edition and a book-level record both sit at the floor): prefer
-			// the ACTUAL audiobook edition. Otherwise the winner falls to provider
-			// order, and a series can split across sources (half Audible, half
-			// OpenLibrary) with inconsistent series/sort metadata.
-			const byAudio = Number(isAudioEdition(b)) - Number(isAudioEdition(a))
-			if (byAudio !== 0) return byAudio
-			// The NARRATOR, when the caller told us who reads their copy.
-			//
-			// For a popular book the providers return several editions with
-			// identical title and author, so title/author scoring cannot
-			// separate them at all: Harry Potter and the Chamber of Secrets
-			// comes back as Jim Dale, Stephen Fry and a Full-Cast edition, all
-			// tied at 0.85. The narrator is the only field that says which one
-			// is on disk, and it is categorical where duration is fuzzy -- so
-			// it ranks above the runtime delta below.
-			//
-			// A RANKING signal, never a filter. It reorders candidates that
-			// already passed acceptance and can never discard one, so a
-			// missing, misspelt or differently-credited narrator ("Jim Dale"
-			// vs "Jim Dale and a full cast") costs nothing beyond the tiebreak
-			// it declines to decide. Same rule the ASIN pin follows.
-			if (wantNarratorKeys.length) {
-				const byNarrator = Number(narratorMatches(b)) - Number(narratorMatches(a))
-				if (byNarrator !== 0) return byNarrator
+		// AI-narrated ids are junk (no pin, no donation); a pin-overridden id is a
+		// REAL edition whose pin we distrust, so it keeps donating its ASIN/narrators.
+		return dedupeCandidates(accepted, wantAsin, this.aiNarratedIds, this.pinOverriddenIds).sort(
+			(a, b) => {
+				// The explicitly-hinted ASIN outranks EVERYTHING, including a confidence
+				// tie at 1.0: a perfect title+author+duration candidate also reaches 1.0,
+				// and if the two don't dedupe-merge (different ASIN and runtime bucket)
+				// the pin used to fall through to byAudio/providerRank like any other
+				// tie — i.e. the one edition the caller named by identity could lose a
+				// coin-flip. Nothing outscores a pin (1.0 is the ceiling), so this
+				// tiebreak leading is equivalent to pinned-first, stated explicitly.
+				const pinned = (c: ScoredCandidate) =>
+					this.isPinned(c, wantAsin) &&
+					!this.bundleDemotedIds.has(c.id) &&
+					!this.aiNarratedIds.has(c.id) &&
+					!this.pinOverriddenIds.has(c.id)
+				const byPin = Number(pinned(b)) - Number(pinned(a))
+				if (byPin !== 0) return byPin
+				const byConfidence = b.confidence - a.confidence
+				// A clear confidence win still decides. Inside the audio tolerance the
+				// pair is treated as effectively tied, so the identity and format
+				// tiebreaks below get to run — see
+				// AUDIO_EDITION_CONFIDENCE_TOLERANCE for why a small gap between an
+				// audio edition and a print-only record usually reflects a series
+				// suffix in the title rather than a different book.
+				if (Math.abs(byConfidence) > AUDIO_EDITION_CONFIDENCE_TOLERANCE) return byConfidence
+				// Equal confidence: prefer the edition in the wanted language FIRST. A
+				// duration-corroborated foreign edition (+0.15 corroboration, -0.15
+				// demotion = net even) ties an uncorroborated correct-language book
+				// record; when byAudio ran first it handed that tie to the foreign
+				// audio edition and the language preference never executed. Language is
+				// an identity property — the wrong-language book is the wrong BOOK —
+				// while audio-vs-book-level is a richness property, so identity ranks
+				// first.
+				const byLanguage =
+					Number(languageConflict(a.language, wantLanguage)) -
+					Number(languageConflict(b.language, wantLanguage))
+				if (byLanguage !== 0) return byLanguage
+				// Still tied (e.g. an unanalyzed file gives no duration signal, so an
+				// audio edition and a book-level record both sit at the floor): prefer
+				// the ACTUAL audiobook edition. Otherwise the winner falls to provider
+				// order, and a series can split across sources (half Audible, half
+				// OpenLibrary) with inconsistent series/sort metadata.
+				const byAudio = Number(isAudioEdition(b)) - Number(isAudioEdition(a))
+				if (byAudio !== 0) return byAudio
+				// The NARRATOR, when the caller told us who reads their copy.
+				//
+				// For a popular book the providers return several editions with
+				// identical title and author, so title/author scoring cannot
+				// separate them at all: Harry Potter and the Chamber of Secrets
+				// comes back as Jim Dale, Stephen Fry and a Full-Cast edition, all
+				// tied at 0.85. The narrator is the only field that says which one
+				// is on disk, and it is categorical where duration is fuzzy -- so
+				// it ranks above the runtime delta below.
+				//
+				// A RANKING signal, never a filter. It reorders candidates that
+				// already passed acceptance and can never discard one, so a
+				// missing, misspelt or differently-credited narrator ("Jim Dale"
+				// vs "Jim Dale and a full cast") costs nothing beyond the tiebreak
+				// it declines to decide. Same rule the ASIN pin follows.
+				if (wantNarratorKeys.length) {
+					const byNarrator = Number(narratorMatches(b)) - Number(narratorMatches(a))
+					if (byNarrator !== 0) return byNarrator
+				}
+				// Both corroborated on duration -- but one is CLOSER.
+				//
+				// DURATION_TOLERANCE is 5%, which is the right width for deciding
+				// whether a candidate is the same book at all, and far too wide to
+				// separate two narrations OF that book. Measured on Harry Potter and
+				// the Chamber of Secrets against a 34,968s file: the Stephen Fry
+				// edition (34,980s) is 0.03% off and the Full-Cast edition (34,620s)
+				// is 1.0% off, so both cleared tolerance, both took the same
+				// corroboration bonus, and the tie fell through to provider order --
+				// picking an edition with the wrong narrator entirely while the
+				// evidence to choose correctly was already in hand.
+				//
+				// Ordering by the delta uses that evidence without changing what
+				// counts as a match: it only ranks candidates that ALREADY passed,
+				// and a null delta (no runtime to compare) never participates.
+				const aDelta = a.durationDeltaPct
+				const bDelta = b.durationDeltaPct
+				if (aDelta != null && bDelta != null && Math.abs(aDelta - bDelta) > 1e-9) {
+					return aDelta - bDelta
+				}
+				// Neither identity nor format separated them, so a residual gap inside
+				// the tolerance decides after all — the band only ever lets the two
+				// tiebreaks above jump a small deficit, it never discards confidence.
+				if (Math.abs(byConfidence) > 1e-9) return byConfidence
+				// Genuinely tied: prefer the richer/more-authoritative source.
+				return providerRank(a) - providerRank(b)
 			}
-			// Both corroborated on duration -- but one is CLOSER.
-			//
-			// DURATION_TOLERANCE is 5%, which is the right width for deciding
-			// whether a candidate is the same book at all, and far too wide to
-			// separate two narrations OF that book. Measured on Harry Potter and
-			// the Chamber of Secrets against a 34,968s file: the Stephen Fry
-			// edition (34,980s) is 0.03% off and the Full-Cast edition (34,620s)
-			// is 1.0% off, so both cleared tolerance, both took the same
-			// corroboration bonus, and the tie fell through to provider order --
-			// picking an edition with the wrong narrator entirely while the
-			// evidence to choose correctly was already in hand.
-			//
-			// Ordering by the delta uses that evidence without changing what
-			// counts as a match: it only ranks candidates that ALREADY passed,
-			// and a null delta (no runtime to compare) never participates.
-			const aDelta = a.durationDeltaPct
-			const bDelta = b.durationDeltaPct
-			if (aDelta != null && bDelta != null && Math.abs(aDelta - bDelta) > 1e-9) {
-				return aDelta - bDelta
-			}
-			// Neither identity nor format separated them, so a residual gap inside
-			// the tolerance decides after all — the band only ever lets the two
-			// tiebreaks above jump a small deficit, it never discards confidence.
-			if (Math.abs(byConfidence) > 1e-9) return byConfidence
-			// Genuinely tied: prefer the richer/more-authoritative source.
-			return providerRank(a) - providerRank(b)
-		})
+		)
 	}
 
 	/**

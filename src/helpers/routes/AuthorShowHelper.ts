@@ -68,7 +68,13 @@ export default class AuthorShowHelper extends GenericShowHelper {
 		const base = this.originalData as AuthorDocument | null
 		return {
 			asin: this.asin,
-			name,
+			// The STORED name wins. Audible answers 404/403/503 all as
+			// REGION_UNAVAILABLE, so a mere throttle blip lands here -- and the caller's
+			// ?name= is the raw Plex artist tag, which may be a spelling variant or (in
+			// the documented swap case) the NARRATOR. Taking it would rename the
+			// canonical record that feeds the author text index, permanently, on a
+			// transient failure. The supplied name is only the seed when we have none.
+			name: base?.name || name,
 			region: this.options.region,
 			description: base?.description ?? '',
 			image: base?.image ?? '',
@@ -144,6 +150,21 @@ export default class AuthorShowHelper extends GenericShowHelper {
 			if (grBio && !author.description?.trim()) {
 				this.logger?.info({ author: author.name }, 'author description: filled from Goodreads')
 				author.description = grBio
+			}
+		}
+
+		// Enrichment can only ADD. If every source came back empty this pass -- a
+		// Goodreads 429, a missing Hardcover token, an Audible page that dropped its
+		// photo -- the result is a record with '' where a portrait and bio used to
+		// be, and it is persisted with $set, deleting them. One rate-limited minute
+		// during a sweep would blank every author it touched. Keep what we already
+		// had whenever the fresh pass has nothing to put there.
+		const previous = this.originalData as AuthorDocument | null
+		if (previous) {
+			if (!author.image?.trim() && previous.image) author.image = previous.image
+			if (!author.imageAlt?.trim() && previous.imageAlt) author.imageAlt = previous.imageAlt
+			if (!author.description?.trim() && previous.description) {
+				author.description = previous.description
 			}
 		}
 		return author

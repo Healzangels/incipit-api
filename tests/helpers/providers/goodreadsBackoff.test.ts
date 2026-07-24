@@ -37,10 +37,21 @@ function fakeRedis() {
  * comes back with no portrait -- indistinguishable from an author who genuinely
  * has none -- so hammering it costs real data as well as being impolite.
  */
+// The REAL rejection shape: fetchPlus throws FetchError, which carries `status`
+// TOP-LEVEL and has no `.response`. An earlier version of this helper faked
+// `{response:{status}}` -- a shape fetchPlus never emits -- so it green-lit a
+// backoff that could not fire in production. The class itself cannot be imported
+// here because this file mocks the module it lives in, so the shape is built by
+// hand; fetchPlusError.test.ts pins that shape against the real implementation.
 function rejectWithStatus(status: number) {
 	fetchMock.mockReset()
 	fetchMock.mockImplementation(() =>
-		Promise.reject(Object.assign(new Error('rate limited'), { response: { status } }))
+		Promise.reject(
+			Object.assign(new Error('Request failed with status ' + status), {
+				name: 'FetchError',
+				status
+			})
+		)
 	)
 }
 
