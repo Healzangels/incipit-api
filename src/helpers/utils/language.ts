@@ -16,9 +16,9 @@
  * region means editing N files and missing one.
  */
 
-/** Canonical language names → ISO-639-1. Lowercased keys; accents included. */
 import { foldDiacritics } from '#helpers/utils/foldDiacritics'
 
+/** Canonical language names → ISO-639-1. Lowercased keys; accents included. */
 const NAME_TO_CODE: Record<string, string> = {
 	english: 'en',
 	german: 'de',
