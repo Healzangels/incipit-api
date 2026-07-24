@@ -39,6 +39,9 @@ mock.module('#helpers/authors/audible/ScrapeHelper', () => ({
 
 const mockFetchGoodreadsAuthorInfo = mock()
 mock.module('#helpers/providers/goodreadsSeries', () => ({
+	// The helper calls the CACHED wrapper; mock it explicitly rather than relying
+	// on a missing export resolving to the real (network-touching) module.
+	withGoodreadsAuthorInfo: mockFetchGoodreadsAuthorInfo,
 	fetchGoodreadsAuthorInfo: mockFetchGoodreadsAuthorInfo,
 	withGoodreadsSeries: mock((book: unknown) => book),
 	fetchGoodreadsSeries: mock()

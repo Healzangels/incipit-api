@@ -11,7 +11,7 @@ import {
 } from '#helpers/authors/audible/AudibleAuthorSearch'
 import PaprAudibleAuthorHelper from '#helpers/database/papr/audible/PaprAudibleAuthorHelper'
 import { NotFoundError } from '#helpers/errors/ApiErrors'
-import { fetchGoodreadsAuthorInfo } from '#helpers/providers/goodreadsSeries'
+import { withGoodreadsAuthorInfo } from '#helpers/providers/goodreadsSeries'
 import type HardcoverProvider from '#helpers/providers/HardcoverProvider'
 import defaultRegistry from '#helpers/providers/registry'
 import GenericShowHelper from '#helpers/routes/GenericShowHelper'
@@ -21,6 +21,8 @@ export { isSameAuthor }
 
 export default class AuthorShowHelper extends GenericShowHelper {
 	credentials?: Record<string, string>
+	/** Kept for the Goodreads author cache (the base class only keeps a RedisHelper). */
+	private redisClient: FastifyRedis | null
 
 	constructor(
 		asin: string,
@@ -31,6 +33,7 @@ export default class AuthorShowHelper extends GenericShowHelper {
 	) {
 		super(asin, options, redis, 'author', logger)
 		this.credentials = credentials
+		this.redisClient = redis
 	}
 
 	/**
@@ -129,8 +132,9 @@ export default class AuthorShowHelper extends GenericShowHelper {
 		// (e.g. Jessica Townsend). Consulted only when a gap REMAINS, and it only
 		// ever FILLS the gap — it never overrides a curated Audible/Hardcover value.
 		if (!author.image?.trim() || !author.description?.trim()) {
-			const { image: grImage, bio: grBio } = await fetchGoodreadsAuthorInfo(
+			const { image: grImage, bio: grBio } = await withGoodreadsAuthorInfo(
 				author.name,
+				this.redisClient,
 				this.logger
 			)
 			if (grImage && !author.image?.trim()) {

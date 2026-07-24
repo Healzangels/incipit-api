@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test'
 
+// No outbound pacing in tests: the live client holds a ~1.1s gap between
+// bookinfo.pro calls, which would add ~45s to this suite for no coverage.
+process.env.GOODREADS_MIN_GAP_MS = '0'
+
 const fetchMock = mock()
 mock.module('#helpers/utils/fetchPlus', () => ({ default: fetchMock }))
 
@@ -68,8 +72,16 @@ describe('goodreads series enrichment', () => {
 			[{ workId: 42 }],
 			work({
 				Series: [
-					{ Title: 'Sub Series', ForeignId: 1, LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }] },
-					{ Title: 'Parent Series', ForeignId: 2, LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '7' }] }
+					{
+						Title: 'Sub Series',
+						ForeignId: 1,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }]
+					},
+					{
+						Title: 'Parent Series',
+						ForeignId: 2,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '7' }]
+					}
 				]
 			}),
 			{ LinkItems: Array.from({ length: 4 }, (_, i) => i) }, // Sub: 4 members
@@ -103,81 +115,106 @@ describe('goodreads series enrichment', () => {
 	})
 })
 
-	describe('parent-series preference', () => {
-		// A work in a sub-series, its parent, and a variant. The variant has the
-		// most members but is an edition listing; the parent has more members than
-		// the sub. Order: search, work, then one /series/{id} per pooled series.
-		const multi = () => ({
-			Title: 'The Grief of Stones',
-			Series: [
-				{ Title: 'The Cemeteries of Amalo', ForeignId: 1,
-					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '2' }] },
-				{ Title: 'The Chronicles of Osreth', ForeignId: 2,
-					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '3' }] },
-				{ Title: 'Osreth Omnibus Edition', ForeignId: 3,
-					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }] }
-			]
-		})
-		// member-count responses, in ForeignId order of the CLEAN pool (1 then 2)
-		const members = (n) => ({ LinkItems: Array.from({ length: n }, (_, i) => i) })
-
-		test('prefers the parent (more members) among clean series', async () => {
-			// clean pool = Cemeteries(1), Osreth(2); the Omnibus Edition is excluded
-			respond([{ workId: 42 }], multi(), members(6), members(9))
-			const out = await fetchGoodreadsSeries('The Grief of Stones', null)
-			expect(out?.primary).toEqual({ name: 'The Chronicles of Osreth', position: '3' })
-			expect(out?.secondary).toEqual({ name: 'The Cemeteries of Amalo', position: '2' })
-		})
-
-		test('excludes an edition/ordering variant even when it is largest', async () => {
-			// If the variant filter were off, Omnibus(#1) with a huge count could win.
-			respond([{ workId: 42 }], multi(), members(6), members(9))
-			const out = await fetchGoodreadsSeries('The Grief of Stones', null)
-			expect(out?.primary?.name).not.toContain('Omnibus')
-			expect(out?.secondary?.name).not.toContain('Omnibus')
-		})
-
-		test('drops a franchise UMBRELLA (-verse/Universe) for the sub-series', async () => {
-			// Measured live: "The Enderverse" (18) and "Jack Ryan Universe" (45) beat
-			// the wanted sub-series on member count, so a size rule alone reintroduces
-			// them. They carry the tell in their NAME while a same-size TIGHT parent
-			// (The Legend of Drizzt) does not, so the name is what excludes them.
-			respond(
-				[{ workId: 42 }],
-				{
-					Title: 'Xenocide',
-					Series: [
-						{ Title: "Ender's Saga", ForeignId: 1, LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '3' }] },
-						{ Title: 'The Enderverse', ForeignId: 2, LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '14' }] }
-					]
-				},
-				{ LinkItems: Array.from({ length: 9 }, (_, i) => i) }, // Ender's Saga: 9
-				{ LinkItems: Array.from({ length: 18 }, (_, i) => i) } // Enderverse: 18 (larger)
-			)
-			const out = await fetchGoodreadsSeries('Xenocide', null)
-			// The umbrella is larger, but the sub-series is what a reader means.
-			expect(out?.primary).toEqual({ name: "Ender's Saga", position: '3' })
-		})
-
-		test('keeps a large TIGHT parent that carries no umbrella marker', async () => {
-			// The Legend of Drizzt (~37) dwarfs its sub-arc but IS the wanted series,
-			// so it must NOT be demoted the way a "-verse" umbrella is.
-			respond(
-				[{ workId: 42 }],
-				{
-					Title: 'Passage to Dawn',
-					Series: [
-						{ Title: 'Legacy of the Drow', ForeignId: 1, LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '4' }] },
-						{ Title: 'The Legend of Drizzt', ForeignId: 2, LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '10' }] }
-					]
-				},
-				{ LinkItems: Array.from({ length: 4 }, (_, i) => i) }, // sub-arc: 4
-				{ LinkItems: Array.from({ length: 37 }, (_, i) => i) } // parent: 37
-			)
-			const out = await fetchGoodreadsSeries('Passage to Dawn', null)
-			expect(out?.primary).toEqual({ name: 'The Legend of Drizzt', position: '10' })
-		})
+describe('parent-series preference', () => {
+	// A work in a sub-series, its parent, and a variant. The variant has the
+	// most members but is an edition listing; the parent has more members than
+	// the sub. Order: search, work, then one /series/{id} per pooled series.
+	const multi = () => ({
+		Title: 'The Grief of Stones',
+		Series: [
+			{
+				Title: 'The Cemeteries of Amalo',
+				ForeignId: 1,
+				LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '2' }]
+			},
+			{
+				Title: 'The Chronicles of Osreth',
+				ForeignId: 2,
+				LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '3' }]
+			},
+			{
+				Title: 'Osreth Omnibus Edition',
+				ForeignId: 3,
+				LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }]
+			}
+		]
 	})
+	// member-count responses, in ForeignId order of the CLEAN pool (1 then 2)
+	const members = (n) => ({ LinkItems: Array.from({ length: n }, (_, i) => i) })
+
+	test('prefers the parent (more members) among clean series', async () => {
+		// clean pool = Cemeteries(1), Osreth(2); the Omnibus Edition is excluded
+		respond([{ workId: 42 }], multi(), members(6), members(9))
+		const out = await fetchGoodreadsSeries('The Grief of Stones', null)
+		expect(out?.primary).toEqual({ name: 'The Chronicles of Osreth', position: '3' })
+		expect(out?.secondary).toEqual({ name: 'The Cemeteries of Amalo', position: '2' })
+	})
+
+	test('excludes an edition/ordering variant even when it is largest', async () => {
+		// If the variant filter were off, Omnibus(#1) with a huge count could win.
+		respond([{ workId: 42 }], multi(), members(6), members(9))
+		const out = await fetchGoodreadsSeries('The Grief of Stones', null)
+		expect(out?.primary?.name).not.toContain('Omnibus')
+		expect(out?.secondary?.name).not.toContain('Omnibus')
+	})
+
+	test('drops a franchise UMBRELLA (-verse/Universe) for the sub-series', async () => {
+		// Measured live: "The Enderverse" (18) and "Jack Ryan Universe" (45) beat
+		// the wanted sub-series on member count, so a size rule alone reintroduces
+		// them. They carry the tell in their NAME while a same-size TIGHT parent
+		// (The Legend of Drizzt) does not, so the name is what excludes them.
+		respond(
+			[{ workId: 42 }],
+			{
+				Title: 'Xenocide',
+				Series: [
+					{
+						Title: "Ender's Saga",
+						ForeignId: 1,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '3' }]
+					},
+					{
+						Title: 'The Enderverse',
+						ForeignId: 2,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '14' }]
+					}
+				]
+			},
+			{ LinkItems: Array.from({ length: 9 }, (_, i) => i) }, // Ender's Saga: 9
+			{ LinkItems: Array.from({ length: 18 }, (_, i) => i) } // Enderverse: 18 (larger)
+		)
+		const out = await fetchGoodreadsSeries('Xenocide', null)
+		// The umbrella is larger, but the sub-series is what a reader means.
+		expect(out?.primary).toEqual({ name: "Ender's Saga", position: '3' })
+	})
+
+	test('keeps a large TIGHT parent that carries no umbrella marker', async () => {
+		// The Legend of Drizzt (~37) dwarfs its sub-arc but IS the wanted series,
+		// so it must NOT be demoted the way a "-verse" umbrella is.
+		respond(
+			[{ workId: 42 }],
+			{
+				Title: 'Passage to Dawn',
+				Series: [
+					{
+						Title: 'Legacy of the Drow',
+						ForeignId: 1,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '4' }]
+					},
+					{
+						Title: 'The Legend of Drizzt',
+						ForeignId: 2,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '10' }]
+					}
+				]
+			},
+			{ LinkItems: Array.from({ length: 4 }, (_, i) => i) }, // sub-arc: 4
+			{ LinkItems: Array.from({ length: 37 }, (_, i) => i) } // parent: 37
+		)
+		const out = await fetchGoodreadsSeries('Passage to Dawn', null)
+		expect(out?.primary).toEqual({ name: 'The Legend of Drizzt', position: '10' })
+	})
+})
 
 describe('withGoodreadsSeries enrichment wrapper', () => {
 	const fakeRedis = () => {

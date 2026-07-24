@@ -202,11 +202,60 @@ export async function withGoodreadsSeries<T extends SeriesEnrichable>(
 	}
 }
 
+// bookinfo.pro is a free community Goodreads mirror, not a sanctioned API, and it
+// answers "Server capacity exceeded" (HTTP 429) under load -- observed live while
+// enriching authors, after which it refused connections entirely for a while. A
+// scan fans this out across the whole library, so the client must pace ITSELF:
+// serialize calls and hold a minimum gap between them, then stand down entirely
+// for a cooldown once the server does push back. Being throttled is not just
+// impolite, it silently costs data -- a 429'd author simply comes back with no
+// portrait, exactly as if none existed.
+// Read lazily so tests (and an operator running their own mirror, which needs no
+// pacing) can set GOODREADS_MIN_GAP_MS=0 without a rebuild.
+function minRequestGapMs(): number {
+	const raw = Number(process.env.GOODREADS_MIN_GAP_MS)
+	return Number.isFinite(raw) && raw >= 0 ? raw : 1100
+}
+const BACKOFF_MS = 60000
+
+let nextAllowedAt = 0
+let backoffUntil = 0
+// Serializes the pacing arithmetic: without a shared tail, N concurrent callers
+// each read the same nextAllowedAt and all fire at once.
+let requestChain: Promise<void> = Promise.resolve()
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/** Wait for this caller's turn in the paced queue. */
+function takeSlot(): Promise<void> {
+	const slot = requestChain.then(async () => {
+		const gap = minRequestGapMs()
+		if (gap <= 0) return
+		const now = Date.now()
+		const waitUntil = Math.max(nextAllowedAt, now)
+		if (waitUntil > now) await sleep(waitUntil - now)
+		nextAllowedAt = Math.max(waitUntil, Date.now()) + gap
+	})
+	// Keep the chain alive even if a link rejects.
+	requestChain = slot.catch(() => undefined)
+	return slot
+}
+
 async function getJson<T>(path: string): Promise<T | null> {
+	// Standing down after a push-back: skip the call outright rather than adding
+	// to the pile. Callers treat null as "no data", which is already their
+	// best-effort contract.
+	if (Date.now() < backoffUntil) return null
+	await takeSlot()
 	try {
 		const res = await fetch(`${BASE}${path}`, { timeout: TIMEOUT_MS })
 		return (await res.data) as T
-	} catch {
+	} catch (err) {
+		// A 429 (or an outright refusal once it stops answering) means we are over
+		// the mirror's budget -- stop calling for a cooldown instead of retrying
+		// into the wall.
+		const status = (err as { response?: { status?: number }; status?: number })?.response?.status
+		if (status === 429 || status === 503) backoffUntil = Date.now() + BACKOFF_MS
 		// Enrichment is strictly best-effort: an outage, a 404 or a rate limit
 		// must never fail the request that asked for it.
 		return null
@@ -344,7 +393,13 @@ export async function fetchGoodreadsSeries(
 // How many relevance-ordered /search hits to consider when resolving an author.
 // The hits are books; the top few resolve to the searched author's own id, and a
 // name shared by several people surfaces their distinct ids here to be gated.
-const AUTHOR_SEARCH_DEPTH = 5
+// Deliberately small: each extra id is another /author call against a rate-limited
+// community mirror, and the correct author is essentially always in the first
+// couple of hits (measured: every author we resolved matched on the FIRST id).
+const AUTHOR_SEARCH_DEPTH = 2
+
+/** Cached author lookups live under their own prefix, same TTL as series. */
+const AUTHOR_CACHE_PREFIX = 'grauthor:v1:'
 
 // Goodreads' placeholder for an author with no photo — a real URL, so it must be
 // rejected explicitly or it would count as a "found" portrait.
@@ -406,4 +461,48 @@ export async function fetchGoodreadsAuthorInfo(
 		}
 	}
 	return { image: null, bio: null }
+}
+
+/**
+ * Cached wrapper around fetchGoodreadsAuthorInfo.
+ *
+ * The uncached path costs a /search plus up to AUTHOR_SEARCH_DEPTH /author calls
+ * EVERY time an author is refreshed -- and Plex refreshes authors constantly, so
+ * a scan buries a free community mirror (observed live: HTTP 429 "Server capacity
+ * exceeded", after which authors silently came back with no portrait). Cache the
+ * ANSWER, including a miss: an author no source has a photo for is exactly the
+ * one that would otherwise be re-queried forever.
+ * @param {string} name the author name to resolve
+ * @param {RedisLike|null} redis the request's redis client, or null
+ * @param {FastifyBaseLogger} [logger] optional logger
+ * @returns {Promise<{ image: string | null; bio: string | null }>} portrait + bio, or nulls
+ */
+export async function withGoodreadsAuthorInfo(
+	name: string,
+	redis: RedisLike | null,
+	logger?: FastifyBaseLogger
+): Promise<{ image: string | null; bio: string | null }> {
+	const trimmed = name.trim()
+	if (!trimmed) return { image: null, bio: null }
+	const key = AUTHOR_CACHE_PREFIX + trimmed.toLowerCase()
+
+	if (redis) {
+		try {
+			const cached = await redis.get(key)
+			if (cached) return JSON.parse(cached) as { image: string | null; bio: string | null }
+		} catch {
+			// A cache read failure just means we do the lookup.
+		}
+	}
+
+	const result = await fetchGoodreadsAuthorInfo(trimmed, logger)
+
+	if (redis) {
+		try {
+			await redis.set(key, JSON.stringify(result), 'EX', CACHE_TTL_SECONDS)
+		} catch {
+			// A cache-write failure is not a request failure.
+		}
+	}
+	return result
 }
