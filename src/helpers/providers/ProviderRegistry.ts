@@ -10,6 +10,7 @@ import type {
 	ProviderCandidate
 } from '#helpers/providers/types'
 import CircuitBreaker from '#helpers/utils/CircuitBreaker'
+import { recordProviderFailure, recordProviderResult } from '#helpers/utils/providerHealth'
 
 /**
  * Holds the registered book providers and fans a search out across all of them
@@ -138,6 +139,10 @@ export default class ProviderRegistry {
 		const candidates: ProviderCandidate[] = []
 		settled.forEach((result, i) => {
 			if (result.status === 'fulfilled') {
+				// Record how much it actually returned, not just that it answered: a
+				// provider that succeeds while returning nothing every time is the
+				// deauthenticated-credential signature the breaker cannot see.
+				recordProviderResult(this.providers[i].name, result.value.length)
 				candidates.push(...result.value)
 			} else {
 				// An open circuit is a deliberate skip, not a new failure: logging it
@@ -147,6 +152,7 @@ export default class ProviderRegistry {
 					'Circuit breaker is OPEN'
 				)
 				const line = { provider: this.providers[i].name, err: result.reason }
+				recordProviderFailure(this.providers[i].name, open)
 				if (open) logger?.debug(line, 'book search provider skipped: circuit open')
 				else logger?.error(line, 'book search provider failed')
 			}

@@ -5,6 +5,7 @@ import ipRangeCheck from 'ip-range-check'
 import { getPerformanceConfig } from '#config/performance'
 import { getPerformanceMetrics } from '#config/performance/hooks'
 import { getMatchMetrics, type MatchMetrics } from '#helpers/utils/matchTelemetry'
+import { getProviderHealth } from '#helpers/utils/providerHealth'
 
 /**
  * Strip the library-content fields from the recent match decisions.
@@ -172,7 +173,17 @@ export function registerMetricsRoute(fastify: FastifyInstance): void {
 		// redacted — aggregates and per-decision quality numbers survive; the
 		// titles/authors/ASINs of what the operator owns require auth.
 		const match = getMatchMetrics()
-		return { ...metrics, match: metricsAuthConfigured() ? match : redactMatchMetrics(match) }
+		// Provider health carries no library content -- only call counts per source
+		// -- so it is safe to expose unredacted. It answers the question the breaker
+		// cannot: a provider with healthy `ok` and an emptyRate pinned at 1 is
+		// answering but finding nothing, which is what an expired credential looks
+		// like (Hardcover tokens expire every Jan 1 and the provider then silently
+		// skips itself).
+		return {
+			...metrics,
+			providers: getProviderHealth(),
+			match: metricsAuthConfigured() ? match : redactMatchMetrics(match)
+		}
 	})
 }
 
