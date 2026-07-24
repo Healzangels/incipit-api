@@ -180,8 +180,13 @@ export async function withGoodreadsSeries<T extends SeriesEnrichable>(
 	}
 
 	if (result === undefined) {
+		const degradedBefore = fetchDegradedCount()
 		result = await fetchGoodreadsSeries(title, author, logger)
-		if (redis) {
+		// Only cache an answer the mirror actually gave us. A null produced while
+		// rate-limited/unreachable would otherwise pin "no series" on this book for
+		// the whole TTL -- the exact damage a throttling event during a full-library
+		// refresh would do.
+		if (redis && fetchDegradedCount() === degradedBefore) {
 			try {
 				await redis.set(key, JSON.stringify(result), 'EX', CACHE_TTL_SECONDS)
 			} catch {
@@ -220,6 +225,18 @@ const BACKOFF_MS = 60000
 
 let nextAllowedAt = 0
 let backoffUntil = 0
+// Monotonic count of calls that failed for TRANSPORT reasons (a 429, a timeout, a
+// refusal) rather than answering "nothing found". A miss produced while degraded
+// is NOT a real miss, and caching it would blank a book's series or an author's
+// portrait for the whole TTL -- precisely the damage a throttling event during a
+// full-library refresh would otherwise do. Callers snapshot it around a lookup and
+// skip the cache write if it moved.
+let degradedCount = 0
+
+/** Snapshot for "did any call degrade during my lookup?" (see degradedCount). */
+function fetchDegradedCount(): number {
+	return degradedCount
+}
 // Serializes the pacing arithmetic: without a shared tail, N concurrent callers
 // each read the same nextAllowedAt and all fire at once.
 let requestChain: Promise<void> = Promise.resolve()
@@ -243,9 +260,12 @@ function takeSlot(): Promise<void> {
 
 async function getJson<T>(path: string): Promise<T | null> {
 	// Standing down after a push-back: skip the call outright rather than adding
-	// to the pile. Callers treat null as "no data", which is already their
-	// best-effort contract.
-	if (Date.now() < backoffUntil) return null
+	// to the pile. Counts as degraded -- the null we return says nothing about
+	// whether the data exists, so it must not be cached as a miss.
+	if (Date.now() < backoffUntil) {
+		degradedCount += 1
+		return null
+	}
 	await takeSlot()
 	try {
 		const res = await fetch(`${BASE}${path}`, { timeout: TIMEOUT_MS })
@@ -256,6 +276,7 @@ async function getJson<T>(path: string): Promise<T | null> {
 		// into the wall.
 		const status = (err as { response?: { status?: number }; status?: number })?.response?.status
 		if (status === 429 || status === 503) backoffUntil = Date.now() + BACKOFF_MS
+		degradedCount += 1
 		// Enrichment is strictly best-effort: an outage, a 404 or a rate limit
 		// must never fail the request that asked for it.
 		return null
@@ -495,9 +516,12 @@ export async function withGoodreadsAuthorInfo(
 		}
 	}
 
+	const degradedBefore = fetchDegradedCount()
 	const result = await fetchGoodreadsAuthorInfo(trimmed, logger)
 
-	if (redis) {
+	// Only cache an answer the mirror actually gave us -- see withGoodreadsSeries.
+	// Caching a rate-limited null would blank this author's portrait for the TTL.
+	if (redis && fetchDegradedCount() === degradedBefore) {
 		try {
 			await redis.set(key, JSON.stringify(result), 'EX', CACHE_TTL_SECONDS)
 		} catch {

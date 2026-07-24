@@ -6,7 +6,21 @@ process.env.GOODREADS_MIN_GAP_MS = '0'
 const fetchMock = mock()
 mock.module('#helpers/utils/fetchPlus', () => ({ default: fetchMock }))
 
-const { fetchGoodreadsAuthorInfo } = await import('#helpers/providers/goodreadsSeries')
+const { fetchGoodreadsAuthorInfo, withGoodreadsAuthorInfo } =
+	await import('#helpers/providers/goodreadsSeries')
+
+/** Minimal in-memory stand-in for the redis client the route passes. */
+function fakeRedis() {
+	const store = new Map<string, string>()
+	return {
+		store,
+		get: async (k: string) => store.get(k) ?? null,
+		set: async (k: string, v: string) => {
+			store.set(k, v)
+			return 'OK'
+		}
+	}
+}
 
 /**
  * Rate-limit backoff, in its own file on purpose: tripping the backoff sets
@@ -38,5 +52,18 @@ describe('bookinfo.pro rate-limit backoff', () => {
 		expect(await fetchGoodreadsAuthorInfo('Graham McNeill')).toEqual({ image: null, bio: null })
 		expect(await fetchGoodreadsAuthorInfo('Martin Gurri')).toEqual({ image: null, bio: null })
 		expect(fetchMock.mock.calls.length).toBe(callsAfter429)
+	})
+
+	test('a rate-limited miss is NOT cached (a throttled scan must not blank the library)', async () => {
+		// The dangerous interaction: miss-caching exists so a photo-less author is not
+		// re-queried forever, but a null produced while throttled says nothing about
+		// whether a photo exists. Caching it during a full-library refresh would pin
+		// "no portrait" on every author processed in that window for the whole TTL.
+		rejectWithStatus(429)
+		const redis = fakeRedis()
+
+		const out = await withGoodreadsAuthorInfo('Jessica Townsend', redis)
+		expect(out).toEqual({ image: null, bio: null })
+		expect(redis.store.size).toBe(0) // nothing written -> it will retry later
 	})
 })
