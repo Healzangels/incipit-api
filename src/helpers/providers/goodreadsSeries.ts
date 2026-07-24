@@ -98,9 +98,15 @@ async function seriesMemberCount(foreignId: number | undefined): Promise<number>
 	if (typeof foreignId !== 'number') return 0
 	const memoized = seriesCountMemo.get(foreignId)
 	if (memoized !== undefined) return memoized
+	const degradedBefore = fetchDegradedCount()
 	const series = await getJson<SeriesResponse>(`/series/${foreignId}`)
 	const count = Array.isArray(series?.LinkItems) ? series.LinkItems.length : 0
-	seriesCountMemo.set(foreignId, count)
+	// Only memoize a count the mirror actually gave us. This memo has NO TTL, so a
+	// 0 recorded from a rate-limited or timed-out call would pin that series at
+	// "no members" for the life of the process -- and the count is exactly how a
+	// parent series is told from its sub-series, so a wrongly-0 parent loses the
+	// ranking and books get shelved under the narrower series.
+	if (fetchDegradedCount() === degradedBefore) seriesCountMemo.set(foreignId, count)
 	return count
 }
 
@@ -236,6 +242,19 @@ let degradedCount = 0
 /** Snapshot for "did any call degrade during my lookup?" (see degradedCount). */
 function fetchDegradedCount(): number {
 	return degradedCount
+}
+
+/**
+ * Clear the pacing/backoff state. Exported for tests ONLY: tripping the backoff
+ * suppresses every later call for a cooldown, and because this module's state is
+ * shared across test files in one process, a backoff test would otherwise blank
+ * out unrelated suites depending on file order (observed: 7 sibling failures).
+ */
+export function resetGoodreadsThrottle(): void {
+	nextAllowedAt = 0
+	backoffUntil = 0
+	degradedCount = 0
+	requestChain = Promise.resolve()
 }
 // Serializes the pacing arithmetic: without a shared tail, N concurrent callers
 // each read the same nextAllowedAt and all fire at once.

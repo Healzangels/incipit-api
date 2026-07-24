@@ -1,4 +1,4 @@
-import { describe, expect, mock, test } from 'bun:test'
+import { afterAll, describe, expect, mock, test } from 'bun:test'
 
 // Pacing off: this file asserts the BACKOFF, not the inter-request gap.
 process.env.GOODREADS_MIN_GAP_MS = '0'
@@ -6,8 +6,13 @@ process.env.GOODREADS_MIN_GAP_MS = '0'
 const fetchMock = mock()
 mock.module('#helpers/utils/fetchPlus', () => ({ default: fetchMock }))
 
-const { fetchGoodreadsAuthorInfo, withGoodreadsAuthorInfo } =
+const { fetchGoodreadsAuthorInfo, withGoodreadsAuthorInfo, resetGoodreadsThrottle } =
 	await import('#helpers/providers/goodreadsSeries')
+
+// The throttle state lives in the module, which is SHARED across test files in a
+// single process: leaving the backoff tripped blanks every later Goodreads test
+// (measured: 7 sibling failures, and which ones depended on file order).
+afterAll(() => resetGoodreadsThrottle())
 
 /** Minimal in-memory stand-in for the redis client the route passes. */
 function fakeRedis() {
