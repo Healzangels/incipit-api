@@ -80,6 +80,25 @@ export default class AudibleProvider implements BookProvider {
 	}
 
 	/**
+	 * Fallback search URL: one fuzzy `keywords` query instead of the structured
+	 * title+author filter. Audible ranks these by relevance rather than matching
+	 * the author string, which is what makes it survive the variance the strict
+	 * filter cannot (see the note in search()).
+	 */
+	private buildKeywordUrl(query: BookSearchQuery): string {
+		const region = regions[query.region] ? query.region : 'us'
+		const tld = regions[region].tld
+		const params = new URLSearchParams({
+			keywords: query.author ? `${query.title} ${query.author}` : query.title,
+			num_results: String(NUM_RESULTS),
+			products_sort_by: 'Relevance',
+			response_groups: RESPONSE_GROUPS,
+			image_sizes: IMAGE_SIZES
+		})
+		return `https://api.audible.${tld}/1.0/catalog/products?${params.toString()}`
+	}
+
+	/**
 	 * Search the Audible catalog for candidates matching the query.
 	 * @param {BookSearchQuery} query the search query
 	 * @param {FastifyBaseLogger} logger optional logger
@@ -88,8 +107,24 @@ export default class AudibleProvider implements BookProvider {
 	async search(query: BookSearchQuery, logger?: FastifyBaseLogger): Promise<ProviderCandidate[]> {
 		if (!query.title) return []
 
-		const products = await this.fetchProducts(this.buildUrl(query))
+		let products = await this.fetchProducts(this.buildUrl(query))
 		logger?.debug({ count: products.length }, 'audible: catalog search returned')
+		// The structured `author` filter is EXACT-ish: a single differing middle
+		// initial ("Stephen R. Lawhead" against Audible's "Stephen Lawhead") returns
+		// ZERO products, so the audiobook edition vanishes and the book falls back to
+		// a PRINT record -- which is why those books ended up with a portrait cover
+		// and no square. Measured live: 5 of 15 such books return 0 under the filter
+		// and are recovered by one fuzzy keyword query.
+		//
+		// Retried ONLY when the filtered search came back empty. A keyword search is
+		// NOT a better default -- it ranks by relevance and buries a precise match
+		// (measured: Command Authority and Wintersteel drop out of the top results
+		// under keywords while the filter finds them) -- so this is purely additive:
+		// searches that already work keep their exact results untouched.
+		if (products.length === 0 && query.author) {
+			products = await this.fetchProducts(this.buildKeywordUrl(query))
+			logger?.debug({ count: products.length }, 'audible: keyword fallback returned')
+		}
 
 		return products
 			.filter((p) => p.asin)
