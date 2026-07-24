@@ -47,7 +47,10 @@ export function makeSearchBookRoute(registry: ProviderRegistry = defaultRegistry
 			// Cache provider results in Redis when it is available; degrades to live
 			// calls when it is not.
 			const { redis } = fastify
-			const cache = new ProviderSearchCache(redis, undefined, request.log)
+			// ?refresh=1 skips the cache READ so a poisoned entry can be repaired:
+			// the live results are still written back, so one forced pass fixes it
+			// for every later search too.
+			const cache = new ProviderSearchCache(redis, undefined, request.log, options.refresh === true)
 
 			const helper = new BookSearchHelper(registry, options, request.log, credentials, cache)
 			return helper.search()

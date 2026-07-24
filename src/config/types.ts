@@ -336,6 +336,19 @@ export const BookSearchQueryStringSchema = z.object({
 			return undefined
 		})
 		.catch(undefined),
+	// Force a live provider pass, skipping the cached search results. The escape
+	// hatch for a poisoned cache entry: a provider that returned a bad record is
+	// otherwise replayed for the whole TTL, so a wrong match cannot be corrected
+	// by re-matching. Same 1/true spelling as `manual`.
+	refresh: z
+		.string()
+		.optional()
+		.transform((value) => {
+			if (value === undefined) return undefined
+			const flag = value.toLowerCase()
+			return flag === '1' || flag === 'true'
+		})
+		.catch(undefined),
 	region: RegionSchema
 })
 

@@ -35,15 +35,29 @@ export default class ProviderSearchCache {
 	private redis: FastifyRedis | null
 	private ttl: number
 	private logger?: FastifyBaseLogger
+	private bypassRead: boolean
 
+	/**
+	 * @param {FastifyRedis|null} redis the request's redis client, or null
+	 * @param {number} ttlSeconds entry lifetime
+	 * @param {FastifyBaseLogger} [logger] optional logger
+	 * @param {boolean} [bypassRead] skip the READ and refresh the entry from live
+	 *   provider calls. The escape hatch for a poisoned entry: a provider that
+	 *   returned a bad record would otherwise be replayed from cache on every
+	 *   re-match for the whole TTL, so a wrong match could not be corrected by
+	 *   re-matching -- only by waiting a week or flushing Redis by hand. Writes
+	 *   still happen, so one forced pass repairs the entry for everyone.
+	 */
 	constructor(
 		redis: FastifyRedis | null,
 		ttlSeconds = DEFAULT_TTL_SECONDS,
-		logger?: FastifyBaseLogger
+		logger?: FastifyBaseLogger,
+		bypassRead = false
 	) {
 		this.redis = redis
 		this.ttl = ttlSeconds
 		this.logger = logger
+		this.bypassRead = bypassRead
 	}
 
 	private key(providerName: string, query: BookSearchQuery): string {
@@ -70,11 +84,13 @@ export default class ProviderSearchCache {
 
 		const key = this.key(providerName, query)
 
-		try {
-			const cached = await this.redis.get(key)
-			if (cached) return JSON.parse(cached) as ProviderCandidate[]
-		} catch (error) {
-			this.logger?.warn({ err: getErrorMessage(error) }, 'provider search cache read failed')
+		if (!this.bypassRead) {
+			try {
+				const cached = await this.redis.get(key)
+				if (cached) return JSON.parse(cached) as ProviderCandidate[]
+			} catch (error) {
+				this.logger?.warn({ err: getErrorMessage(error) }, 'provider search cache read failed')
+			}
 		}
 
 		const result = await fetch()

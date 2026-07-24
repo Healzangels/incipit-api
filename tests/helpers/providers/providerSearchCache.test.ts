@@ -125,3 +125,67 @@ describe('ProviderSearchCache', () => {
 		expect(redis.store.size).toBe(0)
 	})
 })
+
+describe('ProviderSearchCache bypass (?refresh=1)', () => {
+	const query: BookSearchQuery = { title: 'Project Hail Mary', author: 'Andy Weir', region: 'us' }
+	const hit: ProviderCandidate[] = [
+		{
+			provider: 'audible',
+			id: 'B08G9PRS1K',
+			asin: 'B08G9PRS1K',
+			title: 'Project Hail Mary',
+			authors: ['Andy Weir'],
+			narrators: ['Ray Porter'],
+			audioSeconds: 58200,
+			cover: null,
+			language: 'en'
+		}
+	]
+
+	test('bypass skips the cached READ and refetches live', async () => {
+		// The poisoned-entry escape hatch: a bad cached record would otherwise be
+		// replayed on every re-match for the whole TTL.
+		const redis = fakeRedis()
+		const warm = new ProviderSearchCache(redis as never, 600)
+		await warm.wrap('audible', query, async () => hit)
+		expect(redis.store.size).toBe(1)
+
+		let called = 0
+		const bypass = new ProviderSearchCache(redis as never, 600, undefined, true)
+		await bypass.wrap('audible', query, async () => {
+			called += 1
+			return hit
+		})
+		expect(called).toBe(1)
+	})
+
+	test('bypass still WRITES, so one forced pass repairs the entry for everyone', async () => {
+		const redis = fakeRedis()
+		const bypass = new ProviderSearchCache(redis as never, 600, undefined, true)
+		await bypass.wrap('audible', query, async () => hit)
+		expect(redis.store.size).toBe(1)
+		expect([...redis.expires.values()][0]).toBe(600)
+
+		// A normal (non-bypass) cache now serves the repaired entry without fetching.
+		let called = 0
+		const normal = new ProviderSearchCache(redis as never, 600)
+		const out = await normal.wrap('audible', query, async () => {
+			called += 1
+			return []
+		})
+		expect(called).toBe(0)
+		expect(out).toEqual(hit)
+	})
+
+	test('without bypass the cached value is served (guards the default)', async () => {
+		const redis = fakeRedis()
+		const cache = new ProviderSearchCache(redis as never, 600)
+		await cache.wrap('audible', query, async () => hit)
+		let called = 0
+		await cache.wrap('audible', query, async () => {
+			called += 1
+			return []
+		})
+		expect(called).toBe(0)
+	})
+})
