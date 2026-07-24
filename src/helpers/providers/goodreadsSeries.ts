@@ -2,6 +2,7 @@ import type { FastifyBaseLogger } from 'fastify'
 
 import { normalizeTitle, titleSim } from '#helpers/providers/matchScorer'
 import type { ProviderBookSeries } from '#helpers/providers/types'
+import { isSameAuthor } from '#helpers/utils/authorNameMatch'
 import fetch from '#helpers/utils/fetchPlus'
 
 /**
@@ -38,6 +39,7 @@ const TITLE_ACCEPT = 0.9
 interface SearchHit {
 	bookId?: number
 	workId?: number
+	author?: { id?: number }
 }
 
 interface WorkSeriesLink {
@@ -337,4 +339,71 @@ export async function fetchGoodreadsSeries(
 	}
 
 	return null
+}
+
+// How many relevance-ordered /search hits to consider when resolving an author.
+// The hits are books; the top few resolve to the searched author's own id, and a
+// name shared by several people surfaces their distinct ids here to be gated.
+const AUTHOR_SEARCH_DEPTH = 5
+
+// Goodreads' placeholder for an author with no photo — a real URL, so it must be
+// rejected explicitly or it would count as a "found" portrait.
+const GOODREADS_NOPHOTO_RE = /\/nophoto\//i
+
+interface GoodreadsAuthorResponse {
+	ForeignId?: number
+	Name?: string
+	Description?: string
+	ImageUrl?: string
+}
+
+/**
+ * Author photo + bio from Goodreads (via the bookinfo.pro mirror).
+ *
+ * Goodreads carries a portrait for far more authors than Audible (which usually
+ * has none) or Hardcover (whose author data is Wikipedia-sourced, so only
+ * notable authors have one). Used to FILL a still-missing portrait/bio, never to
+ * override a curated source.
+ *
+ * Two steps mirror the series lookup: /search is fuzzy and returns BOOKS, each
+ * carrying its author's id, so we take the ids behind the top hits and confirm
+ * each with isSameAuthor before trusting it — /search will happily surface a
+ * co-author or a title-word match, and attaching the wrong person's face is the
+ * one failure worse than no photo. Best-effort throughout: any outage/404/rate
+ * limit degrades to nulls (getJson), never failing the author update.
+ * @param {string} name the author name to resolve
+ * @param {FastifyBaseLogger} logger optional logger
+ * @returns {Promise<{ image: string | null; bio: string | null }>} portrait + bio, or nulls
+ */
+export async function fetchGoodreadsAuthorInfo(
+	name: string,
+	logger?: FastifyBaseLogger
+): Promise<{ image: string | null; bio: string | null }> {
+	if (!name.trim()) return { image: null, bio: null }
+
+	const hits = await getJson<SearchHit[]>(`/search?q=${encodeURIComponent(name)}`)
+	if (!hits?.length) return { image: null, bio: null }
+
+	// Distinct author ids from the top hits, in relevance order.
+	const ids: number[] = []
+	for (const hit of hits.slice(0, AUTHOR_SEARCH_DEPTH)) {
+		const id = hit.author?.id
+		if (typeof id === 'number' && !ids.includes(id)) ids.push(id)
+	}
+
+	for (const id of ids) {
+		const author = await getJson<GoodreadsAuthorResponse>(`/author/${id}`)
+		// FALSE-POSITIVE GATE: only trust a record whose name confirms it is the
+		// same person; a shared first name or a title-word hit is rejected here.
+		if (!author?.Name || !isSameAuthor(name, author.Name)) continue
+		const image =
+			author.ImageUrl && !GOODREADS_NOPHOTO_RE.test(author.ImageUrl) ? author.ImageUrl : null
+		const rawBio = author.Description?.trim()
+		const bio = rawBio && rawBio !== 'N/A' ? rawBio : null
+		if (image || bio) {
+			logger?.debug({ name, id }, 'goodreads: author info matched')
+			return { image, bio }
+		}
+	}
+	return { image: null, bio: null }
 }

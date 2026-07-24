@@ -9,36 +9,13 @@ import {
 	searchAudibleAuthors
 } from '#helpers/authors/audible/AudibleAuthorSearch'
 import PaprAudibleAuthorHelper from '#helpers/database/papr/audible/PaprAudibleAuthorHelper'
+import { fetchGoodreadsAuthorInfo } from '#helpers/providers/goodreadsSeries'
 import type HardcoverProvider from '#helpers/providers/HardcoverProvider'
-import { sim } from '#helpers/providers/matchScorer'
 import defaultRegistry from '#helpers/providers/registry'
 import GenericShowHelper from '#helpers/routes/GenericShowHelper'
+import { isSameAuthor } from '#helpers/utils/authorNameMatch'
 
-const TOKEN_FLOOR = 0.85
-const FULL_NAME_FLOOR = 0.9
-
-/**
- * Whether a Mongo $text cache hit is really the searched author.
- *
- * $text is a loose OR over tokens, so "Andrew Karevik" pulls a cached "Andrew
- * Rowe" and "Adrian Tchaikovsky" pulls "Adrian McKinty" — the shared FIRST name
- * lifts the overall similarity over any single threshold (~0.72). Require the
- * name to be near-identical OR to match on BOTH first and last token, so a
- * shared first name (or a shared surname like Jane/John Smith) is not enough.
- * Anything legitimately rejected here is recovered by the Audible fallback.
- * @param {string} query the searched name
- * @param {string} candidate the cached author name
- */
-export function isSameAuthor(query: string, candidate: string): boolean {
-	if (sim(query, candidate) >= FULL_NAME_FLOOR) return true
-	const toks = (s: string) => s.trim().toLowerCase().split(/\s+/).filter(Boolean)
-	const q = toks(query)
-	const c = toks(candidate)
-	if (!q.length || !c.length) return false
-	const firstOk = sim(q[0], c[0]) >= TOKEN_FLOOR
-	const lastOk = sim(q[q.length - 1], c[c.length - 1]) >= TOKEN_FLOOR
-	return firstOk && lastOk
-}
+export { isSameAuthor }
 
 export default class AuthorShowHelper extends GenericShowHelper {
 	credentials?: Record<string, string>
@@ -61,9 +38,12 @@ export default class AuthorShowHelper extends GenericShowHelper {
 	 * the book cover, not a photo (e.g. Craig Alanson's is his Expeditionary Force
 	 * cover). Hardcover carries real author portraits, so when it has one we use it
 	 * and keep Audible's as `imageAlt` (a secondary poster option); when Hardcover
-	 * has none we fall back to Audible's image as-is. Apple Books is deliberately
-	 * not consulted — its author pages carry no portrait. Best-effort: any failure
-	 * leaves the Audible image in place rather than breaking the update.
+	 * has none we fall back to Audible's image as-is. When a portrait or bio is
+	 * STILL missing (Audible had none and Hardcover — Wikipedia-sourced — doesn't
+	 * carry the author, e.g. Jessica Townsend), Goodreads fills the gap, since it
+	 * covers far more authors. Apple Books is deliberately not consulted — its
+	 * author pages carry no portrait. Best-effort: any failure leaves the current
+	 * value in place rather than breaking the update.
 	 * @returns {Promise<ApiAuthorProfile | ApiBook | ApiChapter | undefined>}
 	 */
 	async getNewData(): Promise<ApiAuthorProfile | ApiBook | ApiChapter | undefined> {
@@ -71,25 +51,44 @@ export default class AuthorShowHelper extends GenericShowHelper {
 		if (!data || !('image' in data)) return data
 
 		const author = data as ApiAuthorProfile
-		const hardcover = defaultRegistry.get('hardcover') as HardcoverProvider | undefined
-		if (!hardcover?.fetchAuthorInfo) return data
 
-		const { image: hardcoverImage, bio: hardcoverBio } = await hardcover.fetchAuthorInfo(
-			author.name,
-			{ region: this.options.region, credentials: this.credentials, logger: this.logger }
-		)
-		if (hardcoverImage && hardcoverImage !== author.image) {
-			this.logger?.info({ author: author.name }, 'author image: preferring Hardcover portrait')
-			// Keep Audible's image (if any) as the secondary option, then make
-			// Hardcover's portrait the primary.
-			if (author.image) author.imageAlt = author.image
-			author.image = hardcoverImage
+		// 1. Prefer Hardcover's curated (Wikipedia-sourced) portrait when it has one;
+		// keep Audible's as the secondary option, and backfill the bio only when
+		// Audible left it empty. Guarded, not early-returned, so Goodreads still runs.
+		const hardcover = defaultRegistry.get('hardcover') as HardcoverProvider | undefined
+		if (hardcover?.fetchAuthorInfo) {
+			const { image: hardcoverImage, bio: hardcoverBio } = await hardcover.fetchAuthorInfo(
+				author.name,
+				{ region: this.options.region, credentials: this.credentials, logger: this.logger }
+			)
+			if (hardcoverImage && hardcoverImage !== author.image) {
+				this.logger?.info({ author: author.name }, 'author image: preferring Hardcover portrait')
+				if (author.image) author.imageAlt = author.image
+				author.image = hardcoverImage
+			}
+			if (hardcoverBio && !author.description?.trim()) {
+				this.logger?.info({ author: author.name }, 'author description: filled from Hardcover')
+				author.description = hardcoverBio
+			}
 		}
-		// Backfill the description ONLY when Audible left it empty — Audible's bio,
-		// when present, is the preferred source, so Hardcover never overwrites it.
-		if (hardcoverBio && !author.description?.trim()) {
-			this.logger?.info({ author: author.name }, 'author description: filled from Hardcover')
-			author.description = hardcoverBio
+
+		// 2. Goodreads (bookinfo.pro) — the broad-coverage backstop for a portrait or
+		// bio that Audible never had and Hardcover (Wikipedia-only) doesn't carry
+		// (e.g. Jessica Townsend). Consulted only when a gap REMAINS, and it only
+		// ever FILLS the gap — it never overrides a curated Audible/Hardcover value.
+		if (!author.image?.trim() || !author.description?.trim()) {
+			const { image: grImage, bio: grBio } = await fetchGoodreadsAuthorInfo(
+				author.name,
+				this.logger
+			)
+			if (grImage && !author.image?.trim()) {
+				this.logger?.info({ author: author.name }, 'author image: filled from Goodreads')
+				author.image = grImage
+			}
+			if (grBio && !author.description?.trim()) {
+				this.logger?.info({ author: author.name }, 'author description: filled from Goodreads')
+				author.description = grBio
+			}
 		}
 		return author
 	}
