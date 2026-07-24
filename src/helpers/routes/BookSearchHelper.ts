@@ -8,7 +8,8 @@ import {
 	DURATION_TOLERANCE,
 	extractAsinAndClean,
 	normalizeTitle,
-	scoreCandidate
+	scoreCandidate,
+	titleSim
 } from '#helpers/providers/matchScorer'
 import type ProviderRegistry from '#helpers/providers/ProviderRegistry'
 import type ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
@@ -150,6 +151,43 @@ function volumeNumbers(raw: string | null | undefined): Set<number> {
  * @param {Set<number>} cand the candidate's volume numbers
  * @returns {boolean} true only when both are non-empty and disjoint
  */
+// A BARE trailing volume: "Defiance of the Fall 7". Providers list a numbered
+// series this way at least as often as with a "Book N" marker, and the
+// marker-based regex above cannot see it -- so a query for Book 10 found NO
+// conflict with "Defiance of the Fall 1" and the wrong sibling won on score
+// (measured: siblings at 0.824/0.812 beat the correct Book 10 at 0.771).
+//
+// Kept separate from VOLUME_MARKER_RE, and consulted ONLY when the QUERY itself
+// advertises a volume, because a bare trailing number is otherwise ambiguous:
+// "Fahrenheit 451" and "1984" are titles, not volumes. Two further guards make a
+// false positive very unlikely -- at most 3 digits (so a year cannot match), and
+// the text BEFORE the number must still look like the title we searched for.
+const BARE_TRAILING_VOLUME_RE = /^(.*?)[\s,:.\-–—]+(\d{1,3})\s*$/
+
+/**
+ * The volume a candidate advertises as a bare trailing number, or null.
+ * @param {string | null | undefined} candTitle the candidate's raw title
+ * @param {string} wantTitle the normalized title we searched for
+ * @returns {number | null} the volume, or null when this is not a numbered sibling
+ */
+function bareTrailingVolume(
+	candTitle: string | null | undefined,
+	wantTitle: string
+): number | null {
+	if (!candTitle) return null
+	const m = BARE_TRAILING_VOLUME_RE.exec(candTitle.trim())
+	if (!m) return null
+	// The stem must still BE the book we asked for; otherwise a title that merely
+	// ends in a number would be read as a sibling of something unrelated.
+	if (titleSim(wantTitle, normalizeTitle(m[1])) < 0.9) return null
+	// If the title WE searched for ends in that same number, the number is part of
+	// the title, not a volume -- "Slaughterhouse 5" against a query for
+	// "Slaughterhouse 5" is the same book, however the track tag numbers it.
+	const wantBare = BARE_TRAILING_VOLUME_RE.exec(wantTitle.trim())
+	if (wantBare && wantBare[2] === m[2]) return null
+	return Number(m[2])
+}
+
 function volumeConflict(want: Set<number>, cand: Set<number>): boolean {
 	if (want.size === 0 || cand.size === 0) return false
 	for (const n of cand) if (want.has(n)) return false
@@ -677,7 +715,15 @@ export default class BookSearchHelper {
 			// provider order; this restores the distinction the normalizer erased.
 			// ASIN-pin exempt, like the other demotions: the caller named that
 			// edition by identity even if its printed part number reads oddly.
-			if (!effectivePin && volumeConflict(wantVolumes, volumeNumbers(c.title))) {
+			// Fall back to a bare trailing number when the candidate carries no
+			// marker-style volume -- only reachable when the query HAS a volume, so
+			// an ordinary title ending in a digit is never consulted.
+			const candVolumes = volumeNumbers(c.title)
+			if (candVolumes.size === 0 && wantVolumes.size > 0) {
+				const bare = bareTrailingVolume(c.title, primaryTitle)
+				if (bare != null) candVolumes.add(bare)
+			}
+			if (!effectivePin && volumeConflict(wantVolumes, candVolumes)) {
 				confidence = Math.max(0, confidence - VOLUME_MISMATCH_PENALTY)
 				this.volumeDemoted += 1
 			}

@@ -96,6 +96,69 @@ describe('volume/part disambiguation', () => {
 		expect(out[0].confidence).toBe(1)
 	})
 
+	test('REGRESSION: a BARE trailing number counts as a volume', async () => {
+		// Providers list a numbered series as "Defiance of the Fall 7" as often as
+		// "Book 7", and the marker-based regex cannot see the bare form -- so a
+		// query for Book 10 found no conflict and the wrong sibling won on score.
+		const out = await helperFor(
+			[
+				candidate({
+					provider: 'audible',
+					id: 'v1',
+					title: 'Defiance of the Fall 1',
+					authors: ['TheFirstDefier']
+				}),
+				candidate({
+					provider: 'hardcover',
+					id: 'v10',
+					title: 'Defiance of the Fall, Book 10',
+					authors: ['TheFirstDefier']
+				})
+			],
+			{
+				title: 'Defiance of the Fall',
+				author: 'TheFirstDefier',
+				trackTitle: 'Defiance of the Fall, Book 10'
+			}
+		).search()
+
+		expect(out[0].id).toBe('v10')
+		expect(out.find((c) => c.id === 'v1')?.confidence ?? 0).toBeLessThan(out[0].confidence)
+	})
+
+	test('a title that merely ENDS in a number is not read as a volume', async () => {
+		// The guard that keeps "Fahrenheit 451" and "1984" out of this: the bare
+		// form is only consulted when the QUERY carries a volume, the number is at
+		// most 3 digits, and the stem must still match the title we searched for.
+		const out = await helperFor(
+			[candidate({ id: 'f451', title: 'Fahrenheit 451', authors: ['Ray Bradbury'] })],
+			{
+				title: 'Fahrenheit 451',
+				author: 'Ray Bradbury',
+				trackTitle: 'Fahrenheit 451'
+			}
+		).search()
+
+		expect(out[0].id).toBe('f451')
+		expect(getMatchMetrics().recent[0].volumeDemoted).toBe(0)
+	})
+
+	test('an unrelated title ending in a number is never a sibling', async () => {
+		// Stem check: "Slaughterhouse 5" must not be read as volume 5 of a
+		// different series just because the query happens to carry a volume.
+		const out = await helperFor(
+			[candidate({ id: 'sh5', title: 'Slaughterhouse 5', authors: ['Kurt Vonnegut'] })],
+			{
+				title: 'Slaughterhouse 5',
+				author: 'Kurt Vonnegut',
+				trackTitle: 'Slaughterhouse 5, Book 1'
+			}
+		).search()
+
+		expect(getMatchMetrics().recent[0].volumeDemoted).toBe(0)
+		expect(out[0].id).toBe('sh5')
+	})
+
 	test('telemetry records the volume demotion firing', async () => {
 		await helperFor([
 			candidate({ provider: 'audible', id: 'part1', title: 'KTF Part 1' }),
