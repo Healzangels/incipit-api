@@ -96,13 +96,14 @@ const SERIES_VARIANT_RE =
  */
 async function seriesMemberCount(
 	foreignId: number | undefined,
-	state?: LookupState
+	state?: LookupState,
+	logger?: FastifyBaseLogger
 ): Promise<number> {
 	if (typeof foreignId !== 'number') return 0
 	const memoized = seriesCountMemo.get(foreignId)
 	if (memoized !== undefined) return memoized
 	const probe = state ?? newLookupState()
-	const series = await getJson<SeriesResponse>(`/series/${foreignId}`, probe)
+	const series = await getJson<SeriesResponse>(`/series/${foreignId}`, probe, logger)
 	const count = Array.isArray(series?.LinkItems) ? series.LinkItems.length : 0
 	// Only memoize a count the mirror actually gave us. This memo has NO TTL, so a
 	// 0 recorded from a rate-limited or timed-out call would pin that series at
@@ -291,12 +292,24 @@ function takeSlot(): Promise<void> {
 	return slot
 }
 
-async function getJson<T>(path: string, state?: LookupState): Promise<T | null> {
+async function getJson<T>(
+	path: string,
+	state?: LookupState,
+	logger?: FastifyBaseLogger
+): Promise<T | null> {
 	// Standing down after a push-back: skip the call outright rather than adding
 	// to the pile. Counts as degraded -- the null we return says nothing about
 	// whether the data exists, so it must not be cached as a miss.
 	if (Date.now() < backoffUntil) {
 		if (state) state.degraded = true
+		// Logged because this is INVISIBLE otherwise: every enrichment simply
+		// returns nothing, which looks identical to "this author has no photo".
+		// Diagnosing one such case took five steps precisely because a stand-down
+		// left no trace -- so say so, with how long is left on it.
+		logger?.debug(
+			{ path, backoffMsRemaining: backoffUntil - Date.now() },
+			'goodreads: skipped, standing down after a rate-limit push-back'
+		)
 		return null
 	}
 	await takeSlot()
@@ -314,7 +327,16 @@ async function getJson<T>(path: string, state?: LookupState): Promise<T | null> 
 		// the stand-down never fired (measured: 12 requests across 3 lookups against
 		// an always-429 mirror).
 		const status = (err as { status?: number })?.status
-		if (status === 429 || status === 503) backoffUntil = Date.now() + BACKOFF_MS
+		if (status === 429 || status === 503) {
+			backoffUntil = Date.now() + BACKOFF_MS
+			// warn, not debug: being pushed back off the mirror degrades enrichment
+			// library-wide for the next minute, and it is the one condition an
+			// operator would want to see without raising the log level.
+			logger?.warn(
+				{ path, status, backoffMs: BACKOFF_MS },
+				'goodreads: rate-limited, standing down'
+			)
+		}
 		// A 4xx OTHER than 429 is the mirror ANSWERING: 404 means no such work or
 		// author, which is a real miss worth caching. Only transport failures
 		// (429/503, timeouts, refusals -- no status at all) are degradation, or a
@@ -322,6 +344,15 @@ async function getJson<T>(path: string, state?: LookupState): Promise<T | null> 
 		// against the very mirror the pacing protects.
 		const answered = status != null && status >= 400 && status < 500 && status !== 429
 		if (!answered && state) state.degraded = true
+		// Distinguish the three outcomes that all return null: the mirror answered
+		// "no such record" (cacheable), or the call failed for transport reasons
+		// (not cacheable, and not evidence the record is missing).
+		logger?.debug(
+			{ path, status: status ?? null, answered },
+			answered
+				? 'goodreads: no record for this lookup'
+				: 'goodreads: lookup failed (transport), treating as degraded'
+		)
 		// Enrichment is strictly best-effort: an outage, a 404 or a rate limit
 		// must never fail the request that asked for it.
 		return null
@@ -375,7 +406,7 @@ export async function fetchGoodreadsSeries(
 	if (!want) return null
 
 	const q = encodeURIComponent([title, author].filter(Boolean).join(' '))
-	const hits = await getJson<SearchHit[]>(`/search?q=${q}`, state)
+	const hits = await getJson<SearchHit[]>(`/search?q=${q}`, state, logger)
 	if (!Array.isArray(hits) || hits.length === 0) return null
 
 	// Only the first few: /search is relevance-ordered, and walking deeper trades
@@ -384,7 +415,7 @@ export async function fetchGoodreadsSeries(
 		const workId = hit.workId
 		if (typeof workId !== 'number') continue
 
-		const work = await getJson<WorkResponse>(`/work/${workId}`, state)
+		const work = await getJson<WorkResponse>(`/work/${workId}`, state, logger)
 		if (!work) continue
 
 		// Verify before trusting. Compare against every title form the work
@@ -429,7 +460,7 @@ export async function fetchGoodreadsSeries(
 			const pool = clean.length ? clean : all
 			const counts = new Map<WorkSeries, number>()
 			for (const s of pool) {
-				counts.set(s, await seriesMemberCount(s.ForeignId, state))
+				counts.set(s, await seriesMemberCount(s.ForeignId, state, logger))
 			}
 			// A series that cannot POSITION our book is useless for shelving
 			// however large, so positioned series rank first; among those the
@@ -504,7 +535,7 @@ export async function fetchGoodreadsAuthorInfo(
 ): Promise<{ image: string | null; bio: string | null }> {
 	if (!name.trim()) return { image: null, bio: null }
 
-	const hits = await getJson<SearchHit[]>(`/search?q=${encodeURIComponent(name)}`, state)
+	const hits = await getJson<SearchHit[]>(`/search?q=${encodeURIComponent(name)}`, state, logger)
 	if (!hits?.length) return { image: null, bio: null }
 
 	// Distinct author ids from the top hits, in relevance order.
@@ -515,7 +546,7 @@ export async function fetchGoodreadsAuthorInfo(
 	}
 
 	for (const id of ids) {
-		const author = await getJson<GoodreadsAuthorResponse>(`/author/${id}`, state)
+		const author = await getJson<GoodreadsAuthorResponse>(`/author/${id}`, state, logger)
 		// FALSE-POSITIVE GATE: only trust a record whose name confirms it is the
 		// same person; a shared first name or a title-word hit is rejected here.
 		if (!author?.Name || !isSameAuthor(name, author.Name)) continue

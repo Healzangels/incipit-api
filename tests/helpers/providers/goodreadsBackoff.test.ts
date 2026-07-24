@@ -59,6 +59,29 @@ describe('bookinfo.pro rate-limit backoff', () => {
 		expect(fetchMock.mock.calls.length).toBe(callsAfter429)
 	})
 
+	test('a rate-limit and the stand-down that follows are both LOGGED', async () => {
+		// The whole reason a missing author portrait took five diagnostic steps: a
+		// 429, a stand-down skip and a genuine "no such author" all returned null
+		// with no trace, so production could not tell them apart.
+		resetGoodreadsThrottle()
+		rejectWithStatus(429)
+		const warns: string[] = []
+		const debugs: string[] = []
+		const logger = {
+			warn: (_o: unknown, msg?: string) => warns.push(String(msg ?? '')),
+			debug: (_o: unknown, msg?: string) => debugs.push(String(msg ?? '')),
+			info: () => undefined,
+			error: () => undefined
+		} as never
+
+		await fetchGoodreadsAuthorInfo('Jessica Townsend', logger)
+		expect(warns.some((m) => m.includes('rate-limited'))).toBe(true)
+
+		// The NEXT call is skipped by the backoff -- that skip must say so too.
+		await fetchGoodreadsAuthorInfo('Graham McNeill', logger)
+		expect(debugs.some((m) => m.includes('standing down'))).toBe(true)
+	})
+
 	test('a rate-limited miss is NOT cached (a throttled scan must not blank the library)', async () => {
 		// The dangerous interaction: miss-caching exists so a photo-less author is not
 		// re-queried forever, but a null produced while throttled says nothing about
