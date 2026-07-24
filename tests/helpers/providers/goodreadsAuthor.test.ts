@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test'
 
+import { fakeRedis } from '#tests/setup/fakeRedis'
+
 // No outbound pacing in tests: the live client holds a ~1.1s gap between
 // bookinfo.pro calls, which would add ~45s to this suite for no coverage.
 process.env.GOODREADS_MIN_GAP_MS = '0'
@@ -9,19 +11,6 @@ mock.module('#helpers/utils/fetchPlus', () => ({ default: fetchMock }))
 
 const { fetchGoodreadsAuthorInfo, withGoodreadsAuthorInfo } =
 	await import('#helpers/providers/goodreadsSeries')
-
-/** Minimal in-memory stand-in for the redis client the route passes. */
-function fakeRedis() {
-	const store = new Map<string, string>()
-	return {
-		store,
-		get: async (k: string) => store.get(k) ?? null,
-		set: async (k: string, v: string) => {
-			store.set(k, v)
-			return 'OK'
-		}
-	}
-}
 
 /** Queue responses in call order; a `null` entry makes that call reject. */
 function respond(...bodies: Array<unknown | null>) {
@@ -144,6 +133,18 @@ describe('withGoodreadsAuthorInfo caching', () => {
 		const second = await withGoodreadsAuthorInfo('Jessica Townsend', redis)
 		expect(second).toEqual(first)
 		expect(fetchMock.mock.calls.length).toBe(callsAfterFirst) // zero extra traffic
+	})
+
+	test('the cache entry is written with a TTL, not forever', async () => {
+		// The hand-rolled two-argument fakes this replaced swallowed the `'EX', ttl`
+		// pair, so a cache that forgot its expiry -- pinning "no photo" on an author
+		// permanently -- would still have passed.
+		const redis = fakeRedis()
+		respond([{ author: { id: 1 } }], { ForeignId: 1, Name: 'Jessica Townsend', ImageUrl: PHOTO })
+		await withGoodreadsAuthorInfo('Jessica Townsend', redis)
+		const [key] = [...redis.store.keys()]
+		expect(key).toBeDefined()
+		expect(redis.expires.get(key)).toBe(86400)
 	})
 
 	test('a MISS is cached too, so a photo-less author is not re-queried forever', async () => {

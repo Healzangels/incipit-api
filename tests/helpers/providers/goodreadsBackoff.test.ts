@@ -1,5 +1,7 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test'
 
+import { fakeRedis } from '#tests/setup/fakeRedis'
+
 // Pacing off: this file asserts the BACKOFF, not the inter-request gap.
 process.env.GOODREADS_MIN_GAP_MS = '0'
 
@@ -13,19 +15,6 @@ const { fetchGoodreadsAuthorInfo, withGoodreadsAuthorInfo, resetGoodreadsThrottl
 // single process: leaving the backoff tripped blanks every later Goodreads test
 // (measured: 7 sibling failures, and which ones depended on file order).
 afterAll(() => resetGoodreadsThrottle())
-
-/** Minimal in-memory stand-in for the redis client the route passes. */
-function fakeRedis() {
-	const store = new Map<string, string>()
-	return {
-		store,
-		get: async (k: string) => store.get(k) ?? null,
-		set: async (k: string, v: string) => {
-			store.set(k, v)
-			return 'OK'
-		}
-	}
-}
 
 /**
  * Rate-limit backoff, in its own file on purpose: tripping the backoff sets

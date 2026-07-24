@@ -120,6 +120,8 @@ export interface MatchMetrics {
 	languageDemotedSearches: number
 	/** Total candidates demoted for wrong language, across all searches. */
 	languageDemotedCandidates: number
+	/** Searches where at least one box-set/omnibus candidate was demoted. */
+	bundleDemotedSearches: number
 	/** Searches where at least one candidate hit the graded duration dead zone. */
 	durationDeadzonedSearches: number
 	/** Searches where at least one numbered sibling was demoted (wrong Part/Book N). */
@@ -160,6 +162,7 @@ const store: {
 	durationCorroborated: number
 	languageDemotedSearches: number
 	languageDemotedCandidates: number
+	bundleDemotedSearches: number
 	durationDeadzonedSearches: number
 	volumeDemotedSearches: number
 	aiNarrationDemotedSearches: number
@@ -180,6 +183,7 @@ const store: {
 	durationCorroborated: 0,
 	languageDemotedSearches: 0,
 	languageDemotedCandidates: 0,
+	bundleDemotedSearches: 0,
 	durationDeadzonedSearches: 0,
 	volumeDemotedSearches: 0,
 	aiNarrationDemotedSearches: 0,
@@ -226,6 +230,7 @@ export function recordMatchDecision(decision: MatchDecision): void {
 		store.languageDemotedSearches += 1
 		store.languageDemotedCandidates += decision.languageDemoted
 	}
+	if (decision.bundleDemoted > 0) store.bundleDemotedSearches += 1
 	if (decision.durationDeadzoned > 0) store.durationDeadzonedSearches += 1
 	if (decision.volumeDemoted > 0) store.volumeDemotedSearches += 1
 	if (decision.aiNarrationDemoted > 0) store.aiNarrationDemotedSearches += 1
@@ -260,6 +265,7 @@ export function getMatchMetrics(): MatchMetrics {
 		durationCorroborated: store.durationCorroborated,
 		languageDemotedSearches: store.languageDemotedSearches,
 		languageDemotedCandidates: store.languageDemotedCandidates,
+		bundleDemotedSearches: store.bundleDemotedSearches,
 		durationDeadzonedSearches: store.durationDeadzonedSearches,
 		volumeDemotedSearches: store.volumeDemotedSearches,
 		aiNarrationDemotedSearches: store.aiNarrationDemotedSearches,
@@ -292,6 +298,7 @@ export function resetMatchMetrics(): void {
 	store.durationCorroborated = 0
 	store.languageDemotedSearches = 0
 	store.languageDemotedCandidates = 0
+	store.bundleDemotedSearches = 0
 	store.durationDeadzonedSearches = 0
 	store.volumeDemotedSearches = 0
 	store.aiNarrationDemotedSearches = 0
