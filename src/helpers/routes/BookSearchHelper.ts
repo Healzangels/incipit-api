@@ -292,6 +292,10 @@ export default class BookSearchHelper {
 	// there is what let a stale sidecar ASIN win outright.
 	private bundleDemotedIds = new Set<string>()
 	private aiNarratedIds = new Set<string>()
+	// Pinned candidates whose own runtime is clearly wrong for the file while a
+	// different edition corroborates it -- a stale/wrong sidecar ASIN. Stripped of
+	// pin privilege in scoring, dedupe, and the pinned-first tiebreak.
+	private pinOverriddenIds = new Set<string>()
 	// How many candidates the volume-mismatch penalty hit on the last scoring pass
 	// -- a numbered sibling ("KTF Part 1" against a query for "KTF Part 2"). Zero
 	// for the overwhelming majority of searches, which involve no numbered pair.
@@ -299,6 +303,9 @@ export default class BookSearchHelper {
 	// How many candidates the AI-narration demotion hit on the last scoring pass --
 	// an Amazon "Virtual Voice" synthetic edition. Zero for almost every search.
 	private aiNarrationDemoted = 0
+	// How many pinned candidates lost their pin because their runtime contradicted
+	// the file while another edition corroborated it (a stale/wrong sidecar ASIN).
+	private pinDurationOverridden = 0
 	// How many candidates the graded duration dead-zone penalty hit on the last
 	// scoring pass. Instrumented like the language gate so its effect is measured
 	// rather than assumed.
@@ -448,6 +455,7 @@ export default class BookSearchHelper {
 			durationDeadzoned: this.durationDeadzoned,
 			volumeDemoted: this.volumeDemoted,
 			aiNarrationDemoted: this.aiNarrationDemoted,
+			pinDurationOverridden: this.pinDurationOverridden,
 			matched: top != null,
 			provider: top?.provider ?? null,
 			matchedTitle: top?.title ?? null,
@@ -527,9 +535,11 @@ export default class BookSearchHelper {
 		this.bundleDemoted = 0
 		this.bundleDemotedIds.clear()
 		this.aiNarratedIds.clear()
+		this.pinOverriddenIds.clear()
 		this.durationDeadzoned = 0
 		this.volumeDemoted = 0
 		this.aiNarrationDemoted = 0
+		this.pinDurationOverridden = 0
 		// The volume/part numbers the QUERY carries, read from the RAW titles
 		// (normalizeTitle strips them). Empty for almost every search; when
 		// present, a candidate carrying a DIFFERENT number is a different book.
@@ -537,6 +547,18 @@ export default class BookSearchHelper {
 			...volumeNumbers(this.rawTitle),
 			...volumeNumbers(this.options.trackTitle)
 		])
+		// The file's own runtime lets us catch a STALE pin: a sidecar ASIN pointing
+		// at the wrong edition (a Rosamund Pike ASIN on a Kate Reading file). A pin
+		// whose edition runtime is clearly wrong for the file (>5% off) while a
+		// DIFFERENT edition corroborates it is trusting a bad ASIN over ground truth.
+		const wantSeconds = this.options.duration != null ? this.options.duration / 1000 : null
+		const durationCorroborates = (c: ProviderCandidate): boolean => {
+			if (wantSeconds == null || c.audioSeconds == null || c.audioSeconds <= 0) return false
+			return Math.abs(wantSeconds - c.audioSeconds) / c.audioSeconds <= DURATION_TOLERANCE
+		}
+		const corroboratedNonPinExists =
+			wantAsin != null &&
+			candidates.some((c) => !this.isPinned(c, wantAsin) && durationCorroborates(c))
 		const scored: ScoredCandidate[] = candidates.map((c) => {
 			// Score against the album title and (when present) the track title,
 			// keeping the higher. Both go through the same scoreCandidate (duration
@@ -548,14 +570,29 @@ export default class BookSearchHelper {
 				if (alt.confidence > best.confidence) best = alt
 			}
 			// An exact ASIN match is a definitive identity confirmation — it beats
-			// any fuzzy score, so pin it to full confidence.
+			// any fuzzy score, so pin it to full confidence. UNLESS the pin is stale:
+			// its own edition's runtime is clearly wrong for the file (>5% off) while a
+			// different edition corroborates the file's runtime — a wrong sidecar ASIN
+			// (a Rosamund Pike ASIN on a Kate Reading file). Then withdraw the override
+			// and let the candidate score on its merits (the dead-zone penalty below),
+			// so the duration-corroborated edition wins instead of the wrong narrator.
 			const asinMatch = this.isPinned(c, wantAsin)
-			let confidence = asinMatch ? 1 : best.confidence
+			const pinContradicted =
+				asinMatch &&
+				best.durationDeltaPct != null &&
+				best.durationDeltaPct > DURATION_TOLERANCE &&
+				corroboratedNonPinExists
+			if (pinContradicted) {
+				this.pinDurationOverridden += 1
+				this.pinOverriddenIds.add(c.id)
+			}
+			const effectivePin = asinMatch && !pinContradicted
+			let confidence = effectivePin ? 1 : best.confidence
 			// Authorless title-only guard (see TITLE_ONLY_CEILING): with no author to
 			// verify identity, hold a fuzzy title match below STRONG_MATCH unless its
 			// duration corroborates the edition — so a bare "Hell Bent" can't silently
 			// auto-match the wrong book. An ASIN pin and a duration match are exempt.
-			if (!asinMatch && !hasAuthor) {
+			if (!effectivePin && !hasAuthor) {
 				const durCorroborated =
 					best.durationDeltaPct != null && best.durationDeltaPct <= DURATION_TOLERANCE
 				if (!durCorroborated) confidence = Math.min(confidence, TITLE_ONLY_CEILING)
@@ -563,7 +600,7 @@ export default class BookSearchHelper {
 			// Wrong-language demotion. Exempt an ASIN pin: an exact ASIN is a
 			// definitive identity the caller asked for by name, so honour it even
 			// when its language differs.
-			if (!asinMatch && languageConflict(c.language, wantLanguage)) {
+			if (!effectivePin && languageConflict(c.language, wantLanguage)) {
 				confidence = Math.max(0, confidence - LANGUAGE_CONFLICT_PENALTY)
 				this.languageDemoted += 1
 			}
@@ -572,7 +609,7 @@ export default class BookSearchHelper {
 			// penalty, same ASIN-pin exemption -- just a second way of detecting it.
 			// Guarded so it cannot double-charge a candidate the field already caught.
 			else if (
-				!asinMatch &&
+				!effectivePin &&
 				FOREIGN_EDITION_RE.test(c.title ?? '') &&
 				!FOREIGN_EDITION_RE.test(primaryTitle)
 			) {
@@ -605,7 +642,7 @@ export default class BookSearchHelper {
 			// provider order; this restores the distinction the normalizer erased.
 			// ASIN-pin exempt, like the other demotions: the caller named that
 			// edition by identity even if its printed part number reads oddly.
-			if (!asinMatch && volumeConflict(wantVolumes, volumeNumbers(c.title))) {
+			if (!effectivePin && volumeConflict(wantVolumes, volumeNumbers(c.title))) {
 				confidence = Math.max(0, confidence - VOLUME_MISMATCH_PENALTY)
 				this.volumeDemoted += 1
 			}
@@ -620,7 +657,7 @@ export default class BookSearchHelper {
 			// ramp. At exactly the threshold the ramp evaluates to the full veto
 			// magnitude, so the two regimes meet without double-counting.
 			if (
-				!asinMatch &&
+				!effectivePin &&
 				durDelta != null &&
 				durDelta > DURATION_TOLERANCE &&
 				durDelta <= DURATION_VETO_THRESHOLD
@@ -641,7 +678,11 @@ export default class BookSearchHelper {
 		// wantAsin is passed into dedupe so a pinned candidate cannot lose its
 		// GROUP to a richer same-runtime rival — the pinned-first tiebreak below
 		// runs after dedupe and cannot resurrect a deleted candidate.
-		return dedupeCandidates(accepted, wantAsin, this.aiNarratedIds).sort((a, b) => {
+		return dedupeCandidates(
+			accepted,
+			wantAsin,
+			new Set([...this.aiNarratedIds, ...this.pinOverriddenIds])
+		).sort((a, b) => {
 			// The explicitly-hinted ASIN outranks EVERYTHING, including a confidence
 			// tie at 1.0: a perfect title+author+duration candidate also reaches 1.0,
 			// and if the two don't dedupe-merge (different ASIN and runtime bucket)
@@ -652,7 +693,8 @@ export default class BookSearchHelper {
 			const pinned = (c: ScoredCandidate) =>
 				this.isPinned(c, wantAsin) &&
 				!this.bundleDemotedIds.has(c.id) &&
-				!this.aiNarratedIds.has(c.id)
+				!this.aiNarratedIds.has(c.id) &&
+				!this.pinOverriddenIds.has(c.id)
 			const byPin = Number(pinned(b)) - Number(pinned(a))
 			if (byPin !== 0) return byPin
 			const byConfidence = b.confidence - a.confidence

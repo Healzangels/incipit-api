@@ -68,6 +68,13 @@ export interface MatchDecision {
 	 * left unchecked, could have out-ranked a real human-narrated edition.
 	 */
 	aiNarrationDemoted: number
+	/**
+	 * How many pinned candidates lost their pin because their runtime contradicted
+	 * the file while another edition corroborated it -- a stale/wrong sidecar ASIN
+	 * (a Rosamund Pike ASIN on a Kate Reading file). Non-zero means a bad pin was
+	 * caught and the duration-corroborated edition won instead.
+	 */
+	pinDurationOverridden: number
 
 	/** At least one candidate survived the confidence floor. */
 	matched: boolean
@@ -119,6 +126,7 @@ export interface MatchMetrics {
 	volumeDemotedSearches: number
 	/** Searches where at least one AI-narrated "Virtual Voice" edition was demoted. */
 	aiNarrationDemotedSearches: number
+	pinDurationOverriddenSearches: number
 	/**
 	 * Item lookups (/books/:asin) whose record language positively conflicts
 	 * with the request region's expected language. The early-warning for a
@@ -155,6 +163,7 @@ const store: {
 	durationDeadzonedSearches: number
 	volumeDemotedSearches: number
 	aiNarrationDemotedSearches: number
+	pinDurationOverriddenSearches: number
 	languageMismatchedLookups: number
 	confidenceSum: number
 	byConfidence: Map<string, number>
@@ -174,6 +183,7 @@ const store: {
 	durationDeadzonedSearches: 0,
 	volumeDemotedSearches: 0,
 	aiNarrationDemotedSearches: 0,
+	pinDurationOverriddenSearches: 0,
 	languageMismatchedLookups: 0,
 	confidenceSum: 0,
 	byConfidence: new Map(),
@@ -219,6 +229,7 @@ export function recordMatchDecision(decision: MatchDecision): void {
 	if (decision.durationDeadzoned > 0) store.durationDeadzonedSearches += 1
 	if (decision.volumeDemoted > 0) store.volumeDemotedSearches += 1
 	if (decision.aiNarrationDemoted > 0) store.aiNarrationDemotedSearches += 1
+	if (decision.pinDurationOverridden > 0) store.pinDurationOverriddenSearches += 1
 
 	if (decision.matched && decision.confidence != null) {
 		store.confidenceSum += decision.confidence
@@ -252,6 +263,7 @@ export function getMatchMetrics(): MatchMetrics {
 		durationDeadzonedSearches: store.durationDeadzonedSearches,
 		volumeDemotedSearches: store.volumeDemotedSearches,
 		aiNarrationDemotedSearches: store.aiNarrationDemotedSearches,
+		pinDurationOverriddenSearches: store.pinDurationOverriddenSearches,
 		languageMismatchedLookups: store.languageMismatchedLookups,
 		byConfidence: Object.fromEntries(store.byConfidence),
 		avgConfidence: matched > 0 ? store.confidenceSum / matched : null,
@@ -283,6 +295,7 @@ export function resetMatchMetrics(): void {
 	store.durationDeadzonedSearches = 0
 	store.volumeDemotedSearches = 0
 	store.aiNarrationDemotedSearches = 0
+	store.pinDurationOverriddenSearches = 0
 	store.languageMismatchedLookups = 0
 	store.confidenceSum = 0
 	store.byConfidence.clear()

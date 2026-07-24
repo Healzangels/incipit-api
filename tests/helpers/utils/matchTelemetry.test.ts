@@ -24,6 +24,7 @@ function decision(over: Partial<MatchDecision> = {}): MatchDecision {
 		durationDeadzoned: 0,
 		volumeDemoted: 0,
 		aiNarrationDemoted: 0,
+		pinDurationOverridden: 0,
 		matched: true,
 		provider: 'audible',
 		matchedTitle: 'Some Book',
