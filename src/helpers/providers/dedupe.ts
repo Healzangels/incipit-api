@@ -229,17 +229,26 @@ export function dedupeCandidates(
 	const isJunk = (c: ScoredCandidate): boolean => demotedIds.has(c.id)
 	const isPinned = (c: ScoredCandidate): boolean =>
 		pinnedAsin != null && c.asin?.toUpperCase() === pinnedAsin && !isJunk(c)
+	// Winner precedence inside a group: a pin beats everything, then a REAL edition
+	// beats a demoted-junk one regardless of confidence -- so a junk that merged
+	// with the real book can never win by out-scoring a weaker human edition; it
+	// wins only when it is the sole (junk-only) member -- then the usual
+	// confidence-then-richness order. Empty demotedIds -> isJunk always false ->
+	// identical to the pre-change (pin, then isBetter) behaviour.
+	const winsGroup = (c: ScoredCandidate, cur: ScoredCandidate): boolean => {
+		if (isPinned(c) !== isPinned(cur)) return isPinned(c)
+		if (isJunk(c) !== isJunk(cur)) return !isJunk(c)
+		return isBetter(c, cur)
+	}
 	candidates.forEach((c, i) => {
 		const root = find(i)
 		const cur = best.get(root)
-		if (
-			!cur ||
-			(isPinned(c) && !isPinned(cur)) ||
-			(isPinned(c) === isPinned(cur) && isBetter(c, cur))
-		)
-			best.set(root, c)
-		// Donor selections skip junk: its asin/narrators/cover must not graft onto a
-		// real winner that merged with it (a Virtual Voice narrator on a human book).
+		if (!cur || winsGroup(c, cur)) best.set(root, c)
+		// Identity donors skip junk: its asin and narrators must not graft onto a real
+		// winner that merged with it (no junk store identity, no "Virtual Voice"
+		// narrator on a human book). The COVER is EXEMPT -- a Virtual Voice edition
+		// still carries the real book's artwork, so it may fill a cover-less winner
+		// like any other member; skipping it would strand a good cover.
 		if (c.asin && !isJunk(c)) {
 			const curAsin = bestWithAsin.get(root)
 			if (!curAsin || isBetter(c, curAsin)) bestWithAsin.set(root, c)
@@ -248,11 +257,11 @@ export function dedupeCandidates(
 			const curNarr = bestWithNarrators.get(root)
 			if (!curNarr || isBetter(c, curNarr)) bestWithNarrators.set(root, c)
 		}
-		if (c.cover && !isJunk(c)) {
+		if (c.cover) {
 			const curCover = bestWithCover.get(root)
 			if (!curCover || isBetter(c, curCover)) bestWithCover.set(root, c)
 		}
-		if (hasAudiobookCover(c) && !isJunk(c)) {
+		if (hasAudiobookCover(c)) {
 			const curAudio = bestAudioCover.get(root)
 			if (!curAudio || isBetter(c, curAudio)) bestAudioCover.set(root, c)
 		}

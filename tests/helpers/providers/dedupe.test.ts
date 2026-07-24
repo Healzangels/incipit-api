@@ -355,7 +355,13 @@ describe('dedupe grafts metadata from a collapsed member', () => {
 	test("the winner's own metadata is never overwritten", () => {
 		const out = dedupeCandidates(
 			[
-				at({ id: 'a', asin: 'B0KEEP', confidence: 1, narrators: ['Real Narrator'], cover: 'a.jpg' }),
+				at({
+					id: 'a',
+					asin: 'B0KEEP',
+					confidence: 1,
+					narrators: ['Real Narrator'],
+					cover: 'a.jpg'
+				}),
 				at({ id: 'b', asin: 'B0OTHER', narrators: ['Wrong Narrator'], cover: 'b.jpg' })
 			],
 			'B0KEEP'
@@ -421,5 +427,58 @@ describe('dedupe grafts metadata from a collapsed member', () => {
 		])
 		expect(out).toHaveLength(1)
 		expect(out[0].cover).toBe('audible.jpg')
+	})
+})
+
+describe('dedupeCandidates: demoted junk (AI "Virtual Voice") ids', () => {
+	// Same edition/book (shared dur: bucket) as a real one, flagged junk via the
+	// third arg. It must not win the group by pin OR by confidence, must not donate
+	// its identity metadata, but its cover (real book art) may still fill a gap.
+	const bucketed = (over: Partial<ScoredCandidate>): ScoredCandidate =>
+		scored({ title: 'X', authors: ['A'], audioSeconds: 36000, ...over }) // dur:x|a|600
+
+	test('a real edition beats junk in a merged group even at LOWER confidence', () => {
+		const junk = bucketed({ id: 'j', asin: 'B0JUNK00000', confidence: 0.8 })
+		const human = bucketed({ id: 'h', asin: null, confidence: 0.7 })
+		// junk is BOTH pinned and demoted; neither the pin nor its higher score wins.
+		const out = dedupeCandidates([junk, human], 'B0JUNK00000', new Set(['j']))
+		expect(out).toHaveLength(1)
+		expect(out[0].id).toBe('h')
+	})
+
+	test('junk is still emitted when it is the only member of its group', () => {
+		const junk = bucketed({ id: 'j', confidence: 0.8, narrators: ['Virtual Voice'] })
+		const out = dedupeCandidates([junk], null, new Set(['j']))
+		expect(out).toHaveLength(1)
+		expect(out[0].id).toBe('j')
+	})
+
+	test('junk does not donate its asin or narrators to the real winner', () => {
+		const junk = bucketed({
+			id: 'j',
+			asin: 'B0JUNK00000',
+			narrators: ['Virtual Voice'],
+			confidence: 0.8
+		})
+		const human = bucketed({ id: 'h', asin: null, narrators: [], confidence: 0.9 })
+		const out = dedupeCandidates([junk, human], null, new Set(['j']))
+		expect(out).toHaveLength(1)
+		expect(out[0].id).toBe('h')
+		expect(out[0].asin).toBeNull() // junk store identity not grafted
+		expect(out[0].narrators).toEqual([]) // no "Virtual Voice" graft
+	})
+
+	test('junk MAY donate its cover (real book art) to a cover-less winner', () => {
+		const junk = bucketed({
+			id: 'j',
+			provider: 'audible',
+			cover: 'book.jpg',
+			confidence: 0.8
+		})
+		const human = bucketed({ id: 'h', cover: null, confidence: 0.9 })
+		const out = dedupeCandidates([junk, human], null, new Set(['j']))
+		expect(out).toHaveLength(1)
+		expect(out[0].id).toBe('h')
+		expect(out[0].cover).toBe('book.jpg') // cover is NOT skipped for junk
 	})
 })
