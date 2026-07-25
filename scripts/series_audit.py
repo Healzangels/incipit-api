@@ -166,20 +166,34 @@ def folder_series(path):
     return parent, match.group(1)
 
 
-def api_series(asin):
+def api_series(book_id):
     """(series, position) the API would hand the agent, or (None, None)."""
-    if not asin:
+    if not book_id:
         return None, None
-    book = get_json('%s/books/%s' % (API, quote(asin)))
+    book = get_json('%s/books/%s' % (API, quote(book_id)))
     primary = (book or {}).get('seriesPrimary') or {}
     return primary.get('name'), primary.get('position')
 
 
-def asin_of(album):
-    """The ASIN inside the agent's guid, e.g. com.plexapp.agents.incipit://B07XYZ_us."""
+def provider_id(album):
+    """
+    The API's book id, taken whole from the agent guid.
+
+        com.plexapp.agents.incipit://<providerId>_<region>?lang=en
+
+    It is NOT always an Audible ASIN. This library matches OverDrive, Hardcover
+    and OpenLibrary too, and their ids look nothing like one --
+    "overdrive-2654482", "hardcover-edition-31806861",
+    "openlibrary-works-OL17770504W". Pulling a 10-character ASIN out with a
+    regex reported every one of those books as having NO series (9 of Brandon
+    Sanderson's 43 albums, six of them one series), and on a longer id it could
+    match ten characters out of the middle and quietly query a different book.
+    """
     guid = album.get('guid') or ''
-    match = re.search(r'([A-Z0-9]{10})', guid)
-    return match.group(1) if match else None
+    if '://' not in guid:
+        return None
+    ident = guid.split('://', 1)[1].split('?', 1)[0]
+    return re.sub(r'_[a-z]{2}$', '', ident) or None
 
 
 def shelvable(position):
@@ -223,7 +237,7 @@ def main():
                 continue
             path = album_path(token, album.get('ratingKey'))
             dir_name, dir_pos = folder_series(path)
-            api_name, api_pos = api_series(asin_of(album))
+            api_name, api_pos = api_series(provider_id(album))
             rows.append({
                 'state': classify(api_name, api_pos, dir_name, dir_pos),
                 'author': author,
