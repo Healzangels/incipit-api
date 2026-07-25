@@ -381,6 +381,68 @@ describe('goodreads as series authority', () => {
 		expect(out.seriesPrimary?.position).toBeUndefined()
 	})
 
+	test('a DRAMATIZED edition keeps its provider series', async () => {
+		// Accurate matching beats tidy naming. "Tress of the Emerald Sea: A Cosmere
+		// Novel (Dramatized Adaptation)" is a GraphicAudio production -- a different
+		// product from the prose novel, with its own Audible series (Secret
+		// Projects, asin B0D1BMZVXV). Goodreads does not model audio editions, so
+		// the closest thing it has is the PROSE novel's series, Hoid's Travails.
+		//
+		// Measured live: the subtitle retry stripped at the colon, found the prose
+		// work, and overwrote Secret Projects with Hoid's Travails #1. That is a
+		// round peg in a square hole -- it erases the one signal saying this row is
+		// a different edition, which is exactly what someone needs in order to
+		// notice and correct a wrong version.
+		respond(
+			[{ workId: 42 }],
+			work('Tress of the Emerald Sea', "Hoid's Travails", 1)
+		)
+		const provider = { asin: 'B0D1BMZVXV', name: 'Secret Projects', position: '1' }
+		const out = await withGoodreadsSeries(
+			book({
+				title: 'Tress of the Emerald Sea: A Cosmere Novel (Dramatized Adaptation)',
+				authors: [{ name: 'Brandon Sanderson' }],
+				seriesPrimary: provider
+			}),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary).toEqual(provider)
+	})
+
+	test('an edition-marked title is never retried without its subtitle', async () => {
+		// The stripping itself is the danger, not just the override: the bare title
+		// resolves to a DIFFERENT product. With nothing to overwrite it would still
+		// be wrong, so the retry must not fire at all.
+		respond([], [{ workId: 42 }], work('Tress of the Emerald Sea', "Hoid's Travails", 1))
+		const out = await withGoodreadsSeries(
+			book({
+				// Needs the COLON: without one there is no subtitle to strip and the
+				// retry never fires anyway, so the test would pass without the guard.
+				title: 'Tress of the Emerald Sea: A Cosmere Novel (Dramatized Adaptation)',
+				authors: [{ name: 'Brandon Sanderson' }],
+				seriesPrimary: null
+			}),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary).toBeNull()
+		expect(fetchMock.mock.calls.length).toBe(1) // the first search only. No retry.
+	})
+
+	test('a plain marketing subtitle is still retried', async () => {
+		// The guard must not swallow the case the retry exists for: "Esrever Doom:
+		// A Fun-Filled Adventure into the Realm of Xanth" names no edition.
+		respond([], [{ workId: 42 }], work('Esrever Doom', 'Xanth', 37))
+		const out = await withGoodreadsSeries(
+			book({
+				title: 'Esrever Doom: A Fun-Filled Adventure into the Realm of Xanth',
+				authors: [{ name: 'Piers Anthony' }],
+				seriesPrimary: null
+			}),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary?.name).toBe('Xanth')
+	})
+
 	test('the authority can be switched off without touching the code', async () => {
 		// An escape hatch for a library-wide behaviour change: this rewrites sort
 		// titles for every book where Goodreads and the provider disagree.

@@ -37,6 +37,24 @@ const TIMEOUT_MS = 8000
 const TITLE_ACCEPT = 0.9
 
 /**
+ * A title that names a specific EDITION rather than just the work.
+ *
+ * These are different products, not different wording for the same one. A
+ * GraphicAudio dramatization has its own Audible series ("Tress of the Emerald
+ * Sea: A Cosmere Novel (Dramatized Adaptation)" is Secret Projects #1, asin
+ * B0D1BMZVXV) while Goodreads, which does not model audio editions, offers only
+ * the PROSE novel's series (Hoid's Travails).
+ *
+ * Adopting the prose answer would be accurate NAMING at the cost of accurate
+ * MATCHING: it erases the one field saying this row is a different edition,
+ * which is what someone needs in order to spot and correct a wrong version.
+ * When a title says which edition it is, that is signal, not noise to normalize
+ * away.
+ */
+const EDITION_MARKER_RE =
+	/\b(dramati[sz]ed|graphic\s?audio|audio\s?drama|adaptation|abridged|graphic\s+novel|omnibus|box(?:ed)?\s?set|edition)\b/i
+
+/**
  * The title with a trailing subtitle removed, or null when there is nothing to
  * remove.
  *
@@ -50,6 +68,10 @@ const TITLE_ACCEPT = 0.9
  * @returns {string|null} the stem, or null when it is absent or too thin to use
  */
 function titleWithoutSubtitle(title: string): string | null {
+	// An edition marker anywhere in the title disqualifies the retry: the bare
+	// stem is a DIFFERENT product, so a hit would be a confident wrong answer
+	// rather than the miss we started with.
+	if (EDITION_MARKER_RE.test(title)) return null
 	const cut = title.indexOf(':')
 	if (cut <= 0) return null
 	const base = title.slice(0, cut).trim()
@@ -251,6 +273,21 @@ export async function withGoodreadsSeries<T extends SeriesEnrichable>(
 	// has to be a way back that is not a redeploy.
 	const authority = process.env.GOODREADS_SERIES_AUTHORITY !== '0'
 	if (hadSeries && !authority) return book
+
+	// A specific EDITION keeps the series its own provider gave it. The provider
+	// matched this exact release and has its ASIN; Goodreads does not model audio
+	// editions at all, so its answer is the nearest OTHER product -- the prose
+	// novel. Overwriting with that is accurate naming at the cost of accurate
+	// matching, and it destroys the evidence that this row is a different
+	// edition. Gap-filling is still allowed: with no series there is nothing to
+	// destroy, and a name beats none.
+	if (hadSeries && EDITION_MARKER_RE.test(book.title)) {
+		logger?.debug(
+			{ title: book.title, keeping: book.seriesPrimary?.name },
+			'goodreads series: title names a specific edition, keeping the provider series'
+		)
+		return book
+	}
 
 	const title = book.title
 	const author = book.authors?.[0]?.name ?? null
