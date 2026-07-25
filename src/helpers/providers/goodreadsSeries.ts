@@ -76,7 +76,13 @@ function titleWithoutSubtitle(title: string): string | null {
 	// stem is a DIFFERENT product, so a hit would be a confident wrong answer
 	// rather than the miss we started with.
 	if (EDITION_MARKER_RE.test(title)) return null
-	const cut = title.indexOf(':')
+	// The LAST colon, not the first. Provider titles stack segments as
+	// "Series: Title: Marketing" -- measured on Chaos Seeds, "The Land:
+	// Raiders: A LitRPG Saga" cut at the first colon retried as the bare
+	// series stem "The Land", which matched book 1's work at 1.0 and shelved
+	// three different books at #1. The marketing subtitle is the trailing
+	// segment; everything before it is the identity worth keeping.
+	const cut = title.lastIndexOf(':')
 	if (cut <= 0) return null
 	const base = title.slice(0, cut).trim()
 	if (base.length < 4 || base === title.trim()) return null
@@ -667,7 +673,11 @@ export async function fetchGoodreadsSeries(
 	const base = titleWithoutSubtitle(title)
 	if (!base) return null
 	logger?.debug({ title, base }, 'goodreads series: no hit, retrying without the subtitle')
-	return lookupByTitle(base, author, logger, state)
+	// strictGate: a stripped stem must match a candidate's FULL title. The
+	// relaxed arms exist for full titles ("our subtitle half", "the candidate's
+	// stem"); handing them a stem is sibling-matching by construction --
+	// "Ahriman" scores 1.0 against every "Ahriman: X" sibling's stem.
+	return lookupByTitle(base, author, logger, state, true)
 }
 
 /** One search-and-verify pass for exactly the title given. */
@@ -675,7 +685,8 @@ async function lookupByTitle(
 	title: string,
 	author: string | null,
 	logger?: FastifyBaseLogger,
-	state?: LookupState
+	state?: LookupState,
+	strictGate = false
 ): Promise<GoodreadsSeriesResult | null> {
 	const want = normalizeTitle(title)
 	if (!want) return null
@@ -723,6 +734,11 @@ async function lookupByTitle(
 		)
 		const gate = (cand: string): number => {
 			const c = normalizeTitle(cand)
+			// Strict (retry) pass: full-string only. `want` is already a stripped
+			// stem there, and the relaxed arms below would let it sibling-match --
+			// measured on Chaos Seeds, and reproducible on any "Series: Title"
+			// naming, where the stem equals every sibling's stem at 1.0.
+			if (strictGate) return sim(want, c)
 			const candStem = c.split(/\s*[:(]\s*/)[0].trim()
 			return Math.max(sim(want, c), sim(want, candStem), wantSubtitle ? sim(wantSubtitle, c) : 0)
 		}

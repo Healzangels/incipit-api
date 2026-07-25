@@ -657,6 +657,44 @@ describe('goodreads as series authority', () => {
 		}
 	})
 
+	test('a multi-colon title strips only its LAST segment on retry', async () => {
+		// Measured live on Chaos Seeds: "The Land: Raiders: A LitRPG Saga" missed
+		// pass 1, and the retry cut at the FIRST colon -- searching the bare
+		// series stem "The Land", which matched book 1's work and shelved Raiders
+		// (book 6) at Chaos Seeds #1. Three books of the series landed on #1 this
+		// way. The marketing subtitle is the TRAILING segment; strip that.
+		respond([], [{ workId: 42 }], work('The Land: Raiders', 'Chaos Seeds', 6))
+		const out = await withGoodreadsSeries(
+			book({
+				title: 'The Land: Raiders: A LitRPG Saga',
+				authors: [{ name: 'Aleron Kong' }],
+				seriesPrimary: null
+			}),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary?.position).toBe('6')
+		// The retry's search must carry the distinguishing word, not the bare stem.
+		const retryUrl = String(fetchMock.mock.calls[1]?.[0] ?? '')
+		expect(retryUrl).toContain(encodeURIComponent('The Land: Raiders'))
+	})
+
+	test('a retry stem cannot adopt a SIBLING via the candidate-stem arm', async () => {
+		// The residual single-colon case: "Ahriman: Exile" retried as "Ahriman"
+		// scores 1.0 against ANY sibling's stem ("Ahriman: Sorcerer" -> "Ahriman").
+		// The retry pass must gate on the full string only -- a stripped stem
+		// comparing itself to candidate stems is sibling-matching by construction.
+		respond([], [{ workId: 42 }], work('Ahriman: Sorcerer', 'Ahriman', 2))
+		const out = await withGoodreadsSeries(
+			book({
+				title: 'Ahriman: Exile',
+				authors: [{ name: 'John French' }],
+				seriesPrimary: null
+			}),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary).toBeNull()
+	})
+
 	test('the authority can be switched off without touching the code', async () => {
 		// An escape hatch for a library-wide behaviour change: this rewrites sort
 		// titles for every book where Goodreads and the provider disagree.
