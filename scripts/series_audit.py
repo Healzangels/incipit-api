@@ -35,8 +35,10 @@ USAGE (on the Plex host)
     python3 series_audit.py --only FALLBACK,DISAGREE
     python3 series_audit.py --csv report.csv
 
-    The Plex token is read from Preferences.xml, so no secret is passed on the
-    command line or stored in this file.
+    Run it ON THE PLEX HOST as root. The token comes from Preferences.xml, which
+    is root-owned -- over a network mount the file is visible but unreadable, so
+    running it from a workstation fails on the token, not on anything it could
+    retry. Set PLEX_TOKEN to override; PLEX_URL and INCIPIT_API if either moves.
 """
 
 import argparse
@@ -49,7 +51,16 @@ from collections import Counter
 from urllib.parse import quote
 from urllib.request import urlopen
 
-PREFS = '/mnt/user/appdata/plex/Library/Application Support/Plex Media Server/Preferences.xml'
+# Where Preferences.xml lives, most specific first. This homelab's appdata puts
+# Plug-ins/ and Logs/ DIRECTLY under plex/ with no "Library/Application Support/
+# Plex Media Server/" nesting, so the stock path is the WRONG default here --
+# reaching for it is what made the first run of this script fail outright.
+PREFS_CANDIDATES = (
+    '/mnt/user/appdata/plex/Preferences.xml',
+    '/Volumes/appdata/plex/Preferences.xml',
+    '/mnt/user/appdata/plex/Library/Application Support/Plex Media Server/Preferences.xml',
+    '/var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Preferences.xml',
+)
 PLEX = os.environ.get('PLEX_URL', 'http://127.0.0.1:32400')
 API = os.environ.get('INCIPIT_API', 'http://10.0.1.99:3737')
 TIMEOUT = 15
@@ -65,16 +76,33 @@ def die(msg):
 
 
 def plex_token():
-    """The server token, read from Preferences.xml (needs root on the Plex host)."""
-    path = os.environ.get('PLEX_PREFS', PREFS)
-    if not os.path.exists(path):
-        die('no Preferences.xml at %s -- set PLEX_PREFS, or run this on the Plex host' % path)
+    """
+    The server token: $PLEX_TOKEN, else Preferences.xml.
+
+    Preferences.xml is root-owned, so over an SMB mount the file is visible but
+    unreadable -- which is a different failure from "not found" and has a
+    different fix. Say which one happened.
+    """
+    token = os.environ.get('PLEX_TOKEN')
+    if token:
+        return token
+
+    override = os.environ.get('PLEX_PREFS')
+    candidates = (override,) if override else PREFS_CANDIDATES
+    found = next((p for p in candidates if os.path.exists(p)), None)
+    if not found:
+        die('no Preferences.xml found. Tried:\n  %s\nRun this on the Plex host, or set '
+            'PLEX_PREFS=<path>, or PLEX_TOKEN=<token>.' % '\n  '.join(candidates))
     try:
-        token = ET.parse(path).getroot().get('PlexOnlineToken')
+        token = ET.parse(found).getroot().get('PlexOnlineToken')
+    except PermissionError:
+        die('%s is not readable by this user (it is root-owned; over a network mount that\n'
+            'means you cannot read it from here). Run this on the Plex host as root, or pass\n'
+            'PLEX_TOKEN=<token>.' % found)
     except Exception as exc:
-        die('could not parse %s (%s)' % (path, exc))
+        die('could not parse %s (%s)' % (found, exc))
     if not token:
-        die('Preferences.xml has no PlexOnlineToken')
+        die('%s has no PlexOnlineToken' % found)
     return token
 
 
