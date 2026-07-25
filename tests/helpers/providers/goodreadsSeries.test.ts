@@ -229,7 +229,7 @@ describe('withGoodreadsSeries enrichment wrapper', () => {
 		}
 	}
 
-	test('leaves a book that already has a series untouched (no lookup)', async () => {
+	test('with the authority OFF, a book that already has a series is untouched', async () => {
 		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
 		fetchMock.mockReset()
 		const redis = fakeRedis()
@@ -238,11 +238,22 @@ describe('withGoodreadsSeries enrichment wrapper', () => {
 			authors: [{ name: 'Someone' }],
 			seriesPrimary: { name: 'Existing Series', position: '3' }
 		}
-		const out = await withGoodreadsSeries(book, redis)
-		expect(out.seriesPrimary).toEqual({ name: 'Existing Series', position: '3' })
-		// The provider's series is authoritative -- nothing was fetched or cached.
-		expect(fetchMock).not.toHaveBeenCalled()
-		expect(redis.store.size).toBe(0)
+		// This pinned the ORIGINAL contract: Goodreads was a gap-filler and a book
+		// that already had a series was never looked up. That contract has been
+		// deliberately replaced -- providers disagree with each other across one
+		// series, so the provider's answer is no longer treated as authoritative
+		// and Goodreads is consulted for every book. The assertion is kept, scoped
+		// to the escape hatch, because "authority off" must still mean the old
+		// behaviour exactly: no override, no request, no cache write.
+		process.env.GOODREADS_SERIES_AUTHORITY = '0'
+		try {
+			const out = await withGoodreadsSeries(book, redis)
+			expect(out.seriesPrimary).toEqual({ name: 'Existing Series', position: '3' })
+			expect(fetchMock).not.toHaveBeenCalled()
+			expect(redis.store.size).toBe(0)
+		} finally {
+			delete process.env.GOODREADS_SERIES_AUTHORITY
+		}
 	})
 
 	test('fills a missing series from Goodreads and caches it', async () => {

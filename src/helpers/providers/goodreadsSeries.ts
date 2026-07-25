@@ -140,11 +140,39 @@ interface RedisLike {
 	set(key: string, value: string, mode: 'EX', ttl: number): Promise<unknown>
 }
 
-// A day: series membership is effectively immutable, and a miss is worth
-// remembering too so a sidecar-less book without a Goodreads hit does not
-// re-walk /search + /work on every metadata refresh.
-const CACHE_TTL_SECONDS = 86400
+// 30 days. Series membership is effectively immutable -- a book does not
+// change which series it is in -- so re-asking daily bought nothing and was
+// most of the rate-limit exposure. Now that this runs for EVERY book rather
+// than the ~24% with no provider series, the request volume would have gone up
+// ~4x against a mirror that already 429s under load; the TTL is what pays for
+// that, not the backoff. A miss is cached too (see the null sentinel), but only
+// when the lookup was healthy.
+const SERIES_CACHE_TTL_SECONDS = 2592000
+
+// ONE DAY, and deliberately NOT the series TTL. This module caches two very
+// different things through the same helper shape, and they age differently: a
+// book's series membership is immutable, but an author's photo and bio are not
+// -- an author with no portrait today may have one next week. Sharing a single
+// constant meant raising it for series silently froze author images for a
+// month, re-creating a fixed bug where a throttle pinned "no photo" on authors
+// whose records were cached before the lookup started working.
+const AUTHOR_CACHE_TTL_SECONDS = 86400
 const CACHE_PREFIX = 'grseries:v2:'
+
+/**
+ * Whether a Goodreads position can be used as a shelf key.
+ *
+ * Goodreads positions are free text and are not always a number: measured live,
+ * "Konrad Curze: The Night Haunter" comes back at position "The Primarchs Short
+ * Story", which adopted verbatim renders as "Book The Primarchs Short Story" in
+ * the sort title. Decimals ARE valid and load-bearing -- novellas sit at 1.1 and
+ * 1.5, and dropping the fraction collides them with the whole-numbered book.
+ * @param {string|null|undefined} position the raw Goodreads position
+ * @returns {boolean} true when it is a plain number, optionally with a fraction
+ */
+function isShelvablePosition(position: string | null | undefined): boolean {
+	return position != null && /^\d+(\.\d+)?$/.test(String(position).trim())
+}
 
 function cacheKey(title: string, author: string | null): string {
 	return CACHE_PREFIX + normalizeTitle(title).toLowerCase() + '|' + (author || '').toLowerCase()
@@ -168,9 +196,20 @@ export async function withGoodreadsSeries<T extends SeriesEnrichable>(
 	redis: RedisLike | null,
 	logger?: FastifyBaseLogger
 ): Promise<T> {
-	// Already has a series, or nothing to look one up by -> leave it exactly as
-	// the provider returned it. This is the common path and must be free.
-	if (book?.seriesPrimary?.name || !book?.title) return book
+	if (!book?.title) return book
+	const hadSeries = Boolean(book.seriesPrimary?.name)
+	// AUTHORITY MODE. A book's series used to come from whichever provider won
+	// the TITLE match, and providers have incompatible taxonomies -- measured on
+	// one series, three providers produced three different series names and two
+	// "Book 1"s on the same shelf. Goodreads answers the whole series in ONE
+	// taxonomy, so consulting it for every book (not just the ~24% with none) is
+	// what makes a series internally consistent.
+	//
+	// Off by env for a library-wide behaviour change: this rewrites the sort
+	// title of every book where Goodreads and the provider disagree, so there
+	// has to be a way back that is not a redeploy.
+	const authority = process.env.GOODREADS_SERIES_AUTHORITY !== '0'
+	if (hadSeries && !authority) return book
 
 	const title = book.title
 	const author = book.authors?.[0]?.name ?? null
@@ -198,7 +237,7 @@ export async function withGoodreadsSeries<T extends SeriesEnrichable>(
 		// refresh would do.
 		if (redis && !probe.degraded) {
 			try {
-				await redis.set(key, JSON.stringify(result), 'EX', CACHE_TTL_SECONDS)
+				await redis.set(key, JSON.stringify(result), 'EX', SERIES_CACHE_TTL_SECONDS)
 			} catch {
 				// A cache-write failure is not a request failure.
 			}
@@ -206,9 +245,30 @@ export async function withGoodreadsSeries<T extends SeriesEnrichable>(
 	}
 
 	if (!result?.primary) return book
+	// OVERRIDING an existing series is held to a much higher bar than filling an
+	// empty one. As a gap-filler a wrong answer cost nothing -- the field was
+	// blank. As authority it overwrites correct data and mis-shelves a book that
+	// was already right, so it must bring a COMPLETE answer: a name AND a
+	// position we can actually shelve on.
+	//
+	// Both refusals below are real records, not caution in the abstract:
+	//   * "The Emperor's Soul" is in Elantris on Goodreads with NO position,
+	//     while the provider has it at Elantris #2. Adopting that would delete
+	//     the book's place on the shelf.
+	//   * "Konrad Curze" comes back at position "The Primarchs Short Story",
+	//     which would render as "Book The Primarchs Short Story".
+	if (hadSeries && !isShelvablePosition(result.primary.position)) {
+		logger?.debug(
+			{ title, goodreads: result.primary, kept: book.seriesPrimary },
+			'goodreads series: answer not shelvable, keeping the provider series'
+		)
+		return book
+	}
 	logger?.debug(
-		{ title, series: result },
-		'goodreads series: enriched a book with no provider series'
+		{ title, series: result, replaced: hadSeries ? book.seriesPrimary : null },
+		hadSeries
+			? 'goodreads series: replaced an inconsistent provider series'
+			: 'goodreads series: enriched a book with no provider series'
 	)
 	return {
 		...book,
@@ -601,7 +661,7 @@ export async function withGoodreadsAuthorInfo(
 	// Caching a rate-limited null would blank this author's portrait for the TTL.
 	if (redis && !probe.degraded) {
 		try {
-			await redis.set(key, JSON.stringify(result), 'EX', CACHE_TTL_SECONDS)
+			await redis.set(key, JSON.stringify(result), 'EX', AUTHOR_CACHE_TTL_SECONDS)
 		} catch {
 			// A cache-write failure is not a request failure.
 		}
