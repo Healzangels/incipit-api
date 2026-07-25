@@ -35,6 +35,7 @@ import health from '#config/routes/health'
 import { parseEnvArray, registerMetricsRoute } from '#config/routes/metrics'
 import version from '#config/routes/version'
 import { warnIfDeletesDisabled } from '#config/routes/writeAuth'
+import { goodreadsTuningSummary } from '#helpers/providers/goodreadsSeries'
 import { getAllIps as getCloudflareIps } from '#helpers/utils/cloudflareIps'
 import UpdateScheduler from '#helpers/utils/UpdateScheduler'
 
@@ -245,6 +246,12 @@ async function startServer() {
 	})
 
 	server.log.info(`Trusted proxies configured: ${trustedProxies.length} ranges`)
+
+	// Which Goodreads instance we talk to, and how hard we defend against it.
+	// Worth a startup line: "enrichment is slow" and "this answer is stale" are
+	// both answered by the profile, and otherwise the only way to tell which one
+	// is active is to read the container's environment.
+	server.log.info(goodreadsTuningSummary())
 
 	// Register plugins
 	await registerPlugins().then(() => server.log.info('Plugins registered'))

@@ -26,6 +26,96 @@ import fetch from '#helpers/utils/fetchPlus'
 const BASE = (process.env.GOODREADS_SERIES_URL || 'https://api.bookinfo.pro').replace(/\/+$/, '')
 const TIMEOUT_MS = 8000
 
+// The PUBLIC rreading-glasses instances. api.bookinfo.pro is not "the Goodreads
+// API" -- it is one person's server running github.com/blampe/rreading-glasses,
+// whose README reports ~12k daily users. Every defensive measure in this module
+// exists because of that contention, and none of it is warranted against an
+// instance you run yourself.
+const PUBLIC_GOODREADS_HOSTS = new Set(['api.bookinfo.pro', 'hardcover.bookinfo.pro'])
+
+/** How hard to defend against the source, and how long to trust its answers. */
+export interface GoodreadsTuning {
+	profile: 'shared' | 'local'
+	minGapMs: number
+	hitTtlSeconds: number
+	missTtlSeconds: number
+}
+
+/** A non-negative number from the environment, or null when absent/junk. */
+function envNonNegative(name: string): number | null {
+	const raw = process.env[name]
+	if (raw == null || raw.trim() === '') return null
+	const value = Number(raw)
+	// Number.isFinite, not `|| default`: 0 is a legitimate value here (it means
+	// "no pacing"), and a falsy check would silently restore the 1100ms tax for
+	// the operator who explicitly asked for none.
+	return Number.isFinite(value) && value >= 0 ? value : null
+}
+
+/**
+ * Which posture this deployment should take, derived from who we are calling.
+ *
+ * Correct by default for both audiences: an install that configures nothing is
+ * talking to the shared instance and keeps every guard, while an operator who
+ * deliberately pointed GOODREADS_SERIES_URL somewhere else has told us they own
+ * the other end. GOODREADS_PROFILE forces either side -- needed by anyone
+ * pointing at a DIFFERENT shared mirror, whose host we cannot recognise.
+ *
+ * An unparseable URL resolves to `shared`, deliberately: guessing "local" from
+ * a typo would drop the pacing that protects a public instance.
+ * @returns {GoodreadsTuning} the resolved profile and its knobs
+ */
+export function goodreadsTuning(): GoodreadsTuning {
+	const explicit = process.env.GOODREADS_PROFILE?.trim().toLowerCase()
+	let profile: 'shared' | 'local'
+	if (explicit === 'shared' || explicit === 'local') {
+		profile = explicit
+	} else {
+		const url = process.env.GOODREADS_SERIES_URL?.trim()
+		if (!url) {
+			profile = 'shared'
+		} else {
+			try {
+				profile = PUBLIC_GOODREADS_HOSTS.has(new URL(url).hostname.toLowerCase())
+					? 'shared'
+					: 'local'
+			} catch {
+				profile = 'shared'
+			}
+		}
+	}
+	const shared = profile === 'shared'
+	return {
+		profile,
+		// The only guard that costs anything when the source is fast.
+		minGapMs: envNonNegative('GOODREADS_MIN_GAP_MS') ?? (shared ? 1100 : 0),
+		// Series membership is effectively immutable, so a long TTL is cheap
+		// insurance against a rate-limited mirror. Against a local instance the
+		// tradeoff inverts: a re-ask costs milliseconds, while a stale answer
+		// hides a Goodreads correction for a month.
+		hitTtlSeconds: envNonNegative('GOODREADS_HIT_TTL_SECONDS') ?? (shared ? 2592000 : 604800),
+		// A miss is NOT immutable -- the mirror gains records -- so this is the
+		// window in which a newly released book stays series-less.
+		missTtlSeconds: envNonNegative('GOODREADS_MISS_TTL_SECONDS') ?? (shared ? 86400 : 3600)
+	}
+}
+
+/**
+ * One line naming the resolved posture, for the server log at startup.
+ *
+ * Worth the line: "why is enrichment slow" and "why is this answer stale" are
+ * both answered by the profile, and without this an operator has to read the
+ * container's environment to find out which one they are running.
+ * @returns {string} a human-readable summary of the active tuning
+ */
+export function goodreadsTuningSummary(): string {
+	const t = goodreadsTuning()
+	return (
+		`Goodreads source: ${BASE} (${t.profile} profile, ` +
+		`pacing ${t.minGapMs}ms, cache hit ${t.hitTtlSeconds}s / miss ${t.missTtlSeconds}s)`
+	)
+}
+
 /**
  * How close the Goodreads work's title must be to ours before its series is
  * trusted. /search is a fuzzy text endpoint and will happily return a different
@@ -226,14 +316,10 @@ interface RedisLike {
 	set(key: string, value: string, mode: 'EX', ttl: number): Promise<unknown>
 }
 
-// 30 days. Series membership is effectively immutable -- a book does not
-// change which series it is in -- so re-asking daily bought nothing and was
-// most of the rate-limit exposure. Now that this runs for EVERY book rather
-// than the ~24% with no provider series, the request volume would have gone up
-// ~4x against a mirror that already 429s under load; the TTL is what pays for
-// that, not the backoff. A miss is cached too (see the null sentinel), but only
-// when the lookup was healthy.
-const SERIES_CACHE_TTL_SECONDS = 2592000
+// The series cache TTLs now come from goodreadsTuning() -- 30d/1d against the
+// shared instance (where re-asking is the rate-limit exposure), 7d/1h against a
+// self-hosted one (where a re-ask costs milliseconds and a stale answer costs
+// more). See GoodreadsTuning for the reasoning; both remain env-overridable.
 
 // ONE DAY, and deliberately NOT the series TTL. This module caches two very
 // different things through the same helper shape, and they age differently: a
@@ -243,13 +329,6 @@ const SERIES_CACHE_TTL_SECONDS = 2592000
 // month, re-creating a fixed bug where a throttle pinned "no photo" on authors
 // whose records were cached before the lookup started working.
 const AUTHOR_CACHE_TTL_SECONDS = 86400
-
-// ONE DAY for a cached MISS, deliberately not the series TTL. The 30-day
-// justification -- membership is immutable -- is an argument about HITS. A miss
-// is not immutable: the mirror gains records, and a new release refreshed
-// before it is indexed would otherwise stay series-less for a month where the
-// old 1-day behaviour recovered the next day.
-const SERIES_MISS_TTL_SECONDS = 86400
 
 // v3: the v2 keys were built from normalizeTitle, which strips ", Book N"
 // volume markers -- so every volume of a series titled "Series, Book N"
@@ -353,6 +432,9 @@ export async function withGoodreadsSeries<T extends SeriesEnrichable>(
 
 	if (result === undefined) {
 		const probe = newLookupState()
+		// Resolved once per lookup rather than per write: the TTLs depend on which
+		// instance we are talking to (see goodreadsTuning).
+		const tuning = goodreadsTuning()
 		// The lookup owns its own cache write, so a budget timeout below can walk
 		// away from it while it finishes in the background and still warms the
 		// cache for the next refresh -- the answer is only NEEDED then anyway.
@@ -361,16 +443,16 @@ export async function withGoodreadsSeries<T extends SeriesEnrichable>(
 			// Only cache an answer the mirror actually gave us. A null produced
 			// while rate-limited/unreachable would otherwise pin "no series" on
 			// this book for the whole TTL -- the exact damage a throttling event
-			// during a full-library refresh would do. Hits keep the long TTL; a
-			// MISS gets a day, because the mirror gaining the record is exactly
-			// what a miss does not rule out.
+			// during a full-library refresh would do. A HIT keeps the long TTL; a
+			// MISS gets a much shorter one, because the mirror gaining the record
+			// is exactly what a miss does not rule out.
 			if (redis && !probe.degraded) {
 				try {
 					await redis.set(
 						key,
 						JSON.stringify(fetched),
 						'EX',
-						fetched ? SERIES_CACHE_TTL_SECONDS : SERIES_MISS_TTL_SECONDS
+						fetched ? tuning.hitTtlSeconds : tuning.missTtlSeconds
 					)
 				} catch {
 					// A cache-write failure is not a request failure.
@@ -471,8 +553,7 @@ function timeBudgetMs(): number {
 }
 
 function minRequestGapMs(): number {
-	const raw = Number(process.env.GOODREADS_MIN_GAP_MS)
-	return Number.isFinite(raw) && raw >= 0 ? raw : 1100
+	return goodreadsTuning().minGapMs
 }
 const BACKOFF_MS = 60000
 
