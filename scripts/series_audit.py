@@ -48,6 +48,7 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 from collections import Counter
+from urllib.error import HTTPError
 from urllib.parse import quote
 from urllib.request import urlopen
 
@@ -65,9 +66,33 @@ PLEX = os.environ.get('PLEX_URL', 'http://127.0.0.1:32400')
 API = os.environ.get('INCIPIT_API', 'http://10.0.1.99:3737')
 TIMEOUT = 15
 
-# "12 - Title", "1.5 - Title", "Book 3 - Title". The number is what makes a
-# folder able to POSITION a book; a bare title folder can only name the series.
-FOLDER_POS_RE = re.compile(r'^(?:book\s*)?(\d+(?:\.\d+)?)\s*[-.\s]\s*(.+)$', re.I)
+# EXACTLY the agent's update_tools.FOLDER_NUMBER_RE, character for character.
+# This script's whole claim is "what the agent would read off the path", and a
+# paraphrase of the real regex diverged four ways on its first audit: unbounded
+# digits accepted the year-shaped "1632 - ..." the agent's 3-digit cap refuses,
+# the separator class missed the "03_Title" underscore the agent accepts, a
+# "Book " prefix was honored that the agent ignores, and no author anchor was
+# required at all. Every divergence was a wrong row in the report.
+FOLDER_POS_RE = re.compile(r'^\s*(\d{1,3}(?:\.\d{1,2})?)\s*[-._\s]\s*\S')
+
+# The agent folds a leading article and all punctuation before comparing series
+# names, and positions numerically ("01" == "1"); comparing raw strings here
+# flagged agreeing shelves as DISAGREE.
+ARTICLE_RE = re.compile(r'^(the|a|an)\s+', re.I)
+NAME_FOLD_RE = re.compile(r'[\W_]+')
+
+
+def series_fold(name):
+    """A series name reduced the way the agent compares them."""
+    return NAME_FOLD_RE.sub('', ARTICLE_RE.sub('', (name or '').strip().lower()))
+
+
+def positions_equal(a, b):
+    """Numeric when possible, so "01" == "1" and "1.0" == "1"."""
+    try:
+        return float(a) == float(b)
+    except (TypeError, ValueError):
+        return str(a) == str(b)
 
 
 def die(msg):
@@ -111,13 +136,30 @@ def get_xml(url):
         return ET.parse(response).getroot()
 
 
+# A failed API call is NOT a missing series. Folding every exception into None
+# meant a down/slow API silently reclassified the whole library as
+# FALLBACK/NO-DATA -- a plausible-looking, mass-wrong report. A 404 stays a
+# genuine miss (the API really has no such book); everything else returns this
+# sentinel, surfaces as UNKNOWN, and is counted for the closing warning.
+API_ERROR = object()
+API_ERRORS = {'count': 0, 'last': ''}
+
+
 def get_json(url):
     import json
     try:
         with urlopen(url, timeout=TIMEOUT) as response:
             return json.loads(response.read().decode('utf8'))
-    except Exception:
-        return None
+    except HTTPError as exc:
+        if exc.code == 404:
+            return None
+        API_ERRORS['count'] += 1
+        API_ERRORS['last'] = '%s -> HTTP %s' % (url.split('?')[0], exc.code)
+        return API_ERROR
+    except Exception as exc:
+        API_ERRORS['count'] += 1
+        API_ERRORS['last'] = '%s -> %s' % (url.split('?')[0], exc)
+        return API_ERROR
 
 
 def audiobook_sections(token):
@@ -146,7 +188,7 @@ def album_path(token, rating_key):
     return os.path.dirname(part.get('file'))
 
 
-def folder_series(path):
+def folder_series(path, author=None):
     """
     (series, position) as the agent would read them off the path.
 
@@ -155,24 +197,44 @@ def folder_series(path):
         <author>/<Title>/                  -> (None, None), a standalone
     Only a NUMBERED album folder proves a series directory above it; an
     unnumbered one is just as likely to be a standalone.
+
+    The AUTHOR anchor mirrors the agent: it only trusts <series>/<NN - Title>
+    when the folder above the series is the credited author. Without it, a flat
+    <author>/<NN - Title>/ tree reported the AUTHOR folder as the series --
+    a fabricated FALLBACK row for a layout the agent reads as no-series.
     """
     if not path:
         return None, None
     leaf = os.path.basename(path)
     parent = os.path.basename(os.path.dirname(path))
+    grand = os.path.basename(os.path.dirname(os.path.dirname(path)))
     match = FOLDER_POS_RE.match(leaf)
     if not match or not parent:
         return None, None
+    if author:
+        # Flat tree: the parent IS the author, so there is no series folder.
+        if series_fold(parent) == series_fold(author):
+            return None, None
+        # Anchored tree: the series folder must sit directly under the author.
+        if series_fold(grand) != series_fold(author):
+            return None, None
     return parent, match.group(1)
 
 
 def api_series(book_id):
-    """(series, position) the API would hand the agent, or (None, None)."""
+    """
+    (series, position, ok) the API would hand the agent.
+
+    ok=False means the CALL failed (timeout, refused, 5xx, 429) -- which says
+    nothing about the book and must not read as "no series".
+    """
     if not book_id:
-        return None, None
+        return None, None, True
     book = get_json('%s/books/%s' % (API, quote(book_id)))
+    if book is API_ERROR:
+        return None, None, False
     primary = (book or {}).get('seriesPrimary') or {}
-    return primary.get('name'), primary.get('position')
+    return primary.get('name'), primary.get('position'), True
 
 
 def provider_id(album):
@@ -215,13 +277,18 @@ def describe(name, position):
     return '%s #%s' % (name, position) if position is not None else '%s (no position)' % name
 
 
-def classify(api_name, api_pos, dir_name, dir_pos):
-    """Which of the four states this album is in. The API wins at runtime."""
+def classify(api_name, api_pos, dir_name, dir_pos, api_ok=True):
+    """Which of the five states this album is in. The API wins at runtime."""
+    if not api_ok:
+        # The API call failed; nothing here is evidence about the book.
+        return 'UNKNOWN'
     if shelvable(api_pos):
         if not dir_name:
             return 'OK'
-        same_name = dir_name.strip().lower() == (api_name or '').strip().lower()
-        return 'OK' if same_name and str(dir_pos) == str(api_pos) else 'DISAGREE'
+        # Folded comparison, matching the agent: "The Spellmonger" == "Spellmonger"
+        # and "01" == "1" are agreements, not conflicts.
+        same_name = series_fold(dir_name) == series_fold(api_name)
+        return 'OK' if same_name and positions_equal(dir_pos, api_pos) else 'DISAGREE'
     # The API cannot place it, so the folder decides the shelf.
     if dir_name:
         return 'FALLBACK'
@@ -250,10 +317,10 @@ def main():
             if args.author and author.strip().lower() != args.author.strip().lower():
                 continue
             path = album_path(token, album.get('ratingKey'))
-            dir_name, dir_pos = folder_series(path)
-            api_name, api_pos = api_series(provider_id(album))
+            dir_name, dir_pos = folder_series(path, author=author)
+            api_name, api_pos, api_ok = api_series(provider_id(album))
             rows.append({
-                'state': classify(api_name, api_pos, dir_name, dir_pos),
+                'state': classify(api_name, api_pos, dir_name, dir_pos, api_ok),
                 'author': author,
                 'album': album.get('title') or '',
                 'api': describe(api_name, api_pos),
@@ -272,7 +339,13 @@ def main():
         len(rows), ', '.join('%s=%d' % (k, tally[k]) for k in sorted(tally))))
     sys.stderr.write(
         'FALLBACK = the folder decides the shelf; rename it and the shelf moves.\n'
-        'DISAGREE = the API wins at runtime, so the folder name is the misleading one.\n')
+        'DISAGREE = the API wins at runtime, so the folder name is the misleading one.\n'
+        'UNKNOWN  = the API call FAILED for this row; it says nothing about the book.\n')
+    if API_ERRORS['count']:
+        sys.stderr.write(
+            'WARNING: %d API call(s) failed (last: %s). UNKNOWN rows are not\n'
+            'verdicts -- re-run when the API is healthy before acting on this report.\n'
+            % (API_ERRORS['count'], API_ERRORS['last']))
 
     if args.csv:
         with open(args.csv, 'w', newline='') as handle:

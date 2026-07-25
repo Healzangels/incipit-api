@@ -75,3 +75,7 @@ docker-compose.env
 
 # Chunkhound code search database
 .chunkhound/
+
+# Python bytecode (scripts/)
+__pycache__/
+*.pyc
