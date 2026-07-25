@@ -36,6 +36,28 @@ const TIMEOUT_MS = 8000
  */
 const TITLE_ACCEPT = 0.9
 
+/**
+ * The title with a trailing subtitle removed, or null when there is nothing to
+ * remove.
+ *
+ * Colon only. Providers use " - " as a volume separator at least as often as a
+ * subtitle one ("The Black Company - Book 1"), so splitting on it would strip
+ * the part that identifies the book rather than the sales copy.
+ *
+ * The stem must survive on its own -- a bare number or a single short word is
+ * not a title, and searching one invites a false accept from an unrelated book.
+ * @param {string} title the full title as the provider gave it
+ * @returns {string|null} the stem, or null when it is absent or too thin to use
+ */
+function titleWithoutSubtitle(title: string): string | null {
+	const cut = title.indexOf(':')
+	if (cut <= 0) return null
+	const base = title.slice(0, cut).trim()
+	if (base.length < 4 || base === title.trim()) return null
+	if (!/[a-z]/i.test(base)) return null
+	return base
+}
+
 interface SearchHit {
 	bookId?: number
 	workId?: number
@@ -458,6 +480,37 @@ function positionFor(series: WorkSeries, workId: number): string | undefined {
  * @returns {Promise<GoodreadsSeriesResult|null>} verified series, or null
  */
 export async function fetchGoodreadsSeries(
+	title: string,
+	author: string | null,
+	logger?: FastifyBaseLogger,
+	state?: LookupState
+): Promise<GoodreadsSeriesResult | null> {
+	const first = await lookupByTitle(title, author, logger, state)
+	if (first) return first
+
+	// Retry without the marketing subtitle. Our providers bake sales copy into
+	// the title -- "Esrever Doom: A Fun-Filled Adventure into the Realm of
+	// Xanth" -- where Goodreads files the book as "Esrever Doom".
+	//
+	// The failure is in /search, not in the verification: it returns ZERO hits
+	// for the full string, so there is no candidate to check. (titleSim would
+	// have accepted the short title against the long one at 1.0, which is why
+	// the gates never got a chance to help.)
+	//
+	// Bounded deliberately. It only spends a second lookup when the title
+	// actually has a subtitle AND the first pass found nothing, so the common
+	// paths -- a hit, or a miss on a title with no colon -- cost exactly what
+	// they did before, and a miss is cached either way. The base title still
+	// faces the same title and author gates, which is what keeps a generic stem
+	// ("Star Wars", "The Beginning") from adopting a stranger's series.
+	const base = titleWithoutSubtitle(title)
+	if (!base) return null
+	logger?.debug({ title, base }, 'goodreads series: no hit, retrying without the subtitle')
+	return lookupByTitle(base, author, logger, state)
+}
+
+/** One search-and-verify pass for exactly the title given. */
+async function lookupByTitle(
 	title: string,
 	author: string | null,
 	logger?: FastifyBaseLogger,

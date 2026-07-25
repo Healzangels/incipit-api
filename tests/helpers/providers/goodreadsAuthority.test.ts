@@ -229,6 +229,55 @@ describe('goodreads as series authority', () => {
 		expect(out.seriesPrimary?.name).toBe('Warbreaker')
 	})
 
+	test('a marketing subtitle is retried without it', async () => {
+		// Hardcover bakes marketing copy into the title. Measured live: "Esrever
+		// Doom: A Fun-Filled Adventure into the Realm of Xanth" returns NO series,
+		// while the bare "Esrever Doom" returns Xanth #37.
+		//
+		// The failure is in /search, NOT the title gate -- worth stating because
+		// the obvious theory is wrong: titleSim already scores the bare title
+		// against the full one at 1.0, so the gate would have accepted it. What
+		// actually happens is that /search returns ZERO hits for the marketing
+		// string, so there is never a candidate to gate. Hence the empty first
+		// response below; a fixture that fed a hit here would pass with no fix at
+		// all, having reproduced a mechanism that does not exist.
+		respond(
+			[], // 1st pass: /search finds nothing for the marketing title
+			[{ workId: 42 }], // retry with the bare title
+			work('Esrever Doom', 'Xanth', 37)
+		)
+		const out = await withGoodreadsSeries(
+			book({
+				title: 'Esrever Doom: A Fun-Filled Adventure into the Realm of Xanth',
+				authors: [{ name: 'Piers Anthony' }],
+				seriesPrimary: null
+			}),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary?.name).toBe('Xanth')
+		expect(out.seriesPrimary?.position).toBe('37')
+	})
+
+	test('a title that already matched is never retried', async () => {
+		// The retry must stay a MISS path. "Konrad Curze: The Night Haunter" is a
+		// real colon title that resolves on the first pass, and stripping to
+		// "Konrad Curze" would be a second lookup for a question already answered
+		// -- against a mirror that 429s under load.
+		respond([{ workId: 42 }], work('Konrad Curze: The Night Haunter', 'The Horus Heresy', 1))
+		const out = await withGoodreadsSeries(
+			book({ title: 'Konrad Curze: The Night Haunter', seriesPrimary: null }),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary?.name).toBe('The Horus Heresy')
+		expect(fetchMock.mock.calls.length).toBe(2) // one search, one work. No retry.
+	})
+
+	test('a miss on a title with no subtitle costs no extra request', async () => {
+		respond([{ workId: 42 }], work('Some Other Book', 'Some Other Series', 1))
+		await withGoodreadsSeries(book({ title: 'Warbreaker', seriesPrimary: null }), fakeRedis())
+		expect(fetchMock.mock.calls.length).toBe(2)
+	})
+
 	test('the authority can be switched off without touching the code', async () => {
 		// An escape hatch for a library-wide behaviour change: this rewrites sort
 		// titles for every book where Goodreads and the provider disagree.
