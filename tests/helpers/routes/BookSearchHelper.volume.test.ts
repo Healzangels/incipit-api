@@ -123,7 +123,88 @@ describe('volume/part disambiguation', () => {
 		).search()
 
 		expect(out[0].id).toBe('v10')
-		expect(out.find((c) => c.id === 'v1')?.confidence ?? 0).toBeLessThan(out[0].confidence)
+		// THE assertion that discriminates. Mutation-testing the previous version
+		// showed the whole bare-volume fallback could be deleted and this test
+		// stayed green: the correct candidate is given in MARKER form, which
+		// normalizeTitle reduces to exactly the query title, so it won on title
+		// score alone. Only volumeDemoted proves the fallback fired.
+		expect(getMatchMetrics().recent[0].volumeDemoted).toBe(1)
+		// `.find()` on a dropped candidate is undefined, and `?? 0` made "below
+		// the floor" and "present but lower" the same pass -- i.e. unfailable.
+		const v1 = out.find((c) => c.id === 'v1')
+		if (v1) expect(v1.confidence).toBeLessThan(out[0].confidence)
+	})
+
+	test('REGRESSION: bare on BOTH sides -- the convention the fix was written for', async () => {
+		// The live shape: an ABS/folder library tags the album AND the track as
+		// "Defiance of the Fall 10", with no "Book N" marker anywhere. wantVolumes
+		// was built from marker form only, so the candidate-side fallback was
+		// gated off and the wrong sibling won (measured: v1 0.838 over v10 0.812).
+		// Only the tag punctuation decided whether the bug was fixed.
+		const out = await helperFor(
+			[
+				candidate({ provider: 'audible', id: 'v1', title: 'Defiance of the Fall 1',
+					authors: ['TheFirstDefier'] }),
+				candidate({ provider: 'hardcover', id: 'v10', title: 'Defiance of the Fall 10',
+					authors: ['TheFirstDefier'] })
+			],
+			{
+				title: 'Defiance of the Fall 10',
+				author: 'TheFirstDefier',
+				trackTitle: 'Defiance of the Fall 10'
+			}
+		).search()
+
+		expect(getMatchMetrics().recent[0].volumeDemoted).toBe(1)
+		expect(out[0].id).toBe('v10')
+	})
+
+	test('REGRESSION: the fallback survives a missing album tag', async () => {
+		// scoreAndRank checks everything else against BOTH titles; the stem check
+		// used primaryTitle alone, so with no album tag normalizeTitle('') gave a
+		// similarity of 0, the 0.9 bar failed, and the wrong sibling stayed
+		// accepted at 0.824 -- on exactly the badly-tagged books the widening
+		// pass exists to rescue.
+		const out = await helperFor(
+			[
+				candidate({ provider: 'audible', id: 'v1', title: 'Defiance of the Fall 1',
+					authors: ['TheFirstDefier'] }),
+				candidate({ provider: 'hardcover', id: 'v10', title: 'Defiance of the Fall 10',
+					authors: ['TheFirstDefier'] })
+			],
+			{ title: '', author: 'TheFirstDefier', trackTitle: 'Defiance of the Fall, Book 10' }
+		).search()
+
+		expect(getMatchMetrics().recent[0].volumeDemoted).toBe(1)
+		expect(out[0].id).toBe('v10')
+	})
+
+	test('the 3-digit cap keeps a year out of the volume namespace', async () => {
+		// Pins BARE_TRAILING_VOLUME_RE's {1,3}. Widening it to {1,6} previously
+		// left the suite green, so a year-suffixed edition could be read as
+		// volume 1984 and demote the correct match.
+		const out = await helperFor(
+			[candidate({ id: 'year', title: 'Foundation 1984', authors: ['Isaac Asimov'] })],
+			{ title: 'Foundation, Book 2', author: 'Isaac Asimov' }
+		).search()
+
+		expect(getMatchMetrics().recent[0].volumeDemoted).toBe(0)
+		expect(out[0].id).toBe('year')
+	})
+
+	test('the stem check keeps an unrelated numbered title out', async () => {
+		// Pins the titleSim(...) < 0.9 guard, which deleting previously left the
+		// suite green. "Dune 2" is not a sibling of "Defiance of the Fall".
+		await helperFor(
+			[candidate({ id: 'dune', title: 'Dune 2', authors: ['TheFirstDefier'] })],
+			{
+				title: 'Defiance of the Fall',
+				author: 'TheFirstDefier',
+				trackTitle: 'Defiance of the Fall, Book 10'
+			}
+		).search()
+
+		expect(getMatchMetrics().recent[0].volumeDemoted).toBe(0)
 	})
 
 	test('a title that merely ENDS in a number is not read as a volume', async () => {

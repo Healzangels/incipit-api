@@ -22,7 +22,12 @@ import getErrorMessage from '#helpers/utils/getErrorMessage'
  * matching the RedisHelper convention.
  */
 
-const KEY_PREFIX = 'incipit:psearch:v1'
+// v2: candidates now carry an INFERRED language for Apple (which reports none).
+// The key must change whenever the candidate SHAPE does, or a week-long entry
+// replays the old payload and the fix is invisible on every already-cached
+// title while every test stays green. Scorer changes need no bump -- scoring
+// runs after the cache -- but provider-payload changes always do.
+const KEY_PREFIX = 'incipit:psearch:v2'
 // Book metadata rarely changes; a week keeps the rate-limited providers cheap.
 const DEFAULT_TTL_SECONDS = 604800
 

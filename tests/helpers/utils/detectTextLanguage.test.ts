@@ -47,6 +47,44 @@ describe('detectTextLanguage', () => {
 		).toBe('fr')
 	})
 
+	test('REGRESSION: Italian is not English', () => {
+		// The first version excluded "a"/"in" from the Italian list to stop English
+		// scoring as Italian, which inverted the problem: Italian prose scored
+		// en=6 (its own "a" and "in") against it=1 and returned 'en'. That both
+		// defeated the feature and, in an it-region library, demoted the CORRECT
+		// edition. AppleBooksProvider's header names the Italian "Project Hail
+		// Mary" as the motivating case, so this is the one language that mattered.
+		expect(
+			detectTextLanguage(
+				'Un romanzo che racconta la storia di un uomo in cerca di se stesso, in una ' +
+					'citta che non perdona. La scrittura e limpida e il ritmo incalzante, con ' +
+					'personaggi che restano a lungo nella memoria del lettore. Il libro ha vinto ' +
+					'numerosi premi ed e stato tradotto in venti lingue diverse.'
+			)
+		).toBe('it')
+	})
+
+	test('accented prose matches the ASCII tables', () => {
+		// Tokens are folded before lookup, so the tables stay ASCII. Without the
+		// fold a bare "nao" could never match real Portuguese, which always
+		// tokenizes with the tilde -- one dead entry, invisible because the rest
+		// still summed to a plausible score.
+		expect(
+			detectTextLanguage(
+				'Um romance sobre a vida de uma familia em Lisboa, a cidade que não dorme. ' +
+					'A autora constrói personagens densos e uma trama que prende o leitor até à ' +
+					'última página, e que não se esquece depois de terminada a leitura.'
+			)
+		).toBe('pt')
+		expect(
+			detectTextLanguage(
+				'Un romanzo che racconta la storia di un uomo in cerca di sé stesso, in una ' +
+					'città che non perdona. La scrittura è limpida e il ritmo è incalzante, con ' +
+					'personaggi che restano a lungo nella memoria del lettore e più ancora.'
+			)
+		).toBe('it')
+	})
+
 	test('a tagline is too short to judge — returns null, not a guess', () => {
 		// 18 of 1,413 live summaries fall under the token floor. Guessing on those
 		// would risk demoting a legitimate edition on a handful of tokens.

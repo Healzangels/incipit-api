@@ -11,6 +11,7 @@ import type {
 
 import detectTextLanguage from '#helpers/utils/detectTextLanguage'
 import fetch from '#helpers/utils/fetchPlus'
+import { regionLanguage } from '#helpers/utils/language'
 
 /**
  * Apple Books (iTunes) provider — a large, keyless English-audiobook catalog. It
@@ -216,6 +217,7 @@ export default class AppleBooksProvider implements BookProvider {
 		if (!query.title) return []
 
 		const term = query.author ? `${query.title} ${query.author}` : query.title
+		const inferLanguage = regionLanguage(query.region) === 'en'
 		let results: AppleResult[]
 		try {
 			results = await this.searchFetch(term, REGION_COUNTRY[query.region] ?? 'US')
@@ -240,7 +242,18 @@ export default class AppleBooksProvider implements BookProvider {
 				// Measured live: "Babel" and "Oryx and Crake" both matched Spanish
 				// editions. detectTextLanguage returns null when unsure, which is
 				// exactly the old behaviour.
-				language: detectTextLanguage(stripHtml(r.description)),
+				//
+				// ENGLISH REGIONS ONLY, deliberately. regionLanguage conflates
+				// marketplace with language (books/show.ts says so), and Apple's
+				// DE/FR/IT stores serve ENGLISH blurbs for English audiobooks. In
+				// a de region that correct detection reads as a conflict, so every
+				// Apple row would lose LANGUAGE_CONFLICT_PENALTY and the ones near
+				// the floor would drop out -- taking the square-cover source with
+				// them. Apple was structurally immune to that while it reported
+				// null; restricting the inference keeps non-English regions
+				// exactly as they were rather than trading one library's bug for
+				// another's regression.
+				language: inferLanguage ? detectTextLanguage(stripHtml(r.description)) : null,
 				title: cleanAppleTitle(r.collectionName as string),
 				authors: r.artistName ? [r.artistName] : [],
 				narrators: [],

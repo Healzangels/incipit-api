@@ -79,6 +79,26 @@ describe('AppleBooksProvider.search', () => {
 		expect(out.map((c) => c.language)).toEqual(['en', 'es'])
 	})
 
+	test('language is inferred ONLY in English regions', async () => {
+		// regionLanguage conflates marketplace with language: Apple's DE store
+		// serves ENGLISH blurbs for English audiobooks, so in a de region a
+		// correct 'en' detection reads as a conflict and every Apple row would
+		// lose LANGUAGE_CONFLICT_PENALTY -- taking the square-cover source with
+		// it. Apple was structurally immune to that while it reported null.
+		const english = {
+			...phm,
+			description:
+				'From award-winning author R. F. Kuang comes Babel, a thematic response to The ' +
+				'Secret History and a tonal retort to Jonathan Strange and Mr Norrell that ' +
+				'grapples with student revolutions and the use of language as a tool of empire.'
+		}
+		const searchFetch: AppleSearchFetch = async () => [english]
+		const us = await new AppleBooksProvider({ searchFetch }).search({ ...q, region: 'us' })
+		const de = await new AppleBooksProvider({ searchFetch }).search({ ...q, region: 'de' })
+		expect(us[0].language).toBe('en')
+		expect(de[0].language).toBeNull()
+	})
+
 	test('a missing description leaves the language null rather than guessing', async () => {
 		const noDesc = { ...phm, description: undefined }
 		const out = await new AppleBooksProvider({ searchFetch: async () => [noDesc] }).search(q)

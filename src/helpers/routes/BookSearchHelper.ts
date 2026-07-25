@@ -140,17 +140,6 @@ function volumeNumbers(raw: string | null | undefined): Set<number> {
 	return out
 }
 
-/**
- * A volume conflict: the query and candidate BOTH carry volume markers and share
- * NONE. Deliberately conservative -- a candidate with no marker (the bare print
- * record) never conflicts, and titles that share ANY number ("Galaxy's Edge,
- * Book 7: KTF Part 2" {7,2} vs a query for "KTF Part 2" {2}) do not either. It
- * only fires on a clear numbered mismatch like {1} vs {2}, so it can demote a
- * wrong sibling but never a right match.
- * @param {Set<number>} want the query's volume numbers
- * @param {Set<number>} cand the candidate's volume numbers
- * @returns {boolean} true only when both are non-empty and disjoint
- */
 // A BARE trailing volume: "Defiance of the Fall 7". Providers list a numbered
 // series this way at least as often as with a "Book N" marker, and the
 // marker-based regex above cannot see it -- so a query for Book 10 found NO
@@ -188,6 +177,17 @@ function bareTrailingVolume(
 	return Number(m[2])
 }
 
+/**
+ * A volume conflict: the query and candidate BOTH carry volume markers and share
+ * NONE. Deliberately conservative -- a candidate with no marker (the bare print
+ * record) never conflicts, and titles that share ANY number ("Galaxy's Edge,
+ * Book 7: KTF Part 2" {7,2} vs a query for "KTF Part 2" {2}) do not either. It
+ * only fires on a clear numbered mismatch like {1} vs {2}, so it can demote a
+ * wrong sibling but never a right match.
+ * @param {Set<number>} want the query's volume numbers
+ * @param {Set<number>} cand the candidate's volume numbers
+ * @returns {boolean} true only when both are non-empty and disjoint
+ */
 function volumeConflict(want: Set<number>, cand: Set<number>): boolean {
 	if (want.size === 0 || cand.size === 0) return false
 	for (const n of cand) if (want.has(n)) return false
@@ -590,6 +590,25 @@ export default class BookSearchHelper {
 			...volumeNumbers(this.rawTitle),
 			...volumeNumbers(this.options.trackTitle)
 		])
+		// ...and the BARE form on the query side too, or the whole fallback is
+		// gated off for the convention it was written for. Measured: with album
+		// tag AND track title both "Defiance of the Fall 10" (the bare
+		// ABS/folder convention), volumeNumbers finds nothing, the candidate-side
+		// fallback never runs because it requires wantVolumes to be non-empty,
+		// and the wrong sibling won -- v1 at 0.838 over the correct v10 at 0.812.
+		// Only the tag punctuation decided whether the bug was fixed.
+		//
+		// Consulted ONLY when the marker form found nothing, so a title that
+		// already advertises "Book N" is unaffected. The candidate side still
+		// stem-checks against the query title, so an ordinary title ending in a
+		// digit ("Fahrenheit 451") yields a want-number that no unrelated
+		// candidate can be made to conflict with.
+		if (wantVolumes.size === 0) {
+			for (const raw of [this.rawTitle, this.options.trackTitle]) {
+				const m = raw ? BARE_TRAILING_VOLUME_RE.exec(raw.trim()) : null
+				if (m) wantVolumes.add(Number(m[2]))
+			}
+		}
 		// The file's own runtime lets us catch a STALE pin: a sidecar ASIN pointing
 		// at the wrong edition (a Rosamund Pike ASIN on a Kate Reading file). A pin
 		// whose edition runtime is clearly wrong for the file (>5% off) while a
@@ -720,7 +739,16 @@ export default class BookSearchHelper {
 			// an ordinary title ending in a digit is never consulted.
 			const candVolumes = volumeNumbers(c.title)
 			if (candVolumes.size === 0 && wantVolumes.size > 0) {
-				const bare = bareTrailingVolume(c.title, primaryTitle)
+				// Both titles, not just the album tag. scoreAndRank evaluates every
+				// other check against primaryTitle AND altTitle, and the widening
+				// pass exists precisely because the album tag can be noisy or
+				// absent -- with no album tag, normalizeTitle('') gives a stem
+				// similarity of 0, the 0.9 bar fails, and the fallback silently
+				// died on the exact books it was written for (measured: the wrong
+				// sibling stayed accepted at 0.824).
+				const bare =
+					bareTrailingVolume(c.title, primaryTitle) ??
+					(altTitle ? bareTrailingVolume(c.title, altTitle) : null)
 				if (bare != null) candVolumes.add(bare)
 			}
 			if (!effectivePin && volumeConflict(wantVolumes, candVolumes)) {
