@@ -9,6 +9,7 @@ import type {
 	ProviderCandidate
 } from './types'
 
+import detectTextLanguage from '#helpers/utils/detectTextLanguage'
 import fetch from '#helpers/utils/fetchPlus'
 
 /**
@@ -25,10 +26,12 @@ import fetch from '#helpers/utils/fetchPlus'
  *    plus a best-effort scrape of the Apple Books page's schema.org JSON-LD, which
  *    carries `readBy` (the narrator) — the one field the Search API omits.
  *
- * Keyless throughout; nothing is tied to the operator. A known caveat: the Search
- * API has no language field, so a US-store query can still surface a foreign
- * edition (an Italian "Project Hail Mary" alongside the English one). The scorer's
- * title/author match keeps those from winning; there is no field to pre-filter on.
+ * Keyless throughout; nothing is tied to the operator. The Search API has no
+ * language field, so a US-store query can still surface a foreign edition (an
+ * Italian "Project Hail Mary" alongside the English one) -- and because Apple
+ * lists localized editions under the ORIGINAL title, title/author scoring cannot
+ * separate them either. The blurb it DOES return is classified instead, so the
+ * scorer's existing language demotion has something to act on.
  */
 
 const SEARCH_URL = 'https://itunes.apple.com/search'
@@ -227,11 +230,17 @@ export default class AppleBooksProvider implements BookProvider {
 				provider: APPLE_NAME,
 				id: encodeAppleAudiobook(r.collectionId as number),
 				asin: null,
-				// The iTunes Search API exposes no language field (see the header
-				// note), so a US-store query can still surface a foreign edition.
-				// null = "no signal", which the matcher treats as non-actionable
-				// rather than as agreement.
-				language: null,
+				// The iTunes Search API exposes no language field, but it DOES
+				// return the publisher's blurb -- so infer the language from that
+				// rather than passing null. This is the only provider with no
+				// language at all, and Apple serves localized editions under the
+				// ORIGINAL title (the Spanish "Babel" is titled exactly "Babel"),
+				// so without this the foreign edition ties the English one at
+				// 0.850 with nothing in the scorer able to separate them.
+				// Measured live: "Babel" and "Oryx and Crake" both matched Spanish
+				// editions. detectTextLanguage returns null when unsure, which is
+				// exactly the old behaviour.
+				language: detectTextLanguage(stripHtml(r.description)),
 				title: cleanAppleTitle(r.collectionName as string),
 				authors: r.artistName ? [r.artistName] : [],
 				narrators: [],

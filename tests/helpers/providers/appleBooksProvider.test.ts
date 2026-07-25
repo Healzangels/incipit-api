@@ -45,8 +45,10 @@ describe('AppleBooksProvider.search', () => {
 			provider: 'apple',
 			id: 'apple-audiobook-1565808256',
 			asin: null,
-			// Apple's search API exposes no language field, so the candidate reports
-			// null ("no signal") rather than assuming the store country's language.
+			// Apple exposes no language field; it is inferred from the blurb
+			// instead. THIS blurb is a one-line tagline -- under the token floor --
+			// so the detector declines and the candidate reports null ("no
+			// signal"), which is what the matcher treats as non-actionable.
 			language: null,
 			title: 'Project Hail Mary',
 			authors: ['Andy Weir'],
@@ -54,6 +56,33 @@ describe('AppleBooksProvider.search', () => {
 			audioSeconds: null,
 			cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/7b/rm_image.jpg/600x600bb.jpg'
 		})
+	})
+
+	test('infers the language from the blurb, separating two same-title editions', async () => {
+		// The live failure this exists for: Apple lists the Spanish edition of
+		// "Babel" under the ORIGINAL title, so title+author scoring cannot tell it
+		// from the English one and both sat at 0.850. Descriptions are verbatim
+		// from iTunes (ids 1596509362 and 1729551786).
+		const english = { ...phm, collectionId: 1596509362, collectionName: 'Babel',
+			description: '<b>From award-winning author R. F. Kuang</b> comes Babel, a thematic ' +
+				'response to The Secret History and a tonal retort to Jonathan Strange &amp; Mr. ' +
+				'Norrell that grapples with student revolutions, colonial resistance, and the use ' +
+				'of language and translation as the dominating tool of the British empire.' }
+		const spanish = { ...phm, collectionId: 1729551786, collectionName: 'Babel',
+			description: '1828. El Instituto Real de Traducci\u00f3n de Oxford, tambi\u00e9n conocido como ' +
+				'Babel, es la instituci\u00f3n m\u00e1gica m\u00e1s importante del mundo. La magia con plata ' +
+				'capaz de revelar significados ocultos perdidos en la traducci\u00f3n que all\u00ed se ' +
+				'practica le ha otorgado al Imperio brit\u00e1nico un poder sin parang\u00f3n.' }
+		const out = await new AppleBooksProvider({
+			searchFetch: async () => [english, spanish]
+		}).search({ title: 'Babel', region: 'us' })
+		expect(out.map((c) => c.language)).toEqual(['en', 'es'])
+	})
+
+	test('a missing description leaves the language null rather than guessing', async () => {
+		const noDesc = { ...phm, description: undefined }
+		const out = await new AppleBooksProvider({ searchFetch: async () => [noDesc] }).search(q)
+		expect(out[0].language).toBeNull()
 	})
 
 	test('sends the store country for the region and includes the author in the term', async () => {
