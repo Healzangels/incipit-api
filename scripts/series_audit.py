@@ -201,6 +201,20 @@ def shelvable(position):
     return position is not None and re.match(r'^\d+(\.\d+)?$', str(position).strip())
 
 
+def describe(name, position):
+    """
+    A series for display.
+
+    A name with NO position is the whole reason a book lands in FALLBACK, so it
+    has to read differently from a placed one -- printing it as "#None" states
+    the opposite of what happened, that a position exists and is the string
+    "None".
+    """
+    if not name:
+        return '-'
+    return '%s #%s' % (name, position) if position is not None else '%s (no position)' % name
+
+
 def classify(api_name, api_pos, dir_name, dir_pos):
     """Which of the four states this album is in. The API wins at runtime."""
     if shelvable(api_pos):
@@ -242,16 +256,16 @@ def main():
                 'state': classify(api_name, api_pos, dir_name, dir_pos),
                 'author': author,
                 'album': album.get('title') or '',
-                'api': '%s #%s' % (api_name, api_pos) if api_name else '-',
-                'folder': '%s #%s' % (dir_name, dir_pos) if dir_name else '-',
+                'api': describe(api_name, api_pos),
+                'folder': describe(dir_name, dir_pos),
                 'path': path or '',
             })
 
     for row in rows:
         if wanted and row['state'] not in wanted:
             continue
-        print('%-9s %-24s %-34s api=%-30s folder=%s' % (
-            row['state'], row['author'][:24], row['album'][:34], row['api'][:30], row['folder']))
+        print('%-9s %-22s %-32s api=%-38s folder=%s' % (
+            row['state'], row['author'][:22], row['album'][:32], row['api'][:38], row['folder']))
 
     tally = Counter(r['state'] for r in rows)
     sys.stderr.write('\n%d albums: %s\n' % (
