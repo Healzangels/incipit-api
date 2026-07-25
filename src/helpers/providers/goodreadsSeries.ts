@@ -1,6 +1,6 @@
 import type { FastifyBaseLogger } from 'fastify'
 
-import { normalizeTitle, titleSim } from '#helpers/providers/matchScorer'
+import { normalizeTitle, sim } from '#helpers/providers/matchScorer'
 import type { ProviderBookSeries } from '#helpers/providers/types'
 import { isSameAuthor } from '#helpers/utils/authorNameMatch'
 import fetch from '#helpers/utils/fetchPlus'
@@ -51,8 +51,12 @@ const TITLE_ACCEPT = 0.9
  * When a title says which edition it is, that is signal, not noise to normalize
  * away.
  */
+// Collection words (trilogy/anthology/collection/duology) are here because an
+// omnibus is an edition too: "Foundation: The Complete Trilogy" stripped to its
+// stem retries as "Foundation" and comes back as Foundation #1 -- a confident
+// wrong answer for a product that is three books, not book one.
 const EDITION_MARKER_RE =
-	/\b(dramati[sz]ed|graphic\s?audio|audio\s?drama|adaptation|abridged|graphic\s+novel|omnibus|box(?:ed)?\s?set|edition)\b/i
+	/\b(dramati[sz]ed|graphic\s?audio|audio\s?drama|adaptation|abridged|graphic\s+novel|omnibus|box(?:ed)?[\s-]?set|edition|trilogy|duology|anthology|collection)\b/i
 
 /**
  * The title with a trailing subtitle removed, or null when there is nothing to
@@ -164,7 +168,12 @@ async function seriesMemberCount(
 	if (typeof foreignId !== 'number') return 0
 	const memoized = seriesCountMemo.get(foreignId)
 	if (memoized !== undefined) return memoized
-	const probe = state ?? newLookupState()
+	// A probe of THIS call's own, not the shared lookup state: the shared flag is
+	// sticky, so one earlier blip in the same lookup would block memoizing every
+	// count fetched healthily after it -- and this memo is the only thing that
+	// keeps a 1400-book scan from re-asking /series per book. Degradation still
+	// propagates UP so the lookup as a whole knows it ran impaired.
+	const probe = newLookupState()
 	const series = await getJson<SeriesResponse>(`/series/${foreignId}`, probe, logger)
 	const count = Array.isArray(series?.LinkItems) ? series.LinkItems.length : 0
 	// Only memoize a count the mirror actually gave us. This memo has NO TTL, so a
@@ -172,7 +181,11 @@ async function seriesMemberCount(
 	// "no members" for the life of the process -- and the count is exactly how a
 	// parent series is told from its sub-series, so a wrongly-0 parent loses the
 	// ranking and books get shelved under the narrower series.
-	if (!probe.degraded) seriesCountMemo.set(foreignId, count)
+	if (probe.degraded) {
+		if (state) state.degraded = true
+	} else {
+		seriesCountMemo.set(foreignId, count)
+	}
 	return count
 }
 
@@ -192,6 +205,10 @@ export interface GoodreadsSeriesResult {
 /** A book that may already carry a series, and the fields a lookup needs. */
 interface SeriesEnrichable {
 	title?: string
+	// The edition guard must see this too: Audible stores title and subtitle as
+	// SEPARATE fields, so "(Dramatized Adaptation)" can live entirely in the
+	// subtitle and present a clean title to a guard that only reads book.title.
+	subtitle?: string | null
 	authors?: Array<{ name?: string }>
 	seriesPrimary?: { name?: string } | null
 	seriesSecondary?: unknown
@@ -220,7 +237,20 @@ const SERIES_CACHE_TTL_SECONDS = 2592000
 // month, re-creating a fixed bug where a throttle pinned "no photo" on authors
 // whose records were cached before the lookup started working.
 const AUTHOR_CACHE_TTL_SECONDS = 86400
-const CACHE_PREFIX = 'grseries:v2:'
+
+// ONE DAY for a cached MISS, deliberately not the series TTL. The 30-day
+// justification -- membership is immutable -- is an argument about HITS. A miss
+// is not immutable: the mirror gains records, and a new release refreshed
+// before it is indexed would otherwise stay series-less for a month where the
+// old 1-day behaviour recovered the next day.
+const SERIES_MISS_TTL_SECONDS = 86400
+
+// v3: the v2 keys were built from normalizeTitle, which strips ", Book N"
+// volume markers -- so every volume of a series titled "Series, Book N"
+// collapsed to ONE key and shared one cached result, position included. Those
+// entries are wrong at rest; bumping the prefix abandons them rather than
+// serving them out for the remainder of their TTL.
+const CACHE_PREFIX = 'grseries:v3:'
 
 /**
  * Whether a Goodreads position can be used as a shelf key.
@@ -238,7 +268,11 @@ function isShelvablePosition(position: string | null | undefined): boolean {
 }
 
 function cacheKey(title: string, author: string | null): string {
-	return CACHE_PREFIX + normalizeTitle(title).toLowerCase() + '|' + (author || '').toLowerCase()
+	// The RAW title, not normalizeTitle: the normalizer exists to score matches,
+	// and it strips exactly the ", Book N" marker that distinguishes one volume
+	// of a series from the next. A cache key only needs to be stable, not fuzzy.
+	const flat = title.trim().replace(/\s+/g, ' ').toLowerCase()
+	return CACHE_PREFIX + flat + '|' + (author || '').toLowerCase()
 }
 
 /**
@@ -281,9 +315,14 @@ export async function withGoodreadsSeries<T extends SeriesEnrichable>(
 	// matching, and it destroys the evidence that this row is a different
 	// edition. Gap-filling is still allowed: with no series there is nothing to
 	// destroy, and a name beats none.
-	if (hadSeries && EDITION_MARKER_RE.test(book.title)) {
+	// Both fields: Audible splits title and subtitle, so the marker can live in
+	// either half.
+	const editionMarked =
+		EDITION_MARKER_RE.test(book.title) ||
+		Boolean(book.subtitle && EDITION_MARKER_RE.test(book.subtitle))
+	if (hadSeries && editionMarked) {
 		logger?.debug(
-			{ title: book.title, keeping: book.seriesPrimary?.name },
+			{ title: book.title, subtitle: book.subtitle, keeping: book.seriesPrimary?.name },
 			'goodreads series: title names a specific edition, keeping the provider series'
 		)
 		return book
@@ -308,17 +347,65 @@ export async function withGoodreadsSeries<T extends SeriesEnrichable>(
 
 	if (result === undefined) {
 		const probe = newLookupState()
-		result = await fetchGoodreadsSeries(title, author, logger, probe)
-		// Only cache an answer the mirror actually gave us. A null produced while
-		// rate-limited/unreachable would otherwise pin "no series" on this book for
-		// the whole TTL -- the exact damage a throttling event during a full-library
-		// refresh would do.
-		if (redis && !probe.degraded) {
-			try {
-				await redis.set(key, JSON.stringify(result), 'EX', SERIES_CACHE_TTL_SECONDS)
-			} catch {
-				// A cache-write failure is not a request failure.
+		// The lookup owns its own cache write, so a budget timeout below can walk
+		// away from it while it finishes in the background and still warms the
+		// cache for the next refresh -- the answer is only NEEDED then anyway.
+		const lookup = (async () => {
+			const fetched = await fetchGoodreadsSeries(title, author, logger, probe)
+			// Only cache an answer the mirror actually gave us. A null produced
+			// while rate-limited/unreachable would otherwise pin "no series" on
+			// this book for the whole TTL -- the exact damage a throttling event
+			// during a full-library refresh would do. Hits keep the long TTL; a
+			// MISS gets a day, because the mirror gaining the record is exactly
+			// what a miss does not rule out.
+			if (redis && !probe.degraded) {
+				try {
+					await redis.set(
+						key,
+						JSON.stringify(fetched),
+						'EX',
+						fetched ? SERIES_CACHE_TTL_SECONDS : SERIES_MISS_TTL_SECONDS
+					)
+				} catch {
+					// A cache-write failure is not a request failure.
+				}
 			}
+			return fetched
+		})()
+		// TIME BUDGET. This runs inline in GET /books/{id}, and the mirror is
+		// paced at >=1.1s per request module-wide -- so a cache-cold book behind a
+		// slow mirror can hold the WHOLE response past the Plex agent's 25s
+		// timeout, losing the entire metadata update to enrich one field. Over
+		// budget: serve the book as-is; the lookup keeps running above and caches
+		// its answer for the next refresh.
+		const budget = timeBudgetMs()
+		if (budget > 0) {
+			let timer: ReturnType<typeof setTimeout> | undefined
+			const overBudget = new Promise<typeof TIME_BUDGET_EXCEEDED>((resolve) => {
+				timer = setTimeout(() => resolve(TIME_BUDGET_EXCEEDED), budget)
+			})
+			const winner = await Promise.race([lookup, overBudget])
+			clearTimeout(timer)
+			if (winner === TIME_BUDGET_EXCEEDED) {
+				lookup.catch(() => undefined)
+				logger?.warn(
+					{ title, budgetMs: budget },
+					'goodreads series: over the time budget, serving without enrichment'
+				)
+				return book
+			}
+			result = winner
+		} else {
+			result = await lookup
+		}
+		// DEGRADED means: do not apply, do not cache. A mid-lookup 429 zeroes the
+		// member counts that rank the pool, so the answer in hand may be misranked
+		// -- and with no cache record, the next healthy refresh can answer
+		// differently, splitting one shelf across two series names. The provider's
+		// own series (or the folder fallback) is strictly safer than a guess.
+		if (probe.degraded) {
+			logger?.debug({ title }, 'goodreads series: lookup degraded, not applying or caching')
+			return book
 		}
 	}
 
@@ -365,6 +452,18 @@ export async function withGoodreadsSeries<T extends SeriesEnrichable>(
 // portrait, exactly as if none existed.
 // Read lazily so tests (and an operator running their own mirror, which needs no
 // pacing) can set GOODREADS_MIN_GAP_MS=0 without a rebuild.
+// How long GET /books/{id} will wait on the inline series lookup before serving
+// the book without it. Tunable (and disableable with 0) because the right value
+// depends on the caller's own timeout -- the Plex agent gives the API 25s total,
+// and the square-cover fetch shares that budget.
+const TIME_BUDGET_EXCEEDED = Symbol('goodreads-time-budget-exceeded')
+
+function timeBudgetMs(): number {
+	const raw = Number(process.env.GOODREADS_TIME_BUDGET_MS)
+	if (Number.isFinite(raw) && raw >= 0) return raw
+	return 15000
+}
+
 function minRequestGapMs(): number {
 	const raw = Number(process.env.GOODREADS_MIN_GAP_MS)
 	return Number.isFinite(raw) && raw >= 0 ? raw : 1100
@@ -543,6 +642,13 @@ export async function fetchGoodreadsSeries(
 	const first = await lookupByTitle(title, author, logger, state)
 	if (first) return first
 
+	// A degraded miss is not a miss. A timed-out /work on pass 1 might have been
+	// the full-title hit, so retrying the stem now could answer with a DIFFERENT
+	// work than a healthy run would -- and during a backoff window the second
+	// paced search is pure cost against the very mirror that pushed back. The
+	// caller treats degraded as no-answer either way.
+	if (state?.degraded) return null
+
 	// Retry without the marketing subtitle. Our providers bake sales copy into
 	// the title -- "Esrever Doom: A Fun-Filled Adventure into the Realm of
 	// Xanth" -- where Goodreads files the book as "Esrever Doom".
@@ -573,6 +679,19 @@ async function lookupByTitle(
 ): Promise<GoodreadsSeriesResult | null> {
 	const want = normalizeTitle(title)
 	if (!want) return null
+	// The subtitle half of OUR title, compared against candidates in its own
+	// right. Audible titles sequels "Series: Title" -- the work we are looking
+	// for is titled by the SUBTITLE half ("Carl's Doomsday Scenario"), which a
+	// whole-string ratio scores at ~0.7 and rejects. This arm is what lets the
+	// correct work pass; the gate below is what stops book 1 from passing.
+	const cut = title.indexOf(':')
+	const wantSubtitle = cut > 0 ? normalizeTitle(title.slice(cut + 1)) : ''
+	// The volume number in OUR OWN title, when it carries one. normalizeTitle
+	// strips ", Book 10" for scoring -- which makes the bare series name (book
+	// 1's exact title, for many series) a 1.0 match. The number is the one fact
+	// we hold about WHICH volume this is; an answer whose position contradicts
+	// it is the wrong work, however well the name matched.
+	const volumeHint = /\bbook\s+(\d+(?:\.\d+)?)\b/i.exec(title)?.[1]
 
 	const q = encodeURIComponent([title, author].filter(Boolean).join(' '))
 	const hits = await getJson<SearchHit[]>(`/search?q=${q}`, state, logger)
@@ -590,10 +709,24 @@ async function lookupByTitle(
 		// Verify before trusting. Compare against every title form the work
 		// offers, since Goodreads' Title may carry the series suffix our
 		// normalizer strips while ShortTitle does not.
+		//
+		// NOT titleSim: two of its four arms anchor to OUR stem (baseTitle(want)
+		// vs the candidate), which scores the series half of a "Series: Title"
+		// name against book 1's exact title at 1.0 -- measured: "Dungeon Crawler
+		// Carl: Carl's Doomsday Scenario" scored 1.0 against book 1 and 0.687
+		// against its own work, so the wrong book passed and the right one never
+		// could. The arms kept here only ever RELAX the candidate side (a work
+		// title carrying a "(Series)" suffix) or compare our subtitle half, both
+		// of which are safe: they cannot make a different book look like ours.
 		const candidates = [work.Title, work.ShortTitle, work.FullTitle].filter(
 			(t): t is string => typeof t === 'string' && t.length > 0
 		)
-		const best = candidates.reduce((acc, t) => Math.max(acc, titleSim(want, normalizeTitle(t))), 0)
+		const gate = (cand: string): number => {
+			const c = normalizeTitle(cand)
+			const candStem = c.split(/\s*[:(]\s*/)[0].trim()
+			return Math.max(sim(want, c), sim(want, candStem), wantSubtitle ? sim(wantSubtitle, c) : 0)
+		}
+		const best = candidates.reduce((acc, t) => Math.max(acc, gate(t)), 0)
 		if (best < TITLE_ACCEPT) {
 			logger?.debug(
 				{ workId, best, want },
@@ -686,19 +819,45 @@ async function lookupByTitle(
 			// case tested -- Chronicles of Osreth over Cemeteries of Amalo, The
 			// Legend of Drizzt over Legacy of the Drow, plain Harry Potter over the
 			// split-volume edition.
-			const positioned = (s: WorkSeries) => (positionFor(s, workId) ? 1 : 0)
+			// The SAME predicate the rescue gate uses. Raw truthiness scored a
+			// free-text position ("The Primarchs Short Story") as positioned, so a
+			// clean series that cannot actually place the book tied the rescued
+			// umbrella and won on declaration order -- defeating the rescue the
+			// comment above promises.
+			const positioned = (s: WorkSeries) => (isShelvablePosition(positionFor(s, workId)) ? 1 : 0)
 			ranked = [...pool].sort(
 				(x, y) => positioned(y) - positioned(x) || (counts.get(y) ?? 0) - (counts.get(x) ?? 0)
 			)
 		}
 
 		const toSeries = (s: WorkSeries): ProviderBookSeries => {
+			// A free-text position is not a shelf key -- adopted verbatim it renders
+			// as "Book The Primarchs Short Story" AND its truthiness blocks the
+			// folder fallback that could have supplied the real number. Keep the
+			// NAME (a name beats none, and the folder can number it), drop the junk.
 			const position = positionFor(s, workId)
-			return position ? { name: s.Title as string, position } : { name: s.Title as string }
+			return isShelvablePosition(position)
+				? { name: s.Title as string, position: position as string }
+				: { name: s.Title as string }
 		}
 
 		const result: GoodreadsSeriesResult = { primary: toSeries(ranked[0]) }
 		if (ranked[1]) result.secondary = toSeries(ranked[1])
+		// The volume-marker veto (see volumeHint above): our own title says which
+		// volume this is, and an answer that contradicts it means the name matched
+		// but the WORK did not -- for "Series, Book N" titles the bare series name
+		// IS book 1's title. Walk on rather than trust it.
+		if (
+			volumeHint &&
+			result.primary?.position &&
+			Number(result.primary.position) !== Number(volumeHint)
+		) {
+			logger?.debug(
+				{ workId, position: result.primary.position, volumeHint },
+				'goodreads series: answer contradicts the volume in our own title, skipping it'
+			)
+			continue
+		}
 		logger?.debug({ workId, series: result }, 'goodreads series: resolved')
 		return result
 	}

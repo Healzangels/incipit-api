@@ -72,15 +72,18 @@ const work = (
 /**
  * A /work payload placing OUR work (id 42) in SEVERAL series at once.
  *
- * No ForeignId on the series, deliberately: seriesMemberCount short-circuits to
- * 0 without a request when the id is absent, so these fixtures exercise the
- * ranking without having to queue a /series response per candidate.
+ * No ForeignId on the series by default, deliberately: seriesMemberCount
+ * short-circuits to 0 without a request when the id is absent, so these
+ * fixtures exercise the ranking without having to queue a /series response per
+ * candidate. Pass a third tuple element to give a series an id when a test
+ * NEEDS the /series call to happen (e.g. to fail it).
  */
-const multiWork = (title: string, entries: Array<[string, string | number | null]>) => ({
+const multiWork = (title: string, entries: Array<[string, string | number | null, number?]>) => ({
 	Title: title,
 	Authors: [],
-	Series: entries.map(([name, position]) => ({
+	Series: entries.map(([name, position, foreignId]) => ({
 		Title: name,
+		ForeignId: foreignId,
 		LinkItems: [
 			{
 				ForeignWorkId: 42,
@@ -441,6 +444,217 @@ describe('goodreads as series authority', () => {
 			fakeRedis()
 		)
 		expect(out.seriesPrimary?.name).toBe('Xanth')
+	})
+
+	test('volumes of one series do not share a cache entry', async () => {
+		// The cache key used normalizeTitle, which strips ", Book N" -- so every
+		// volume of a series titled "Series, Book N" collapsed to ONE key and the
+		// first volume's POSITION was served to all of its siblings for 30 days.
+		const redis = fakeRedis()
+		respond(
+			[{ workId: 42 }],
+			work('Defiance of the Fall, Book 9', 'Defiance of the Fall', 9)
+		)
+		const nine = await withGoodreadsSeries(
+			book({
+				title: 'Defiance of the Fall, Book 9',
+				authors: [{ name: 'TheFirstDefier' }],
+				seriesPrimary: null
+			}),
+			redis
+		)
+		expect(nine.seriesPrimary?.position).toBe('9')
+		respond(
+			[{ workId: 43 }],
+			work('Defiance of the Fall, Book 10', 'Defiance of the Fall', 10)
+		)
+		const ten = await withGoodreadsSeries(
+			book({
+				title: 'Defiance of the Fall, Book 10',
+				authors: [{ name: 'TheFirstDefier' }],
+				seriesPrimary: null
+			}),
+			redis
+		)
+		expect(ten.seriesPrimary?.position).toBe('10')
+	})
+
+	test('a "Series: Title" sequel is not matched to book 1', async () => {
+		// Audible titles sequels "Series: Title". titleSim's stem arm scored the
+		// series half against book 1's title at 1.0, so book 2 adopted book 1's
+		// position -- and in authority mode overwrote a correct provider series.
+		respond([{ workId: 42 }], work('Dungeon Crawler Carl', 'Dungeon Crawler Carl', 1))
+		const provider = { name: 'Dungeon Crawler Carl', position: '2' }
+		const out = await withGoodreadsSeries(
+			book({
+				title: "Dungeon Crawler Carl: Carl's Doomsday Scenario",
+				authors: [{ name: 'Matt Dinniman' }],
+				seriesPrimary: provider
+			}),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary).toEqual(provider)
+	})
+
+	test('a "Series: Title" sequel DOES match its own work', async () => {
+		// The flip side: the correct work is titled by the SUBTITLE half, which the
+		// old gate scored at 0.687 -- below 0.9, so the right book could never
+		// pass. The gate must compare the subtitle half too.
+		respond([{ workId: 42 }], work("Carl's Doomsday Scenario", 'Dungeon Crawler Carl', 2))
+		const out = await withGoodreadsSeries(
+			book({
+				title: "Dungeon Crawler Carl: Carl's Doomsday Scenario",
+				authors: [{ name: 'Matt Dinniman' }],
+				seriesPrimary: null
+			}),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary?.name).toBe('Dungeon Crawler Carl')
+		expect(out.seriesPrimary?.position).toBe('2')
+	})
+
+	test('a volume marker in our own title vetoes a contradicting position', async () => {
+		// "Defiance of the Fall, Book 10" normalizes to the bare series name, which
+		// IS book 1's title -- a 1.0 match. The number in our own title is the one
+		// fact we hold; an answer that contradicts it is the wrong work.
+		respond([{ workId: 42 }], work('Defiance of the Fall', 'Defiance of the Fall', 1))
+		const out = await withGoodreadsSeries(
+			book({
+				title: 'Defiance of the Fall, Book 10',
+				authors: [{ name: 'TheFirstDefier' }],
+				seriesPrimary: null
+			}),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary).toBeNull()
+	})
+
+	test('a lookup degraded mid-ranking is not applied', async () => {
+		// /search and /work succeed but a /series member-count call fails: the
+		// count comes back 0, the pool misranks, and the answer used to be applied
+		// anyway (only the cache write was guarded) -- overwriting a correct
+		// provider series with a misranked one, uncached, so the next refresh
+		// could answer differently. Degraded means: do not apply, do not cache.
+		respond(
+			[{ workId: 42 }],
+			multiWork('The Grief of Stones', [
+				['The Cemeteries of Amalo', 2, 701],
+				['The Chronicles of Osreth', 3, 702]
+			]),
+			null, // /series 701 -- transport failure
+			null // /series 702 -- transport failure
+		)
+		const provider = { name: 'The Chronicles of Osreth', position: '3' }
+		const out = await withGoodreadsSeries(
+			book({ title: 'The Grief of Stones', seriesPrimary: provider }),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary).toEqual(provider)
+	})
+
+	test('a free-text position does not outrank the rescued umbrella', async () => {
+		// The ranking scored positioned-ness on truthiness while the rescue gate
+		// used isShelvablePosition, so a clean series with a free-text position
+		// tied the rescued umbrella and won on declaration order -- defeating the
+		// rescue the code promises.
+		respond(
+			[{ workId: 42 }],
+			multiWork('Konrad Curze', [
+				['The Horus Heresy: The Primarchs', 'The Primarchs Short Story'],
+				['Warhammer Universe', 5]
+			])
+		)
+		const out = await withGoodreadsSeries(
+			book({ title: 'Konrad Curze', seriesPrimary: null }),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary?.name).toBe('Warhammer Universe')
+		expect(out.seriesPrimary?.position).toBe('5')
+	})
+
+	test('gap-fill drops a free-text position but keeps the name', async () => {
+		// isShelvablePosition guarded only the override path; gap-fill adopted
+		// "The Primarchs Short Story" verbatim, rendering sort title "Book The
+		// Primarchs Short Story" -- and the truthy pair then blocked the folder
+		// fallback that could have supplied the real number.
+		respond([{ workId: 42 }], work('Konrad Curze', 'The Horus Heresy', 'The Primarchs Short Story'))
+		const out = await withGoodreadsSeries(
+			book({ title: 'Konrad Curze', seriesPrimary: null }),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary?.name).toBe('The Horus Heresy')
+		expect(out.seriesPrimary?.position).toBeUndefined()
+	})
+
+	test('an edition marker in the SUBTITLE field also blocks the override', async () => {
+		// Audible stores title and subtitle separately; a marker living in the
+		// subtitle presented a clean title to the guard and the prose series
+		// overwrote the edition's own -- the exact bug the guard was shipped for.
+		respond([{ workId: 42 }], work('Tress of the Emerald Sea', "Hoid's Travails", 1))
+		const provider = { asin: 'B0D1BMZVXV', name: 'Secret Projects', position: '1' }
+		const out = await withGoodreadsSeries(
+			book({
+				title: 'Tress of the Emerald Sea',
+				subtitle: 'A Cosmere Novel (Dramatized Adaptation)',
+				authors: [{ name: 'Brandon Sanderson' }],
+				seriesPrimary: provider
+			}),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary).toEqual(provider)
+		expect(fetchMock.mock.calls.length).toBe(0)
+	})
+
+	test('a MISS is cached for a day, not a month', async () => {
+		// Membership is immutable so a HIT can cache for 30 days -- but a miss is
+		// not: the mirror gains records, and a new release refreshed before it is
+		// indexed stayed series-less for a month.
+		const redis = fakeRedis()
+		respond([])
+		await withGoodreadsSeries(
+			book({ title: 'Some Brand New Release', seriesPrimary: null }),
+			redis
+		)
+		const missTtl = [...redis.expires.values()][0]
+		expect(missTtl).toBe(86400)
+		respond([{ workId: 42 }], work('Warbreaker', 'Warbreaker', 1))
+		await withGoodreadsSeries(book({ title: 'Warbreaker', seriesPrimary: null }), redis)
+		const ttls = [...redis.expires.values()]
+		expect(ttls[ttls.length - 1]).toBe(2592000)
+	})
+
+	test('a lookup over the time budget serves the book un-enriched', async () => {
+		// The paced lookup runs inline in GET /books/{id}; a slow mirror could
+		// hold the WHOLE response past the Plex agent's 25s timeout, losing the
+		// entire metadata update to enrich one field. Over budget: serve the book
+		// as-is and let the lookup finish in the background to warm the cache.
+		process.env.GOODREADS_TIME_BUDGET_MS = '1'
+		try {
+			fetchMock.mockReset()
+			// Slow but SUCCESSFUL: without the budget this lookup completes and
+			// overrides, which is what makes the un-budgeted path fail this test.
+			// (A first draft returned the same payload for the /work call; the gate
+			// rejected it, the lookup missed, and the test passed with no fix at
+			// all -- asserting nothing.)
+			const bodies = [
+				[{ workId: 42 }],
+				work('The Witness for the Dead', 'The Chronicles of Osreth', 2)
+			]
+			fetchMock.mockImplementation(
+				() =>
+					new Promise((resolve) =>
+						setTimeout(() => resolve({ data: bodies.shift() }), 75)
+					)
+			)
+			const provider = { name: 'Chronicles of Osreth', position: '3' }
+			const out = await withGoodreadsSeries(
+				book({ seriesPrimary: provider }),
+				fakeRedis()
+			)
+			expect(out.seriesPrimary).toEqual(provider)
+		} finally {
+			delete process.env.GOODREADS_TIME_BUDGET_MS
+		}
 	})
 
 	test('the authority can be switched off without touching the code', async () => {

@@ -79,9 +79,15 @@ async function _show(fastify: FastifyInstance) {
 		}
 
 		// Every book response goes out through here: attach the square cover, then
-		// fill the series from Goodreads if the provider left it empty. Series
-		// enrichment is cached and only fires on a book with no seriesPrimary, so
-		// the common case costs one redis GET.
+		// consult Goodreads for the series. Under authority mode (the default)
+		// that consult happens for EVERY book, not just the series-less ones, so
+		// only the cached case is cheap (one redis GET, 30 days for a hit, 1 day
+		// for a miss). A cache-cold book pays the paced mirror chain inline --
+		// which is why withGoodreadsSeries carries a time budget
+		// (GOODREADS_TIME_BUDGET_MS): the Plex agent gives this whole response
+		// 25s, and losing the entire update to enrich one field is a worse trade
+		// than serving the book un-enriched and letting the lookup finish in the
+		// background to warm the cache.
 		const finish = async <
 			T extends {
 				title?: string
