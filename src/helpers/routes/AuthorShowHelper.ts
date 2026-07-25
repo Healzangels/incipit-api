@@ -43,7 +43,19 @@ export default class AuthorShowHelper extends GenericShowHelper {
 	 * the book cover, not a photo (e.g. Craig Alanson's is his Expeditionary Force
 	 * cover). Hardcover carries real author portraits, so when it has one we use it
 	 * and keep Audible's as `imageAlt` (a secondary poster option); when Hardcover
-	 * has none we fall back to Audible's image as-is. When a portrait or bio is
+	 * has none we fall back to Audible's image as-is.
+	 *
+	 * READ THIS BEFORE CHANGING THE ORDER: `image` vs `imageAlt` is a
+	 * SOURCE-QUALITY ranking, not a display preference, and the Plex bundle
+	 * INVERTS it on purpose. The bundle offers both to Plex's poster container
+	 * and its two-key `validate_keys` selects the SECOND one -- so `imageAlt`
+	 * (Audible) is what a freshly scanned author actually DISPLAYS, while
+	 * `image` (Hardcover) is the more trustworthy portrait and the one the
+	 * `authors_prefer_hardcover` pin targets. Both halves are deliberate: rank
+	 * by trustworthiness here, choose by fit there. Tracing that inversion from
+	 * one side alone has cost real debugging time more than once.
+	 *
+	 * When a portrait or bio is
 	 * STILL missing (Audible had none and Hardcover — Wikipedia-sourced — doesn't
 	 * carry the author, e.g. Jessica Townsend), Goodreads fills the gap, since it
 	 * covers far more authors. Apple Books is deliberately not consulted — its
