@@ -69,6 +69,28 @@ const work = (
 	]
 })
 
+/**
+ * A /work payload placing OUR work (id 42) in SEVERAL series at once.
+ *
+ * No ForeignId on the series, deliberately: seriesMemberCount short-circuits to
+ * 0 without a request when the id is absent, so these fixtures exercise the
+ * ranking without having to queue a /series response per candidate.
+ */
+const multiWork = (title: string, entries: Array<[string, string | number | null]>) => ({
+	Title: title,
+	Authors: [],
+	Series: entries.map(([name, position]) => ({
+		Title: name,
+		LinkItems: [
+			{
+				ForeignWorkId: 42,
+				PositionInSeries: position == null ? undefined : String(position),
+				SeriesPosition: typeof position === 'number' ? position : undefined
+			}
+		]
+	}))
+})
+
 const book = (over: Record<string, unknown> = {}) => ({
 	title: 'The Witness for the Dead',
 	authors: [{ name: 'Katherine Addison' }],
@@ -276,6 +298,87 @@ describe('goodreads as series authority', () => {
 		respond([{ workId: 42 }], work('Some Other Book', 'Some Other Series', 1))
 		await withGoodreadsSeries(book({ title: 'Warbreaker', seriesPrimary: null }), fakeRedis())
 		expect(fetchMock.mock.calls.length).toBe(2)
+	})
+
+	test('a franchise umbrella rescues a book its sub-series cannot place', async () => {
+		// "The Emperor's Soul" is in Elantris with NO position and in The Cosmere
+		// Universe at 7.5. A name without a number cannot build a sort title, so
+		// the Elantris answer is discarded downstream and the book falls back to
+		// its FOLDER -- which is how a shelf ends up half Goodreads-named and half
+		// folder-named. The umbrella can place it, so it should.
+		respond(
+			[{ workId: 42 }],
+			multiWork("The Emperor's Soul", [
+				['Elantris', null],
+				['The Cosmere Universe', '7.5']
+			])
+		)
+		const out = await withGoodreadsSeries(
+			book({ title: "The Emperor's Soul", seriesPrimary: null }),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary?.name).toBe('The Cosmere Universe')
+		expect(out.seriesPrimary?.position).toBe('7.5')
+	})
+
+	test('a sub-series that CAN place the book still beats the umbrella', async () => {
+		// The guard on the rule above, and the case the operator cares about most:
+		// The Way of Kings is Stormlight #1 and Cosmere Universe #6. Stormlight
+		// places it, so the umbrella must stay demoted. Same for Jack Ryan over
+		// Jack Ryan Universe and Ender's Saga over The Enderverse.
+		respond(
+			[{ workId: 42 }],
+			multiWork('The Way of Kings', [
+				['The Stormlight Archive', 1],
+				['The Cosmere Universe', 6]
+			])
+		)
+		const out = await withGoodreadsSeries(
+			book({ title: 'The Way of Kings', seriesPrimary: null }),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary?.name).toBe('The Stormlight Archive')
+		expect(out.seriesPrimary?.position).toBe('1')
+	})
+
+	test('a publication-order listing is NEVER rescued', async () => {
+		// Why the demotion list had to be split in two. A franchise umbrella is a
+		// real shelf a reader uses; a publication/chronological ordering is not --
+		// "Forgotten Realms - Publication Order" has 301 members and sweeps in the
+		// whole shared universe. It must stay demoted even when the only clean
+		// series cannot place the book, which is exactly when the umbrella rule
+		// would otherwise let it through.
+		respond(
+			[{ workId: 42 }],
+			multiWork('Homeland', [
+				['The Dark Elf Trilogy', null],
+				['Forgotten Realms - Publication Order', 9]
+			])
+		)
+		const out = await withGoodreadsSeries(
+			book({ title: 'Homeland', seriesPrimary: null }),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary?.name).toBe('The Dark Elf Trilogy')
+	})
+
+	test('an umbrella that cannot place the book either changes nothing', async () => {
+		// Arcanum Unbounded: no position in The Mistborn Saga AND none in the
+		// umbrella. There is nothing to rescue it with, so it keeps the plain
+		// series name and the folder supplies the number, as before.
+		respond(
+			[{ workId: 42 }],
+			multiWork('Arcanum Unbounded', [
+				['The Mistborn Saga', null],
+				['The Cosmere Universe', null]
+			])
+		)
+		const out = await withGoodreadsSeries(
+			book({ title: 'Arcanum Unbounded', seriesPrimary: null }),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary?.name).toBe('The Mistborn Saga')
+		expect(out.seriesPrimary?.position).toBeUndefined()
 	})
 
 	test('the authority can be switched off without touching the code', async () => {

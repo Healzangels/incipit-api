@@ -105,8 +105,26 @@ const seriesCountMemo = new Map<number, number>()
 // Excluded from the ranking, but only when a clean series remains -- never
 // leaving a book with no series because every listing happened to be one of
 // these.
-const SERIES_VARIANT_RE =
-	/\b(publication order|chronological|split[\s-]?volume|omnibus|box[\s-]?set|edition)\b|\b\w*verse\b/i
+//
+// Kinds 1 and 2 are held apart from kind 3 because they are demoted for
+// different reasons and one of them can earn its way back. An edition variant
+// or a publication ordering is never a shelf a reader wants -- "Forgotten
+// Realms - Publication Order" has 301 members spanning dozens of authors. A
+// franchise umbrella IS a real shelf, just a coarser one than the sub-series,
+// so it is the right answer when the sub-series cannot place the book at all.
+const SERIES_ORDERING_RE =
+	/\b(publication order|chronological|split[\s-]?volume|omnibus|box[\s-]?set|edition)\b/i
+const SERIES_UMBRELLA_RE = /\b\w*verse\b/i
+
+/** An edition variant or franchise ordering: demoted, and never rescued. */
+function isOrdering(series: WorkSeries): boolean {
+	return SERIES_ORDERING_RE.test(series.Title ?? '')
+}
+
+/** A franchise umbrella: demoted, but eligible to be rescued. */
+function isUmbrella(series: WorkSeries): boolean {
+	return !isOrdering(series) && SERIES_UMBRELLA_RE.test(series.Title ?? '')
+}
 
 /**
  * Number of members in a Goodreads series, or 0 when it can't be determined.
@@ -595,10 +613,32 @@ async function lookupByTitle(
 		// (the common case) skips the /series lookups entirely.
 		let ranked = all
 		if (all.length > 1) {
-			// Drop edition-variants and franchise orderings, but only if a clean
-			// series survives -- otherwise keep them, a variant series beats none.
-			const clean = all.filter((s) => !SERIES_VARIANT_RE.test(s.Title ?? ''))
-			const pool = clean.length ? clean : all
+			// Drop edition-variants, franchise orderings and umbrellas, but only if
+			// a clean series survives -- otherwise keep them, a variant beats none.
+			const clean = all.filter((s) => !isOrdering(s) && !isUmbrella(s))
+			const canPlace = (s: WorkSeries) => isShelvablePosition(positionFor(s, workId))
+			let pool: WorkSeries[]
+			if (!clean.length) {
+				pool = all
+			} else if (clean.some(canPlace)) {
+				pool = clean
+			} else {
+				// Every clean series names this book without NUMBERING it, which is
+				// useless for a shelf: the position is what builds the sort title, so
+				// the answer gets discarded downstream and the book falls back to its
+				// folder path. That is how one shelf ends up half Goodreads-named and
+				// half folder-named -- measured on The Emperor's Soul, which Elantris
+				// lists with no position while The Cosmere Universe has it at 7.5.
+				//
+				// So let an umbrella back in when it can actually place the book. Only
+				// an umbrella: a publication ordering stays out, because a coarser
+				// real shelf is an acceptable answer and a 301-member cross-author
+				// listing is not. The sort below still prefers a positioned series, so
+				// the rescued umbrella outranks the clean series that could not place
+				// it, and nothing changes for a book whose sub-series CAN.
+				const rescued = all.filter((s) => isUmbrella(s) && canPlace(s))
+				pool = rescued.length ? [...clean, ...rescued] : clean
+			}
 			const counts = new Map<WorkSeries, number>()
 			for (const s of pool) {
 				counts.set(s, await seriesMemberCount(s.ForeignId, state, logger))
