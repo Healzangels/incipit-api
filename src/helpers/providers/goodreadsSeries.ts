@@ -118,6 +118,7 @@ interface WorkResponse {
 	Title?: string
 	FullTitle?: string
 	ShortTitle?: string
+	Authors?: Array<{ Name?: string }>
 	Series?: WorkSeries[]
 }
 
@@ -493,10 +494,37 @@ export async function fetchGoodreadsSeries(
 			continue
 		}
 
+		// The title gate alone is not enough to reach past hit #1. Goodreads
+		// carries summary and companion records that repeat the real title
+		// verbatim -- "White Fire (Pendergast)" by "BookBuddy", "Crimson Shore"
+		// by "Brief Books" -- so they clear 0.9 comfortably while belonging to a
+		// different author and a different series. Reject only on a POSITIVE
+		// mismatch: the mirror omits Authors on some works, and reading absent as
+		// wrong would discard good answers to guard against a hypothetical one.
+		const credited = (work.Authors ?? [])
+			.map((a) => a?.Name)
+			.filter((n): n is string => typeof n === 'string' && n.length > 0)
+		if (author && credited.length > 0 && !credited.some((n) => isSameAuthor(author, n))) {
+			logger?.debug(
+				{ workId, credited, author },
+				'goodreads series: work is credited to someone else, skipping it'
+			)
+			continue
+		}
+
 		const all = (work.Series ?? []).filter(
 			(s): s is WorkSeries => !!s && typeof s.Title === 'string' && s.Title.length > 0
 		)
-		if (all.length === 0) return null
+		// `continue`, not `return`: a work with no series editions says nothing
+		// about the candidates behind it. Returning here meant one series-less
+		// hit at the front of /search buried the real work -- and did it
+		// silently, since unlike the gates above this path logged nothing.
+		// Measured on Pendergast: White Fire and Crimson Shore both came back
+		// with no series while Goodreads had them at #13 and #15.
+		if (all.length === 0) {
+			logger?.debug({ workId }, 'goodreads series: work lists no series, trying the next hit')
+			continue
+		}
 
 		// Rank the series a book belongs to so the PARENT wins.
 		//

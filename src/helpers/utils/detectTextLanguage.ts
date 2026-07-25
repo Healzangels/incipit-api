@@ -50,22 +50,34 @@ import { foldDiacritics } from '#helpers/utils/foldDiacritics'
 // are NOT shared, of which every language has plenty. So each list is simply
 // that language's real function-word set.
 const STOPWORDS: Record<string, string[]> = {
-	en: ('the and of to in a is for with that on as by from at his her it this an but was were ' +
-		'not are have has had he she they you we all one out so what when who will there their').split(
-		' '
-	),
-	es: ('el la los las de del y en un una que con por para su como pero es son fue no se al lo ' +
-		'mas este esta cuando donde muy sus ha han sobre entre').split(' '),
-	de: ('der die das den dem des und ist im mit von auf ein eine einen einem nicht sich als auch ' +
-		'er sie es zu fur aus bei nach uber wird war hat dass').split(' '),
-	fr: ('le la les des du de et en un une que dans pour par sur avec est sont il elle ce qui ne ' +
-		'pas au aux son sa ses plus tout comme mais ou').split(' '),
-	it: ('il lo la gli le di del della e in un una che con per non si come piu sono anche questo ' +
-		'quella suo dei alla da al ma nel sul suoi').split(' '),
-	pt: ('o a os as de do da dos das e em um uma que com por para nao se mais como seu sua mas ' +
-		'quando onde muito ao pelo pela').split(' '),
-	nl: ('de het een en van in is dat op te met voor zijn niet aan door maar ook deze werd naar ' +
-		'hij zij uit over bij').split(' ')
+	en: (
+		'the and of to in a is for with that on as by from at his her it this an but was were ' +
+		'not are have has had he she they you we all one out so what when who will there their'
+	).split(' '),
+	es: (
+		'el la los las de del y en un una que con por para su como pero es son fue no se al lo ' +
+		'mas este esta cuando donde muy sus ha han sobre entre'
+	).split(' '),
+	de: (
+		'der die das den dem des und ist im mit von auf ein eine einen einem nicht sich als auch ' +
+		'er sie es zu fur aus bei nach uber wird war hat dass'
+	).split(' '),
+	fr: (
+		'le la les des du de et en un une que dans pour par sur avec est sont il elle ce qui ne ' +
+		'pas au aux son sa ses plus tout comme mais ou'
+	).split(' '),
+	it: (
+		'il lo la gli le di del della e in un una che con per non si come piu sono anche questo ' +
+		'quella suo dei alla da al ma nel sul suoi'
+	).split(' '),
+	pt: (
+		'o a os as de do da dos das e em um uma que com por para nao se mais como seu sua mas ' +
+		'quando onde muito ao pelo pela'
+	).split(' '),
+	nl: (
+		'de het een en van in is dat op te met voor zijn niet aan door maar ook deze werd naar ' +
+		'hij zij uit over bij'
+	).split(' ')
 }
 
 // Below this many tokens a blurb is a tagline, not prose, and the counts are

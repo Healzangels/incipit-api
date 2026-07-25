@@ -40,9 +40,21 @@ const respond = (...bodies: Array<unknown | null>) => {
 	}
 }
 
-/** A /work payload placing OUR work (id 42) in `series` at `position`. */
-const work = (title: string, series: string, position: string | number | null) => ({
+/**
+ * A /work payload placing OUR work (id 42) in `series` at `position`.
+ *
+ * `Authors` defaults to empty, which the author gate treats as "nothing to
+ * check" -- so these fixtures exercise the series logic without every one of
+ * them having to name an author. Pass `{author}` to exercise the gate itself.
+ */
+const work = (
+	title: string,
+	series: string,
+	position: string | number | null,
+	opts: { author?: string } = {}
+) => ({
 	Title: title,
+	Authors: opts.author ? [{ Name: opts.author }] : [],
 	Series: [
 		{
 			Title: series,
@@ -155,6 +167,66 @@ describe('goodreads as series authority', () => {
 		const out = await withGoodreadsSeries(
 			book({ title: 'Arcanum Unbounded', seriesPrimary: null }), fakeRedis())
 		expect(out.seriesPrimary?.name).toBe('The Cosmere')
+	})
+
+	test('a series-less first hit does not abandon the candidates behind it', async () => {
+		// Measured on Pendergast. /search?q=White Fire Douglas Preston returns a
+		// COMPANION work first -- titled "White Fire (Pendergast)", credited to
+		// "BookBuddy", carrying no series editions -- with the real work third.
+		// That first hit cleared the title gate and then hit `return null`, so the
+		// two candidates behind it were never fetched and the book came back with
+		// NO series at all, silently: the title gate logs its rejections, this
+		// path logged nothing. Crimson Shore failed identically ("Brief Books").
+		// Every other bail-out inside the candidate loop is a `continue`.
+		respond(
+			[{ workId: 7 }, { workId: 42 }],
+			{ Title: 'White Fire', Authors: [{ Name: 'Douglas Preston' }], Series: [] },
+			work('White Fire', 'Pendergast', 13)
+		)
+		const out = await withGoodreadsSeries(
+			book({
+				title: 'White Fire',
+				authors: [{ name: 'Douglas Preston' }],
+				seriesPrimary: null
+			}),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary?.name).toBe('Pendergast')
+		expect(out.seriesPrimary?.position).toBe('13')
+	})
+
+	test('a work credited to someone else is skipped, not trusted', async () => {
+		// The guard that makes walking deeper safe. Goodreads is full of summary
+		// and companion records that carry the real title verbatim -- so they sail
+		// through the 0.9 title gate -- but belong to a different author and a
+		// different series. Without this, reaching candidate 2 to fix the bug
+		// above would let one of them attach its series to a real book.
+		respond(
+			[{ workId: 7 }, { workId: 42 }],
+			work('White Fire', "A Summarizer's Companion Series", 4, { author: 'BookBuddy' }),
+			work('White Fire', 'Pendergast', 13)
+		)
+		const out = await withGoodreadsSeries(
+			book({
+				title: 'White Fire',
+				authors: [{ name: 'Douglas Preston' }],
+				seriesPrimary: null
+			}),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary?.name).toBe('Pendergast')
+	})
+
+	test('a work with no author data is still trusted', async () => {
+		// The gate can only reject on a POSITIVE mismatch. The mirror omits
+		// Authors on some works, and treating absent as wrong would throw away
+		// good answers to guard against a hypothetical one.
+		respond([{ workId: 42 }], { ...work('Warbreaker', 'Warbreaker', 1), Authors: [] })
+		const out = await withGoodreadsSeries(
+			book({ title: 'Warbreaker', seriesPrimary: null }),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary?.name).toBe('Warbreaker')
 	})
 
 	test('the authority can be switched off without touching the code', async () => {
