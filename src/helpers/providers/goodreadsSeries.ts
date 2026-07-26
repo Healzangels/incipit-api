@@ -221,6 +221,22 @@ interface SeriesRecordInfo {
 const seriesRecordMemo = new Map<number, SeriesRecordInfo>()
 
 /**
+ * A series entry with its name whitespace-normalized (collapsed and trimmed),
+ * or undefined when there is no entry or the name empties out. Goodreads
+ * librarian titles carry stray whitespace ("Six of Crows " -- series 131836,
+ * measured live), and a name adopted verbatim leaks into every sort title
+ * built from it. Whitespace is never identity.
+ * @param {ProviderBookSeries | undefined} entry the series entry
+ * @returns {ProviderBookSeries | undefined} the entry with a clean name
+ */
+function cleanSeriesName(entry?: ProviderBookSeries): ProviderBookSeries | undefined {
+	if (!entry?.name) return entry
+	const name = entry.name.replace(/\s+/g, ' ').trim()
+	if (!name) return undefined
+	return name === entry.name ? entry : { ...entry, name }
+}
+
+/**
  * The language the SHELF should be named in, or null when the canonical
  * Goodreads name should be kept as-is.
  *
@@ -591,6 +607,17 @@ export async function withGoodreadsSeries<T extends SeriesEnrichable>(
 	}
 
 	if (!result?.primary) return book
+	// NAME HYGIENE, on the APPLY path so fresh and week-old CACHED answers both
+	// pass through it. Goodreads librarian titles carry stray whitespace --
+	// series 131836 is literally "Six of Crows " -- and adopted verbatim it
+	// built the Plex sort title "Six of Crows , Book 2", splitting the shelf
+	// from its clean-named sibling. Whitespace is never identity.
+	result = {
+		...result,
+		primary: cleanSeriesName(result.primary),
+		secondary: cleanSeriesName(result.secondary)
+	}
+	if (!result.primary) return book
 	// OVERRIDING an existing series is held to a much higher bar than filling an
 	// empty one. As a gap-filler a wrong answer cost nothing -- the field was
 	// blank. As authority it overwrites correct data and mis-shelves a book that
@@ -1065,9 +1092,11 @@ async function lookupByTitle(
 			// folder fallback that could have supplied the real number. Keep the
 			// NAME (a name beats none, and the folder can number it), drop the junk.
 			const position = positionFor(s, workId)
-			return isShelvablePosition(position)
-				? { name: s.Title as string, position: position as string }
-				: { name: s.Title as string }
+			// Whitespace-normalized: librarian titles carry stray spaces ("Six of
+			// Crows " -- series 131836), and this is what gets CACHED, so clean it
+			// at the source too, not only on the apply path.
+			const name = (s.Title as string).replace(/\s+/g, ' ').trim()
+			return isShelvablePosition(position) ? { name, position: position as string } : { name }
 		}
 
 		// A single-series work never enters the ranking above, so check it here

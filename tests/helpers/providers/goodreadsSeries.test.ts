@@ -333,21 +333,21 @@ describe('series language preference', () => {
 	})
 
 	test('renames the primary series to its declared English alias', async () => {
-		respond(
-			[{ workId: 42 }],
-			germanCanonical(90001),
-			{ Title: 'Tintenwelt', Description: TINTENWELT_DESC, LinkItems: [1, 2, 3, 4] }
-		)
+		respond([{ workId: 42 }], germanCanonical(90001), {
+			Title: 'Tintenwelt',
+			Description: TINTENWELT_DESC,
+			LinkItems: [1, 2, 3, 4]
+		})
 		const out = await fetchGoodreadsSeries('Inkheart', 'Cornelia Funke')
 		expect(out).toEqual({ primary: { name: 'Inkworld', position: '1' } })
 	})
 
 	test('keeps the canonical name when no alias is declared', async () => {
-		respond(
-			[{ workId: 42 }],
-			germanCanonical(90002),
-			{ Title: 'Tintenwelt', Description: 'TODO', LinkItems: [1, 2] }
-		)
+		respond([{ workId: 42 }], germanCanonical(90002), {
+			Title: 'Tintenwelt',
+			Description: 'TODO',
+			LinkItems: [1, 2]
+		})
 		const out = await fetchGoodreadsSeries('Inkheart', 'Cornelia Funke')
 		expect(out).toEqual({ primary: { name: 'Tintenwelt', position: '1' } })
 	})
@@ -371,11 +371,11 @@ describe('series language preference', () => {
 
 	test('a different preferred language picks that alias', async () => {
 		process.env.GOODREADS_SERIES_LANGUAGE = 'Spanish'
-		respond(
-			[{ workId: 42 }],
-			germanCanonical(90005),
-			{ Title: 'Tintenwelt', Description: TINTENWELT_DESC, LinkItems: [1] }
-		)
+		respond([{ workId: 42 }], germanCanonical(90005), {
+			Title: 'Tintenwelt',
+			Description: TINTENWELT_DESC,
+			LinkItems: [1]
+		})
 		const out = await fetchGoodreadsSeries('Inkheart', 'Cornelia Funke')
 		expect(out).toEqual({ primary: { name: 'Mundo de tinta', position: '1' } })
 	})
@@ -406,11 +406,11 @@ describe('edition-title verification', () => {
 	})
 
 	test('accepts a work whose EDITION title matches ours', async () => {
-		respond(
-			[{ workId: 42 }],
-			germanWork(),
-			{ Title: 'Tintenwelt', Description: 'TODO', LinkItems: [1, 2, 3, 4] }
-		)
+		respond([{ workId: 42 }], germanWork(), {
+			Title: 'Tintenwelt',
+			Description: 'TODO',
+			LinkItems: [1, 2, 3, 4]
+		})
 		const out = await fetchGoodreadsSeries('Inkworld: The Color of Revenge', 'Cornelia Funke')
 		expect(out).toEqual({ primary: { name: 'Tintenwelt', position: '4' } })
 	})
@@ -449,3 +449,52 @@ describe('edition-title verification', () => {
 		expect(out).toEqual({ primary: { name: 'Inkworld', position: '4' } })
 	})
 })
+
+describe('series name hygiene', () => {
+	afterEach(() => fetchMock.mockReset())
+
+	test('a librarian trailing space in the series title is trimmed', async () => {
+		// Measured live on Goodreads series 131836, literally titled
+		// "Six of Crows " -- adopted verbatim, it built the Plex sort title
+		// "Six of Crows , Book 2" and split the shelf from its clean-named
+		// sibling. Whitespace is never identity.
+		respond([{ workId: 42 }], {
+			Title: 'Crooked Kingdom',
+			Series: [
+				{
+					Title: 'Six of Crows ',
+					ForeignId: 90201,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '2', SeriesPosition: 2 }]
+				}
+			]
+		})
+		const out = await fetchGoodreadsSeries('Crooked Kingdom', 'Leigh Bardugo')
+		expect(out?.primary?.name).toBe('Six of Crows')
+	})
+
+	test('a dirty name in an already-CACHED answer is cleaned on read', async () => {
+		// The redis cache holds answers recorded before this fix (hit TTL is a
+		// week), so the trim must sit on the APPLY path, where fresh and cached
+		// answers converge -- not only inside the lookup.
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		fetchMock.mockReset()
+		const redis = fakeRedisFor('grseries:v4:crooked kingdom|leigh bardugo', {
+			primary: { name: 'Six of Crows ', position: '2' }
+		})
+		const book = { title: 'Crooked Kingdom', authors: [{ name: 'Leigh Bardugo' }] }
+		const out = await withGoodreadsSeries(book, redis)
+		expect(out.seriesPrimary).toEqual({ name: 'Six of Crows', position: '2' })
+		expect(fetchMock).not.toHaveBeenCalled()
+	})
+})
+
+function fakeRedisFor(key: string, value: unknown) {
+	const store = new Map<string, string>([[key, JSON.stringify(value)]])
+	return {
+		get: (k: string) => Promise.resolve(store.get(k) ?? null),
+		set: (k: string, v: string) => {
+			store.set(k, v)
+			return Promise.resolve('OK')
+		}
+	}
+}
