@@ -236,12 +236,27 @@ describe('ranking tiebreaks', () => {
 	})
 
 	const HP = () => [
-		candidate({ provider: 'audible', id: 'dale', asin: 'B0JIMDALE1',
-			narrators: ['Jim Dale'], audioSeconds: 32520 }),
-		candidate({ provider: 'audible', id: 'fullcast', asin: 'B0FULLCAST',
-			narrators: ['Hugh Laurie', 'Matthew Macfadyen'], audioSeconds: 34620 }),
-		candidate({ provider: 'audible', id: 'fry', asin: 'B0STEPHENF',
-			narrators: ['Stephen Fry'], audioSeconds: 34980 })
+		candidate({
+			provider: 'audible',
+			id: 'dale',
+			asin: 'B0JIMDALE1',
+			narrators: ['Jim Dale'],
+			audioSeconds: 32520
+		}),
+		candidate({
+			provider: 'audible',
+			id: 'fullcast',
+			asin: 'B0FULLCAST',
+			narrators: ['Hugh Laurie', 'Matthew Macfadyen'],
+			audioSeconds: 34620
+		}),
+		candidate({
+			provider: 'audible',
+			id: 'fry',
+			asin: 'B0STEPHENF',
+			narrators: ['Stephen Fry'],
+			audioSeconds: 34980
+		})
 	]
 
 	test('the NARRATOR picks the edition when title and author cannot', async () => {
@@ -266,5 +281,88 @@ describe('ranking tiebreaks', () => {
 		// the tiebreak it declines to decide.
 		const out = await helperFor(HP(), { narrator: 'Nobody At All' }).search()
 		expect(out).toHaveLength(3)
+	})
+})
+
+describe('exact-title tiebreak (same recording, different provider titling)', () => {
+	beforeEach(() => resetMatchMetrics())
+
+	/**
+	 * Measured live on Seth Ring's "Apex" (2026-07-26, fresh scan, file
+	 * unanalyzed so no duration signal): Audible titles the edition "Apex: A
+	 * Fantasy LitRPG Adventure" while OverDrive titles the SAME recording
+	 * (same narrator, Pavi Proczko) plain "Apex" -- the query title. Both
+	 * scored 0.85, every tiebreak through narrator tied, and provider order
+	 * handed the match to Audible -- so the album displayed the marketing
+	 * subtitle its five series siblings don't carry. Five minutes later the
+	 * analyzed duration re-ranked the same search the other way, but the
+	 * scan-time match had already stuck.
+	 *
+	 * When nothing else separates two candidates, prefer the one whose TITLE
+	 * IS what the library calls the book. Cosmetic-only by construction: it
+	 * runs after every identity tiebreak (pin, language, audio, narrator,
+	 * runtime delta, residual confidence), so it can only decide between
+	 * rows the evidence genuinely cannot tell apart.
+	 */
+
+	test('on a full tie, the candidate titled EXACTLY as the query outranks a marketing-subtitled sibling', async () => {
+		const out = await helperFor(
+			[
+				candidate({
+					provider: 'audible',
+					id: 'B0DXQDSQ6T',
+					asin: 'B0DXQDSQ6T',
+					title: 'Apex: A Fantasy LitRPG Adventure',
+					authors: ['Seth Ring'],
+					narrators: ['Pavi Proczko'],
+					audioSeconds: BASE
+				}),
+				candidate({
+					provider: 'overdrive',
+					id: 'overdrive-11641672',
+					title: 'Apex',
+					authors: ['Seth Ring'],
+					narrators: ['Pavi Proczko'],
+					// Different runtime bucket so dedupe keeps both rows, like live.
+					audioSeconds: BASE + 600
+				})
+			],
+			{ title: 'Apex', author: 'Seth Ring', narrator: 'Pavi Proczko' }
+		).search()
+		expect(out[0]?.title).toBe('Apex')
+	})
+
+	test('a duration signal still outranks title exactness', async () => {
+		// The arm is LAST before provider order: when the file's runtime
+		// corroborates one row more closely, that evidence decides, exactness
+		// notwithstanding.
+		const out = await helperFor(
+			[
+				candidate({
+					provider: 'audible',
+					id: 'long',
+					asin: 'B000000001',
+					title: 'Apex: A Fantasy LitRPG Adventure',
+					authors: ['Seth Ring'],
+					narrators: ['Pavi Proczko'],
+					audioSeconds: BASE
+				}),
+				candidate({
+					provider: 'overdrive',
+					id: 'exact',
+					title: 'Apex',
+					authors: ['Seth Ring'],
+					narrators: ['Pavi Proczko'],
+					audioSeconds: BASE + 600
+				})
+			],
+			{
+				title: 'Apex',
+				author: 'Seth Ring',
+				narrator: 'Pavi Proczko',
+				duration: BASE * 1000
+			}
+		).search()
+		expect(out[0]?.id).toBe('long')
 	})
 })

@@ -1082,6 +1082,25 @@ export default class BookSearchHelper {
 				// the tolerance decides after all — the band only ever lets the two
 				// tiebreaks above jump a small deficit, it never discards confidence.
 				if (Math.abs(byConfidence) > 1e-9) return byConfidence
+				// Still tied: prefer the candidate whose TITLE IS what the library
+				// calls the book. Providers title the SAME recording differently --
+				// measured on Seth Ring's "Apex" (fresh scan, no duration signal):
+				// Audible says "Apex: A Fantasy LitRPG Adventure", OverDrive says
+				// "Apex" (same narrator), both scored 0.85, and provider order handed
+				// the match to the marketing-subtitled row -- so the album displayed a
+				// tail its five series siblings don't carry. Cosmetic-only by
+				// construction: every identity tiebreak above (pin, language, audio,
+				// narrator, runtime delta, residual confidence) has already declined
+				// to decide, so this can only choose between rows the evidence cannot
+				// tell apart.
+				const exactTitle = (c: ScoredCandidate) => {
+					const t = normalizeTitle(c.title).toLowerCase()
+					return (
+						t === primaryTitle.toLowerCase() || (altTitle != null && t === altTitle.toLowerCase())
+					)
+				}
+				const byExactTitle = Number(exactTitle(b)) - Number(exactTitle(a))
+				if (byExactTitle !== 0) return byExactTitle
 				// Genuinely tied: prefer the richer/more-authoritative source.
 				return providerRank(a) - providerRank(b)
 			}
