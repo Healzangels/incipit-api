@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import type ProviderRegistry from '#helpers/providers/ProviderRegistry'
-import type { ProviderBook, ProviderCandidate } from '#helpers/providers/types'
+import type { ProviderCandidate } from '#helpers/providers/types'
 import BookSearchHelper from '#helpers/routes/BookSearchHelper'
 
 /**
@@ -24,9 +24,12 @@ import BookSearchHelper from '#helpers/routes/BookSearchHelper'
  * even dead ASINs (the same rebuild had B07XG1S8LM on "2010", which resolves to
  * nothing), so an injected pin still faces the ordinary scoring: a rival the
  * duration corroborates outranks it, and it stays offered for Fix Match either
- * way. Note the injected row carries NO runtime -- ProviderBook has no duration
- * field -- so it scores on title+author alone and can never out-argue a
- * duration-corroborated rival.
+ * way. It is resolved through fetchCandidateByAsin rather than fetchBookByAsin
+ * for two reasons: only Hardcover implements the latter (it is the rescue path
+ * for ASINs Audible will not serve, so an ordinary Audible ASIN resolved to
+ * nothing and the injection silently never fired), and ProviderBook carries no
+ * runtime, which would leave the pin unable to be duration-corroborated OR
+ * duration-vetoed.
  */
 
 const PINNED_ASIN = 'B004XNIO5I'
@@ -57,24 +60,24 @@ const spanish = candidate({
 const overdrive = candidate({ provider: 'overdrive', id: 'overdrive-10268336' })
 const hardcoverWork = candidate({ provider: 'hardcover', id: 'hardcover-book-174750' })
 
-/** What the ASIN lookup returns: the real audio edition. */
-const pinnedBook: ProviderBook = {
+/** What the ASIN lookup returns: the real audio edition, RUNTIME INCLUDED. */
+const pinnedBook: ProviderCandidate = candidate({
+	id: PINNED_ASIN,
 	asin: PINNED_ASIN,
-	title: 'Everfound',
-	authors: [{ name: 'Neal Shusterman' }],
-	narrators: [{ name: 'Nick Podehl' }],
-	image: 'https://example/cover.jpg',
+	narrators: ['Nick Podehl'],
+	audioSeconds: 834 * 60,
+	cover: 'https://example/cover.jpg',
 	language: 'en'
-}
+})
 
 function helperFor(
 	poolCandidates: ProviderCandidate[],
-	fetchBookByAsin: (asin: string) => Promise<ProviderBook | null>,
+	fetchCandidateByAsin: (asin: string) => Promise<ProviderCandidate | null>,
 	options: Record<string, unknown> = {}
 ) {
 	const registry = {
 		searchAll: async () => poolCandidates,
-		fetchBookByAsin
+		fetchCandidateByAsin
 	} as unknown as ProviderRegistry
 	return new BookSearchHelper(registry, {
 		title: 'Everfound',

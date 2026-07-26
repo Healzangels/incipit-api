@@ -1,6 +1,6 @@
 import type { FastifyBaseLogger } from 'fastify'
 
-import type { BookProvider, BookSearchQuery, ProviderCandidate } from './types'
+import type { BookProvider, BookSearchQuery, FetchBookOptions, ProviderCandidate } from './types'
 
 import fetch from '#helpers/utils/fetchPlus'
 import { normalizeLanguage } from '#helpers/utils/language'
@@ -96,6 +96,56 @@ export default class AudibleProvider implements BookProvider {
 			image_sizes: IMAGE_SIZES
 		})
 		return `https://api.audible.${tld}/1.0/catalog/products?${params.toString()}`
+	}
+
+	/** Build the catalog URL that resolves ONE asin (see fetchCandidateByAsin). */
+	private buildAsinUrl(asin: string, region: string): string {
+		const r = regions[region] ? region : 'us'
+		const tld = regions[r].tld
+		const params = new URLSearchParams({
+			asins: asin,
+			response_groups: RESPONSE_GROUPS,
+			image_sizes: IMAGE_SIZES
+		})
+		return `https://api.audible.${tld}/1.0/catalog/products?${params.toString()}`
+	}
+
+	/**
+	 * Resolve one ASIN directly to a candidate, runtime included.
+	 *
+	 * The catalog TITLE search does not always surface the edition an operator
+	 * named by ASIN: measured live 2026-07-26 on "Everfound", where B004XNIO5I
+	 * resolves fine on its own yet a title+author search returned a Spanish
+	 * edition, an OverDrive row and an Apple row instead. `asins=` asks for that
+	 * one product by identity, which is a different question from "rank things
+	 * matching this title".
+	 *
+	 * Returns a CANDIDATE rather than a ProviderBook precisely so audioSeconds
+	 * survives: an injected pin with no runtime can be neither corroborated nor
+	 * vetoed by duration, and duration is the evidence that stops a wrong sidecar
+	 * ASIN winning.
+	 * @param {string} asin the ASIN to resolve
+	 * @param {FetchBookOptions} opts region, credentials, logger
+	 * @returns {Promise<ProviderCandidate | null>} the candidate, or null
+	 */
+	async fetchCandidateByAsin(
+		asin: string,
+		opts: FetchBookOptions
+	): Promise<ProviderCandidate | null> {
+		const products = await this.fetchProducts(this.buildAsinUrl(asin, opts.region))
+		const p = products.find((x) => x.asin)
+		if (!p) return null
+		return {
+			provider: AUDIBLE_NAME,
+			id: p.asin as string,
+			asin: p.asin as string,
+			language: normalizeLanguage(p.language),
+			title: p.title ?? '',
+			authors: (p.authors ?? []).map((a) => a.name).filter((n): n is string => !!n),
+			narrators: (p.narrators ?? []).map((n) => n.name).filter((n): n is string => !!n),
+			audioSeconds: typeof p.runtime_length_min === 'number' ? p.runtime_length_min * 60 : null,
+			cover: largestImage(p.product_images)
+		}
 	}
 
 	/**

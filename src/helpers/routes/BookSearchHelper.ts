@@ -585,33 +585,20 @@ export default class BookSearchHelper {
 		if (!asin) return pool
 		if (pool.some((c) => c.asin?.toUpperCase() === asin)) return pool
 		try {
-			const book = await this.registry.fetchBookByAsin(asin, {
+			const found = await this.registry.fetchCandidateByAsin(asin, {
 				region: this.options.region,
 				credentials: this.credentials,
 				logger: this.logger
 			})
-			if (!book) {
+			if (!found) {
 				this.logger?.debug({ asin }, 'book search: pinned asin resolved to nothing')
 				return pool
 			}
-			this.logger?.info({ asin, title: book.title }, 'book search: injected the pinned edition')
-			return [
-				...pool,
-				{
-					provider: BookSearchHelper.PINNED_PROVIDER,
-					id: book.asin ?? asin,
-					asin: book.asin ?? asin,
-					title: book.title,
-					authors: book.authors.map((a) => a.name).filter(Boolean),
-					narrators: book.narrators.map((n) => n.name).filter(Boolean),
-					// ProviderBook carries no runtime, so there is no duration signal
-					// here. Deliberate: it keeps the pin from ever winning on anything
-					// but title+author, and leaves duration-corroborated rivals ahead.
-					audioSeconds: null,
-					cover: book.imageSquare ?? book.image ?? null,
-					language: book.language ?? null
-				}
-			]
+			this.logger?.info({ asin, title: found.title }, 'book search: injected the pinned edition')
+			// provider is overwritten so isPinned can recognise this as the
+			// uncorroborated, fetched-by-asin row; everything else is the provider's
+			// own data, runtime included.
+			return [...pool, { ...found, provider: BookSearchHelper.PINNED_PROVIDER }]
 		} catch (err) {
 			this.logger?.debug({ err, asin }, 'book search: pinned asin lookup failed')
 			return pool

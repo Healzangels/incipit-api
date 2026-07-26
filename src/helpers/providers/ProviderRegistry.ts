@@ -102,6 +102,42 @@ export default class ProviderRegistry {
 	}
 
 	/**
+	 * Resolve one ASIN straight to a search candidate, asking each provider that
+	 * can until one answers. Backs the pinned-edition injection in
+	 * BookSearchHelper; failure is isolated exactly as in searchAll.
+	 *
+	 * Separate from fetchBookByAsin, which only Hardcover implements as the rescue
+	 * path for ASINs Audible will not serve — it returns a ProviderBook, a shape
+	 * with no runtime. A pinned edition must keep its duration or it can be
+	 * neither corroborated nor vetoed by it.
+	 * @param {string} asin the ASIN to resolve
+	 * @param {FetchBookOptions} opts region, credentials, logger
+	 * @returns {Promise<ProviderCandidate | null>} the first provider's candidate, or null
+	 */
+	async fetchCandidateByAsin(
+		asin: string,
+		opts: FetchBookOptions
+	): Promise<ProviderCandidate | null> {
+		for (const provider of this.providers) {
+			if (!provider.fetchCandidateByAsin) continue
+			try {
+				const candidate = await withTimeout(
+					provider.fetchCandidateByAsin(asin, opts),
+					PROVIDER_TIMEOUT_MS,
+					provider.name
+				)
+				if (candidate) return candidate
+			} catch (err) {
+				opts.logger?.debug(
+					{ err, provider: provider.name, asin },
+					'provider asin candidate lookup failed'
+				)
+			}
+		}
+		return null
+	}
+
+	/**
 	 * Search every provider in parallel and return the flattened candidate pool.
 	 * A provider that rejects is logged and contributes nothing. When a cache is
 	 * given, each provider's call goes through it (per-provider, so an error caches

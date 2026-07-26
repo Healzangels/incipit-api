@@ -124,4 +124,15 @@ export interface BookProvider {
 	search(query: BookSearchQuery, logger?: FastifyBaseLogger): Promise<ProviderCandidate[]>
 	fetchBook?(nativeId: string, kind: string, opts: FetchBookOptions): Promise<ProviderBook | null>
 	fetchBookByAsin?(asin: string, opts: FetchBookOptions): Promise<ProviderBook | null>
+	/**
+	 * Resolve one ASIN straight to a search CANDIDATE, for the pinned-edition
+	 * injection in BookSearchHelper.
+	 *
+	 * Distinct from fetchBookByAsin, which is the rescue path for an ASIN Audible
+	 * will NOT serve and returns a ProviderBook — a shape with no runtime, so a
+	 * candidate built from it can never be duration-corroborated or duration-
+	 * vetoed. A pinned edition needs exactly that evidence, so this returns the
+	 * candidate shape with audioSeconds intact.
+	 */
+	fetchCandidateByAsin?(asin: string, opts: FetchBookOptions): Promise<ProviderCandidate | null>
 }
