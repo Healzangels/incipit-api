@@ -435,6 +435,12 @@ interface RedisLike {
 // month, re-creating a fixed bug where a throttle pinned "no photo" on authors
 // whose records were cached before the lookup started working.
 const AUTHOR_CACHE_TTL_SECONDS = 86400
+// A full miss ({image:null, bio:null}) is not knowledge -- the mirror gains
+// records, and a cache-cold mirror can answer incompletely (measured on Roger
+// Zelazny: first answer surfaced only a franchise-continuation author, minutes
+// later the real record was there). Short enough to self-heal the same day,
+// long enough that a truly photo-less author is not re-queried per refresh.
+const AUTHOR_MISS_TTL_SECONDS = 3600
 
 // v3: the v2 keys were built from normalizeTitle, which strips ", Book N"
 // volume markers -- so every volume of a series titled "Series, Book N"
@@ -1244,13 +1250,22 @@ export async function fetchGoodreadsAuthorInfo(
 export async function withGoodreadsAuthorInfo(
 	name: string,
 	redis: RedisLike | null,
-	logger?: FastifyBaseLogger
+	logger?: FastifyBaseLogger,
+	opts?: { bypassCacheRead?: boolean }
 ): Promise<{ image: string | null; bio: string | null }> {
 	const trimmed = name.trim()
 	if (!trimmed) return { image: null, bio: null }
 	const key = AUTHOR_CACHE_PREFIX + trimmed.toLowerCase()
 
-	if (redis) {
+	// The bypass exists for the operator's explicit ?update=1: measured live on
+	// Roger Zelazny, whose FIRST lookup hit the mirror cache-cold -- the only
+	// search hit was a Betancourt continuation novel ("Roger Zelazny's ..."), the
+	// name gate correctly refused it, and the honest miss was cached. Minutes
+	// later the mirror knew the real author, but the cached miss blocked every
+	// retry including the forced update. An explicit update pass re-asks and
+	// overwrites; ordinary refreshes keep reading the cache, which is what
+	// protects the mirror from Plex's constant author refreshes.
+	if (redis && !opts?.bypassCacheRead) {
 		try {
 			const cached = await redis.get(key)
 			if (cached) return JSON.parse(cached) as { image: string | null; bio: string | null }
@@ -1264,9 +1279,18 @@ export async function withGoodreadsAuthorInfo(
 
 	// Only cache an answer the mirror actually gave us -- see withGoodreadsSeries.
 	// Caching a rate-limited null would blank this author's portrait for the TTL.
+	// An answer with CONTENT keeps the day-long TTL; a full miss is not knowledge
+	// (the mirror gains records, and a cache-cold mirror can answer incompletely),
+	// so it expires quickly instead of pinning "no portrait, no bio" for a day.
 	if (redis && !probe.degraded) {
+		const isMiss = !result.image && !result.bio
 		try {
-			await redis.set(key, JSON.stringify(result), 'EX', AUTHOR_CACHE_TTL_SECONDS)
+			await redis.set(
+				key,
+				JSON.stringify(result),
+				'EX',
+				isMiss ? AUTHOR_MISS_TTL_SECONDS : AUTHOR_CACHE_TTL_SECONDS
+			)
 		} catch {
 			// A cache-write failure is not a request failure.
 		}

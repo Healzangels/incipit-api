@@ -185,3 +185,64 @@ describe('withGoodreadsAuthorInfo caching', () => {
 		expect(redis.store.size).toBe(0)
 	})
 })
+
+describe('withGoodreadsAuthorInfo miss handling', () => {
+	afterEach(() => fetchMock.mockReset())
+
+	/**
+	 * Measured live on Roger Zelazny (2026-07-26): the mirror answered his very
+	 * first lookup cache-cold, surfacing only a Betancourt continuation novel
+	 * ("Roger Zelazny's ..."), so the name gate correctly refused it and the
+	 * lookup missed -- a real answer, so it was CACHED, for the same 24h a hit
+	 * gets. Minutes later the mirror knew the real author (id 3619, bio and
+	 * portrait present), but the cached miss blocked every retry INCLUDING the
+	 * operator's explicit ?update=1. An empty answer is not knowledge: it gets a
+	 * short TTL, and an explicit update pass re-asks regardless.
+	 */
+
+	test('a full miss is cached only briefly; a hit keeps the day-long TTL', async () => {
+		const redis = fakeRedis()
+		respond([{ author: { id: 1 } }], { ForeignId: 1, Name: 'Somebody Else' })
+		await withGoodreadsAuthorInfo('Roger Zelazny', redis)
+		expect(redis.expires.get('grauthor:v1:roger zelazny')).toBe(3600)
+
+		respond([{ author: { id: 7328 } }], {
+			ForeignId: 7328,
+			Name: 'Ursula K. Le Guin',
+			Description: 'An American author.',
+			ImageUrl: PHOTO
+		})
+		await withGoodreadsAuthorInfo('Ursula K. Le Guin', redis)
+		expect(redis.expires.get('grauthor:v1:ursula k. le guin')).toBe(86400)
+	})
+
+	test('bypassCacheRead ignores a stale cached miss and overwrites it', async () => {
+		const redis = fakeRedis()
+		redis.store.set('grauthor:v1:roger zelazny', JSON.stringify({ image: null, bio: null }))
+		respond([{ author: { id: 3619 } }], {
+			ForeignId: 3619,
+			Name: 'Roger Zelazny',
+			Description: 'An American fantasy and science fiction writer.',
+			ImageUrl: PHOTO
+		})
+		const out = await withGoodreadsAuthorInfo('Roger Zelazny', redis, undefined, {
+			bypassCacheRead: true
+		})
+		expect(out.bio).toBe('An American fantasy and science fiction writer.')
+		expect(JSON.parse(redis.store.get('grauthor:v1:roger zelazny') ?? '{}').bio).toBe(
+			'An American fantasy and science fiction writer.'
+		)
+	})
+
+	test('without the bypass, the cached answer still wins (mirror protection intact)', async () => {
+		const redis = fakeRedis()
+		redis.store.set(
+			'grauthor:v1:roger zelazny',
+			JSON.stringify({ image: PHOTO, bio: 'cached bio' })
+		)
+		fetchMock.mockReset()
+		const out = await withGoodreadsAuthorInfo('Roger Zelazny', redis)
+		expect(out.bio).toBe('cached bio')
+		expect(fetchMock).not.toHaveBeenCalled()
+	})
+})
