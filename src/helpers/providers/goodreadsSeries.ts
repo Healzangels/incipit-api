@@ -201,13 +201,67 @@ interface WorkSeries {
 
 interface SeriesResponse {
 	LinkItems?: unknown[]
+	// The series page's own description. For a translated series, Goodreads
+	// librarians record the per-language names here as an "Also known as:" list
+	// -- which is what lets an English library shelve "Tintenwelt" as "Inkworld"
+	// (see preferredSeriesLanguage below).
+	Description?: string
 }
 
-// Member counts per Goodreads series id, memoized for the life of the process.
+/** What the memo keeps per series: the member count and the alias source. */
+interface SeriesRecordInfo {
+	count: number
+	description: string | null
+}
+
+// Series records per Goodreads series id, memoized for the life of the process.
 // Series membership is effectively immutable, and the same umbrella series
 // (Chronicles of Osreth, The Legend of Drizzt) recurs across every book in it,
 // so this collapses N books' worth of /series lookups to one per series.
-const seriesCountMemo = new Map<number, number>()
+const seriesRecordMemo = new Map<number, SeriesRecordInfo>()
+
+/**
+ * The language the SHELF should be named in, or null when the canonical
+ * Goodreads name should be kept as-is.
+ *
+ * Goodreads canonicalizes a translated series under its ORIGINAL name --
+ * Cornelia Funke's Inkworld series is canonically "Tintenwelt" (44451) -- so
+ * authority mode, doing its job, renamed an English library's shelf into
+ * German. The series page itself declares the per-language names, so preferring
+ * the library's language is a rename of the DISPLAY name only: same series id,
+ * same positions, same ranking, the one-taxonomy guarantee intact.
+ *
+ * GOODREADS_SERIES_LANGUAGE: unset defaults to English; "0"/"off"/"canonical"
+ * disables the rename entirely; any other value names the language to prefer
+ * ("Spanish", "French" -- whatever tag the librarians used in the alias list).
+ */
+function preferredSeriesLanguage(): string | null {
+	const raw = process.env.GOODREADS_SERIES_LANGUAGE?.trim()
+	if (raw === undefined || raw === '') return 'English'
+	const flat = raw.toLowerCase()
+	if (flat === '0' || flat === 'off' || flat === 'canonical') return null
+	return raw
+}
+
+/**
+ * The alias declared for a language in a series description, or null.
+ *
+ * Parses the Goodreads librarian convention, as served by the mirror:
+ *   <b>Also known as:</b>\n - Inkworld (English)\n - Mundo de tinta (Spanish)
+ * Only a list explicitly headed "Also known as" is read -- a description that
+ * merely mentions a language in prose declares nothing.
+ * @param {string | null} description the series record's Description
+ * @param {string} language the language tag to look for
+ * @returns {string | null} the declared alias, or null
+ */
+export function seriesAliasFor(description: string | null, language: string): string | null {
+	if (!description || !/also known as/i.test(description)) return null
+	const text = description.replace(/<[^>]*>/g, ' ')
+	const tag = language.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+	const match = new RegExp('[-•*]\\s*([^\\n(]+?)\\s*\\(\\s*' + tag + '\\s*\\)', 'i').exec(text)
+	const name = match?.[1]?.trim()
+	return name && name.length > 1 ? name : null
+}
 
 // A Goodreads "series" that is not the one a reader means. Three kinds, all of
 // which inflate member count and so would beat the real series on a raw count:
@@ -261,28 +315,54 @@ async function seriesMemberCount(
 	state?: LookupState,
 	logger?: FastifyBaseLogger
 ): Promise<number> {
-	if (typeof foreignId !== 'number') return 0
-	const memoized = seriesCountMemo.get(foreignId)
+	return (await seriesRecord(foreignId, state, logger)).count
+}
+
+/**
+ * The memoized /series record for a series id: member count plus the
+ * description the language alias is parsed from. One fetch serves both
+ * consumers -- the ranking (counts) and the shelf-language rename (aliases) --
+ * so preferring a language costs nothing extra on the multi-series path the
+ * ranking already pays for.
+ * @param {number | undefined} foreignId the Goodreads series id
+ * @param {LookupState | undefined} state shared lookup state; pass it to make a
+ *   degraded fetch degrade the WHOLE lookup (the ranking must -- a wrong count
+ *   misranks the pool), omit it when losing the answer is acceptable (the alias
+ *   rename is cosmetic and must never spoil a sound result)
+ * @param {FastifyBaseLogger} logger optional logger
+ * @returns {Promise<SeriesRecordInfo>} the record; zeros/nulls when unavailable
+ */
+async function seriesRecord(
+	foreignId: number | undefined,
+	state?: LookupState,
+	logger?: FastifyBaseLogger
+): Promise<SeriesRecordInfo> {
+	if (typeof foreignId !== 'number') return { count: 0, description: null }
+	const memoized = seriesRecordMemo.get(foreignId)
 	if (memoized !== undefined) return memoized
 	// A probe of THIS call's own, not the shared lookup state: the shared flag is
 	// sticky, so one earlier blip in the same lookup would block memoizing every
-	// count fetched healthily after it -- and this memo is the only thing that
+	// record fetched healthily after it -- and this memo is the only thing that
 	// keeps a 1400-book scan from re-asking /series per book. Degradation still
-	// propagates UP so the lookup as a whole knows it ran impaired.
+	// propagates UP (when the caller passed state) so the lookup knows it ran
+	// impaired.
 	const probe = newLookupState()
 	const series = await getJson<SeriesResponse>(`/series/${foreignId}`, probe, logger)
-	const count = Array.isArray(series?.LinkItems) ? series.LinkItems.length : 0
-	// Only memoize a count the mirror actually gave us. This memo has NO TTL, so a
-	// 0 recorded from a rate-limited or timed-out call would pin that series at
+	const info: SeriesRecordInfo = {
+		count: Array.isArray(series?.LinkItems) ? series.LinkItems.length : 0,
+		description: typeof series?.Description === 'string' ? series.Description : null
+	}
+	// Only memoize a record the mirror actually gave us. This memo has NO TTL, so
+	// a 0 recorded from a rate-limited or timed-out call would pin that series at
 	// "no members" for the life of the process -- and the count is exactly how a
 	// parent series is told from its sub-series, so a wrongly-0 parent loses the
 	// ranking and books get shelved under the narrower series.
 	if (probe.degraded) {
 		if (state) state.degraded = true
 	} else {
-		seriesCountMemo.set(foreignId, count)
+		seriesRecordMemo.set(foreignId, info)
 	}
-	return count
+	return info
 }
 
 interface WorkResponse {
@@ -291,6 +371,10 @@ interface WorkResponse {
 	ShortTitle?: string
 	Authors?: Array<{ Name?: string }>
 	Series?: WorkSeries[]
+	// The work's edition records. For a translated work the WORK is titled in
+	// its original language while the English titles live only here -- "Die
+	// Farbe der Rache" is the work, "The Color of Revenge" its English edition.
+	Books?: Array<{ Title?: string }>
 }
 
 export interface GoodreadsSeriesResult {
@@ -341,7 +425,10 @@ const AUTHOR_CACHE_TTL_SECONDS = 86400
 // collapsed to ONE key and shared one cached result, position included. Those
 // entries are wrong at rest; bumping the prefix abandons them rather than
 // serving them out for the remainder of their TTL.
-const CACHE_PREFIX = 'grseries:v3:'
+// v4: the shelf-language rename (Tintenwelt -> Inkworld) changed what a lookup
+// answers, and the hit TTL is a week -- a version bump is how every cached
+// canonical-name answer re-resolves now instead of after TTL.
+const CACHE_PREFIX = 'grseries:v4:'
 
 /**
  * Whether a Goodreads position can be used as a shelf key.
@@ -830,7 +917,26 @@ async function lookupByTitle(
 		// could. The arms kept here only ever RELAX the candidate side (a work
 		// title carrying a "(Series)" suffix) or compare our subtitle half, both
 		// of which are safe: they cannot make a different book look like ours.
-		const candidates = [work.Title, work.ShortTitle, work.FullTitle].filter(
+		// The work's EDITION titles verify too. A translated work is titled in its
+		// original language at the work level -- "Die Farbe der Rache" with every
+		// title form German -- while the English name exists only on its Books[]
+		// edition records, so a gate that reads only the work titles rejects the
+		// correct work for exactly the books an English library holds (measured:
+		// "Inkworld: The Color of Revenge" scored ~0 against the work and 1.0
+		// against its English edition). Safe for the same reason the other arms
+		// are: an edition title BELONGS to this work, so matching one can only
+		// accept the work it names -- and the author gate and volume veto below
+		// still stand between an accepted work and its series being adopted.
+		// Deduped and capped: a mega-work (Harry Potter) lists hundreds of
+		// editions, and 40 unique names is plenty to find a language match.
+		const editionTitles = [
+			...new Set(
+				(work.Books ?? [])
+					.map((b) => b?.Title)
+					.filter((t): t is string => typeof t === 'string' && t.length > 0)
+			)
+		].slice(0, 40)
+		const candidates = [work.Title, work.ShortTitle, work.FullTitle, ...editionTitles].filter(
 			(t): t is string => typeof t === 'string' && t.length > 0
 		)
 		const gate = (cand: string): number => {
@@ -985,6 +1091,31 @@ async function lookupByTitle(
 				'goodreads series: answer contradicts the volume in our own title, skipping it'
 			)
 			continue
+		}
+		// Shelf-language rename, LAST: identity work is done (the veto above ran
+		// against the canonical answer), so this touches display names only. The
+		// alias record rides the same memoized /series fetch the ranking uses; on
+		// the single-series path it is the one extra call, paid once per series
+		// per process. Deliberately no `state`: losing the alias is cosmetic, and
+		// a degraded alias fetch must not spoil (or un-cache) a sound answer.
+		const language = preferredSeriesLanguage()
+		if (language) {
+			const renamed = async (
+				chosen: WorkSeries | undefined,
+				out: ProviderBookSeries | undefined
+			): Promise<ProviderBookSeries | undefined> => {
+				if (!chosen || !out) return out
+				const info = await seriesRecord(chosen.ForeignId, undefined, logger)
+				const alias = seriesAliasFor(info.description, language)
+				if (!alias || alias === out.name) return out
+				logger?.debug(
+					{ workId, canonical: out.name, alias, language },
+					'goodreads series: renamed to the declared language alias'
+				)
+				return { ...out, name: alias }
+			}
+			result.primary = await renamed(ranked[0], result.primary)
+			if (result.secondary) result.secondary = await renamed(ranked[1], result.secondary)
 		}
 		logger?.debug({ workId, series: result }, 'goodreads series: resolved')
 		return result

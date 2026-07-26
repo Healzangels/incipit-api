@@ -294,3 +294,158 @@ describe('withGoodreadsSeries enrichment wrapper', () => {
 		expect(out).toEqual(book)
 	})
 })
+
+/**
+ * Translated-series naming. Measured on Cornelia Funke's Inkworld shelf
+ * (2026-07-26): Goodreads' canonical series name is the GERMAN original
+ * ("Tintenwelt", series 44451), so authority mode renamed an English library's
+ * shelf into German -- and book 4's Goodreads WORK is titled "Die Farbe der
+ * Rache" (every title form German, only its Books[] carry the English edition
+ * titles), so the title gates rejected it and it kept its provider series
+ * ("Inkheart" from Audible). One root cause, two symptoms: a German shelf AND
+ * a split shelf.
+ *
+ * The mirror itself declares the fix: /series/44451's Description reads
+ * "Also known as:\n - Inkworld (English)\n - Svet iz črnila (Slovenian)...".
+ * When the preferred language (GOODREADS_SERIES_LANGUAGE, default English)
+ * has a declared alias, the shelf uses it; the series IDENTITY (id, positions,
+ * ranking) is untouched, so the one-taxonomy guarantee survives.
+ */
+describe('series language preference', () => {
+	afterEach(() => {
+		fetchMock.mockReset()
+		delete process.env.GOODREADS_SERIES_LANGUAGE
+	})
+
+	const TINTENWELT_DESC =
+		'<b>Also known as:</b>\n - Inkworld (English)\n - Svet iz črnila (Slovenian)\n - Mundo de tinta (Spanish)'
+
+	const germanCanonical = (foreignId: number, over: Record<string, unknown> = {}) => ({
+		Title: 'Inkheart',
+		Series: [
+			{
+				Title: 'Tintenwelt',
+				ForeignId: foreignId,
+				LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1', SeriesPosition: 1 }]
+			}
+		],
+		...over
+	})
+
+	test('renames the primary series to its declared English alias', async () => {
+		respond(
+			[{ workId: 42 }],
+			germanCanonical(90001),
+			{ Title: 'Tintenwelt', Description: TINTENWELT_DESC, LinkItems: [1, 2, 3, 4] }
+		)
+		const out = await fetchGoodreadsSeries('Inkheart', 'Cornelia Funke')
+		expect(out).toEqual({ primary: { name: 'Inkworld', position: '1' } })
+	})
+
+	test('keeps the canonical name when no alias is declared', async () => {
+		respond(
+			[{ workId: 42 }],
+			germanCanonical(90002),
+			{ Title: 'Tintenwelt', Description: 'TODO', LinkItems: [1, 2] }
+		)
+		const out = await fetchGoodreadsSeries('Inkheart', 'Cornelia Funke')
+		expect(out).toEqual({ primary: { name: 'Tintenwelt', position: '1' } })
+	})
+
+	test('keeps the canonical name when the alias fetch fails, and still answers', async () => {
+		// The alias is a cosmetic upgrade: losing it must not degrade or discard
+		// an otherwise sound answer.
+		respond([{ workId: 42 }], germanCanonical(90003), null)
+		const out = await fetchGoodreadsSeries('Inkheart', 'Cornelia Funke')
+		expect(out).toEqual({ primary: { name: 'Tintenwelt', position: '1' } })
+	})
+
+	test('GOODREADS_SERIES_LANGUAGE=0 disables the rename and the extra fetch', async () => {
+		process.env.GOODREADS_SERIES_LANGUAGE = '0'
+		respond([{ workId: 42 }], germanCanonical(90004))
+		const out = await fetchGoodreadsSeries('Inkheart', 'Cornelia Funke')
+		expect(out).toEqual({ primary: { name: 'Tintenwelt', position: '1' } })
+		// /search + /work only -- no /series call was made at all.
+		expect(fetchMock).toHaveBeenCalledTimes(2)
+	})
+
+	test('a different preferred language picks that alias', async () => {
+		process.env.GOODREADS_SERIES_LANGUAGE = 'Spanish'
+		respond(
+			[{ workId: 42 }],
+			germanCanonical(90005),
+			{ Title: 'Tintenwelt', Description: TINTENWELT_DESC, LinkItems: [1] }
+		)
+		const out = await fetchGoodreadsSeries('Inkheart', 'Cornelia Funke')
+		expect(out).toEqual({ primary: { name: 'Mundo de tinta', position: '1' } })
+	})
+})
+
+describe('edition-title verification', () => {
+	afterEach(() => fetchMock.mockReset())
+
+	/** Book 4's real shape: every WORK title form is German; the English titles
+	 * live only on the Books[] edition records. */
+	const germanWork = (over: Record<string, unknown> = {}) => ({
+		Title: 'Die Farbe der Rache',
+		FullTitle: 'Die Farbe der Rache',
+		ShortTitle: 'Die Farbe der Rache',
+		Books: [
+			{ Title: 'Die Farbe der Rache', Language: 'deu' },
+			{ Title: 'The Color of Revenge', Language: 'eng' },
+			{ Title: 'Цвет мести', Language: 'rus' }
+		],
+		Series: [
+			{
+				Title: 'Tintenwelt',
+				ForeignId: 90101,
+				LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '4', SeriesPosition: 4 }]
+			}
+		],
+		...over
+	})
+
+	test('accepts a work whose EDITION title matches ours', async () => {
+		respond(
+			[{ workId: 42 }],
+			germanWork(),
+			{ Title: 'Tintenwelt', Description: 'TODO', LinkItems: [1, 2, 3, 4] }
+		)
+		const out = await fetchGoodreadsSeries('Inkworld: The Color of Revenge', 'Cornelia Funke')
+		expect(out).toEqual({ primary: { name: 'Tintenwelt', position: '4' } })
+	})
+
+	test('still refuses a work whose titles AND editions are all far from ours', async () => {
+		respond(
+			[{ workId: 42 }],
+			germanWork({ Books: [{ Title: 'Etwas völlig anderes', Language: 'deu' }] })
+		)
+		const out = await fetchGoodreadsSeries('Inkworld: The Color of Revenge', 'Cornelia Funke')
+		expect(out).toBeNull()
+	})
+
+	test('end to end: German-canonical work, English query, English alias', async () => {
+		// The full Lost-Stories-shelf mechanism in one pass: the edition arm
+		// accepts the work, the series comes back positioned, and the alias
+		// renames the shelf -- "Inkworld, Book 4", uniform with books 1-3.
+		respond(
+			[{ workId: 42 }],
+			germanWork({
+				Series: [
+					{
+						Title: 'Tintenwelt',
+						ForeignId: 90102,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '4', SeriesPosition: 4 }]
+					}
+				]
+			}),
+			{
+				Title: 'Tintenwelt',
+				Description: '<b>Also known as:</b>\n - Inkworld (English)',
+				LinkItems: [1, 2, 3, 4]
+			}
+		)
+		const out = await fetchGoodreadsSeries('Inkworld: The Color of Revenge', 'Cornelia Funke')
+		expect(out).toEqual({ primary: { name: 'Inkworld', position: '4' } })
+	})
+})
