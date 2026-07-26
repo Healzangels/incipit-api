@@ -246,3 +246,29 @@ describe('ISBN fallback for a dead pinned ASIN', () => {
 		expect(ranked.some((c) => c.asin === ISBN10)).toBe(true)
 	})
 })
+
+describe('husk protection', () => {
+	test('a title-less candidate is never injected', async () => {
+		// Belt to the provider-side guard: whatever a provider returns, a
+		// candidate that cannot be displayed or scored must not enter the pool.
+		const husk = candidate({ id: DEAD_ASIN, asin: DEAD_ASIN, title: '' })
+		const helper = helperFor([plainRow], { [DEAD_ASIN]: husk }, { asin: DEAD_ASIN })
+		const ranked = await helper.search()
+		expect(ranked.some((c) => c.asin === DEAD_ASIN)).toBe(false)
+	})
+
+	test('a husk resolved for the ASIN does not block the ISBN fallback', async () => {
+		// The live failure shape: the dead ASIN resolves to an empty stub while
+		// the ISBN resolves to the real edition. The husk must count as a MISS so
+		// the loop proceeds to the next identifier instead of injecting garbage.
+		const husk = candidate({ id: DEAD_ASIN, asin: DEAD_ASIN, title: '' })
+		const helper = helperFor(
+			[plainRow],
+			{ [DEAD_ASIN]: husk, [ISBN10]: isbnEdition },
+			{ asin: DEAD_ASIN, isbn: ISBN13 }
+		)
+		const ranked = await helper.search()
+		expect(ranked.some((c) => c.asin === DEAD_ASIN)).toBe(false)
+		expect(ranked.some((c) => c.asin === ISBN10)).toBe(true)
+	})
+})

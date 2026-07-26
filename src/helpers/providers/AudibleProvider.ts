@@ -133,7 +133,13 @@ export default class AudibleProvider implements BookProvider {
 		opts: FetchBookOptions
 	): Promise<ProviderCandidate | null> {
 		const products = await this.fetchProducts(this.buildAsinUrl(asin, opts.region))
-		const p = products.find((x) => x.asin)
+		// A usable record needs a TITLE, not just an asin. Measured live on
+		// B08WF9JR2P (a dead sidecar ASIN): `asins=` answers with a stub carrying
+		// the asin and nothing else, and wrapped into a candidate it scores on
+		// nothing yet reaches Plex as an empty row -- which crashed the bundle's
+		// result listing. An unusable record is a MISS, so the caller can fall
+		// through to its next identifier (the sidecar ISBN).
+		const p = products.find((x) => x.asin && typeof x.title === 'string' && x.title.trim())
 		if (!p) return null
 		return {
 			provider: AUDIBLE_NAME,

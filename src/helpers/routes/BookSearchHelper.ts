@@ -659,8 +659,13 @@ export default class BookSearchHelper {
 					credentials: this.credentials,
 					logger: this.logger
 				})
-				if (!found) {
-					this.logger?.debug({ asin: id }, 'book search: pinned id resolved to nothing')
+				if (!found || !found.title?.trim()) {
+					// A title-less candidate is a husk: it can be neither displayed nor
+					// scored, and the floor-hold below would prop it up into the offered
+					// results regardless (measured live -- it crashed the Plex bundle's
+					// result listing). Whatever a provider returns, a husk counts as a
+					// MISS so the loop proceeds to the next identifier.
+					this.logger?.debug({ asin: id }, 'book search: pinned id resolved to nothing usable')
 					continue
 				}
 				this.logger?.info(

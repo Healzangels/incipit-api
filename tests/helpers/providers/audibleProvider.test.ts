@@ -135,3 +135,30 @@ describe('AudibleProvider', () => {
 		expect(await p.search({ title: '', region: 'us' })).toEqual([])
 	})
 })
+
+describe('AudibleProvider fetchCandidateByAsin', () => {
+	test('resolves an asin to a candidate, runtime included', async () => {
+		const p = new AudibleProvider({ fetchProducts: async () => [phmProduct] })
+		const out = await p.fetchCandidateByAsin!('B08G9PRS1K', { region: 'us' })
+		expect(out?.asin).toBe('B08G9PRS1K')
+		expect(out?.audioSeconds).toBe(970 * 60)
+	})
+
+	test('a title-less catalog stub resolves to null, not a husk', async () => {
+		// Measured live on B08WF9JR2P (a dead sidecar ASIN): the catalog answers
+		// `asins=` with a stub carrying an asin but NO title. Wrapped into a
+		// candidate it scores on nothing, gets floor-held as an injected pin, and
+		// reaches Plex as a row with an empty title -- which crashed the bundle's
+		// result listing and blanked the whole search. An unusable record is a
+		// MISS, so the caller can fall through to its next identifier.
+		const husk = { asin: 'B08WF9JR2P' }
+		const p = new AudibleProvider({ fetchProducts: async () => [husk] })
+		expect(await p.fetchCandidateByAsin!('B08WF9JR2P', { region: 'us' })).toBeNull()
+	})
+
+	test('an empty-string title is a husk too', async () => {
+		const husk = { asin: 'B08WF9JR2P', title: '   ' }
+		const p = new AudibleProvider({ fetchProducts: async () => [husk] })
+		expect(await p.fetchCandidateByAsin!('B08WF9JR2P', { region: 'us' })).toBeNull()
+	})
+})
