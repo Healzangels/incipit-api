@@ -16,8 +16,15 @@ import type HardcoverProvider from '#helpers/providers/HardcoverProvider'
 import defaultRegistry from '#helpers/providers/registry'
 import GenericShowHelper from '#helpers/routes/GenericShowHelper'
 import { isSameAuthor } from '#helpers/utils/authorNameMatch'
+import { scheduleSecondChance } from '#helpers/utils/secondChance'
 
 export { isSameAuthor }
+
+// How long the second chance waits before re-running the forced heal. Long
+// enough for the mirror's upstream fetch (triggered by our own first query) to
+// land -- Zelazny's record was whole within minutes -- short enough that the
+// author is usually complete before anyone looks at the artist page.
+const SECOND_CHANCE_DELAY_MS = 3 * 60 * 1000
 
 export default class AuthorShowHelper extends GenericShowHelper {
 	credentials?: Record<string, string>
@@ -184,7 +191,54 @@ export default class AuthorShowHelper extends GenericShowHelper {
 				author.description = previous.description
 			}
 		}
+		this.maybeScheduleSecondChance(author)
 		return author
+	}
+
+	/**
+	 * When an enrichment pass still leaves the author INCOMPLETE (no portrait or
+	 * no bio), schedule ONE delayed re-run of the forced heal path.
+	 *
+	 * A brand-new author's first lookup can catch the Goodreads mirror
+	 * cache-cold -- our own query is what sets it warming, and minutes later the
+	 * mirror knows the author (measured live on Roger Zelazny: the first answer
+	 * surfaced only a franchise continuation, the real record appeared minutes
+	 * later). Without this, the gap waits out the 1h miss TTL plus the next
+	 * refresh, or the monthly sweep.
+	 *
+	 * Never scheduled BY the forced pass (no retry loops), never without a name
+	 * (nothing to look up), deduped per asin while one is in flight. Best-effort
+	 * by design: the retry runs update=1&force=1 -- exactly the operator's heal,
+	 * automated once.
+	 * @param {ApiAuthorProfile} author the enriched profile about to be returned
+	 * @param {typeof scheduleSecondChance} schedule injectable for tests
+	 * @returns {boolean} true when a retry was scheduled
+	 */
+	maybeScheduleSecondChance(
+		author: ApiAuthorProfile,
+		schedule: typeof scheduleSecondChance = scheduleSecondChance
+	): boolean {
+		if (this.options.force === '1') return false
+		const name = author.name?.trim()
+		if (!name) return false
+		const incomplete = !author.image?.trim() || !author.description?.trim()
+		if (!incomplete) return false
+		const scheduled = schedule(`author:${this.asin}`, SECOND_CHANCE_DELAY_MS, () =>
+			new AuthorShowHelper(
+				this.asin,
+				{ region: this.options.region, update: '1', force: '1', name },
+				this.redisClient,
+				this.logger,
+				this.credentials
+			).handler()
+		)
+		if (scheduled) {
+			this.logger?.info(
+				{ author: name, asin: this.asin, delayMs: SECOND_CHANCE_DELAY_MS },
+				'author enrichment: incomplete, scheduled a second chance'
+			)
+		}
+		return scheduled
 	}
 
 	/**
