@@ -383,10 +383,24 @@ export default class BookSearchHelper {
 	 * shared by scoring (confidence pin + veto exemptions), ranking (pinned-first
 	 * tiebreak) and telemetry (asinPinned). One definition, so the layers cannot
 	 * drift; dedupe receives the same wantAsin and applies it group-internally.
-	 * @param {{ asin: string | null }} c the candidate
+	 *
+	 * A row we FETCHED by that ASIN (withPinnedEdition) is excluded. The warrant
+	 * for pinning is independent corroboration — a provider returned this edition
+	 * for the TITLE query and it carries the pinned ASIN, so two sources agree.
+	 * Looking the ASIN up confirms only that it resolves, so pinning on that is
+	 * circular. It matters at both call sites: the confidence override would set
+	 * it to 1.0, and the ranking tiebreak puts pinned rows first on the (formerly
+	 * safe) assumption that nothing outscores a pin — which stops being true once
+	 * an uncorroborated pin scores on title+author alone. Excluded here rather
+	 * than at each site so the two cannot drift apart.
+	 * @param {{ asin: string | null; provider?: string }} c the candidate
 	 * @param {string | null} wantAsin the definitive ASIN, uppercased
 	 */
-	private isPinned(c: { asin: string | null }, wantAsin: string | null): boolean {
+	private isPinned(
+		c: { asin: string | null; provider?: string },
+		wantAsin: string | null
+	): boolean {
+		if (c.provider === BookSearchHelper.PINNED_PROVIDER) return false
 		return wantAsin != null && c.asin?.toUpperCase() === wantAsin
 	}
 
@@ -413,7 +427,10 @@ export default class BookSearchHelper {
 		const altTitle = track && track.toLowerCase() !== primary.toLowerCase() ? track : null
 		if (!primary && !altTitle) return []
 
-		const albumCandidates = primary ? await this.fanOut(primary) : []
+		const albumCandidates = await this.withPinnedEdition(
+			primary ? await this.fanOut(primary) : [],
+			asin
+		)
 		let ranked = this.scoreAndRank(albumCandidates, primary, altTitle, asin)
 		let poolSize = albumCandidates.length
 		let widened = false
@@ -522,6 +539,85 @@ export default class BookSearchHelper {
 	 * @param {string} normalizedTitle the title to search on
 	 * @returns {Promise<ProviderCandidate[]>} the raw candidate union
 	 */
+	/**
+	 * Make sure the pinned ASIN is IN the pool, fetching it directly when the
+	 * title fan-out missed it.
+	 *
+	 * Every pin protection downstream — isPinned, the pinned-first tiebreak, the
+	 * stale-pin duration override, the floor that keeps a contradicted pin
+	 * offered — can only act on a candidate that came back from a provider. When
+	 * the title search does not surface the pinned edition, all of it is dead
+	 * code: the pin has no effect whatsoever, which is the opposite of what an
+	 * explicit ASIN should mean.
+	 *
+	 * Measured live 2026-07-26 on Neal Shusterman / "Everfound": the sidecar
+	 * carried B004XNIO5I, `GET /books/B004XNIO5I` resolved it correctly, and the
+	 * search returned four rows (a Spanish edition, an OverDrive row, an Apple
+	 * row, a Hardcover work record) with the pinned ASIN nowhere among them even
+	 * on refresh. The book went unmatched through a whole library rebuild.
+	 *
+	 * INJECTED, NOT PROMOTED. The row is appended and then scored like any other:
+	 * these ASINs come from ABS sidecars, which are known to be wrong and even
+	 * dead (the same rebuild carried B07XG1S8LM on "2010", which resolves to
+	 * nothing), so obeying one outright would auto-apply a wrong edition with no
+	 * signal that it happened. The injected row also carries no runtime —
+	 * ProviderBook has no duration field — so it scores on title+author alone and
+	 * cannot out-argue a duration-corroborated rival. A wrong pin therefore ranks
+	 * low and stays merely OFFERED for Fix Match.
+	 *
+	 * Failure is never fatal: a dead ASIN or a provider error leaves the pool
+	 * exactly as it was, matching how searchAll isolates a failing provider.
+	 * @param {ProviderCandidate[]} pool the candidates the fan-out produced
+	 * @param {string | null} asin the pinned ASIN, uppercased, if any
+	 * @returns {Promise<ProviderCandidate[]>} the pool, with the pin present when resolvable
+	 */
+	/**
+	 * Provider name for a row fetched BY the pinned ASIN rather than returned by a
+	 * title search. Marks it as uncorroborated so the ASIN override does not apply
+	 * to it (see the asinMatch guard in scoreAndRank).
+	 */
+	private static readonly PINNED_PROVIDER = 'pinned'
+
+	private async withPinnedEdition(
+		pool: ProviderCandidate[],
+		asin: string | null
+	): Promise<ProviderCandidate[]> {
+		if (!asin) return pool
+		if (pool.some((c) => c.asin?.toUpperCase() === asin)) return pool
+		try {
+			const book = await this.registry.fetchBookByAsin(asin, {
+				region: this.options.region,
+				credentials: this.credentials,
+				logger: this.logger
+			})
+			if (!book) {
+				this.logger?.debug({ asin }, 'book search: pinned asin resolved to nothing')
+				return pool
+			}
+			this.logger?.info({ asin, title: book.title }, 'book search: injected the pinned edition')
+			return [
+				...pool,
+				{
+					provider: BookSearchHelper.PINNED_PROVIDER,
+					id: book.asin ?? asin,
+					asin: book.asin ?? asin,
+					title: book.title,
+					authors: book.authors.map((a) => a.name).filter(Boolean),
+					narrators: book.narrators.map((n) => n.name).filter(Boolean),
+					// ProviderBook carries no runtime, so there is no duration signal
+					// here. Deliberate: it keeps the pin from ever winning on anything
+					// but title+author, and leaves duration-corroborated rivals ahead.
+					audioSeconds: null,
+					cover: book.imageSquare ?? book.image ?? null,
+					language: book.language ?? null
+				}
+			]
+		} catch (err) {
+			this.logger?.debug({ err, asin }, 'book search: pinned asin lookup failed')
+			return pool
+		}
+	}
+
 	private async fanOut(normalizedTitle: string): Promise<ProviderCandidate[]> {
 		const query: BookSearchQuery = {
 			title: normalizedTitle,
@@ -670,6 +766,8 @@ export default class BookSearchHelper {
 			// (a Rosamund Pike ASIN on a Kate Reading file). Then withdraw the override
 			// and let the candidate score on its merits (the dead-zone penalty below),
 			// so the duration-corroborated edition wins instead of the wrong narrator.
+			// isPinned excludes a row we fetched BY this ASIN, so an injected pin
+			// scores on title+author and loses to corroborated evidence.
 			const asinMatch = this.isPinned(c, wantAsin)
 			// Applies to EVERY row carrying the stale ASIN, including one with no
 			// runtime of its own -- otherwise that row keeps the pin and wins.
