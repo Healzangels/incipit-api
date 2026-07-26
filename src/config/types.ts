@@ -299,6 +299,13 @@ export const BookSearchQueryStringSchema = z.object({
 	// reliable match key, so a candidate with the same ASIN is treated as a
 	// definitive match. Also extracted from a bracketed title when not passed here.
 	asin: z.string().min(1).optional(),
+	// Optional ISBN from the item's sidecar, either the 10- or 13-digit form. Used
+	// ONLY as a fallback identity when the ASIN above is absent or resolves to
+	// nothing: publishers often register an audio edition under its print ISBN-10
+	// rather than a B0 ASIN, so the ISBN-10 can be the live Audible product id
+	// while the sidecar's own `asin` field is dead. Resolved through the Audible
+	// catalog, which holds no print editions, so a print-only ISBN finds nothing.
+	isbn: z.string().min(1).optional(),
 	// Narrator(s) from the item's sidecar metadata. For a popular book the
 	// providers return several editions with IDENTICAL title and author --
 	// Harry Potter and the Chamber of Secrets comes back as Jim Dale, Stephen

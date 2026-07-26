@@ -251,6 +251,35 @@ function splitAuthors(author: string | null | undefined): string[] {
 }
 
 /**
+ * Convert a sidecar ISBN into the identifier Audible would catalogue it under,
+ * or null when it cannot be one.
+ *
+ * Publishers frequently register an audio edition under its print ISBN-10
+ * instead of a B0 ASIN, so the ISBN-10 IS the Audible product id. Measured live
+ * on "The Secrets of the Immortal Nicholas Flamel: The Lost Stories Collection":
+ * the sidecar's `asin` (B08WF9JR2P) resolves to nothing, while the ISBN-10 form
+ * of its `isbn` (9780593399439 → 0593399439) resolves to the correct edition.
+ *
+ * ISBN-13s in the 979 block have no ISBN-10 form at all, and a 13-digit string
+ * is not an Audible id, so those yield null rather than a lookup that cannot
+ * succeed.
+ * @param {string | null | undefined} raw the sidecar ISBN, either form, punctuated or not
+ * @returns {string | null} a 10-character Audible-shaped id, or null
+ */
+export function audibleIdFromIsbn(raw: string | null | undefined): string | null {
+	const digits = (raw ?? '').replace(/[^0-9Xx]/g, '').toUpperCase()
+	// Already an ISBN-10: that is the id, X check digit included.
+	if (digits.length === 10) return digits
+	if (digits.length !== 13 || !digits.startsWith('978')) return null
+	const core = digits.slice(3, 12)
+	if (!/^\d{9}$/.test(core)) return null
+	let sum = 0
+	for (let i = 0; i < 9; i += 1) sum += (10 - i) * Number(core[i])
+	const check = (11 - (sum % 11)) % 11
+	return core + (check === 10 ? 'X' : String(check))
+}
+
+/**
  * Whether a candidate is an actual audiobook edition (has an audio runtime or a
  * narrator) rather than a book-level record (OpenLibrary / a Hardcover book with
  * no audio edition). Used only as a same-confidence tiebreak.
@@ -421,7 +450,7 @@ export default class BookSearchHelper {
 	 * @returns {Promise<ScoredCandidate[]>} accepted candidates, ranked best-first
 	 */
 	async search(): Promise<ScoredCandidate[]> {
-		const asin = this.effectiveAsin()
+		let asin = this.effectiveAsin()
 		const primary = normalizeTitle(extractAsinAndClean(this.rawTitle).title)
 		const track = normalizeTitle(extractAsinAndClean(this.options.trackTitle ?? '').title)
 		const altTitle = track && track.toLowerCase() !== primary.toLowerCase() ? track : null
@@ -431,6 +460,28 @@ export default class BookSearchHelper {
 			primary ? await this.fanOut(primary) : [],
 			asin
 		)
+		// A DEAD sidecar ASIN falls back to the sidecar's ISBN as the pin identity.
+		// Only when the ASIN is nowhere in the pool (a live one is always present,
+		// from the fan-out or the injection above) AND a row the FAN-OUT returned
+		// carries the ISBN-derived id — the same two-sources-agree warrant the pin
+		// override has always required, just with the sidecar's other identifier.
+		// Measured on "The Lost Stories Collection": asin B08WF9JR2P is dead, while
+		// Audible's title search returns 0593399439 (the sidecar's ISBN-10) at #1.
+		if (!albumCandidates.some((c) => asin != null && c.asin?.toUpperCase() === asin)) {
+			const isbnId = audibleIdFromIsbn(this.options.isbn)
+			const corroborated =
+				isbnId != null &&
+				albumCandidates.some(
+					(c) => c.provider !== BookSearchHelper.PINNED_PROVIDER && c.asin?.toUpperCase() === isbnId
+				)
+			if (corroborated) {
+				this.logger?.info(
+					{ asin, isbn: isbnId },
+					'book search: dead pinned asin, using the sidecar isbn as the pin identity'
+				)
+				asin = isbnId
+			}
+		}
 		let ranked = this.scoreAndRank(albumCandidates, primary, altTitle, asin)
 		let poolSize = albumCandidates.length
 		let widened = false
@@ -582,27 +633,49 @@ export default class BookSearchHelper {
 		pool: ProviderCandidate[],
 		asin: string | null
 	): Promise<ProviderCandidate[]> {
-		if (!asin) return pool
-		if (pool.some((c) => c.asin?.toUpperCase() === asin)) return pool
-		try {
-			const found = await this.registry.fetchCandidateByAsin(asin, {
-				region: this.options.region,
-				credentials: this.credentials,
-				logger: this.logger
-			})
-			if (!found) {
-				this.logger?.debug({ asin }, 'book search: pinned asin resolved to nothing')
-				return pool
+		// The sidecar's ASIN first, then its ISBN. A sidecar ASIN can be DEAD while
+		// the ISBN is live: measured on "The Lost Stories Collection", whose sidecar
+		// pins B08WF9JR2P (resolves to nothing) alongside isbn 9780593399439, whose
+		// ISBN-10 form 0593399439 IS the Audible product id and resolves to the
+		// right edition. Publishers routinely register audio editions under the
+		// print ISBN-10, so this is a class rather than a one-off.
+		//
+		// search_tools.py refuses an ISBN-10 sitting in a sidecar's `asin` field
+		// because pinning it blind "would match the print edition over the audio
+		// one". That objection does not reach this path: the lookup goes through
+		// fetchCandidateByAsin, which only Audible implements, and Audible's
+		// catalog holds no print editions — a print-only ISBN resolves to nothing
+		// and contributes nothing.
+		const isbnId = audibleIdFromIsbn(this.options.isbn)
+		const ids = [asin, isbnId === asin ? null : isbnId].filter((v): v is string => Boolean(v))
+		if (ids.length === 0) return pool
+		// Corroborated already — the fan-out returned a row carrying one of them,
+		// which is the case the pin override exists for. Nothing to fetch.
+		if (pool.some((c) => c.asin != null && ids.includes(c.asin.toUpperCase()))) return pool
+		for (const id of ids) {
+			try {
+				const found = await this.registry.fetchCandidateByAsin(id, {
+					region: this.options.region,
+					credentials: this.credentials,
+					logger: this.logger
+				})
+				if (!found) {
+					this.logger?.debug({ asin: id }, 'book search: pinned id resolved to nothing')
+					continue
+				}
+				this.logger?.info(
+					{ asin: id, title: found.title },
+					'book search: injected the pinned edition'
+				)
+				// provider is overwritten so isPinned can recognise this as the
+				// uncorroborated, fetched-by-asin row; everything else is the provider's
+				// own data, runtime included.
+				return [...pool, { ...found, provider: BookSearchHelper.PINNED_PROVIDER }]
+			} catch (err) {
+				this.logger?.debug({ err, asin: id }, 'book search: pinned id lookup failed')
 			}
-			this.logger?.info({ asin, title: found.title }, 'book search: injected the pinned edition')
-			// provider is overwritten so isPinned can recognise this as the
-			// uncorroborated, fetched-by-asin row; everything else is the provider's
-			// own data, runtime included.
-			return [...pool, { ...found, provider: BookSearchHelper.PINNED_PROVIDER }]
-		} catch (err) {
-			this.logger?.debug({ err, asin }, 'book search: pinned asin lookup failed')
-			return pool
 		}
+		return pool
 	}
 
 	private async fanOut(normalizedTitle: string): Promise<ProviderCandidate[]> {
@@ -894,7 +967,17 @@ export default class BookSearchHelper {
 			// come back with no row carrying X at all, and the operator could not even
 			// pick their named edition in Fix Match. Hold it at the floor: it ranks
 			// well below the corroborated winner but stays offered.
-			if (pinContradicted) confidence = Math.max(confidence, CONFIDENCE_FLOOR)
+			//
+			// An INJECTED pin row gets the same hold, for the same reason. It scores
+			// on its merits (no override -- see isPinned), and when the provider's
+			// full title is much longer than the query ("Series Name: The Actual
+			// Title" against a sidecar title of just "The Actual Title"), that
+			// natural score can land UNDER the floor -- silently deleting the one
+			// edition the sidecar named, which defeats the entire point of fetching
+			// it. Offered-not-winning is the contract for both cases.
+			if (pinContradicted || c.provider === BookSearchHelper.PINNED_PROVIDER) {
+				confidence = Math.max(confidence, CONFIDENCE_FLOOR)
+			}
 			return {
 				...c,
 				confidence,
