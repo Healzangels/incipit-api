@@ -383,3 +383,49 @@ describe('AuthorShowHelper should throw error when', () => {
 afterAll(() => {
 	mock.restore()
 })
+
+describe('generated Hardcover avatar policy', () => {
+	/**
+	 * A generated avatar must never DISPLACE a real photo, but may FILL a slot
+	 * that would otherwise be empty (operator decision 2026-07-26: "I don't
+	 * mind it for authors who have zero other options"). Robert Harris lost
+	 * his real photo to the avatar via the Hardcover-prefer swap + the
+	 * square-fit rule; Mitchel Scanlon sat with a blank tile the avatar could
+	 * have filled.
+	 */
+
+	test('a generated avatar never displaces the Audible photo', async () => {
+		const fakeHc = {
+			fetchAuthorInfo: mock().mockResolvedValue({
+				image: 'https://assets.hardcover.app/author/61383/avatar.png',
+				bio: null,
+				imageGenerated: true
+			})
+		}
+		const getSpy = spyOn(defaultRegistry, 'get').mockReturnValue(
+			fakeHc as unknown as ReturnType<typeof defaultRegistry.get>
+		)
+		mockScrapeProcess.mockResolvedValue({ ...parsedAuthor })
+		const out = (await helper.getNewData()) as ApiAuthorProfile
+		expect(out.image).toBe(parsedAuthor.image)
+		expect(out.imageAlt ?? '').not.toContain('avatar.png')
+		getSpy.mockRestore()
+	})
+
+	test('a generated avatar still fills a completely empty slot', async () => {
+		const fakeHc = {
+			fetchAuthorInfo: mock().mockResolvedValue({
+				image: 'https://assets.hardcover.app/author/00000/avatar.png',
+				bio: null,
+				imageGenerated: true
+			})
+		}
+		const getSpy = spyOn(defaultRegistry, 'get').mockReturnValue(
+			fakeHc as unknown as ReturnType<typeof defaultRegistry.get>
+		)
+		mockScrapeProcess.mockResolvedValue({ ...parsedAuthor, image: '', imageAlt: '' })
+		const out = (await helper.getNewData()) as ApiAuthorProfile
+		expect(out.image).toBe('https://assets.hardcover.app/author/00000/avatar.png')
+		getSpy.mockRestore()
+	})
+})

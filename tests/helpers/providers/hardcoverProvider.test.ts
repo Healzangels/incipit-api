@@ -435,7 +435,7 @@ describe('HardcoverProvider.fetchAuthorInfo (image + bio)', () => {
 	test('no token or a query error yields both null', async () => {
 		expect(
 			await new HardcoverProvider({ gql: authorGql([]) }).fetchAuthorInfo('X', { region: 'us' })
-		).toEqual({ image: null, bio: null })
+		).toEqual({ image: null, bio: null, imageGenerated: false })
 		const throwing: HardcoverGql = async () => {
 			throw new Error('boom')
 		}
@@ -443,7 +443,7 @@ describe('HardcoverProvider.fetchAuthorInfo (image + bio)', () => {
 			await new HardcoverProvider({ token: 'tok', gql: throwing }).fetchAuthorInfo('X', {
 				region: 'us'
 			})
-		).toEqual({ image: null, bio: null })
+		).toEqual({ image: null, bio: null, imageGenerated: false })
 	})
 })
 
@@ -500,5 +500,69 @@ describe('HardcoverProvider.fetchBookByAsin', () => {
 	test('returns null without a token instead of throwing', async () => {
 		const provider = new HardcoverProvider({ gql: asinGql(32411759, edition, book) })
 		expect(await provider.fetchBookByAsin('B0FVG4C61Z', { region: 'us' })).toBeNull()
+	})
+})
+
+describe('HardcoverProvider generated-avatar detection', () => {
+	const authorGql =
+		(authors: unknown): HardcoverGql =>
+		async <T>() =>
+			({ authors }) as T
+
+	/**
+	 * Hardcover materializes a GENERATED default avatar as a first-class image
+	 * asset on the author row -- same /author/{id}/{uuid} URL shape as a real
+	 * photo, image_id set, no flag anywhere. Measured on Robert Harris
+	 * (2026-07-26): the avatar reached Plex as his "Hardcover portrait" and the
+	 * square-fit rule then preferred the perfectly-square cartoon over his real
+	 * photo. The one reliable tell is the reported dimensions: generated
+	 * avatars are exactly 270x270, while sampled real photos vary widely
+	 * (1500x2215, 376x500, 600x600, 518x754...).
+	 */
+
+	test('flags a 270x270 image as generated', async () => {
+		const gql = authorGql([
+			{
+				name: 'Robert Harris',
+				bio: null,
+				image: { url: 'https://assets.hardcover.app/author/61383/avatar.png', width: 270, height: 270 }
+			}
+		])
+		const info = await new HardcoverProvider({ token: 'tok', gql }).fetchAuthorInfo(
+			'Robert Harris',
+			{ region: 'us' }
+		)
+		expect(info.image).toBe('https://assets.hardcover.app/author/61383/avatar.png')
+		expect(info.imageGenerated).toBe(true)
+	})
+
+	test('a real-dimensioned image is not flagged, nor is one with no dims', async () => {
+		const real = authorGql([
+			{ name: 'Aldous Huxley', bio: null, image: { url: 'https://a/h.jpeg', width: 1500, height: 2215 } }
+		])
+		const noDims = authorGql([{ name: 'Aldous Huxley', bio: null, image: { url: 'https://a/h2.jpeg' } }])
+		const p = new HardcoverProvider({ token: 'tok', gql: real })
+		expect((await p.fetchAuthorInfo('Aldous Huxley', { region: 'us' })).imageGenerated).toBe(false)
+		const p2 = new HardcoverProvider({ token: 'tok', gql: noDims })
+		expect((await p2.fetchAuthorInfo('Aldous Huxley', { region: 'us' })).imageGenerated).toBe(false)
+	})
+
+	test('prefers a REAL photo on a duplicate row over a generated avatar on the exact row', async () => {
+		// Hardcover holds several same-name rows; if any carries a real photo,
+		// that beats a generated avatar however exact the avatar row's name is.
+		const gql = authorGql([
+			{
+				name: 'Robert Harris',
+				bio: null,
+				image: { url: 'https://a/avatar.png', width: 270, height: 270 }
+			},
+			{ name: 'Robert Harris', bio: null, image: { url: 'https://a/real.jpg', width: 600, height: 800 } }
+		])
+		const info = await new HardcoverProvider({ token: 'tok', gql }).fetchAuthorInfo(
+			'Robert Harris',
+			{ region: 'us' }
+		)
+		expect(info.image).toBe('https://a/real.jpg')
+		expect(info.imageGenerated).toBe(false)
 	})
 })

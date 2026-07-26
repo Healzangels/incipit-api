@@ -144,6 +144,8 @@ const AUTHOR_INFO_QUERY = `query IncipitAuthorInfo($name: String!) {
 		bio
 		image {
 			url
+			width
+			height
 		}
 	}
 }`
@@ -163,6 +165,8 @@ function cleanHardcoverBio(raw: string): string {
 
 interface HardcoverImage {
 	url?: string | null
+	width?: number | null
+	height?: number | null
 }
 interface HardcoverContribution {
 	author?: { name?: string | null } | null
@@ -478,9 +482,9 @@ export default class HardcoverProvider implements BookProvider {
 	async fetchAuthorInfo(
 		name: string,
 		opts: FetchBookOptions
-	): Promise<{ image: string | null; bio: string | null }> {
+	): Promise<{ image: string | null; bio: string | null; imageGenerated: boolean }> {
 		const token = opts.credentials?.[HARDCOVER_NAME] ?? this.defaultToken
-		if (!token || !name) return { image: null, bio: null }
+		if (!token || !name) return { image: null, bio: null, imageGenerated: false }
 		try {
 			const data = await this.gql<{
 				authors?: { name?: string | null; bio?: string | null; image?: HardcoverImage | null }[]
@@ -488,10 +492,27 @@ export default class HardcoverProvider implements BookProvider {
 			const authors = data?.authors ?? []
 			const lc = name.toLowerCase()
 
-			// Image: prefer an exact name match with one; else the first with one.
-			const exactImg = authors.find((a) => a.name?.toLowerCase() === lc && a.image?.url)
-			const anyImg = authors.find((a) => a.image?.url)
-			const image = (exactImg ?? anyImg)?.image?.url ?? null
+			// A GENERATED default avatar, not a photo. Hardcover materializes these
+			// as first-class image assets on the author row -- same /author/{id}/
+			// {uuid} URL shape as a real photo, image_id set, no flag anywhere --
+			// so the one reliable tell is the dimensions: generated avatars are
+			// exactly 270x270, while sampled real photos vary widely (1500x2215,
+			// 376x500, 600x600, 518x754). Measured on Robert Harris 2026-07-26,
+			// whose avatar reached Plex as his "portrait" and, being perfectly
+			// square, beat his real photo under the square-fit rule.
+			const isGenerated = (a: { image?: HardcoverImage | null }) =>
+				a.image?.width === 270 && a.image?.height === 270
+
+			// Image: any REAL photo (on any same-name row) beats a generated
+			// avatar; within each pool, an exact name match wins. The avatar is
+			// still returned when it is all Hardcover has -- flagged, so the
+			// caller can decide it fills an empty slot but displaces nothing.
+			const withImg = authors.filter((a) => a.image?.url)
+			const realImg = withImg.filter((a) => !isGenerated(a))
+			const pool = realImg.length ? realImg : withImg
+			const pick = pool.find((a) => a.name?.toLowerCase() === lc) ?? pool[0]
+			const image = pick?.image?.url ?? null
+			const imageGenerated = pick != null && isGenerated(pick)
 
 			// Bio: prefer exact-name matches, then the longest non-empty bio (a
 			// fuller record over a stub) — independent of which record had the image.
@@ -502,10 +523,10 @@ export default class HardcoverProvider implements BookProvider {
 			)[0]
 			const bio = bioPick?.bio ? cleanHardcoverBio(bioPick.bio) : null
 
-			return { image, bio }
+			return { image, bio, imageGenerated }
 		} catch (err) {
 			opts.logger?.debug({ err, name }, 'hardcover: author info lookup failed')
-			return { image: null, bio: null }
+			return { image: null, bio: null, imageGenerated: false }
 		}
 	}
 

@@ -136,12 +136,27 @@ export default class AuthorShowHelper extends GenericShowHelper {
 		// keep Audible's as the secondary option, and backfill the bio only when
 		// Audible left it empty. Guarded, not early-returned, so Goodreads still runs.
 		const hardcover = defaultRegistry.get('hardcover') as HardcoverProvider | undefined
+		// A GENERATED Hardcover avatar (see fetchAuthorInfo's isGenerated) is held
+		// back here and only ever FILLS an empty slot at the end of enrichment --
+		// it must never displace a real photo. Measured on Robert Harris: the
+		// avatar took the "prefer Hardcover" swap, and being perfectly square it
+		// then beat his real photo under the square-fit rule. Operator decision
+		// 2026-07-26: an avatar is welcome for an author with zero other options
+		// (a blank artist tile), and unwelcome everywhere else.
+		let generatedAvatar: string | null = null
 		if (hardcover?.fetchAuthorInfo) {
-			const { image: hardcoverImage, bio: hardcoverBio } = await hardcover.fetchAuthorInfo(
-				author.name,
-				{ region: this.options.region, credentials: this.credentials, logger: this.logger }
-			)
-			if (hardcoverImage && hardcoverImage !== author.image) {
+			const {
+				image: hardcoverImage,
+				bio: hardcoverBio,
+				imageGenerated
+			} = await hardcover.fetchAuthorInfo(author.name, {
+				region: this.options.region,
+				credentials: this.credentials,
+				logger: this.logger
+			})
+			if (hardcoverImage && imageGenerated) {
+				generatedAvatar = hardcoverImage
+			} else if (hardcoverImage && hardcoverImage !== author.image) {
 				this.logger?.info({ author: author.name }, 'author image: preferring Hardcover portrait')
 				if (author.image) author.imageAlt = author.image
 				author.image = hardcoverImage
@@ -192,6 +207,18 @@ export default class AuthorShowHelper extends GenericShowHelper {
 			}
 		}
 		this.maybeScheduleSecondChance(author)
+		// LAST, after every real source (Audible, Hardcover, Goodreads, the
+		// previous record) has had its chance: a generated avatar beats a blank
+		// artist tile. Deliberately after the second-chance scheduling too, so an
+		// avatar-only author still counts as incomplete and gets the delayed
+		// retry for a real photo.
+		if (!author.image?.trim() && generatedAvatar) {
+			this.logger?.info(
+				{ author: author.name },
+				'author image: no real portrait anywhere, filling with the generated Hardcover avatar'
+			)
+			author.image = generatedAvatar
+		}
 		return author
 	}
 
