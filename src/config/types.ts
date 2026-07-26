@@ -272,7 +272,13 @@ export const ApiQueryStringSchema = z.object({
 	name: NameSchema.optional(),
 	region: RegionSchema,
 	seedAuthors: z.enum(['0', '1']).optional(),
-	update: z.enum(['0', '1']).optional()
+	update: z.enum(['0', '1']).optional(),
+	// Operator override for the update staleness throttle. update=1 alone is NOT
+	// an unconditional re-fetch -- the UpdateScheduler sends it for every record
+	// on its monthly sweep, so updateActions throttles it to once per
+	// UPDATE_THRESHOLD window. force=1 says a HUMAN is asking: skip the throttle
+	// and (author path) retry a cached Goodreads miss. Nothing automated sends it.
+	force: z.enum(['0', '1']).optional()
 })
 
 export type ApiQueryString = z.infer<typeof ApiQueryStringSchema>

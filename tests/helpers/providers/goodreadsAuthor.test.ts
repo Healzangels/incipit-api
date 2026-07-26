@@ -216,7 +216,7 @@ describe('withGoodreadsAuthorInfo miss handling', () => {
 		expect(redis.expires.get('grauthor:v1:ursula k. le guin')).toBe(86400)
 	})
 
-	test('bypassCacheRead ignores a stale cached miss and overwrites it', async () => {
+	test('retryCachedMiss ignores a stale cached miss and overwrites it', async () => {
 		const redis = fakeRedis()
 		redis.store.set('grauthor:v1:roger zelazny', JSON.stringify({ image: null, bio: null }))
 		respond([{ author: { id: 3619 } }], {
@@ -226,7 +226,7 @@ describe('withGoodreadsAuthorInfo miss handling', () => {
 			ImageUrl: PHOTO
 		})
 		const out = await withGoodreadsAuthorInfo('Roger Zelazny', redis, undefined, {
-			bypassCacheRead: true
+			retryCachedMiss: true
 		})
 		expect(out.bio).toBe('An American fantasy and science fiction writer.')
 		expect(JSON.parse(redis.store.get('grauthor:v1:roger zelazny') ?? '{}').bio).toBe(
@@ -234,7 +234,24 @@ describe('withGoodreadsAuthorInfo miss handling', () => {
 		)
 	})
 
-	test('without the bypass, the cached answer still wins (mirror protection intact)', async () => {
+	test('a cached HIT is honored even with retryCachedMiss (curated answers stay cheap)', async () => {
+		// The flag re-asks only when the cache holds NOTHING USABLE. A hit is
+		// returned as-is: the scheduler's update sweep must not re-hit the mirror
+		// for every author that already has an answer.
+		const redis = fakeRedis()
+		redis.store.set(
+			'grauthor:v1:roger zelazny',
+			JSON.stringify({ image: PHOTO, bio: 'cached bio' })
+		)
+		fetchMock.mockReset()
+		const out = await withGoodreadsAuthorInfo('Roger Zelazny', redis, undefined, {
+			retryCachedMiss: true
+		})
+		expect(out.bio).toBe('cached bio')
+		expect(fetchMock).not.toHaveBeenCalled()
+	})
+
+	test('without the flag, the cached answer still wins (mirror protection intact)', async () => {
 		const redis = fakeRedis()
 		redis.store.set(
 			'grauthor:v1:roger zelazny',

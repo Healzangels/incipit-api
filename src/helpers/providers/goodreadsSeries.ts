@@ -1251,24 +1251,27 @@ export async function withGoodreadsAuthorInfo(
 	name: string,
 	redis: RedisLike | null,
 	logger?: FastifyBaseLogger,
-	opts?: { bypassCacheRead?: boolean }
+	opts?: { retryCachedMiss?: boolean }
 ): Promise<{ image: string | null; bio: string | null }> {
 	const trimmed = name.trim()
 	if (!trimmed) return { image: null, bio: null }
 	const key = AUTHOR_CACHE_PREFIX + trimmed.toLowerCase()
 
-	// The bypass exists for the operator's explicit ?update=1: measured live on
-	// Roger Zelazny, whose FIRST lookup hit the mirror cache-cold -- the only
+	// retryCachedMiss (the operator's ?force=1) re-asks ONLY when the cache holds
+	// nothing usable -- a cached HIT is always honored, so even a forced sweep
+	// cannot re-hit the mirror for authors that already have an answer. Measured
+	// live on Roger Zelazny: his FIRST lookup hit the mirror cache-cold, the only
 	// search hit was a Betancourt continuation novel ("Roger Zelazny's ..."), the
-	// name gate correctly refused it, and the honest miss was cached. Minutes
-	// later the mirror knew the real author, but the cached miss blocked every
-	// retry including the forced update. An explicit update pass re-asks and
-	// overwrites; ordinary refreshes keep reading the cache, which is what
-	// protects the mirror from Plex's constant author refreshes.
-	if (redis && !opts?.bypassCacheRead) {
+	// name gate correctly refused it, and the honest miss was cached -- blocking
+	// every retry while the mirror, minutes later, knew the real author.
+	if (redis) {
 		try {
 			const cached = await redis.get(key)
-			if (cached) return JSON.parse(cached) as { image: string | null; bio: string | null }
+			if (cached) {
+				const parsed = JSON.parse(cached) as { image: string | null; bio: string | null }
+				const isMiss = !parsed.image && !parsed.bio
+				if (!isMiss || !opts?.retryCachedMiss) return parsed
+			}
 		} catch {
 			// A cache read failure just means we do the lookup.
 		}

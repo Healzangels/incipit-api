@@ -150,15 +150,15 @@ export default class AuthorShowHelper extends GenericShowHelper {
 		// (e.g. Jessica Townsend). Consulted only when a gap REMAINS, and it only
 		// ever FILLS the gap — it never overrides a curated Audible/Hardcover value.
 		if (!author.image?.trim() || !author.description?.trim()) {
-			// ?update=1 bypasses the author-info cache READ: the operator's explicit
-			// refresh must be able to heal a cached miss (a cache-cold mirror answers
-			// incompletely -- the Zelazny case), which no amount of waiting inside the
-			// cached window can. Ordinary refreshes still read the cache.
+			// ?force=1 (operator-only -- the scheduler never sends it) retries a
+			// cached MISS: a cache-cold mirror answers incompletely (the Zelazny
+			// case), and the honest miss then blocks every retry for its TTL. A
+			// cached HIT is honored regardless, so the mirror stays protected.
 			const { image: grImage, bio: grBio } = await withGoodreadsAuthorInfo(
 				author.name,
 				this.redisClient,
 				this.logger,
-				{ bypassCacheRead: this.options.update === '1' }
+				{ retryCachedMiss: this.options.force === '1' }
 			)
 			if (grImage && !author.image?.trim()) {
 				this.logger?.info({ author: author.name }, 'author image: filled from Goodreads')

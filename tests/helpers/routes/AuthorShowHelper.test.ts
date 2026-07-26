@@ -278,6 +278,20 @@ describe('AuthorShowHelper should', () => {
 		getSpy.mockRestore()
 	})
 
+	test('force=1 skips the recency throttle and re-fetches anyway', async () => {
+		// The throttle exists for the SCHEDULER's monthly update=1 sweep; a human
+		// asking force=1 is explicitly overriding it. Measured on Roger Zelazny:
+		// his record froze bio-less inside the window (a cache-cold mirror answered
+		// his first lookup incompletely), and no operator action could heal it --
+		// update=1 returned the stale record untouched for 7 days.
+		const forced = new AuthorShowHelper(asin, { region: 'us', update: '1', force: '1' }, null)
+		spyOn(forced.sharedHelper, 'isRecentlyUpdated').mockReturnValue(true)
+		forced.originalData = authorWithoutProjectionUpdatedNow
+		const fresh = spyOn(forced, 'createOrUpdateData').mockResolvedValue(parsedAuthor)
+		await expect(forced.updateActions()).resolves.toStrictEqual(parsedAuthor)
+		expect(fresh).toHaveBeenCalled()
+	})
+
 	test('returns original author if it was updated recently when trying to update', async () => {
 		spyOn(helper.sharedHelper, 'isRecentlyUpdated').mockReturnValue(true)
 		helper.originalData = authorWithoutProjectionUpdatedNow

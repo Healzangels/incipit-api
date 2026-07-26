@@ -194,8 +194,15 @@ export default class GenericShowHelper {
 	 */
 	async updateActions(): Promise<ApiAuthorProfile | ApiBook | ApiChapter | undefined> {
 		if (!this.originalData) throw new Error(ErrorMessageMissingOriginal(this.asin, this.type))
-		// 1. Check if the data is updated recently
-		if (this.isUpdatedRecently()) return this.getDataWithProjection()
+		// 1. Check if the data is updated recently. The throttle exists for the
+		// UpdateScheduler's sweep (it sends update=1 for EVERY record); force=1 is
+		// the operator's explicit override, sent by nothing automated. Without it a
+		// record frozen incomplete inside the window -- Roger Zelazny's bio-less
+		// profile, cached off a cache-cold mirror answer -- could not be healed by
+		// any operator action until the window lapsed.
+		if (this.options.force !== '1' && this.isUpdatedRecently()) {
+			return this.getDataWithProjection()
+		}
 
 		// 2. Update the data,
 		// return undefined for chapters if the data is not updated
