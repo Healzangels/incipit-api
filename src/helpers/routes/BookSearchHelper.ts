@@ -705,6 +705,33 @@ export default class BookSearchHelper {
 				if (m) wantVolumes.add(Number(m[2]))
 			}
 		}
+		// ...and finally the caller's STATED series position, when the title
+		// advertised nothing. Book 1 of a series is normally titled bare -- a
+		// search for "Defiance of the Fall" declares no volume at all -- so a
+		// sibling titled "Defiance of the Fall, Book 10" escapes the mismatch
+		// penalty, and normalizeTitle strips its "Book 10" as series noise, so it
+		// scores an EXACT title match and ties book 1 at 0.85. The winner then
+		// falls to provider order.
+		//
+		// Measured live 2026-07-26: a fresh library scan matched TheFirstDefier's
+		// book 1 file to BOOK 10 on exactly that tie. It hits every rebuild,
+		// because Plex has not analysed the files during a fresh scan, so duration
+		// is -1 and never reaches us -- and duration is the signal that otherwise
+		// separates these (book 1 reaches 1.0 with it). The agent has been sending
+		// seriesPosition on all of these searches while the scorer ignored it.
+		//
+		// PENALISE-ONLY and INTEGERS-ONLY, deliberately. This only ever adds a
+		// number for volumeConflict to contradict; it never boosts the sibling
+		// that agrees, because these positions come from the same sidecars known
+		// to carry wrong ASINs and cannot be trusted to promote a candidate. A
+		// fractional novella position (1.5 Mitosis, 12.5 Extraction) describes no
+		// integer volume, so it is ignored rather than rounded into a claim that
+		// would demote the legitimate siblings around it. Title-derived volumes
+		// take precedence: the file's own title is the stronger claim.
+		if (wantVolumes.size === 0) {
+			const stated = this.options.seriesPosition?.trim()
+			if (stated && /^\d{1,3}$/.test(stated)) wantVolumes.add(Number(stated))
+		}
 		// The file's own runtime lets us catch a STALE pin: a sidecar ASIN pointing
 		// at the wrong edition (a Rosamund Pike ASIN on a Kate Reading file). A pin
 		// whose edition runtime is clearly wrong for the file (>5% off) while a
