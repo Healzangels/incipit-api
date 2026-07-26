@@ -429,3 +429,65 @@ describe('generated Hardcover avatar policy', () => {
 		getSpy.mockRestore()
 	})
 })
+
+describe('static Hardcover avatar fallback', () => {
+	/**
+	 * Hardcover's website shows a hooded-figure avatar for EVERY author, but
+	 * only some rows have it materialized as an image asset (the Harris class);
+	 * the rest -- Mitchel Scanlon -- render it client-side and their API row
+	 * says image:null, leaving a blank Plex tile. The art itself is six static
+	 * files (assets.hardcover.app/static/avatars/profile1..6.png, 500x500,
+	 * probed 2026-07-26), so when every source has nothing, fill with one of
+	 * those -- picked by a stable name hash, mimicking Hardcover's own look.
+	 */
+
+	test('an author with nothing anywhere gets a static avatar, deterministically', async () => {
+		const fakeHc = {
+			fetchAuthorInfo: mock().mockResolvedValue({ image: null, bio: null, imageGenerated: false })
+		}
+		const getSpy = spyOn(defaultRegistry, 'get').mockReturnValue(
+			fakeHc as unknown as ReturnType<typeof defaultRegistry.get>
+		)
+		mockScrapeProcess.mockResolvedValue({ ...parsedAuthor, image: '', imageAlt: '' })
+		const first = (await helper.getNewData()) as ApiAuthorProfile
+		expect(first.image).toMatch(
+			/^https:\/\/assets\.hardcover\.app\/static\/avatars\/profile[1-6]\.png$/
+		)
+		// Deterministic: the same name always lands on the same variant.
+		const second = (await helper.getNewData()) as ApiAuthorProfile
+		expect(second.image).toBe(first.image)
+		getSpy.mockRestore()
+	})
+
+	test('a real photo from any source suppresses the static fallback', async () => {
+		const fakeHc = {
+			fetchAuthorInfo: mock().mockResolvedValue({ image: null, bio: null, imageGenerated: false })
+		}
+		const getSpy = spyOn(defaultRegistry, 'get').mockReturnValue(
+			fakeHc as unknown as ReturnType<typeof defaultRegistry.get>
+		)
+		mockScrapeProcess.mockResolvedValue({ ...parsedAuthor })
+		const out = (await helper.getNewData()) as ApiAuthorProfile
+		expect(out.image).toBe(parsedAuthor.image)
+		getSpy.mockRestore()
+	})
+
+	test('a MATERIALIZED generated avatar still outranks the static one', async () => {
+		// Harris-class rows carry a per-author colored avatar Hardcover itself
+		// rendered; that stays preferred over our hash-picked static.
+		const fakeHc = {
+			fetchAuthorInfo: mock().mockResolvedValue({
+				image: 'https://assets.hardcover.app/author/61383/avatar.png',
+				bio: null,
+				imageGenerated: true
+			})
+		}
+		const getSpy = spyOn(defaultRegistry, 'get').mockReturnValue(
+			fakeHc as unknown as ReturnType<typeof defaultRegistry.get>
+		)
+		mockScrapeProcess.mockResolvedValue({ ...parsedAuthor, image: '', imageAlt: '' })
+		const out = (await helper.getNewData()) as ApiAuthorProfile
+		expect(out.image).toBe('https://assets.hardcover.app/author/61383/avatar.png')
+		getSpy.mockRestore()
+	})
+})

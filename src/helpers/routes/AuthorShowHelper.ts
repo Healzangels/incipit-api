@@ -26,6 +26,25 @@ export { isSameAuthor }
 // author is usually complete before anyone looks at the artist page.
 const SECOND_CHANCE_DELAY_MS = 3 * 60 * 1000
 
+// Hardcover's default hooded-figure avatars: six static 500x500 files (probed
+// 2026-07-26). Their website shows one for EVERY author, but only some rows
+// have it materialized as an image asset; the rest render it client-side and
+// the API says image:null -- leaving a blank Plex tile (Mitchel Scanlon). When
+// every source has nothing, fill with one of these, picked by a stable name
+// hash so each author keeps the same color forever, mimicking Hardcover's own
+// look. Fetched once per author by the agent, then stored by Plex; if the
+// files ever move, the fill degrades to a blank tile, never an error.
+const STATIC_AVATAR_COUNT = 6
+
+/** The static avatar URL for a name -- stable, so the color never changes. */
+export function staticAvatarFor(name: string): string {
+	let hash = 5381
+	for (let i = 0; i < name.length; i += 1) {
+		hash = (hash * 33 + name.charCodeAt(i)) >>> 0
+	}
+	return `https://assets.hardcover.app/static/avatars/profile${(hash % STATIC_AVATAR_COUNT) + 1}.png`
+}
+
 export default class AuthorShowHelper extends GenericShowHelper {
 	credentials?: Record<string, string>
 	/** Kept for the Goodreads author cache (the base class only keeps a RedisHelper). */
@@ -218,6 +237,16 @@ export default class AuthorShowHelper extends GenericShowHelper {
 				'author image: no real portrait anywhere, filling with the generated Hardcover avatar'
 			)
 			author.image = generatedAvatar
+		} else if (!author.image?.trim() && author.name?.trim()) {
+			// No materialized avatar either (the Scanlon class: Hardcover renders
+			// its default client-side and the API row says image:null). Fill with
+			// one of Hardcover's six static avatars, hash-picked so the color is
+			// stable per author.
+			this.logger?.info(
+				{ author: author.name },
+				'author image: no portrait anywhere, filling with a static Hardcover avatar'
+			)
+			author.image = staticAvatarFor(author.name.trim())
 		}
 		return author
 	}
