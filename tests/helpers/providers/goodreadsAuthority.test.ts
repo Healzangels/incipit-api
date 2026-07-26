@@ -695,6 +695,71 @@ describe('goodreads as series authority', () => {
 		expect(out.seriesPrimary).toBeNull()
 	})
 
+	test('a variant-ONLY answer never overrides a clean provider series', async () => {
+		// Measured on Prelude to Foundation during the 2026-07-25 second refresh.
+		// The Goodreads work lists THREE series and every one is a demoted
+		// variant: "Foundation (Publication Order)", "Foundation (Chronological
+		// Order)" and "Greater Foundation Universe". With no clean survivor the
+		// ranking falls back to `pool = all` -- right for GAP-FILL, where a
+		// variant beats nothing, but wrong for an OVERRIDE: it replaced the
+		// provider's clean "Foundation #0.5" with an ordering listing, which is
+		// exactly the kind of name the demotion exists to keep off a shelf.
+		respond(
+			[{ workId: 42 }],
+			multiWork('Prelude to Foundation', [
+				['Foundation (Publication Order)', 6],
+				['Foundation (Chronological Order)', 1],
+				['Greater Foundation Universe', 9]
+			])
+		)
+		const provider = { name: 'Foundation', position: '0.5' }
+		const out = await withGoodreadsSeries(
+			book({ title: 'Prelude to Foundation', seriesPrimary: provider }),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary).toEqual(provider)
+	})
+
+	test('a variant-only answer STILL gap-fills a book with no series', async () => {
+		// The other half of the rule: with nothing to lose, an ordering listing
+		// is better than no shelf at all. Only OVERRIDES are held to the higher
+		// bar -- same asymmetry as the shelvable-position guard.
+		respond(
+			[{ workId: 42 }],
+			multiWork('Prelude to Foundation', [
+				['Foundation (Chronological Order)', 1],
+				['Greater Foundation Universe', 9]
+			])
+		)
+		const out = await withGoodreadsSeries(
+			book({ title: 'Prelude to Foundation', seriesPrimary: null }),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary?.name).toBe('Foundation (Chronological Order)')
+	})
+
+	test('one clean series among variants still overrides normally', async () => {
+		// The guard must key on "every candidate was demoted", not on "a variant
+		// is present" -- most multi-series works list a variant alongside the
+		// real series, and those must keep working.
+		respond(
+			[{ workId: 42 }],
+			multiWork('Second Foundation', [
+				['Foundation (Publication Order)', 3],
+				['Foundation', 3]
+			])
+		)
+		const out = await withGoodreadsSeries(
+			book({
+				title: 'Second Foundation',
+				seriesPrimary: { name: 'Foundation Saga', position: '9' }
+			}),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary?.name).toBe('Foundation')
+		expect(out.seriesPrimary?.position).toBe('3')
+	})
+
 	test('the authority can be switched off without touching the code', async () => {
 		// An escape hatch for a library-wide behaviour change: this rewrites sort
 		// titles for every book where Goodreads and the provider disagree.

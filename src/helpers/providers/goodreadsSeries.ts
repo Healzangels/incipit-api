@@ -296,6 +296,12 @@ interface WorkResponse {
 export interface GoodreadsSeriesResult {
 	primary?: ProviderBookSeries
 	secondary?: ProviderBookSeries
+	// True when EVERY series the work listed was a demoted variant (an edition
+	// variant, a publication/chronological ordering, or a franchise umbrella)
+	// and the ranking had to fall back to them. Good enough to gap-fill an empty
+	// field, not good enough to overwrite a clean provider series -- see the
+	// refusal in withGoodreadsSeries.
+	variantOnly?: boolean
 }
 
 /** A book that may already carry a series, and the fields a lookup needs. */
@@ -510,6 +516,20 @@ export async function withGoodreadsSeries<T extends SeriesEnrichable>(
 	//     the book's place on the shelf.
 	//   * "Konrad Curze" comes back at position "The Primarchs Short Story",
 	//     which would render as "Book The Primarchs Short Story".
+	// A FALLBACK answer cannot spend a clean provider series. When every listing
+	// the work offered was a demoted variant, the ranking kept them so the book
+	// would not end up with no shelf at all -- fine when the field is empty,
+	// wrong when it means replacing "Foundation #0.5" with "Foundation
+	// (Chronological Order) #1", which is exactly the sort of name the demotion
+	// list exists to keep off a shelf. Measured live on Prelude to Foundation
+	// and Forward the Foundation.
+	if (hadSeries && result.variantOnly) {
+		logger?.debug(
+			{ title, goodreads: result.primary, kept: book.seriesPrimary },
+			'goodreads series: every candidate was a variant listing, keeping the provider series'
+		)
+		return book
+	}
 	if (hadSeries && !isShelvablePosition(result.primary.position)) {
 		logger?.debug(
 			{ title, goodreads: result.primary, kept: book.seriesPrimary },
@@ -879,6 +899,7 @@ async function lookupByTitle(
 		// Only pay for the counts when there IS a choice -- a single-series book
 		// (the common case) skips the /series lookups entirely.
 		let ranked = all
+		let variantOnly = false
 		if (all.length > 1) {
 			// Drop edition-variants, franchise orderings and umbrellas, but only if
 			// a clean series survives -- otherwise keep them, a variant beats none.
@@ -886,6 +907,11 @@ async function lookupByTitle(
 			const canPlace = (s: WorkSeries) => isShelvablePosition(positionFor(s, workId))
 			let pool: WorkSeries[]
 			if (!clean.length) {
+				// Nothing survived the demotion. Keep them rather than leave the
+				// book with no series at all, but remember it: this answer is a
+				// fallback, and the caller must not spend a clean provider series
+				// on it.
+				variantOnly = true
 				pool = all
 			} else if (clean.some(canPlace)) {
 				pool = clean
@@ -938,8 +964,13 @@ async function lookupByTitle(
 				: { name: s.Title as string }
 		}
 
+		// A single-series work never enters the ranking above, so check it here
+		// too: one ordering listing is just as unfit to overwrite a clean
+		// provider series as three of them.
+		if (all.length === 1 && (isOrdering(all[0]) || isUmbrella(all[0]))) variantOnly = true
 		const result: GoodreadsSeriesResult = { primary: toSeries(ranked[0]) }
 		if (ranked[1]) result.secondary = toSeries(ranked[1])
+		if (variantOnly) result.variantOnly = true
 		// The volume-marker veto (see volumeHint above): our own title says which
 		// volume this is, and an answer that contradicts it means the name matched
 		// but the WORK did not -- for "Series, Book N" titles the bare series name
