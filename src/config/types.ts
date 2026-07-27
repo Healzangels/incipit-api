@@ -15,7 +15,13 @@ export const asin11Regex = /\d{11}/gm
 export const AsinSchema = z.string().regex(asin10Regex)
 // Using different regex for 11 digit ASINs because zod validation needs quantifier
 export const GenreAsinSchema = z.string().regex(new RegExp(/^\d{10,12}$/))
-export const NameSchema = z.string().min(2)
+// min(1), not min(2): a single character is a legitimate QUERY. Plex hands the
+// agent whatever the file's artist tag holds -- a rip-tool track-number leak
+// makes that literally "4" (measured live 2026-07-26, The Hand of Oberon). The
+// old 400 read as a TRANSPORT failure in the bundle, which then skipped the
+// zero-result author-recovery that would have fixed the phantom artist; an
+// honest 200-with-nothing lets the fallback machinery run.
+export const NameSchema = z.string().min(1)
 export const TitleSchema = z.string().min(1)
 export const RegionSchema = z.enum(regionTLDs).default('us')
 

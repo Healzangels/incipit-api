@@ -48,7 +48,15 @@ describe('schemas should', () => {
 		expect(NameSchema.safeParse('John').success).toBe(true)
 		expect(NameSchema.safeParse('Doe').success).toBe(true)
 		expect(NameSchema.safeParse('Jo').success).toBe(true)
-		expect(NameSchema.safeParse('D').success).toBe(false)
+		// A single character is a legitimate QUERY: Plex hands the agent whatever
+		// the file's artist tag holds, and a rip-tool track-number leak makes that
+		// literally '4' (measured live on The Hand of Oberon, 2026-07-26). A 400
+		// here read as a TRANSPORT failure in the bundle, which then skipped the
+		// zero-result author-recovery that would have fixed the phantom artist.
+		// An honest empty result lets the fallback machinery run.
+		expect(NameSchema.safeParse('4').success).toBe(true)
+		expect(NameSchema.safeParse('D').success).toBe(true)
+		expect(NameSchema.safeParse('').success).toBe(false)
 		expect(NameSchema.safeParse('').success).toBe(false)
 	})
 
