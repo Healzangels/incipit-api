@@ -297,7 +297,10 @@ export default class AuthorShowHelper extends GenericShowHelper {
 	 * Never scheduled BY the forced pass (no retry loops), never without a name
 	 * (nothing to look up), deduped per asin while one is in flight. Best-effort
 	 * by design: the retry runs update=1&force=1 -- exactly the operator's heal,
-	 * automated once.
+	 * automated once. A PERMANENTLY unfillable author (no portrait anywhere)
+	 * earns one such retry per unforced update pass -- bounded by the monthly
+	 * sweep cadence, so the accepted cost is ~one extra mirror lookup per month
+	 * per author that can never converge.
 	 * @param {ApiAuthorProfile} author the enriched profile about to be returned
 	 * @param {typeof scheduleSecondChance} schedule injectable for tests
 	 * @returns {boolean} true when a retry was scheduled

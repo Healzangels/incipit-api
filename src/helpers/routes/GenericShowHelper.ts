@@ -47,7 +47,14 @@ export default class GenericShowHelper {
 		logger?: FastifyBaseLogger
 	) {
 		this.asin = asin
-		this.options = options
+		// force=1 IMPLIES update=1. Force is the operator's "heal this NOW", and
+		// without the implication a bare ?force=1 was served straight from redis
+		// -- the flag looked honored and did nothing. Normalized once, here,
+		// before the papr helper is built, so every consumer (the redis gate,
+		// updateActions' recency override, the papr create-or-update split) reads
+		// one consistent story.
+		this.options =
+			options.force === '1' && options.update !== '1' ? { ...options, update: '1' } : options
 		this.type = type
 		this.logger = logger
 		this.paprHelper = this.setupPaprHelper()
@@ -195,11 +202,13 @@ export default class GenericShowHelper {
 	async updateActions(): Promise<ApiAuthorProfile | ApiBook | ApiChapter | undefined> {
 		if (!this.originalData) throw new Error(ErrorMessageMissingOriginal(this.asin, this.type))
 		// 1. Check if the data is updated recently. The throttle exists for the
-		// UpdateScheduler's sweep (it sends update=1 for EVERY record); force=1 is
-		// the operator's explicit override, sent by nothing automated. Without it a
-		// record frozen incomplete inside the window -- Roger Zelazny's bio-less
-		// profile, cached off a cache-cold mirror answer -- could not be healed by
-		// any operator action until the window lapsed.
+		// UpdateScheduler's sweep (it sends update=1 for EVERY record); force=1
+		// overrides it -- sent by the operator, and by exactly one automated
+		// caller: the author second-chance timer, which replays the operator's
+		// heal once (see maybeScheduleSecondChance). Without it a record frozen
+		// incomplete inside the window -- Roger Zelazny's bio-less profile,
+		// cached off a cache-cold mirror answer -- could not be healed by any
+		// operator action until the window lapsed.
 		if (this.options.force !== '1' && this.isUpdatedRecently()) {
 			return this.getDataWithProjection()
 		}

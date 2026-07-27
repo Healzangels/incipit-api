@@ -342,6 +342,21 @@ describe('AuthorShowHelper should', () => {
 		expect(helper.redisHelper.findOne).toHaveBeenCalledTimes(1)
 	})
 
+	test('force=1 alone takes the update path -- never the cached body', async () => {
+		// force is the operator's "heal this NOW". Without the update implication
+		// a bare ?force=1 served straight from redis: the flag looked honored and
+		// did nothing, which is worse than rejecting it.
+		ctx = createMockContext()
+		helper = new AuthorShowHelper(asin, { region: 'us', force: '1' } as never, ctx.client)
+		mockRedisFindOne.mockResolvedValue(parsedAuthor)
+		mockPaprFindOne.mockResolvedValue({ data: authorWithoutProjection, modified: false })
+		spyOn(helper.sharedHelper, 'sortObjectByKeys').mockReturnValue(parsedAuthor)
+		spyOn(helper.sharedHelper, 'isRecentlyUpdated').mockReturnValue(true)
+		await expect(helper.handler()).resolves.toStrictEqual(parsedAuthor)
+		// The fresh scrape ran despite the redis hit AND the recency window.
+		expect(mockScrapeProcess).toHaveBeenCalled()
+	})
+
 	test('run handler for an existing author', async () => {
 		mockRedisFindOrCreate.mockResolvedValue(undefined)
 		await expect(helper.handler()).resolves.toStrictEqual(parsedAuthor)
