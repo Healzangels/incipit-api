@@ -140,7 +140,12 @@ describe('withGoodreadsAuthorInfo caching', () => {
 		// pair, so a cache that forgot its expiry -- pinning "no photo" on an author
 		// permanently -- would still have passed.
 		const redis = fakeRedis()
-		respond([{ author: { id: 1 } }], { ForeignId: 1, Name: 'Jessica Townsend', ImageUrl: PHOTO })
+		respond([{ author: { id: 1 } }], {
+			ForeignId: 1,
+			Name: 'Jessica Townsend',
+			Description: 'An Australian author.',
+			ImageUrl: PHOTO
+		})
 		await withGoodreadsAuthorInfo('Jessica Townsend', redis)
 		const [key] = [...redis.store.keys()]
 		expect(key).toBeDefined()
@@ -249,6 +254,52 @@ describe('withGoodreadsAuthorInfo miss handling', () => {
 		})
 		expect(out.bio).toBe('cached bio')
 		expect(fetchMock).not.toHaveBeenCalled()
+	})
+
+	test('a PARTIAL answer gets the short TTL, not the day-long one', async () => {
+		// The cache-cold mirror's common shape: a bio arrives, the portrait does
+		// not (or vice versa). Half an answer is not knowledge either -- pinned for
+		// 24h it freezes the missing half exactly like the Zelazny miss did.
+		const redis = fakeRedis()
+		respond([{ author: { id: 3619 } }], {
+			ForeignId: 3619,
+			Name: 'Roger Zelazny',
+			Description: 'An American fantasy and science fiction writer.'
+		})
+		await withGoodreadsAuthorInfo('Roger Zelazny', redis)
+		expect(redis.expires.get('grauthor:v1:roger zelazny')).toBe(3600)
+	})
+
+	test('retryCachedMiss re-asks for a PARTIAL cached answer and fills the gap', async () => {
+		// A bio-only entry blocked ?force=1 and the second chance exactly like a
+		// full miss would: isMiss required BOTH halves absent, so the cached
+		// partial was a force-proof HIT for a day.
+		const redis = fakeRedis()
+		redis.store.set('grauthor:v1:roger zelazny', JSON.stringify({ image: null, bio: 'old bio' }))
+		respond([{ author: { id: 3619 } }], {
+			ForeignId: 3619,
+			Name: 'Roger Zelazny',
+			Description: 'An American fantasy and science fiction writer.',
+			ImageUrl: PHOTO
+		})
+		const out = await withGoodreadsAuthorInfo('Roger Zelazny', redis, undefined, {
+			retryCachedMiss: true
+		})
+		expect(out.image).toBe(PHOTO)
+		expect(out.bio).toBe('An American fantasy and science fiction writer.')
+	})
+
+	test('a forced re-ask that comes back emptier keeps the cached half', async () => {
+		// The re-ask can itself hit a degraded mirror. Returning its nulls would
+		// hand the caller LESS than the cache already knew -- merge instead: fresh
+		// fields win, cached fields fill.
+		const redis = fakeRedis()
+		redis.store.set('grauthor:v1:roger zelazny', JSON.stringify({ image: null, bio: 'old bio' }))
+		respond(null)
+		const out = await withGoodreadsAuthorInfo('Roger Zelazny', redis, undefined, {
+			retryCachedMiss: true
+		})
+		expect(out.bio).toBe('old bio')
 	})
 
 	test('without the flag, the cached answer still wins (mirror protection intact)', async () => {

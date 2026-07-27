@@ -7,7 +7,7 @@ process.env.GOODREADS_MIN_GAP_MS = '0'
 const fetchMock = mock()
 mock.module('#helpers/utils/fetchPlus', () => ({ default: fetchMock }))
 
-const { fetchGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+const { fetchGoodreadsSeries, seriesAliasFor } = await import('#helpers/providers/goodreadsSeries')
 
 /** Queue responses in call order; a `null` entry makes that call reject. */
 function respond(...bodies: Array<unknown | null>) {
@@ -360,6 +360,32 @@ describe('series language preference', () => {
 		expect(out).toEqual({ primary: { name: 'Tintenwelt', position: '1' } })
 	})
 
+	test('a failed alias fetch marks the answer uncacheable, not degraded', async () => {
+		// The identity work is sound, so the canonical answer still applies -- but
+		// the NAME in hand may be the one the alias would have replaced. Cached
+		// under the hit TTL it pins the canonical name for a week while a sibling
+		// book's healthy lookup gets the alias: one shelf, two names, split by the
+		// cache. The middle state: apply now, let the next refresh re-ask.
+		const state = { degraded: false }
+		respond([{ workId: 42 }], germanCanonical(90006), null)
+		const out = await fetchGoodreadsSeries('Inkheart', 'Cornelia Funke', undefined, state)
+		expect(out).toEqual({ primary: { name: 'Tintenwelt', position: '1' } })
+		expect(state.degraded).toBe(false)
+		expect((state as { uncacheable?: boolean }).uncacheable).toBe(true)
+	})
+
+	test('a sound alias fetch leaves the answer fully cacheable', async () => {
+		const state = { degraded: false }
+		respond([{ workId: 42 }], germanCanonical(90007), {
+			Title: 'Tintenwelt',
+			Description: TINTENWELT_DESC,
+			LinkItems: [1]
+		})
+		const out = await fetchGoodreadsSeries('Inkheart', 'Cornelia Funke', undefined, state)
+		expect(out).toEqual({ primary: { name: 'Inkworld', position: '1' } })
+		expect((state as { uncacheable?: boolean }).uncacheable).toBeUndefined()
+	})
+
 	test('GOODREADS_SERIES_LANGUAGE=0 disables the rename and the extra fetch', async () => {
 		process.env.GOODREADS_SERIES_LANGUAGE = '0'
 		respond([{ workId: 42 }], germanCanonical(90004))
@@ -378,6 +404,40 @@ describe('series language preference', () => {
 		})
 		const out = await fetchGoodreadsSeries('Inkheart', 'Cornelia Funke')
 		expect(out).toEqual({ primary: { name: 'Mundo de tinta', position: '1' } })
+	})
+})
+
+describe('seriesAliasFor', () => {
+	test('reads an alias from the declared list', () => {
+		expect(
+			seriesAliasFor('<b>Also known as:</b>\n - Inkworld (English)\n - Mundo de tinta (Spanish)', 'English')
+		).toBe('Inkworld')
+	})
+
+	test('a hyphen plus a language tag in PROSE is not an alias', () => {
+		// The claim the function makes -- "a description that merely mentions a
+		// language in prose declares nothing" -- must hold even when the header
+		// exists elsewhere in the description: only the contiguous list after the
+		// header is the librarian declaration, everything past its first paragraph
+		// break is prose again. Without the bound, this renames the shelf to
+		// "The Ink Trilogy" and caches it for a week.
+		const desc =
+			'<b>Also known as:</b>\n - Mundo de tinta (Spanish)\n\n' +
+			'First published in Germany, the trilogy was later released as a ' +
+			'boxed set - The Ink Trilogy (English) in 2010.'
+		expect(seriesAliasFor(desc, 'English')).toBeNull()
+	})
+
+	test('prose before the header cannot declare an alias either', () => {
+		const desc =
+			'Originally serialized - Der Tintentod (German) in magazines.\n\n' +
+			'<b>Also known as:</b>\n - Inkworld (English)'
+		expect(seriesAliasFor(desc, 'German')).toBeNull()
+		expect(seriesAliasFor(desc, 'English')).toBe('Inkworld')
+	})
+
+	test('no header, no alias', () => {
+		expect(seriesAliasFor('A trilogy - Inkworld (English) fans adore.', 'English')).toBeNull()
 	})
 })
 

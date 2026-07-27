@@ -271,10 +271,21 @@ function preferredSeriesLanguage(): string | null {
  * @returns {string | null} the declared alias, or null
  */
 export function seriesAliasFor(description: string | null, language: string): string | null {
-	if (!description || !/also known as/i.test(description)) return null
+	if (!description) return null
 	const text = description.replace(/<[^>]*>/g, ' ')
+	const header = /also known as\s*:?/i.exec(text)
+	if (!header) return null
+	// Only the contiguous list AFTER the header is the librarian declaration: a
+	// run of "- Name (Language)" lines ending at the first paragraph break.
+	// Everything outside that window is prose again, and a prose hyphen followed
+	// by "(English)" must not rename a shelf -- the match is also anchored to a
+	// line-leading bullet for the same reason.
+	const list = text.slice(header.index + header[0].length).split(/\n\s*\n/)[0] ?? ''
 	const tag = language.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-	const match = new RegExp('[-•*]\\s*([^\\n(]+?)\\s*\\(\\s*' + tag + '\\s*\\)', 'i').exec(text)
+	const match = new RegExp(
+		'(?:^|\\n)\\s*[-•*]\\s*([^\\n(]+?)\\s*\\(\\s*' + tag + '\\s*\\)',
+		'i'
+	).exec(list)
 	const name = match?.[1]?.trim()
 	return name && name.length > 1 ? name : null
 }
@@ -343,8 +354,9 @@ async function seriesMemberCount(
  * @param {number | undefined} foreignId the Goodreads series id
  * @param {LookupState | undefined} state shared lookup state; pass it to make a
  *   degraded fetch degrade the WHOLE lookup (the ranking must -- a wrong count
- *   misranks the pool), omit it when losing the answer is acceptable (the alias
- *   rename is cosmetic and must never spoil a sound result)
+ *   misranks the pool). The alias rename passes a probe of its own instead and
+ *   maps degradation to `uncacheable`: cosmetic loss must not spoil a sound
+ *   answer, but it must block the cache write (see LookupState).
  * @param {FastifyBaseLogger} logger optional logger
  * @returns {Promise<SeriesRecordInfo>} the record; zeros/nulls when unavailable
  */
@@ -560,8 +572,10 @@ export async function withGoodreadsSeries<T extends SeriesEnrichable>(
 			// this book for the whole TTL -- the exact damage a throttling event
 			// during a full-library refresh would do. A HIT keeps the long TTL; a
 			// MISS gets a much shorter one, because the mirror gaining the record
-			// is exactly what a miss does not rule out.
-			if (redis && !probe.degraded) {
+			// is exactly what a miss does not rule out. UNCACHEABLE is the alias
+			// middle state (see LookupState): the answer applies but must be
+			// re-asked next refresh.
+			if (redis && !probe.degraded && !probe.uncacheable) {
 				try {
 					await redis.set(
 						key,
@@ -717,6 +731,12 @@ let backoffUntil = 0
  */
 interface LookupState {
 	degraded: boolean
+	// The middle state between sound and degraded: the ANSWER is sound (apply
+	// it), but something cosmetic it may be missing -- the shelf-language alias
+	// -- failed to fetch, so caching it would pin the un-renamed form for the
+	// hit TTL while a sibling's healthy lookup gets the alias: one shelf split
+	// across two names by the cache. Apply now, re-ask on the next refresh.
+	uncacheable?: boolean
 }
 
 /** A fresh degradation scope for one logical lookup. */
@@ -1131,8 +1151,11 @@ async function lookupByTitle(
 		// against the canonical answer), so this touches display names only. The
 		// alias record rides the same memoized /series fetch the ranking uses; on
 		// the single-series path it is the one extra call, paid once per series
-		// per process. Deliberately no `state`: losing the alias is cosmetic, and
-		// a degraded alias fetch must not spoil (or un-cache) a sound answer.
+		// per process. A degraded alias fetch must not spoil the sound answer in
+		// hand (it still applies, canonically named) -- but it must not be CACHED
+		// either, or the canonical name is pinned for the hit TTL while a
+		// sibling's healthy lookup gets the alias: a shelf split by the cache.
+		// Hence the middle state, not `degraded`: uncacheable.
 		const language = preferredSeriesLanguage()
 		if (language) {
 			const renamed = async (
@@ -1140,7 +1163,9 @@ async function lookupByTitle(
 				out: ProviderBookSeries | undefined
 			): Promise<ProviderBookSeries | undefined> => {
 				if (!chosen || !out) return out
-				const info = await seriesRecord(chosen.ForeignId, undefined, logger)
+				const aliasProbe = newLookupState()
+				const info = await seriesRecord(chosen.ForeignId, aliasProbe, logger)
+				if (aliasProbe.degraded && state) state.uncacheable = true
 				const alias = seriesAliasFor(info.description, language)
 				if (!alias || alias === out.name) return out
 				logger?.debug(
@@ -1257,20 +1282,24 @@ export async function withGoodreadsAuthorInfo(
 	if (!trimmed) return { image: null, bio: null }
 	const key = AUTHOR_CACHE_PREFIX + trimmed.toLowerCase()
 
-	// retryCachedMiss (the operator's ?force=1) re-asks ONLY when the cache holds
-	// nothing usable -- a cached HIT is always honored, so even a forced sweep
-	// cannot re-hit the mirror for authors that already have an answer. Measured
-	// live on Roger Zelazny: his FIRST lookup hit the mirror cache-cold, the only
-	// search hit was a Betancourt continuation novel ("Roger Zelazny's ..."), the
-	// name gate correctly refused it, and the honest miss was cached -- blocking
-	// every retry while the mirror, minutes later, knew the real author.
+	// retryCachedMiss (the operator's ?force=1, and the second chance) re-asks
+	// ONLY when the cache holds an INCOMPLETE answer -- a complete HIT is always
+	// honored, so even a forced sweep cannot re-hit the mirror for authors that
+	// already have both halves. Incomplete covers the full miss (measured live on
+	// Roger Zelazny: his FIRST lookup hit the mirror cache-cold, the name gate
+	// correctly refused the only hit, and the honest miss was cached -- blocking
+	// every retry while the mirror, minutes later, knew the real author) AND the
+	// partial (the cache-cold mirror's other common shape: bio without portrait,
+	// which as a force-proof "hit" froze the missing half for a day).
+	let cachedPartial: { image: string | null; bio: string | null } | null = null
 	if (redis) {
 		try {
 			const cached = await redis.get(key)
 			if (cached) {
 				const parsed = JSON.parse(cached) as { image: string | null; bio: string | null }
-				const isMiss = !parsed.image && !parsed.bio
-				if (!isMiss || !opts?.retryCachedMiss) return parsed
+				const isComplete = Boolean(parsed.image && parsed.bio)
+				if (isComplete || !opts?.retryCachedMiss) return parsed
+				cachedPartial = parsed
 			}
 		} catch {
 			// A cache read failure just means we do the lookup.
@@ -1278,21 +1307,28 @@ export async function withGoodreadsAuthorInfo(
 	}
 
 	const probe = newLookupState()
-	const result = await fetchGoodreadsAuthorInfo(trimmed, logger, probe)
+	const fetched = await fetchGoodreadsAuthorInfo(trimmed, logger, probe)
+	// A forced re-ask can itself hit a degraded mirror; returning its nulls would
+	// hand the caller LESS than the cache already knew. Fresh fields win, cached
+	// fields fill. (cachedPartial is only ever set on the forced path.)
+	const result = {
+		image: fetched.image ?? cachedPartial?.image ?? null,
+		bio: fetched.bio ?? cachedPartial?.bio ?? null
+	}
 
 	// Only cache an answer the mirror actually gave us -- see withGoodreadsSeries.
 	// Caching a rate-limited null would blank this author's portrait for the TTL.
-	// An answer with CONTENT keeps the day-long TTL; a full miss is not knowledge
-	// (the mirror gains records, and a cache-cold mirror can answer incompletely),
-	// so it expires quickly instead of pinning "no portrait, no bio" for a day.
+	// A COMPLETE answer keeps the day-long TTL; anything less is not knowledge
+	// (the mirror gains records, and a cache-cold mirror answers incompletely),
+	// so it expires quickly instead of pinning the missing half for a day.
 	if (redis && !probe.degraded) {
-		const isMiss = !result.image && !result.bio
+		const isComplete = Boolean(result.image && result.bio)
 		try {
 			await redis.set(
 				key,
 				JSON.stringify(result),
 				'EX',
-				isMiss ? AUTHOR_MISS_TTL_SECONDS : AUTHOR_CACHE_TTL_SECONDS
+				isComplete ? AUTHOR_CACHE_TTL_SECONDS : AUTHOR_MISS_TTL_SECONDS
 			)
 		} catch {
 			// A cache-write failure is not a request failure.

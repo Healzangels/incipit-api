@@ -479,6 +479,44 @@ describe('goodreads as series authority', () => {
 		expect(ten.seriesPrimary?.position).toBe('10')
 	})
 
+	test('a degraded alias fetch applies the canonical name but does NOT cache it', async () => {
+		// Single-series path, alias language = default English. The /series call
+		// that carries the alias fails; the identity answer is still sound, so it
+		// applies -- but caching it would pin the canonical (possibly untranslated)
+		// name for the hit TTL while a sibling's healthy lookup gets the alias:
+		// one shelf split across two names BY THE CACHE. The retry must happen on
+		// the next refresh, and get the rename.
+		const redis = fakeRedis()
+		const single = {
+			Title: 'The Witness for the Dead',
+			Authors: [],
+			Series: [
+				{
+					Title: 'Tintenwelt',
+					ForeignId: 90210,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1', SeriesPosition: 1 }]
+				}
+			]
+		}
+		respond([{ workId: 42 }], single, null)
+		const first = await withGoodreadsSeries(
+			book({ title: 'The Witness for the Dead', seriesPrimary: null }),
+			redis
+		)
+		expect(first.seriesPrimary?.name).toBe('Tintenwelt')
+
+		respond([{ workId: 42 }], single, {
+			Title: 'Tintenwelt',
+			Description: '<b>Also known as:</b>\n - Inkworld (English)',
+			LinkItems: [1]
+		})
+		const second = await withGoodreadsSeries(
+			book({ title: 'The Witness for the Dead', seriesPrimary: null }),
+			redis
+		)
+		expect(second.seriesPrimary?.name).toBe('Inkworld')
+	})
+
 	test('a "Series: Title" sequel is not matched to book 1', async () => {
 		// Audible titles sequels "Series: Title". titleSim's stem arm scored the
 		// series half against book 1's title at 1.0, so book 2 adopted book 1's
