@@ -792,6 +792,18 @@ export default class BookSearchHelper {
 			}
 			return false
 		}
+		// True when the candidate's TITLE carries a "(Narrated by X)" tag naming
+		// the REQUESTED narrator -- the publisher's own label for a re-release
+		// built around that narrator. Distinct from narratorMatches (the
+		// narrators FIELD), which cannot separate two editions of the same
+		// narration; only the title branding can.
+		const titleNamesWantedNarrator = (c: ScoredCandidate): boolean => {
+			const m = /\(narrated by ([^)]+)\)/i.exec(c.title ?? '')
+			if (!m) return false
+			const key = narratorKey(m[1])
+			if (!key) return false
+			return wantNarratorKeys.some((want) => key.includes(want) || want.includes(key))
+		}
 		this.languageDemoted = 0
 		this.bundleDemoted = 0
 		this.bundleDemotedIds.clear()
@@ -1150,6 +1162,19 @@ export default class BookSearchHelper {
 				if (wantNarratorKeys.length) {
 					const byNarrator = Number(narratorMatches(b)) - Number(narratorMatches(a))
 					if (byNarrator !== 0) return byNarrator
+					// Among editions that ALL match the requested narrator, the one
+					// whose TITLE names that narrator is the purpose-built release:
+					// a library holding both narrations of a book (measured live on
+					// Harry Potter, 2026-07-27) needs its Stephen Fry copies on the
+					// "(Narrated by Stephen Fry)" editions or both copies collide in
+					// the plain series -- and without this arm the exact-title
+					// tiebreak below actively PENALIZED the branding for not being
+					// the tag's exact title. Same shape as the narrator arm: a
+					// ranking signal only, and inert without a narrator hint, so
+					// single-narration libraries never notice it.
+					const byNarratorTitleTag =
+						Number(titleNamesWantedNarrator(b)) - Number(titleNamesWantedNarrator(a))
+					if (byNarratorTitleTag !== 0) return byNarratorTitleTag
 				}
 				// Both corroborated on duration -- but one is CLOSER.
 				//

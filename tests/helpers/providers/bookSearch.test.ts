@@ -930,3 +930,70 @@ describe('numeric-title mismatch demotion', () => {
 		expect(out.some((c) => c.title === '2001: A Space Odyssey')).toBe(false)
 	})
 })
+
+describe('narrator-branded edition preference', () => {
+	/**
+	 * Measured live on the Harry Potter shelf (2026-07-27): a library holds
+	 * BOTH narrations of each book, and the Stephen Fry copies searched with
+	 * narrator=Stephen Fry kept landing on the PLAIN 2015 editions -- the
+	 * narrator arm cannot separate two Fry editions, and the exact-title arm
+	 * then dings the "(Narrated by Stephen Fry)" branding for not being the
+	 * tag's exact title. When the file itself names a narrator, the edition
+	 * whose TITLE names that same narrator is the purpose-built match: prefer
+	 * it on ties. Dale copies are untouched (no Dale-branded titles exist).
+	 */
+	const fry = (id: string, title: string) =>
+		candidate({ id, title, authors: ['J.K. Rowling'], narrators: ['Stephen Fry'] })
+
+	test('the edition whose title names the requested narrator wins the tie', async () => {
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [
+				fry('plain', 'Harry Potter and the Goblet of Fire'),
+				fry('branded', 'Harry Potter and the Goblet of Fire (Narrated by Stephen Fry)')
+			])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Harry Potter and the Goblet of Fire',
+			author: 'J.K. Rowling',
+			narrator: 'Stephen Fry',
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('branded')
+	})
+
+	test('without a narrator hint the exact title still wins', async () => {
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [
+				fry('branded', 'Harry Potter and the Goblet of Fire (Narrated by Stephen Fry)'),
+				fry('plain', 'Harry Potter and the Goblet of Fire')
+			])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Harry Potter and the Goblet of Fire',
+			author: 'J.K. Rowling',
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('plain')
+	})
+
+	test('a DIFFERENT narrator named in the title earns no preference', async () => {
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [
+				candidate({
+					id: 'dale-branded',
+					title: 'Harry Potter and the Goblet of Fire (Narrated by Jim Dale)',
+					authors: ['J.K. Rowling'],
+					narrators: ['Jim Dale']
+				}),
+				fry('plain', 'Harry Potter and the Goblet of Fire')
+			])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Harry Potter and the Goblet of Fire',
+			author: 'J.K. Rowling',
+			narrator: 'Stephen Fry',
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('plain')
+	})
+})
