@@ -59,6 +59,16 @@ mock.module('#helpers/database/redis/RedisHelper', () => ({
 
 mock.module('@fastify/redis', () => ({}))
 
+// The avatar-policy fixtures below are INCOMPLETE authors by design, and an
+// incomplete author on an unforced pass arms the real module's 3-minute retry
+// timer -- a live timer outliving the suite (and firing mid-watch-mode) is not
+// this file's business. The second-chance behavior has its own test file with
+// injected schedulers.
+mock.module('#helpers/utils/secondChance', () => ({
+	scheduleSecondChance: mock(() => true),
+	pendingSecondChances: () => []
+}))
+
 import type { FastifyRedis } from '@fastify/redis'
 
 import {

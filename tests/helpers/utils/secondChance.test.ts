@@ -41,4 +41,19 @@ describe('scheduleSecondChance', () => {
 		await tick(30)
 		expect(pendingSecondChances()).not.toContain('author:CCC')
 	})
+
+	test('a task that throws SYNCHRONOUSLY is contained too, and frees the key', async () => {
+		// task() is () => Promise, but a closure can throw before it ever builds
+		// its promise (a constructor in the closure body). A sync throw inside a
+		// timer callback escapes .catch() -- it becomes an uncaughtException,
+		// which server.ts treats as fatal -- and the key would leak, wedging this
+		// author's retries for the process lifetime.
+		expect(
+			scheduleSecondChance('author:DDD', 10, () => {
+				throw new Error('thrown before the promise exists')
+			})
+		).toBe(true)
+		await tick(30)
+		expect(pendingSecondChances()).not.toContain('author:DDD')
+	})
 })

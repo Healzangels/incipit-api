@@ -38,7 +38,12 @@ export function scheduleSecondChance(
 	if (pending.has(key)) return false
 	pending.add(key)
 	const timer = setTimeout(() => {
-		task()
+		// Promise.resolve().then(task): a SYNC throw from the closure body (a
+		// constructor throwing before the promise exists) must take the same
+		// swallowed path as a rejection -- bare inside a timer callback it is an
+		// uncaughtException (fatal under server.ts) and would leak the key.
+		Promise.resolve()
+			.then(task)
 			.catch(() => undefined)
 			.finally(() => pending.delete(key))
 	}, delayMs)
