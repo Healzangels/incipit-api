@@ -45,6 +45,17 @@ export function staticAvatarFor(name: string): string {
 	return `https://assets.hardcover.app/static/avatars/profile${(hash % STATIC_AVATAR_COUNT) + 1}.png`
 }
 
+/**
+ * True for one of the six static Hardcover avatars staticAvatarFor deals out.
+ * A placeholder is display furniture, not knowledge: once persisted it comes
+ * back through the minimal-profile seed and the previous-record restore
+ * LOOKING like a portrait, and every gap check downstream (the Goodreads
+ * backstop, the second chance) would stop running for that author forever.
+ */
+export function isStaticAvatar(url: string | null | undefined): boolean {
+	return Boolean(url && /assets\.hardcover\.app\/static\/avatars\/profile\d+\.png$/i.test(url))
+}
+
 export default class AuthorShowHelper extends GenericShowHelper {
 	credentials?: Record<string, string>
 	/** Kept for the Goodreads author cache (the base class only keeps a RedisHelper). */
@@ -177,7 +188,9 @@ export default class AuthorShowHelper extends GenericShowHelper {
 				generatedAvatar = hardcoverImage
 			} else if (hardcoverImage && hardcoverImage !== author.image) {
 				this.logger?.info({ author: author.name }, 'author image: preferring Hardcover portrait')
-				if (author.image) author.imageAlt = author.image
+				// A placeholder never earns the secondary slot -- only a real photo
+				// is worth keeping as the alternative.
+				if (author.image && !isStaticAvatar(author.image)) author.imageAlt = author.image
 				author.image = hardcoverImage
 			}
 			if (hardcoverBio && !author.description?.trim()) {
@@ -185,6 +198,18 @@ export default class AuthorShowHelper extends GenericShowHelper {
 				author.description = hardcoverBio
 			}
 		}
+
+		// A placeholder WE persisted on an earlier pass -- a static avatar, or the
+		// generated avatar Hardcover just re-identified -- is furniture, not a
+		// portrait. It rode back in through the minimal-profile seed (or will via
+		// the previous-record restore below), and left in place it reads as a real
+		// photo: the Goodreads backstop and the second chance would never run for
+		// this author again. Clear it here; the fill rungs at the end put it back
+		// when nothing real arrived this pass either.
+		const isPlaceholder = (url: string | null | undefined): boolean =>
+			isStaticAvatar(url) || (generatedAvatar != null && url === generatedAvatar)
+		if (isPlaceholder(author.image)) author.image = ''
+		if (isPlaceholder(author.imageAlt)) author.imageAlt = ''
 
 		// 2. Goodreads (bookinfo.pro) — the broad-coverage backstop for a portrait or
 		// bio that Audible never had and Hardcover (Wikipedia-only) doesn't carry
@@ -219,8 +244,15 @@ export default class AuthorShowHelper extends GenericShowHelper {
 		// had whenever the fresh pass has nothing to put there.
 		const previous = this.originalData as AuthorDocument | null
 		if (previous) {
-			if (!author.image?.trim() && previous.image) author.image = previous.image
-			if (!author.imageAlt?.trim() && previous.imageAlt) author.imageAlt = previous.imageAlt
+			// The keep-what-we-had rule applies to KNOWLEDGE, not to placeholders:
+			// restoring a persisted avatar here would satisfy the second-chance
+			// check below and freeze the gap. The fill rungs re-cover the tile.
+			if (!author.image?.trim() && previous.image && !isPlaceholder(previous.image)) {
+				author.image = previous.image
+			}
+			if (!author.imageAlt?.trim() && previous.imageAlt && !isPlaceholder(previous.imageAlt)) {
+				author.imageAlt = previous.imageAlt
+			}
 			if (!author.description?.trim() && previous.description) {
 				author.description = previous.description
 			}

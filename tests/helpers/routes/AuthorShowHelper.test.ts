@@ -64,8 +64,9 @@ mock.module('@fastify/redis', () => ({}))
 // timer -- a live timer outliving the suite (and firing mid-watch-mode) is not
 // this file's business. The second-chance behavior has its own test file with
 // injected schedulers.
+const mockSchedule = mock(() => true)
 mock.module('#helpers/utils/secondChance', () => ({
-	scheduleSecondChance: mock(() => true),
+	scheduleSecondChance: mockSchedule,
 	pendingSecondChances: () => []
 }))
 
@@ -498,6 +499,103 @@ describe('static Hardcover avatar fallback', () => {
 		mockScrapeProcess.mockResolvedValue({ ...parsedAuthor, image: '', imageAlt: '' })
 		const out = (await helper.getNewData()) as ApiAuthorProfile
 		expect(out.image).toBe('https://assets.hardcover.app/author/61383/avatar.png')
+		getSpy.mockRestore()
+	})
+})
+
+describe('a persisted placeholder avatar never sticks', () => {
+	/**
+	 * The fill rungs run LAST so an avatar-only author still counts as
+	 * incomplete on the pass that fills it -- but once PERSISTED, the avatar
+	 * came back in through the front door (the minimal-profile seed and the
+	 * previous-record restore), where it read as a real portrait: the Goodreads
+	 * backstop was skipped and the second chance never scheduled again. The
+	 * placeholder must count as EMPTY everywhere except the final fill.
+	 */
+	const STATIC_AVATAR = 'https://assets.hardcover.app/static/avatars/profile3.png'
+	const GENERATED = 'https://assets.hardcover.app/author/61383/avatar.png'
+	const GR_PHOTO =
+		'https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/authors/1492336018i/16727429._UY200_.jpg'
+
+	const noHardcover = () =>
+		spyOn(defaultRegistry, 'get').mockReturnValue(
+			{
+				fetchAuthorInfo: mock().mockResolvedValue({ image: null, bio: null, imageGenerated: false })
+			} as unknown as ReturnType<typeof defaultRegistry.get>
+		)
+
+	test('a seeded static avatar does not block the Goodreads backstop', async () => {
+		// The Audible-unavailable path seeds the STORED image -- which is the
+		// avatar a previous pass persisted. It must not read as a portrait.
+		const getSpy = noHardcover()
+		helper = new AuthorShowHelper(asin, { region: 'us', name: 'Graham McNeill' } as never, null)
+		helper.originalData = {
+			...authorWithoutProjection,
+			image: STATIC_AVATAR,
+			description: ''
+		} as never
+		mockScrapeProcess.mockRejectedValue(new NotFoundError('gone', { code: 'REGION_UNAVAILABLE' }))
+		mockFetchGoodreadsAuthorInfo.mockResolvedValue({ image: GR_PHOTO, bio: 'found later' })
+		const out = (await helper.getNewData()) as ApiAuthorProfile
+		expect(out.image).toBe(GR_PHOTO)
+		getSpy.mockRestore()
+	})
+
+	test('a persisted GENERATED avatar (re-identified this pass) yields to Goodreads too', async () => {
+		const fakeHc = {
+			fetchAuthorInfo: mock().mockResolvedValue({ image: GENERATED, bio: null, imageGenerated: true })
+		}
+		const getSpy = spyOn(defaultRegistry, 'get').mockReturnValue(
+			fakeHc as unknown as ReturnType<typeof defaultRegistry.get>
+		)
+		helper = new AuthorShowHelper(asin, { region: 'us', name: 'Robert Harris' } as never, null)
+		helper.originalData = {
+			...authorWithoutProjection,
+			image: GENERATED,
+			description: ''
+		} as never
+		mockScrapeProcess.mockRejectedValue(new NotFoundError('gone', { code: 'REGION_UNAVAILABLE' }))
+		mockFetchGoodreadsAuthorInfo.mockResolvedValue({ image: GR_PHOTO, bio: 'found later' })
+		const out = (await helper.getNewData()) as ApiAuthorProfile
+		expect(out.image).toBe(GR_PHOTO)
+		getSpy.mockRestore()
+	})
+
+	test('a real Hardcover portrait never demotes a seeded avatar into imageAlt', async () => {
+		const fakeHc = {
+			fetchAuthorInfo: mock().mockResolvedValue({
+				image: 'https://assets.hardcover.app/author/12345/real-photo.jpg',
+				bio: null,
+				imageGenerated: false
+			})
+		}
+		const getSpy = spyOn(defaultRegistry, 'get').mockReturnValue(
+			fakeHc as unknown as ReturnType<typeof defaultRegistry.get>
+		)
+		helper = new AuthorShowHelper(asin, { region: 'us', name: 'Graham McNeill' } as never, null)
+		helper.originalData = { ...authorWithoutProjection, image: STATIC_AVATAR } as never
+		mockScrapeProcess.mockRejectedValue(new NotFoundError('gone', { code: 'REGION_UNAVAILABLE' }))
+		const out = (await helper.getNewData()) as ApiAuthorProfile
+		expect(out.image).toBe('https://assets.hardcover.app/author/12345/real-photo.jpg')
+		expect(out.imageAlt ?? '').not.toContain('static/avatars')
+		getSpy.mockRestore()
+	})
+
+	test('an avatar restored from the previous record still counts as incomplete', async () => {
+		// Scrape is fine but empty; every source misses; the previous record
+		// wears the avatar. Restoring it must not satisfy the second chance --
+		// the author still has no real portrait.
+		const getSpy = noHardcover()
+		mockScrapeProcess.mockResolvedValue({ ...parsedAuthor, image: '', imageAlt: '' })
+		mockFetchGoodreadsAuthorInfo.mockResolvedValue({ image: null, bio: null })
+		helper.originalData = { ...authorWithoutProjection, image: STATIC_AVATAR } as never
+		mockSchedule.mockClear()
+		const out = (await helper.getNewData()) as ApiAuthorProfile
+		expect(mockSchedule).toHaveBeenCalledTimes(1)
+		// ...and the tile is still not blank: the fill rung re-fills it.
+		expect(out.image).toMatch(
+			/^https:\/\/assets\.hardcover\.app\/static\/avatars\/profile[1-6]\.png$/
+		)
 		getSpy.mockRestore()
 	})
 })
