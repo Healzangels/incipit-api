@@ -491,28 +491,7 @@ export default class BookSearchHelper {
 			primary ? await this.fanOut(primary) : [],
 			asin
 		)
-		// A DEAD sidecar ASIN falls back to the sidecar's ISBN as the pin identity.
-		// Only when the ASIN is nowhere in the pool (a live one is always present,
-		// from the fan-out or the injection above) AND a row the FAN-OUT returned
-		// carries the ISBN-derived id — the same two-sources-agree warrant the pin
-		// override has always required, just with the sidecar's other identifier.
-		// Measured on "The Lost Stories Collection": asin B08WF9JR2P is dead, while
-		// Audible's title search returns 0593399439 (the sidecar's ISBN-10) at #1.
-		if (!albumCandidates.some((c) => asin != null && c.asin?.toUpperCase() === asin)) {
-			const isbnId = audibleIdFromIsbn(this.options.isbn)
-			const corroborated =
-				isbnId != null &&
-				albumCandidates.some(
-					(c) => c.provider !== BookSearchHelper.PINNED_PROVIDER && c.asin?.toUpperCase() === isbnId
-				)
-			if (corroborated) {
-				this.logger?.info(
-					{ asin, isbn: isbnId },
-					'book search: dead pinned asin, using the sidecar isbn as the pin identity'
-				)
-				asin = isbnId
-			}
-		}
+		asin = this.promoteDeadPinToIsbn(albumCandidates, asin)
 		let ranked = this.scoreAndRank(albumCandidates, primary, altTitle, asin)
 		let poolSize = albumCandidates.length
 		let widened = false
@@ -545,7 +524,13 @@ export default class BookSearchHelper {
 			const trackCandidates = await this.fanOut(altTitle)
 			widened = true
 			poolSize += trackCandidates.length
-			ranked = this.scoreAndRank([...albumCandidates, ...trackCandidates], primary, altTitle, asin)
+			const merged = [...albumCandidates, ...trackCandidates]
+			// Re-run the promotion against the merged pool: a noisy album tag can
+			// miss the ISBN edition that the clean track title returns, and the
+			// widened fan-out is a fan-out row like any other for the
+			// two-sources-agree warrant.
+			asin = this.promoteDeadPinToIsbn(merged, asin)
+			ranked = this.scoreAndRank(merged, primary, altTitle, asin)
 		}
 		this.recordDecision(ranked, primary || (altTitle ?? ''), asin, widened, poolSize)
 		return ranked
@@ -660,6 +645,41 @@ export default class BookSearchHelper {
 	 */
 	private static readonly PINNED_PROVIDER = 'pinned'
 
+	/**
+	 * A DEAD sidecar ASIN falls back to the sidecar's ISBN as the pin identity.
+	 * Only when the ASIN is nowhere in the pool (a live one is always present,
+	 * from the fan-out or the injection) AND a row a FAN-OUT returned carries the
+	 * ISBN-derived id — the same two-sources-agree warrant the pin override has
+	 * always required, just with the sidecar's other identifier. Measured on
+	 * "The Lost Stories Collection": asin B08WF9JR2P is dead, while Audible's
+	 * title search returns 0593399439 (the sidecar's ISBN-10) at #1.
+	 *
+	 * Called once per scored pool — the album pass, then again on the merged
+	 * pool after the track-title widening — so corroboration that only the
+	 * widened fan-out surfaces still engages the pin. Idempotent: once the
+	 * identity has flipped, the row carrying it is in the pool and the guard
+	 * short-circuits.
+	 * @param {ProviderCandidate[]} pool the candidates about to be scored
+	 * @param {string | null} asin the current pin identity, uppercased
+	 * @returns {string | null} the pin identity to score with
+	 */
+	private promoteDeadPinToIsbn(pool: ProviderCandidate[], asin: string | null): string | null {
+		if (pool.some((c) => asin != null && c.asin?.toUpperCase() === asin)) return asin
+		const isbnId = audibleIdFromIsbn(this.options.isbn)
+		const corroborated =
+			isbnId != null &&
+			isbnId !== asin &&
+			pool.some(
+				(c) => c.provider !== BookSearchHelper.PINNED_PROVIDER && c.asin?.toUpperCase() === isbnId
+			)
+		if (!corroborated) return asin
+		this.logger?.info(
+			{ asin, isbn: isbnId },
+			'book search: dead pinned asin, using the sidecar isbn as the pin identity'
+		)
+		return isbnId
+	}
+
 	private async withPinnedEdition(
 		pool: ProviderCandidate[],
 		asin: string | null
@@ -679,11 +699,17 @@ export default class BookSearchHelper {
 		// and contributes nothing.
 		const isbnId = audibleIdFromIsbn(this.options.isbn)
 		const ids = [asin, isbnId === asin ? null : isbnId].filter((v): v is string => Boolean(v))
-		if (ids.length === 0) return pool
-		// Corroborated already — the fan-out returned a row carrying one of them,
-		// which is the case the pin override exists for. Nothing to fetch.
-		if (pool.some((c) => c.asin != null && ids.includes(c.asin.toUpperCase()))) return pool
+		const inPool = (id: string) => pool.some((c) => c.asin?.toUpperCase() === id)
+		// The ids are in PRIORITY order: the ASIN is the sidecar's stated identity,
+		// the ISBN only its fallback. So the membership check is per-id, not
+		// either-id — an ISBN row sitting in the pool must not stop the ASIN from
+		// being fetched, or a live ASIN the fan-out merely missed reads as dead
+		// and the pin identity flips to an edition the sidecar never named.
+		// A satisfied id — in the pool already (the corroborated case the pin
+		// override exists for) or successfully fetched — ends the loop; the
+		// fallback only gets its turn when the primary produced nothing.
 		for (const id of ids) {
+			if (inPool(id)) return pool
 			try {
 				const found = await this.registry.fetchCandidateByAsin(id, {
 					region: this.options.region,

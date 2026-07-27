@@ -222,6 +222,57 @@ describe('ISBN fallback for a dead pinned ASIN', () => {
 		expect(byIsbn?.confidence).not.toBe(1)
 	})
 
+	test('an ISBN row in the pool does not stop the live ASIN from being fetched', async () => {
+		// The sidecar's PRIMARY claim is the ASIN; the ISBN is only its fallback.
+		// With the ISBN row sitting in the pool and the ASIN merely missing from
+		// it, an either-id early return would skip the fetch, infer the ASIN dead,
+		// and flip the pin identity to the ISBN row at 1.0 -- auto-applying an
+		// edition the sidecar never named. The ASIN must get its fetch first.
+		const LIVE_ASIN = 'B0LIVE12345'
+		const liveEdition = candidate({ id: LIVE_ASIN, asin: LIVE_ASIN, audioSeconds: 700 * 60 })
+		const isbnRow = candidate({ id: ISBN10, asin: ISBN10 })
+		const tried: string[] = []
+		const helper = helperFor(
+			[isbnRow, plainRow],
+			{ [LIVE_ASIN]: liveEdition },
+			{ asin: LIVE_ASIN, isbn: ISBN13 },
+			(id) => tried.push(id)
+		)
+		const ranked = await helper.search()
+		expect(tried).toEqual([LIVE_ASIN])
+		expect(ranked.some((c) => c.asin === LIVE_ASIN)).toBe(true)
+		// No identity flip while the ASIN is alive: the ISBN row scores on its
+		// merits instead of inheriting the pin override.
+		expect(ranked.find((c) => c.asin === ISBN10)?.confidence).not.toBe(1)
+	})
+
+	test('the ISBN pin identity engages when the row arrives via the track-title widening', async () => {
+		// A noisy album tag misses the edition entirely; the clean track title
+		// returns it. The dead-ASIN promotion must re-run against the MERGED pool,
+		// or the identity the fallback exists to provide never fires for exactly
+		// the tags that need the widening most.
+		const fromTrackFanOut = candidate({ id: ISBN10, asin: ISBN10 })
+		const registry = {
+			searchAll: async (query: { title: string }) =>
+				query.title.toLowerCase().includes('lost stories collection') &&
+				!query.title.startsWith('16')
+					? [fromTrackFanOut, plainRow]
+					: [plainRow],
+			fetchCandidateByAsin: async () => null
+		} as unknown as ProviderRegistry
+		const helper = new BookSearchHelper(registry, {
+			title: '16 The Lost Stories Collection',
+			trackTitle: 'The Lost Stories Collection',
+			author: 'Michael Scott',
+			region: 'us',
+			asin: DEAD_ASIN,
+			isbn: ISBN13
+		} as never)
+		const ranked = await helper.search()
+		expect(ranked[0]?.asin).toBe(ISBN10)
+		expect(ranked[0]?.confidence).toBe(1)
+	})
+
 	test('the ISBN-injected row is not self-confirming', async () => {
 		// Same rule as the ASIN injection: resolving an identifier proves only that
 		// it resolves, so a duration-corroborated rival must still win.
