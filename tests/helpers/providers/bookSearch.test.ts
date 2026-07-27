@@ -895,4 +895,38 @@ describe('numeric-title mismatch demotion', () => {
 		// and no spurious demotion bookkeeping.
 		expect(Array.isArray(out)).toBe(true)
 	})
+
+	test('a junk numeric track index does not poison the want-side stems', async () => {
+		// A colon-less rip tag ("2001 A Space Odyssey") contributes no stem, and
+		// the tagger's leftover disc index rides in as the track title because it
+		// differs from the album tag. "04" is not a title claim -- without the
+		// track-side filter it becomes the ONLY wanted stem and the correctly
+		// matched candidate eats the mismatch demotion from its own disc number.
+		const reg = new ProviderRegistry([stubProvider('audible', [clarke('2001: A Space Odyssey')])])
+		const out = await new BookSearchHelper(reg, {
+			title: '2001 A Space Odyssey',
+			author: 'Arthur C. Clarke',
+			region: 'us',
+			trackTitle: '04'
+		}).search()
+		expect(out[0]?.title).toBe('2001: A Space Odyssey')
+		expect(out[0].confidence).toBeGreaterThanOrEqual(0.7)
+	})
+
+	test('a four-digit track title still feeds the guard', async () => {
+		// The case the track side exists for: the album tag carries a subtitle
+		// form with no stem, the track title is the bare year. A year is a title
+		// claim; a 2-3 digit index is not.
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [clarke('2001: A Space Odyssey'), clarke('2010: Odyssey Two')])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Odyssey Two',
+			author: 'Arthur C. Clarke',
+			region: 'us',
+			trackTitle: '2010'
+		}).search()
+		expect(out[0]?.title).toBe('2010: Odyssey Two')
+		expect(out.some((c) => c.title === '2001: A Space Odyssey')).toBe(false)
+	})
 })

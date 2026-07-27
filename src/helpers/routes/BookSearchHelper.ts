@@ -783,12 +783,22 @@ export default class BookSearchHelper {
 			...volumeNumbers(this.options.trackTitle)
 		])
 		// Pure-numeric title stems on the QUERY side ("2010"), for the
-		// numeric-title mismatch guard below. Both title forms, like every other
-		// want-side signal.
+		// numeric-title mismatch guard below. Both title forms -- but the track
+		// side only for a FOUR-digit, no-leading-zero stem (a year, the class
+		// this guard exists for). A bare 2-3 digit track title is a disc/track
+		// index the tagger left behind ("04"), not a title claim, and it arrives
+		// here precisely because it differs from the album tag -- so it would
+		// become a wanted stem no correct candidate can carry, and the mismatch
+		// penalty lands on the RIGHT book. The album tag keeps the full 2-4
+		// digit range: an album tagged "04" names the album, not a track.
+		const trackNumericStem = numericStem(this.options.trackTitle)
 		const wantNumericStems = new Set<string>(
-			[numericStem(this.rawTitle), numericStem(this.options.trackTitle)].filter(
-				(s): s is string => s != null
-			)
+			[
+				numericStem(this.rawTitle),
+				trackNumericStem?.length === 4 && !trackNumericStem.startsWith('0')
+					? trackNumericStem
+					: null
+			].filter((s): s is string => s != null)
 		)
 		// ...and the BARE form on the query side too, or the whole fallback is
 		// gated off for the convention it was written for. Measured: with album
