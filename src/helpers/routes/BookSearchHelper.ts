@@ -29,11 +29,22 @@ const STRONG_MATCH = 0.9
 // alone, so a bare title reaches 1.0. That is the "Hell Bent" false-positive
 // vector — a title-only match is unverifiable: distinct books share a title, and
 // a shared main-title stem matches an unrelated subtitle ("Hell Bent" vs "Hell
-// Bent: Groucho Marx, Sein Leben"). Re-impose the same 0.85 ceiling on authorless
-// matches unless a duration corroborates the edition, so an uncorroborated hit
-// surfaces as a confirm-me suggestion instead of auto-applying. Kept in the
-// consumer so the Gate-0-pinned scoreCandidate stays bit-for-bit with the oracle.
-const TITLE_ONLY_CEILING = 0.85
+// Bent: Groucho Marx, Sein Leben"). Re-impose a ceiling on authorless matches
+// unless a duration corroborates the edition, so an uncorroborated hit surfaces
+// as a confirm-me suggestion instead of auto-applying. Kept in the consumer so
+// the Gate-0-pinned scoreCandidate stays bit-for-bit with the oracle.
+//
+// 0.79, not 0.85 (changed 2026-07-26, operator decision): Plex's own auto-apply
+// bar is a SCORE of 80, and 0.85 → 85 still cleared it — measured live when five
+// tagless, mis-named files ("Manna from Heaven (1..5).m4b", ~96 hours of audio)
+// each auto-applied to the real 5-hour collection with no author and no duration
+// to contradict anything. One point under the bar makes "no author, no
+// corroboration" mean what the guard intends: offered, never auto-applied.
+// Session telemetry confirmed the only automatic authorless matches were that
+// junk class; typed Fix Match searches (authorless by design) are unaffected in
+// ordering — their displayed score just tops out at 79. Duration-corroborated
+// and ASIN-pinned authorless matches remain exempt and can still auto-apply.
+const TITLE_ONLY_CEILING = 0.79
 
 // A candidate whose edition language positively CONFLICTS with the wanted one is
 // the same book in the wrong language. Its title and author match perfectly —

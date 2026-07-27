@@ -284,9 +284,16 @@ describe('BookSearchHelper authorless title-only guard', () => {
 		for (const c of out) expect(c.confidence).toBeLessThan(0.9)
 	})
 
-	test('an authorless exact-title match with no duration is a suggestion, not an auto-match', async () => {
-		// A correctly-tagged but artist-less album: still capped at the 0.85 ceiling
-		// until a corroborating signal arrives, mirroring the authored path.
+	test('an authorless exact-title match with no duration stays under PLEX\'S auto-apply bar', async () => {
+		// A correctly-tagged but artist-less album: capped until a corroborating
+		// signal arrives. The cap sits at 0.79 -- one point UNDER Plex's own
+		// auto-apply threshold of 80 -- because the old 0.85 still cleared it:
+		// measured live 2026-07-26, five tagless mis-named files ("Manna from
+		// Heaven (1..5).m4b", ~96 hours of audio) each auto-applied to the real
+		// 5-hour short-story collection at 85, with no author and no duration to
+		// contradict anything. A wholly-unverified match may only ever be a
+		// suggestion; session telemetry showed the ONLY automatic authorless
+		// matches were exactly this junk class.
 		const reg = new ProviderRegistry([
 			stubProvider('p', [candidate({ id: 'ok', title: 'Project Hail Mary', authors: [] })])
 		])
@@ -295,7 +302,9 @@ describe('BookSearchHelper authorless title-only guard', () => {
 			region: 'us'
 		}).search()
 		expect(out).toHaveLength(1)
-		expect(out[0].confidence).toBeCloseTo(0.85, 2)
+		expect(out[0].confidence).toBeCloseTo(0.79, 2)
+		// The invariant that matters, stated directly: rounds below 80.
+		expect(Math.round(out[0].confidence * 100)).toBeLessThan(80)
 	})
 
 	test('a duration corroboration lifts an authorless match back to auto-match', async () => {
