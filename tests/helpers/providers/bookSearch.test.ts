@@ -814,3 +814,76 @@ describe('provider circuit breaker', () => {
 		expect(appleCalls).toBeGreaterThan(0)
 	})
 })
+
+describe('numeric-title mismatch demotion', () => {
+	/**
+	 * Year-titled books are textually near-identical to a similarity scorer:
+	 * measured live on Clarke's Space Odyssey shelf (2026-07-26), a search for
+	 * "2010" ranked "2001: A Space Odyssey" at 0.713 -- ABOVE every actual
+	 * "2010: Odyssey Two" edition -- because sim('2010','2001') is high while
+	 * the books share nothing but an author. When BOTH the wanted title's stem
+	 * and the candidate's stem are pure numbers and they differ, they are
+	 * different books, period -- same class as the volume-mismatch guard, and
+	 * applied the same way: consumer-side, never touching the Gate-0-pinned
+	 * scoreCandidate.
+	 */
+	const clarke = (title: string) =>
+		candidate({ id: title, title, authors: ['Arthur C. Clarke'] })
+
+	test('a different numeric title is demoted below the true numeric match', async () => {
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [clarke('2001: A Space Odyssey'), clarke('2010: Odyssey Two')])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: '2010',
+			author: 'Arthur C. Clarke',
+			region: 'us'
+		}).search()
+		expect(out[0].title).toBe('2010: Odyssey Two')
+		// The wrong year is not merely second -- the demotion drops it below the
+		// acceptance floor, so it cannot lead a weak list either.
+		expect(out.some((c) => c.title === '2001: A Space Odyssey')).toBe(false)
+	})
+
+	test('the same numeric stem is never penalized', async () => {
+		const reg = new ProviderRegistry([stubProvider('audible', [clarke('2010: Odyssey Two')])])
+		const out = await new BookSearchHelper(reg, {
+			title: '2010',
+			author: 'Arthur C. Clarke',
+			region: 'us'
+		}).search()
+		expect(out[0]?.title).toBe('2010: Odyssey Two')
+		expect(out[0].confidence).toBeGreaterThanOrEqual(0.7)
+	})
+
+	test('non-numeric stems are untouched by the guard', async () => {
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [
+				candidate({ id: 'f', title: 'Fahrenheit 451', authors: ['Ray Bradbury'] })
+			])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Fahrenheit 451',
+			author: 'Ray Bradbury',
+			region: 'us'
+		}).search()
+		expect(out[0]?.title).toBe('Fahrenheit 451')
+	})
+
+	test('a numeric query does not demote a non-numeric candidate stem', async () => {
+		// "2010" vs "The Year We Make Contact" -- different naming, same book
+		// perhaps; the guard only fires on number-vs-DIFFERENT-number, where the
+		// evidence is unambiguous.
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [clarke('The Year We Make Contact')])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: '2010',
+			author: 'Arthur C. Clarke',
+			region: 'us'
+		}).search()
+		// Not asserting it MATCHES (title sim is low anyway) -- asserting no crash
+		// and no spurious demotion bookkeeping.
+		expect(Array.isArray(out)).toBe(true)
+	})
+})

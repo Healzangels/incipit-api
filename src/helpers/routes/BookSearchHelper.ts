@@ -198,6 +198,26 @@ function volumeConflict(want: Set<number>, cand: Set<number>): boolean {
 // ranking decisively rather than falling through to a coin-flip tiebreak.
 const VOLUME_MISMATCH_PENALTY = 0.2
 
+// Year-titled books are textually near-identical to a similarity scorer:
+// measured live on Clarke's Space Odyssey shelf, a search for "2010" ranked
+// "2001: A Space Odyssey" at 0.713 -- above every actual "2010: Odyssey Two"
+// edition -- because sim('2010','2001') is high while the books share nothing
+// but an author. When BOTH the wanted title's stem and the candidate's stem
+// are PURE NUMBERS and they differ, they are different books, period. Same
+// class and same shape as the volume-mismatch guard: consumer-side, pin-
+// exempt, sized so a title+author match (0.85) lands under the floor.
+// 2-4 digits: years and bare numbers; anything longer is an identifier, not
+// a title.
+const NUMERIC_STEM_RE = /^\s*(\d{2,4})\s*$/
+
+/** The pure-numeric stem of a raw title ("2001: A Space Odyssey" -> "2001"), or null. */
+function numericStem(raw: string | null | undefined): string | null {
+	if (!raw) return null
+	const match = NUMERIC_STEM_RE.exec(raw.split(/\s*[:(]\s*/)[0] ?? '')
+	return match ? match[1] : null
+}
+const NUMERIC_TITLE_MISMATCH_PENALTY = 0.2
+
 // A translated edition whose language field is NULL or mislabeled dodges the
 // language demotion entirely -- but says so in its own title: "Everfound
 // (Spanish Edition)" and "Medio rey [Half a King]" both won on the same scan,
@@ -751,6 +771,14 @@ export default class BookSearchHelper {
 			...volumeNumbers(this.rawTitle),
 			...volumeNumbers(this.options.trackTitle)
 		])
+		// Pure-numeric title stems on the QUERY side ("2010"), for the
+		// numeric-title mismatch guard below. Both title forms, like every other
+		// want-side signal.
+		const wantNumericStems = new Set<string>(
+			[numericStem(this.rawTitle), numericStem(this.options.trackTitle)].filter(
+				(s): s is string => s != null
+			)
+		)
 		// ...and the BARE form on the query side too, or the whole fallback is
 		// gated off for the convention it was written for. Measured: with album
 		// tag AND track title both "Defiance of the Fall 10" (the bare
@@ -944,6 +972,24 @@ export default class BookSearchHelper {
 			if (!effectivePin && volumeConflict(wantVolumes, candVolumes)) {
 				confidence = Math.max(0, confidence - VOLUME_MISMATCH_PENALTY)
 				this.volumeDemoted += 1
+			}
+			// Numeric-title mismatch (see NUMERIC_STEM_RE): "2010" vs a candidate
+			// stem of "2001" is a different book however similar the digits look.
+			// Fires only when BOTH sides are pure numbers -- a numeric query never
+			// demotes a worded candidate ("The Year We Make Contact") and worded
+			// queries are untouched entirely. Pin-exempt like the volume guard.
+			// No dedicated telemetry counter: sized to drop the wrong year below
+			// the acceptance floor, so its effect shows up as the candidate simply
+			// not being offered.
+			if (!effectivePin && wantNumericStems.size > 0) {
+				const candNumeric = numericStem(c.title)
+				if (candNumeric != null && !wantNumericStems.has(candNumeric)) {
+					confidence = Math.max(0, confidence - NUMERIC_TITLE_MISMATCH_PENALTY)
+					this.logger?.debug(
+						{ candidate: c.title, wanted: [...wantNumericStems] },
+						'book search: numeric-title mismatch, demoted'
+					)
+				}
 			}
 			// Graded duration dead zone (see DURATION_DEADZONE_MAX_PENALTY): a gap
 			// between the corroboration and veto thresholds must cost SOMETHING, or a
