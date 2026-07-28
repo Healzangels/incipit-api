@@ -1339,3 +1339,71 @@ describe('a file PART is not a series volume', () => {
 		expect(out.length === 0 || out[0].confidence < 0.8).toBe(true)
 	})
 })
+
+describe('duration evidence belongs to the EDITION, not the row', () => {
+	/**
+	 * Tier 1.1, reproduced against the real helper 2026-07-28.
+	 *
+	 * The duration veto is applied per ROW, but edition identity is per ASIN.
+	 * A vetoed 7200s abridgement under B0WRONG001 was correctly filtered out
+	 * on its own -- and adding a Hardcover row for the SAME ASIN with a null
+	 * runtime (which this file's own comments note is routine for Hardcover
+	 * audio rows) brought it back at 0.850, i.e. Plex score 85: above the
+	 * measured 0.80 auto-apply bar, applied automatically, and sticky.
+	 *
+	 * The runtime is a property of the EDITION the ASIN names, so a row that
+	 * reports none inherits what its twins report. This is the same shape the
+	 * pin path already uses ("decide the contradiction ONCE ... over every row
+	 * carrying it, rather than per row"), generalized beyond the pinned ASIN.
+	 */
+	const WRONG = 'B0WRONG001'
+	const dune = (over: Partial<ProviderCandidate>) =>
+		candidate({ title: 'Dune', authors: ['Frank Herbert'], ...over })
+
+	async function search(rows: ProviderCandidate[][]) {
+		const reg = new ProviderRegistry(
+			rows.map((r, i) => stubProvider(i === 0 ? 'audible' : 'hardcover', r))
+		)
+		return new BookSearchHelper(reg, {
+			title: 'Dune', author: 'Frank Herbert', duration: 36000000, region: 'us'
+		}).search()
+	}
+
+	test('the vetoed edition alone is rejected', async () => {
+		const out = await search([
+			[dune({ id: 'abridged', asin: WRONG, audioSeconds: 7200 })]
+		])
+		expect(out).toHaveLength(0)
+	})
+
+	test('a null-runtime twin of the same asin cannot resurrect it', async () => {
+		const out = await search([
+			[dune({ id: 'abridged', asin: WRONG, audioSeconds: 7200 })],
+			[dune({ id: 'twin', provider: 'hardcover', asin: WRONG, audioSeconds: null })]
+		])
+		const twin = out.find((r) => r.id === 'twin')
+		expect(twin === undefined || twin.confidence < 0.8).toBe(true)
+	})
+
+	test('a null-runtime row of a DIFFERENT asin is untouched', async () => {
+		// Inheritance must be scoped to the edition, not applied library-wide.
+		const out = await search([
+			[dune({ id: 'abridged', asin: WRONG, audioSeconds: 7200 })],
+			[dune({ id: 'other', provider: 'hardcover', asin: 'B0RIGHT001', audioSeconds: null })]
+		])
+		const other = out.find((r) => r.id === 'other')
+		expect(other).toBeDefined()
+		expect(other!.confidence).toBeGreaterThan(0.8)
+	})
+
+	test('a corroborated twin does not drag down its own edition', async () => {
+		// When the edition's runtime AGREES with the file, the null-runtime row
+		// inherits agreement, not a penalty.
+		const out = await search([
+			[dune({ id: 'right', asin: 'B0RIGHT001', audioSeconds: 36000 })],
+			[dune({ id: 'righttwin', provider: 'hardcover', asin: 'B0RIGHT001', audioSeconds: null })]
+		])
+		expect(out.length).toBeGreaterThan(0)
+		expect(out[0].confidence).toBeGreaterThan(0.8)
+	})
+})

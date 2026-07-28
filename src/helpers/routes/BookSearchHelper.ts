@@ -1086,6 +1086,25 @@ export default class BookSearchHelper {
 			corroboratedNonPinExists &&
 			pinnedDeltas.length > 0 &&
 			pinnedDeltas.every((d) => d > DURATION_TOLERANCE)
+		// The runtime belongs to the EDITION, not the row. The veto is applied per
+		// row, but an ASIN names one edition and providers routinely return it
+		// twice -- and a Hardcover audio row often carries a null runtime. So a
+		// vetoed 7200s abridgement, correctly filtered on its own, came straight
+		// back at 0.850 through its runtime-less twin: Plex score 85, above the
+		// auto-apply bar, applied automatically and sticky (verified 2026-07-28).
+		//
+		// Each ASIN keeps the BEST delta any of its rows reported, and a row with
+		// no runtime of its own inherits it. Best, not worst, so a single bad
+		// listing among good ones cannot manufacture a veto. Same shape as
+		// pinIsStale above, generalized beyond the pinned ASIN.
+		const editionDelta = new Map<string, number>()
+		for (const c of candidates) {
+			if (!c.asin) continue
+			const d = durationDelta(c)
+			if (d == null) continue
+			const prior = editionDelta.get(c.asin)
+			if (prior == null || d < prior) editionDelta.set(c.asin, d)
+		}
 		const scored: ScoredCandidate[] = candidates.map((c) => {
 			// Score against the album title and (when present) the track title,
 			// keeping the higher. Both go through the same scoreCandidate (duration
@@ -1218,7 +1237,18 @@ export default class BookSearchHelper {
 			// between the corroboration and veto thresholds must cost SOMETHING, or a
 			// wrong-runtime edition ties with a better one and the winner falls to
 			// provider order. ASIN pins are exempt — the caller named that edition.
-			const durDelta = best.durationDeltaPct
+			// A row with no runtime of its own answers to its EDITION's evidence
+			// (see editionDelta): otherwise the runtime-less twin of a vetoed
+			// edition launders the veto away and wins at 0.850.
+			const inherited =
+				best.durationDeltaPct == null && c.asin ? editionDelta.get(c.asin) : undefined
+			if (!effectivePin && inherited != null && inherited > DURATION_VETO_THRESHOLD) {
+				// Past the veto threshold the scorer would have applied its own
+				// veto had this row reported the runtime; match that magnitude.
+				confidence = Math.max(0, confidence - DURATION_DEADZONE_MAX_PENALTY)
+				this.durationDeadzoned += 1
+			}
+			const durDelta = best.durationDeltaPct ?? inherited ?? null
 			// <= on the upper bound: scoreCandidate's own veto fires strictly ABOVE
 			// the threshold, so a candidate at exactly 25% off fell in neither range
 			// and paid nothing — the one discontinuity in an otherwise continuous
