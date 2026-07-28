@@ -1379,224 +1379,220 @@ export default class BookSearchHelper {
 		// runs after dedupe and cannot resurrect a deleted candidate.
 		// AI-narrated ids are junk (no pin, no donation); a pin-overridden id is a
 		// REAL edition whose pin we distrust, so it keeps donating its ASIN/narrators.
-		// The query titles feed the merged-group TITLE policy (call the book what
-		// the library calls it), and the tie epsilon bounds the prefix-extension
-		// merge with the same rounding window the arms below use.
-		return dedupeCandidates(
-			accepted,
-			wantAsin,
-			this.aiNarratedIds,
-			this.pinOverriddenIds,
-			[primaryTitle, altTitle ?? ''].filter(Boolean),
-			tieEpsilonSeconds
-		).sort((a, b) => {
-			// The explicitly-hinted ASIN outranks EVERYTHING, including a confidence
-			// tie at 1.0: a perfect title+author+duration candidate also reaches 1.0,
-			// and if the two don't dedupe-merge (different ASIN and runtime bucket)
-			// the pin used to fall through to byAudio/providerRank like any other
-			// tie — i.e. the one edition the caller named by identity could lose a
-			// coin-flip. Nothing outscores a pin (1.0 is the ceiling), so this
-			// tiebreak leading is equivalent to pinned-first, stated explicitly.
-			const pinned = (c: ScoredCandidate) =>
-				this.isPinned(c, wantAsin) &&
-				// An ISBN-derived identity ranks on its merits (see
-				// pinHasListingPrivilege) -- no pinned-first.
-				BookSearchHelper.pinHasListingPrivilege(wantAsin) &&
-				// A revoked pin stays revoked however the row acquired the asin.
-				this.pinOverriddenAsin !== wantAsin &&
-				!this.bundleDemotedIds.has(c.id) &&
-				!this.aiNarratedIds.has(c.id) &&
-				!this.pinOverriddenIds.has(c.id)
-			const byPin = Number(pinned(b)) - Number(pinned(a))
-			if (byPin !== 0) return byPin
-			const byConfidence = b.confidence - a.confidence
-			// A clear confidence win still decides. Inside the audio tolerance the
-			// pair is treated as effectively tied, so the identity and format
-			// tiebreaks below get to run — see
-			// AUDIO_EDITION_CONFIDENCE_TOLERANCE for why a small gap between an
-			// audio edition and a print-only record usually reflects a series
-			// suffix in the title rather than a different book.
-			if (Math.abs(byConfidence) > AUDIO_EDITION_CONFIDENCE_TOLERANCE) return byConfidence
-			// Equal confidence: prefer the edition in the wanted language FIRST. A
-			// duration-corroborated foreign edition (+0.15 corroboration, -0.15
-			// demotion = net even) ties an uncorroborated correct-language book
-			// record; when byAudio ran first it handed that tie to the foreign
-			// audio edition and the language preference never executed. Language is
-			// an identity property — the wrong-language book is the wrong BOOK —
-			// while audio-vs-book-level is a richness property, so identity ranks
-			// first.
-			const byLanguage =
-				Number(languageConflict(a.language, wantLanguage)) -
-				Number(languageConflict(b.language, wantLanguage))
-			if (byLanguage !== 0) return byLanguage
-			// The volume the QUERY TITLE itself claims is identity evidence too:
-			// searching "Defiance of the Fall, Book 10" must prefer the sibling
-			// titled Book 10 over the BARE book 1. Scoring cannot separate them —
-			// a bare title claims nothing so volumeConflict rightly declines to
-			// penalize it, and normalizeTitle strips "Book 10" so both rows score
-			// an exact title match. This tie used to fall through to arrival
-			// order, which happened to seat the right sibling first; the ranker
-			// must state the preference, not inherit it from luck. Title-derived
-			// volumes ONLY (see titleWantVolumes): a sidecar seriesPosition never
-			// promotes. Per-candidate key, so the sort stays transitive.
-			if (titleWantVolumes.size) {
-				const claimsWantedVolume = (c: ScoredCandidate): boolean => {
-					for (const v of volumeNumbers(c.title)) if (titleWantVolumes.has(v)) return true
-					return false
+		return dedupeCandidates(accepted, wantAsin, this.aiNarratedIds, this.pinOverriddenIds).sort(
+			(a, b) => {
+				// The explicitly-hinted ASIN outranks EVERYTHING, including a confidence
+				// tie at 1.0: a perfect title+author+duration candidate also reaches 1.0,
+				// and if the two don't dedupe-merge (different ASIN and runtime bucket)
+				// the pin used to fall through to byAudio/providerRank like any other
+				// tie — i.e. the one edition the caller named by identity could lose a
+				// coin-flip. Nothing outscores a pin (1.0 is the ceiling), so this
+				// tiebreak leading is equivalent to pinned-first, stated explicitly.
+				const pinned = (c: ScoredCandidate) =>
+					this.isPinned(c, wantAsin) &&
+					// An ISBN-derived identity ranks on its merits (see
+					// pinHasListingPrivilege) -- no pinned-first.
+					BookSearchHelper.pinHasListingPrivilege(wantAsin) &&
+					// A revoked pin stays revoked however the row acquired the asin.
+					this.pinOverriddenAsin !== wantAsin &&
+					!this.bundleDemotedIds.has(c.id) &&
+					!this.aiNarratedIds.has(c.id) &&
+					!this.pinOverriddenIds.has(c.id)
+				const byPin = Number(pinned(b)) - Number(pinned(a))
+				if (byPin !== 0) return byPin
+				const byConfidence = b.confidence - a.confidence
+				// A clear confidence win still decides. Inside the audio tolerance the
+				// pair is treated as effectively tied, so the identity and format
+				// tiebreaks below get to run — see
+				// AUDIO_EDITION_CONFIDENCE_TOLERANCE for why a small gap between an
+				// audio edition and a print-only record usually reflects a series
+				// suffix in the title rather than a different book.
+				if (Math.abs(byConfidence) > AUDIO_EDITION_CONFIDENCE_TOLERANCE) return byConfidence
+				// Equal confidence: prefer the edition in the wanted language FIRST. A
+				// duration-corroborated foreign edition (+0.15 corroboration, -0.15
+				// demotion = net even) ties an uncorroborated correct-language book
+				// record; when byAudio ran first it handed that tie to the foreign
+				// audio edition and the language preference never executed. Language is
+				// an identity property — the wrong-language book is the wrong BOOK —
+				// while audio-vs-book-level is a richness property, so identity ranks
+				// first.
+				const byLanguage =
+					Number(languageConflict(a.language, wantLanguage)) -
+					Number(languageConflict(b.language, wantLanguage))
+				if (byLanguage !== 0) return byLanguage
+				// The volume the QUERY TITLE itself claims is identity evidence too:
+				// searching "Defiance of the Fall, Book 10" must prefer the sibling
+				// titled Book 10 over the BARE book 1. Scoring cannot separate them —
+				// a bare title claims nothing so volumeConflict rightly declines to
+				// penalize it, and normalizeTitle strips "Book 10" so both rows score
+				// an exact title match. This tie used to fall through to arrival
+				// order, which happened to seat the right sibling first; the ranker
+				// must state the preference, not inherit it from luck. Title-derived
+				// volumes ONLY (see titleWantVolumes): a sidecar seriesPosition never
+				// promotes. Per-candidate key, so the sort stays transitive.
+				if (titleWantVolumes.size) {
+					const claimsWantedVolume = (c: ScoredCandidate): boolean => {
+						for (const v of volumeNumbers(c.title)) if (titleWantVolumes.has(v)) return true
+						return false
+					}
+					const byWantedVolume = Number(claimsWantedVolume(b)) - Number(claimsWantedVolume(a))
+					if (byWantedVolume !== 0) return byWantedVolume
 				}
-				const byWantedVolume = Number(claimsWantedVolume(b)) - Number(claimsWantedVolume(a))
-				if (byWantedVolume !== 0) return byWantedVolume
-			}
-			// Still tied (e.g. an unanalyzed file gives no duration signal, so an
-			// audio edition and a book-level record both sit at the floor): prefer
-			// the ACTUAL audiobook edition. Otherwise the winner falls to provider
-			// order, and a series can split across sources (half Audible, half
-			// OpenLibrary) with inconsistent series/sort metadata.
-			const byAudio = Number(isAudioEdition(b)) - Number(isAudioEdition(a))
-			if (byAudio !== 0) return byAudio
-			// The NARRATOR, when the caller told us who reads their copy.
-			//
-			// For a popular book the providers return several editions with
-			// identical title and author, so title/author scoring cannot
-			// separate them at all: Harry Potter and the Chamber of Secrets
-			// comes back as Jim Dale, Stephen Fry and a Full-Cast edition, all
-			// tied at 0.85. The narrator is the only field that says which one
-			// is on disk, and it is categorical where duration is fuzzy -- so
-			// it ranks above the runtime delta below.
-			//
-			// A RANKING signal, never a filter. It reorders candidates that
-			// already passed acceptance and can never discard one, so a
-			// missing, misspelt or differently-credited narrator ("Jim Dale"
-			// vs "Jim Dale and a full cast") costs nothing beyond the tiebreak
-			// it declines to decide. Same rule the ASIN pin follows.
-			// Can runtime tell these two apart? Both gaps inside the
-			// provider-rounding epsilon means no: providers round the SAME
-			// recording differently (OverDrive to the second, Audible to the
-			// minute), so a few seconds of difference is noise, not evidence.
-			// Only then may a COSMETIC arm (narrator branding, fuller title)
-			// decide. Shipped the other way round on 2026-07-27 and verified
-			// wrong on 2026-07-28: a branded edition 22.8 minutes off beat the
-			// byte-exact recording, and a 0s-off row lost to an 88s-off one.
-			const runtimeCannotSeparate = withinRoundingNoise(a, b)
-			if (wantNarratorKeys.length) {
-				const byNarrator = Number(narratorMatches(b)) - Number(narratorMatches(a))
-				if (byNarrator !== 0) return byNarrator
-				// Among editions that ALL match the requested narrator, the one
-				// whose TITLE names that narrator is the purpose-built release:
-				// a library holding both narrations of a book (measured live on
-				// Harry Potter, 2026-07-27) needs its Stephen Fry copies on the
-				// "(Narrated by Stephen Fry)" editions or both copies collide in
-				// the plain series -- and without this arm the exact-title
-				// tiebreak below actively PENALIZED the branding for not being
-				// the tag's exact title. Same shape as the narrator arm: a
-				// ranking signal only, and inert without a narrator hint, so
-				// single-narration libraries never notice it.
+				// Still tied (e.g. an unanalyzed file gives no duration signal, so an
+				// audio edition and a book-level record both sit at the floor): prefer
+				// the ACTUAL audiobook edition. Otherwise the winner falls to provider
+				// order, and a series can split across sources (half Audible, half
+				// OpenLibrary) with inconsistent series/sort metadata.
+				const byAudio = Number(isAudioEdition(b)) - Number(isAudioEdition(a))
+				if (byAudio !== 0) return byAudio
+				// The NARRATOR, when the caller told us who reads their copy.
 				//
-				// The window is WIDER than the rounding epsilon for this arm
-				// alone (measured live on the Fry Order of the Phoenix,
-				// 2026-07-28): two listings that BOTH match the hinted narrator
-				// and BOTH corroborate the file are the same narration in
-				// different releases, and their inter-listing gap (46s vs 286s
-				// there -- credits and mastering, 240s apart) is not identity
-				// evidence, so closest-runtime was seating the unbranded 2015
-				// listing above the branded 2024 one the operator wants. The
-				// 600s bound is what keeps the SAME-DAY lesson intact: a
-				// branded edition 22.8 MINUTES off (1,368s) must still lose to
-				// the byte-exact recording -- that class stays outside the
-				// window and falls to the delta arm exactly as before.
-				const aAbs =
-					a.durationDeltaPct != null && a.audioSeconds ? a.durationDeltaPct * a.audioSeconds : null
-				const bAbs =
-					b.durationDeltaPct != null && b.audioSeconds ? b.durationDeltaPct * b.audioSeconds : null
-				const sameNarrationWindow =
-					narratorMatches(a) &&
-					narratorMatches(b) &&
-					aAbs != null &&
-					bAbs != null &&
-					aAbs <= NARRATOR_BRAND_MAX_DELTA_SECONDS &&
-					bAbs <= NARRATOR_BRAND_MAX_DELTA_SECONDS
-				if (runtimeCannotSeparate || sameNarrationWindow) {
-					const byNarratorTitleTag =
-						Number(titleNamesWantedNarrator(b)) - Number(titleNamesWantedNarrator(a))
-					if (byNarratorTitleTag !== 0) return byNarratorTitleTag
-				}
-			}
-			// Both corroborated on duration -- but one is CLOSER.
-			//
-			// DURATION_TOLERANCE is 5%, which is the right width for deciding
-			// whether a candidate is the same book at all, and far too wide to
-			// separate two narrations OF that book. Measured on Harry Potter and
-			// the Chamber of Secrets against a 34,968s file: the Stephen Fry
-			// edition (34,980s) is 0.03% off and the Full-Cast edition (34,620s)
-			// is 1.0% off, so both cleared tolerance, both took the same
-			// corroboration bonus, and the tie fell through to provider order --
-			// picking an edition with the wrong narrator entirely while the
-			// evidence to choose correctly was already in hand.
-			//
-			// Ordering by the delta uses that evidence without changing what
-			// counts as a match: it only ranks candidates that ALREADY passed,
-			// and a null delta (no runtime to compare) never participates.
-			const aDelta = a.durationDeltaPct
-			const bDelta = b.durationDeltaPct
-			if (aDelta != null && bDelta != null) {
-				// Inside the rounding epsilon the delta is noise, so the
-				// fuller form of the SAME name may jump it -- the Nevermoor
-				// shelf (2026-07-27), where 3-24 seconds of OverDrive-vs-
-				// Audible rounding was choosing between a full-title and a
-				// short-title row for the identical recording.
+				// For a popular book the providers return several editions with
+				// identical title and author, so title/author scoring cannot
+				// separate them at all: Harry Potter and the Chamber of Secrets
+				// comes back as Jim Dale, Stephen Fry and a Full-Cast edition, all
+				// tied at 0.85. The narrator is the only field that says which one
+				// is on disk, and it is categorical where duration is fuzzy -- so
+				// it ranks above the runtime delta below.
 				//
-				// Then FALL THROUGH to the delta ordering either way. The
-				// first cut returned early inside the epsilon, which deleted
-				// closest-runtime ordering for every pair within 90s of each
-				// other -- verified 2026-07-28: a 0s-off row lost to an
-				// 88s-off row on provider order alone, and on works under
-				// ~30 minutes 90s exceeds DURATION_TOLERANCE itself, killing
-				// the arm outright. The epsilon licenses a preference; it
-				// never discards the evidence underneath it.
-				if (runtimeCannotSeparate && tieTitlePreference === 'fuller') {
-					const byExtends = Number(prefersFullerTitle(b)) - Number(prefersFullerTitle(a))
-					if (byExtends !== 0) return byExtends
+				// A RANKING signal, never a filter. It reorders candidates that
+				// already passed acceptance and can never discard one, so a
+				// missing, misspelt or differently-credited narrator ("Jim Dale"
+				// vs "Jim Dale and a full cast") costs nothing beyond the tiebreak
+				// it declines to decide. Same rule the ASIN pin follows.
+				// Can runtime tell these two apart? Both gaps inside the
+				// provider-rounding epsilon means no: providers round the SAME
+				// recording differently (OverDrive to the second, Audible to the
+				// minute), so a few seconds of difference is noise, not evidence.
+				// Only then may a COSMETIC arm (narrator branding, fuller title)
+				// decide. Shipped the other way round on 2026-07-27 and verified
+				// wrong on 2026-07-28: a branded edition 22.8 minutes off beat the
+				// byte-exact recording, and a 0s-off row lost to an 88s-off one.
+				const runtimeCannotSeparate = withinRoundingNoise(a, b)
+				if (wantNarratorKeys.length) {
+					const byNarrator = Number(narratorMatches(b)) - Number(narratorMatches(a))
+					if (byNarrator !== 0) return byNarrator
+					// Among editions that ALL match the requested narrator, the one
+					// whose TITLE names that narrator is the purpose-built release:
+					// a library holding both narrations of a book (measured live on
+					// Harry Potter, 2026-07-27) needs its Stephen Fry copies on the
+					// "(Narrated by Stephen Fry)" editions or both copies collide in
+					// the plain series -- and without this arm the exact-title
+					// tiebreak below actively PENALIZED the branding for not being
+					// the tag's exact title. Same shape as the narrator arm: a
+					// ranking signal only, and inert without a narrator hint, so
+					// single-narration libraries never notice it.
+					//
+					// The window is WIDER than the rounding epsilon for this arm
+					// alone (measured live on the Fry Order of the Phoenix,
+					// 2026-07-28): two listings that BOTH match the hinted narrator
+					// and BOTH corroborate the file are the same narration in
+					// different releases, and their inter-listing gap (46s vs 286s
+					// there -- credits and mastering, 240s apart) is not identity
+					// evidence, so closest-runtime was seating the unbranded 2015
+					// listing above the branded 2024 one the operator wants. The
+					// 600s bound is what keeps the SAME-DAY lesson intact: a
+					// branded edition 22.8 MINUTES off (1,368s) must still lose to
+					// the byte-exact recording -- that class stays outside the
+					// window and falls to the delta arm exactly as before.
+					const aAbs =
+						a.durationDeltaPct != null && a.audioSeconds
+							? a.durationDeltaPct * a.audioSeconds
+							: null
+					const bAbs =
+						b.durationDeltaPct != null && b.audioSeconds
+							? b.durationDeltaPct * b.audioSeconds
+							: null
+					const sameNarrationWindow =
+						narratorMatches(a) &&
+						narratorMatches(b) &&
+						aAbs != null &&
+						bAbs != null &&
+						aAbs <= NARRATOR_BRAND_MAX_DELTA_SECONDS &&
+						bAbs <= NARRATOR_BRAND_MAX_DELTA_SECONDS
+					if (runtimeCannotSeparate || sameNarrationWindow) {
+						const byNarratorTitleTag =
+							Number(titleNamesWantedNarrator(b)) - Number(titleNamesWantedNarrator(a))
+						if (byNarratorTitleTag !== 0) return byNarratorTitleTag
+					}
 				}
-				if (Math.abs(aDelta - bDelta) > 1e-9) {
-					return aDelta - bDelta
+				// Both corroborated on duration -- but one is CLOSER.
+				//
+				// DURATION_TOLERANCE is 5%, which is the right width for deciding
+				// whether a candidate is the same book at all, and far too wide to
+				// separate two narrations OF that book. Measured on Harry Potter and
+				// the Chamber of Secrets against a 34,968s file: the Stephen Fry
+				// edition (34,980s) is 0.03% off and the Full-Cast edition (34,620s)
+				// is 1.0% off, so both cleared tolerance, both took the same
+				// corroboration bonus, and the tie fell through to provider order --
+				// picking an edition with the wrong narrator entirely while the
+				// evidence to choose correctly was already in hand.
+				//
+				// Ordering by the delta uses that evidence without changing what
+				// counts as a match: it only ranks candidates that ALREADY passed,
+				// and a null delta (no runtime to compare) never participates.
+				const aDelta = a.durationDeltaPct
+				const bDelta = b.durationDeltaPct
+				if (aDelta != null && bDelta != null) {
+					// Inside the rounding epsilon the delta is noise, so the
+					// fuller form of the SAME name may jump it -- the Nevermoor
+					// shelf (2026-07-27), where 3-24 seconds of OverDrive-vs-
+					// Audible rounding was choosing between a full-title and a
+					// short-title row for the identical recording.
+					//
+					// Then FALL THROUGH to the delta ordering either way. The
+					// first cut returned early inside the epsilon, which deleted
+					// closest-runtime ordering for every pair within 90s of each
+					// other -- verified 2026-07-28: a 0s-off row lost to an
+					// 88s-off row on provider order alone, and on works under
+					// ~30 minutes 90s exceeds DURATION_TOLERANCE itself, killing
+					// the arm outright. The epsilon licenses a preference; it
+					// never discards the evidence underneath it.
+					if (runtimeCannotSeparate && tieTitlePreference === 'fuller') {
+						const byExtends = Number(prefersFullerTitle(b)) - Number(prefersFullerTitle(a))
+						if (byExtends !== 0) return byExtends
+					}
+					if (Math.abs(aDelta - bDelta) > 1e-9) {
+						return aDelta - bDelta
+					}
 				}
+				// Neither identity nor format separated them, so a residual gap inside
+				// the tolerance decides after all — the band only ever lets the two
+				// tiebreaks above jump a small deficit, it never discards confidence.
+				if (Math.abs(byConfidence) > 1e-9) return byConfidence
+				// Still tied: prefer the candidate whose TITLE IS what the library
+				// calls the book. Providers title the SAME recording differently --
+				// measured on Seth Ring's "Apex" (fresh scan, no duration signal):
+				// Audible says "Apex: A Fantasy LitRPG Adventure", OverDrive says
+				// "Apex" (same narrator), both scored 0.85, and provider order handed
+				// the match to the marketing-subtitled row -- so the album displayed a
+				// tail its five series siblings don't carry. Cosmetic-only by
+				// construction: every identity tiebreak above (pin, language, audio,
+				// narrator, runtime delta, residual confidence) has already declined
+				// to decide, so this can only choose between rows the evidence cannot
+				// tell apart.
+				const exactTitle = (c: ScoredCandidate) => {
+					const t = normalizeTitle(c.title).toLowerCase()
+					return (
+						t === primaryTitle.toLowerCase() || (altTitle != null && t === altTitle.toLowerCase())
+					)
+				}
+				const byExactTitle = Number(exactTitle(b)) - Number(exactTitle(a))
+				if (byExactTitle !== 0) return byExactTitle
+				// Genuinely tied: prefer the richer/more-authoritative source.
+				const byProvider = providerRank(a) - providerRank(b)
+				if (byProvider !== 0) return byProvider
+				// Same provider (or same rank) too: fall to intrinsic identity, so
+				// the sort is a TOTAL order. A stable sort's fallthrough is arrival
+				// order — registry order times each provider's own API order — which
+				// flips whenever a cache expires or a provider times out; that was
+				// the residual ~5% of tops that drifted between full-library runs.
+				// The pair this decides is one the evidence cannot tell apart, so
+				// WHICH one wins is arbitrary; that it is ALWAYS the same one is the
+				// point.
+				return byCandidateIdentity(a, b)
 			}
-			// Neither identity nor format separated them, so a residual gap inside
-			// the tolerance decides after all — the band only ever lets the two
-			// tiebreaks above jump a small deficit, it never discards confidence.
-			if (Math.abs(byConfidence) > 1e-9) return byConfidence
-			// Still tied: prefer the candidate whose TITLE IS what the library
-			// calls the book. Providers title the SAME recording differently --
-			// measured on Seth Ring's "Apex" (fresh scan, no duration signal):
-			// Audible says "Apex: A Fantasy LitRPG Adventure", OverDrive says
-			// "Apex" (same narrator), both scored 0.85, and provider order handed
-			// the match to the marketing-subtitled row -- so the album displayed a
-			// tail its five series siblings don't carry. Cosmetic-only by
-			// construction: every identity tiebreak above (pin, language, audio,
-			// narrator, runtime delta, residual confidence) has already declined
-			// to decide, so this can only choose between rows the evidence cannot
-			// tell apart.
-			const exactTitle = (c: ScoredCandidate) => {
-				const t = normalizeTitle(c.title).toLowerCase()
-				return (
-					t === primaryTitle.toLowerCase() || (altTitle != null && t === altTitle.toLowerCase())
-				)
-			}
-			const byExactTitle = Number(exactTitle(b)) - Number(exactTitle(a))
-			if (byExactTitle !== 0) return byExactTitle
-			// Genuinely tied: prefer the richer/more-authoritative source.
-			const byProvider = providerRank(a) - providerRank(b)
-			if (byProvider !== 0) return byProvider
-			// Same provider (or same rank) too: fall to intrinsic identity, so
-			// the sort is a TOTAL order. A stable sort's fallthrough is arrival
-			// order — registry order times each provider's own API order — which
-			// flips whenever a cache expires or a provider times out; that was
-			// the residual ~5% of tops that drifted between full-library runs.
-			// The pair this decides is one the evidence cannot tell apart, so
-			// WHICH one wins is arbitrary; that it is ALWAYS the same one is the
-			// point.
-			return byCandidateIdentity(a, b)
-		})
+		)
 	}
 
 	/**
