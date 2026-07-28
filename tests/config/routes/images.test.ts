@@ -174,7 +174,7 @@ describe('POST /images/similar should', () => {
 			if (prior === undefined) delete process.env.IMAGES_SIMILAR_MAX_DISTANCE
 			else process.env.IMAGES_SIMILAR_MAX_DISTANCE = prior
 		}
-		expect(maxDistance()).toBe(4)
+		expect(maxDistance()).toBe(10)
 	})
 })
 
@@ -236,7 +236,7 @@ describe('review hardening', () => {
 		try {
 			for (const raw of ['', '   ']) {
 				process.env.IMAGES_SIMILAR_MAX_DISTANCE = raw
-				expect(maxDistance()).toBe(4)
+				expect(maxDistance()).toBe(10)
 			}
 		} finally {
 			if (prior === undefined) delete process.env.IMAGES_SIMILAR_MAX_DISTANCE
@@ -311,5 +311,62 @@ describe('review hardening', () => {
 		const px = paintPortrait(300, 300)
 		const body = await ask(asJpeg(px, 300, 300, 92), asJpeg(px, 300, 300, 30))
 		expect(body.similar).toBe(true)
+	})
+})
+
+describe('threshold calibration', () => {
+	/**
+	 * The default was 4 while the hash was the only signal. Measured against
+	 * the operator's library on 2026-07-28, that hid nothing and MISSED real
+	 * duplicates: visually-confirmed same-cover pairs sit at distance 5
+	 * (Sunreach, 2400px vs 500px), 8 (The Grief of Stones, different crop) and
+	 * 10 (Tom Clancy Support and Defend, tighter crop) -- all three were being
+	 * displayed twice in the picker.
+	 *
+	 * 3,700 pairs of genuinely different author portraits measured a MINIMUM
+	 * distance of 11, so 10 is the largest threshold strictly below the
+	 * observed different-content floor. The chroma gate is what makes the
+	 * wider luma window safe: a colourway of one design is rejected on chroma
+	 * regardless of how close its luma hash is.
+	 */
+	test('the default admits real re-encodes but stays under the different-content floor', () => {
+		expect(maxDistance()).toBe(10)
+		expect(maxDistance()).toBeLessThan(11)
+	})
+
+	function tintedPair(width: number, height: number, swap: boolean): Buffer {
+		const data = Buffer.alloc(width * height * 4)
+		for (let y = 0; y < height; y++) {
+			for (let x = 0; x < width; x++) {
+				const i = (y * width + x) * 4
+				const v = Math.floor((x / width) * 200) + (y > height / 2 ? 40 : 0)
+				data[i] = swap ? 40 : v
+				data[i + 1] = Math.floor(v * 0.6)
+				data[i + 2] = swap ? v : 40
+				data[i + 3] = 255
+			}
+		}
+		return jpeg.encode({ data, width, height }, 92).data as Buffer
+	}
+
+	test('a colour variant is still rejected inside the wider window', async () => {
+		// Guards the interaction: widening luma must not let colourways through.
+		const server = Fastify()
+		await server.register(imagesSimilar)
+		try {
+			const res = await server.inject({
+				method: 'POST',
+				url: '/images/similar',
+				payload: {
+					a: tintedPair(300, 300, false).toString('base64'),
+					b: tintedPair(300, 300, true).toString('base64')
+				}
+			})
+			const body = res.json()
+			expect(body.undecodable).toBe(false)
+			expect(body.similar).toBe(false)
+		} finally {
+			await server.close()
+		}
 	})
 })

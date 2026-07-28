@@ -23,7 +23,21 @@ import { envInt } from '#helpers/utils/env'
 /**
  * Hamming distance at or under which two images count as the same picture
  */
-const DEFAULT_MAX_DISTANCE = 4
+// Raised from 4 on 2026-07-28 after measuring the operator's own library.
+// 4 was chosen when the hash was the ONLY signal; the chroma gate now catches
+// colour variants independently (the Three-Body sepia/blue pair sits at luma
+// distance 3 and is rejected on chroma), which is what makes a wider luma
+// threshold safe.
+//
+// Visually confirmed same-cover pairs inside one album: distance 5 (Sunreach,
+// 2400px vs 500px re-encode), 8 (The Grief of Stones, different crop), 10
+// (Tom Clancy Support and Defend, tighter crop). All three were being shown
+// twice. Against that, 3,700 pairs of genuinely different author portraits
+// measured a MINIMUM distance of 11, so 10 is the largest value that stays
+// strictly below the observed different-content floor.
+//
+// IMAGES_SIMILAR_MAX_DISTANCE still overrides, so this is a dial, not a law.
+const DEFAULT_MAX_DISTANCE = 10
 
 /**
  * Generous body cap: two base64 poster blobs plus JSON overhead
