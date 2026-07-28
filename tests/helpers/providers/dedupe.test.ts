@@ -482,3 +482,70 @@ describe('dedupeCandidates: demoted junk (AI "Virtual Voice") ids', () => {
 		expect(out[0].cover).toBe('book.jpg') // cover is NOT skipped for junk
 	})
 })
+
+
+describe('determinism: arrival order must never matter', () => {
+	// The mixed shape a real fan-out produces: an ASIN re-release cluster, a
+	// book-level duplicate pair, a full-tie same-provider pair, a language pair
+	// that must NOT merge, and a singleton. Fresh objects per call so no test
+	// can leak mutations into another.
+	const rows = (): ScoredCandidate[] => [
+		scored({
+			provider: 'audible',
+			id: 'a1',
+			asin: 'B0036KOD4U',
+			title: 'Horns',
+			authors: ['Joe Hill'],
+			narrators: ['Fred Berman'],
+			audioSeconds: 49800
+		}),
+		scored({
+			provider: 'hardcover',
+			id: 'h1',
+			asin: 'B00545O098',
+			title: 'Horns',
+			authors: ['Joe Hill'],
+			audioSeconds: 49800
+		}),
+		scored({ provider: 'hardcover', id: 'h2', title: 'Chameleon', authors: ['Piers Anthony'] }),
+		scored({ provider: 'openlibrary', id: 'OL9W', title: 'Chameleon', authors: ['Piers Anthony'] }),
+		scored({ provider: 'openlibrary', id: 'OL1W', title: 'Twin', authors: ['A'] }),
+		scored({ provider: 'openlibrary', id: 'OL2W', title: 'Twin', authors: ['A'] }),
+		scored({ provider: 'x', id: 'en1', title: 'Bilingual', authors: ['B'], audioSeconds: 36000, language: 'en' }),
+		scored({ provider: 'x', id: 'de1', title: 'Bilingual', authors: ['B'], audioSeconds: 36010, language: 'de' }),
+		scored({ provider: 'apple', id: 'solo', title: 'Loner', authors: ['C'], cover: 'l.jpg' })
+	]
+
+	test('every arrival order produces the identical result, in the identical order', () => {
+		const baseline = dedupeCandidates(rows())
+		// Sanity: groups actually formed (Horns merged, Chameleon merged, Twin
+		// merged, the language pair did NOT).
+		expect(baseline.map((c) => c.title).sort()).toEqual([
+			'Bilingual',
+			'Bilingual',
+			'Chameleon',
+			'Horns',
+			'Loner',
+			'Twin'
+		])
+		const base = rows()
+		const perms: ScoredCandidate[][] = [[...base].reverse()]
+		for (let k = 1; k < base.length; k++) perms.push([...base.slice(k), ...base.slice(0, k)])
+		for (const perm of perms) {
+			expect(dedupeCandidates(perm)).toEqual(baseline)
+		}
+	})
+
+	test('a FULL tie (same confidence, same richness) has one canonical winner', () => {
+		// Before the canonical-order fix the incumbent (first arrival) won this
+		// tie, so the surviving id flipped with arrival order.
+		const a = scored({ provider: 'openlibrary', id: 'OL1W', title: 'Twin', authors: ['A'] })
+		const b = scored({ provider: 'openlibrary', id: 'OL2W', title: 'Twin', authors: ['A'] })
+		const ab = dedupeCandidates([a, b])
+		const ba = dedupeCandidates([b, a])
+		expect(ab).toHaveLength(1)
+		expect(ba).toHaveLength(1)
+		expect(ab[0].id).toBe(ba[0].id)
+		expect(ab[0].id).toBe('OL1W') // lowest identity key, always
+	})
+})

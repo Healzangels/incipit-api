@@ -1577,3 +1577,55 @@ describe('a foreign edition named in the TITLE loses on identity', () => {
 		expect(out[0].id).toBe('spanish')
 	})
 })
+
+
+describe('ranking determinism', () => {
+	// Two look-alike audio editions with nothing to separate them: same
+	// title/author, no duration hint, different ASINs and runtime buckets (so
+	// dedupe keeps both), from two UNKNOWN providers that share the default
+	// provider rank. Every comparator arm declines; only the terminal identity
+	// arm can decide. Before it existed the stable sort fell through to arrival
+	// order, so the winner flipped with registry/cache/timeout accidents — the
+	// measured ~5% of tops that drifted between full-library runs.
+	const twinA = () =>
+		candidate({
+			provider: 'zeta',
+			id: 'z9',
+			asin: 'B0AAAAAAA1',
+			title: 'Light Bringer',
+			authors: ['Pierce Brown'],
+			audioSeconds: 108480
+		})
+	const twinB = () =>
+		candidate({
+			provider: 'eta',
+			id: 'e1',
+			asin: 'B0BBBBBBB2',
+			title: 'Light Bringer',
+			authors: ['Pierce Brown'],
+			audioSeconds: 108600
+		})
+
+	async function rank(order: 'ab' | 'ba'): Promise<string[]> {
+		const providers =
+			order === 'ab'
+				? [stubProvider('zeta', [twinA()]), stubProvider('eta', [twinB()])]
+				: [stubProvider('eta', [twinB()]), stubProvider('zeta', [twinA()])]
+		const helper = new BookSearchHelper(new ProviderRegistry(providers), {
+			title: 'Light Bringer',
+			author: 'Pierce Brown',
+			region: 'us'
+		})
+		return (await helper.search()).map((c) => c.id)
+	}
+
+	test('an evidence-proof tie ranks identically whatever the arrival order', async () => {
+		const ab = await rank('ab')
+		const ba = await rank('ba')
+		expect(ab).toHaveLength(2)
+		expect(ba).toEqual(ab)
+		// And the winner is the canonical one (identity key "eta e1..." sorts
+		// before "zeta z9..."), not whoever arrived first.
+		expect(ab[0]).toBe('e1')
+	})
+})

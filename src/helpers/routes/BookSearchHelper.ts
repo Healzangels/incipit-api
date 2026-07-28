@@ -1,7 +1,7 @@
 import type { FastifyBaseLogger } from 'fastify'
 
 import type { BookSearchQueryString } from '#config/types'
-import { dedupeCandidates } from '#helpers/providers/dedupe'
+import { byCandidateIdentity, dedupeCandidates } from '#helpers/providers/dedupe'
 import {
 	type CandidateScore,
 	CONFIDENCE_FLOOR,
@@ -1026,6 +1026,13 @@ export default class BookSearchHelper {
 				if (m) wantVolumes.add(Number(m[2]))
 			}
 		}
+		// Snapshot of the volumes the TITLE ITSELF claims, for the ranker's
+		// agreeing-volume tiebreak. Taken before the stated-position fallback
+		// below so a sidecar position can only ever DEMOTE a conflicting sibling
+		// (via wantVolumes/volumeConflict), never help one win a tie -- sidecar
+		// positions are not trustworthy enough to promote on, the file's own
+		// title is.
+		const titleWantVolumes = new Set(wantVolumes)
 		// ...and finally the caller's STATED series position, when the title
 		// advertised nothing. Book 1 of a series is normally titled bare -- a
 		// search for "Defiance of the Fall" declares no volume at all -- so a
@@ -1369,6 +1376,24 @@ export default class BookSearchHelper {
 					Number(languageConflict(a.language, wantLanguage)) -
 					Number(languageConflict(b.language, wantLanguage))
 				if (byLanguage !== 0) return byLanguage
+				// The volume the QUERY TITLE itself claims is identity evidence too:
+				// searching "Defiance of the Fall, Book 10" must prefer the sibling
+				// titled Book 10 over the BARE book 1. Scoring cannot separate them —
+				// a bare title claims nothing so volumeConflict rightly declines to
+				// penalize it, and normalizeTitle strips "Book 10" so both rows score
+				// an exact title match. This tie used to fall through to arrival
+				// order, which happened to seat the right sibling first; the ranker
+				// must state the preference, not inherit it from luck. Title-derived
+				// volumes ONLY (see titleWantVolumes): a sidecar seriesPosition never
+				// promotes. Per-candidate key, so the sort stays transitive.
+				if (titleWantVolumes.size) {
+					const claimsWantedVolume = (c: ScoredCandidate): boolean => {
+						for (const v of volumeNumbers(c.title)) if (titleWantVolumes.has(v)) return true
+						return false
+					}
+					const byWantedVolume = Number(claimsWantedVolume(b)) - Number(claimsWantedVolume(a))
+					if (byWantedVolume !== 0) return byWantedVolume
+				}
 				// Still tied (e.g. an unanalyzed file gives no duration signal, so an
 				// audio edition and a book-level record both sit at the floor): prefer
 				// the ACTUAL audiobook edition. Otherwise the winner falls to provider
@@ -1483,7 +1508,17 @@ export default class BookSearchHelper {
 				const byExactTitle = Number(exactTitle(b)) - Number(exactTitle(a))
 				if (byExactTitle !== 0) return byExactTitle
 				// Genuinely tied: prefer the richer/more-authoritative source.
-				return providerRank(a) - providerRank(b)
+				const byProvider = providerRank(a) - providerRank(b)
+				if (byProvider !== 0) return byProvider
+				// Same provider (or same rank) too: fall to intrinsic identity, so
+				// the sort is a TOTAL order. A stable sort's fallthrough is arrival
+				// order — registry order times each provider's own API order — which
+				// flips whenever a cache expires or a provider times out; that was
+				// the residual ~5% of tops that drifted between full-library runs.
+				// The pair this decides is one the evidence cannot tell apart, so
+				// WHICH one wins is arbitrary; that it is ALWAYS the same one is the
+				// point.
+				return byCandidateIdentity(a, b)
 			}
 		)
 	}
