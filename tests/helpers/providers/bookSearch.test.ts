@@ -284,7 +284,7 @@ describe('BookSearchHelper authorless title-only guard', () => {
 		for (const c of out) expect(c.confidence).toBeLessThan(0.9)
 	})
 
-	test('an authorless exact-title match with no duration stays under PLEX\'S auto-apply bar', async () => {
+	test("an authorless exact-title match with no duration stays under PLEX'S auto-apply bar", async () => {
 		// A correctly-tagged but artist-less album: capped until a corroborating
 		// signal arrives. The cap sits at 0.79 -- one point UNDER Plex's own
 		// auto-apply threshold of 80 -- because the old 0.85 still cleared it:
@@ -836,8 +836,7 @@ describe('numeric-title mismatch demotion', () => {
 	 * applied the same way: consumer-side, never touching the Gate-0-pinned
 	 * scoreCandidate.
 	 */
-	const clarke = (title: string) =>
-		candidate({ id: title, title, authors: ['Arthur C. Clarke'] })
+	const clarke = (title: string) => candidate({ id: title, title, authors: ['Arthur C. Clarke'] })
 
 	test('a different numeric title is demoted below the true numeric match', async () => {
 		const reg = new ProviderRegistry([
@@ -1012,8 +1011,11 @@ describe('duration-rounding tie collapse', () => {
 	 * row instead. Genuinely different editions (deltas past the epsilon)
 	 * keep the closest-runtime behavior untouched.
 	 */
+	// Real rows on this shelf are catalogued audio editions and carry asins
+	// (the Wundersmith full-title row's is an Australian ISBN-shaped one);
+	// the fuller-title preference requires that, so the fixture mirrors it.
 	const townsend = (id: string, title: string, audioSeconds: number) =>
-		candidate({ id, title, authors: ['Jessica Townsend'], audioSeconds })
+		candidate({ id, title, asin: id, authors: ['Jessica Townsend'], audioSeconds })
 
 	const silverbornShelf = () =>
 		new ProviderRegistry([
@@ -1085,7 +1087,11 @@ describe('duration-rounding tie collapse', () => {
 	test('no duration at all leaves the Apex exact-title behavior untouched', async () => {
 		const reg = new ProviderRegistry([
 			stubProvider('audible', [
-				candidate({ id: 'tail', title: 'Apex: A Fantasy LitRPG Adventure', authors: ['Seth Ring'] }),
+				candidate({
+					id: 'tail',
+					title: 'Apex: A Fantasy LitRPG Adventure',
+					authors: ['Seth Ring']
+				}),
 				candidate({ id: 'plain', title: 'Apex', authors: ['Seth Ring'] })
 			])
 		])
@@ -1095,5 +1101,27 @@ describe('duration-rounding tie collapse', () => {
 			region: 'us'
 		}).search()
 		expect(out[0].id).toBe('plain')
+	})
+
+	test('EQUAL rounded runtimes inside the epsilon also collapse to the fuller title', async () => {
+		// The live Wundersmith holdout: OverDrive's short row sits 12s off,
+		// and Audible's short row and the ISBN full row both list EXACTLY
+		// 42600s (72s off). Equal deltas skipped the collapse entirely and
+		// fell to the exact-title arm, which handed the match back to the
+		// short form -- the one book on the shelf that stayed short.
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [
+				townsend('od-short', 'Wundersmith', 42660),
+				townsend('b0-short', 'Wundersmith', 42600),
+				townsend('full', 'Wundersmith: The Calling of Morrigan Crow', 42600)
+			])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Wundersmith',
+			author: 'Jessica Townsend',
+			duration: 42672000,
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('full')
 	})
 })

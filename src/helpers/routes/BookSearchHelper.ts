@@ -1236,7 +1236,7 @@ export default class BookSearchHelper {
 				// and a null delta (no runtime to compare) never participates.
 				const aDelta = a.durationDeltaPct
 				const bDelta = b.durationDeltaPct
-				if (aDelta != null && bDelta != null && Math.abs(aDelta - bDelta) > 1e-9) {
+				if (aDelta != null && bDelta != null) {
 					// ...unless BOTH deltas sit inside the provider-rounding
 					// epsilon. Measured on the Nevermoor shelf (2026-07-27): every
 					// provider lists the SAME recording with a differently-rounded
@@ -1250,15 +1250,27 @@ export default class BookSearchHelper {
 					// different editions -- the narration-separating job this arm
 					// exists for -- have deltas far past the epsilon and are
 					// untouched.
+					// ...INCLUDING when two providers round to the exact same
+					// minute (the live Wundersmith holdout: equal 42600s rows
+					// skipped the collapse entirely and fell to the exact-title
+					// arm, handing the match back to the short form).
 					const eps = durationTieEpsilonSeconds()
 					const aAbsSeconds = a.audioSeconds ? aDelta * a.audioSeconds : Infinity
 					const bAbsSeconds = b.audioSeconds ? bDelta * b.audioSeconds : Infinity
-					if (!(aAbsSeconds <= eps && bAbsSeconds <= eps)) {
+					const withinRoundingNoise = aAbsSeconds <= eps && bAbsSeconds <= eps
+					if (!withinRoundingNoise && Math.abs(aDelta - bDelta) > 1e-9) {
 						return aDelta - bDelta
 					}
-					if (durationTieTitlePreference() === 'fuller') {
+					if (withinRoundingNoise && durationTieTitlePreference() === 'fuller') {
+						// The fuller row must itself be a catalogued AUDIO edition
+						// (it bears an asin): a print/work record's prettier title
+						// must never pull the match off an audio row -- the Amazing
+						// Maurice guard, where the asin-less Spanish print record
+						// ("...: una historia del mundodisco") title-extends the
+						// correct English audio edition at the same runtime.
 						const byFuller = byFullerTitle(a, b)
-						if (byFuller !== 0) return byFuller
+						if (byFuller < 0 && a.asin) return byFuller
+						if (byFuller > 0 && b.asin) return byFuller
 					}
 				}
 				// Neither identity nor format separated them, so a residual gap inside
