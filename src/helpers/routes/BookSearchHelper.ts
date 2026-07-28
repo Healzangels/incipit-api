@@ -226,6 +226,17 @@ function volumeNumbers(raw: string | null | undefined): Set<number> {
 	return out
 }
 
+/** Just the PART numbers, so they can be compared only against other parts. */
+const PART_MARKER_RE = /\bpart\s*(\d{1,3})\b/gi
+function partNumbers(raw: string | null | undefined): Set<number> {
+	const out = new Set<number>()
+	if (!raw) return out
+	PART_MARKER_RE.lastIndex = 0
+	let m: RegExpExecArray | null
+	while ((m = PART_MARKER_RE.exec(raw)) !== null) out.add(Number(m[1]))
+	return out
+}
+
 // A BARE trailing volume: "Defiance of the Fall 7". Providers list a numbered
 // series this way at least as often as with a "Book N" marker, and the
 // marker-based regex above cannot see it -- so a query for Book 10 found NO
@@ -240,6 +251,21 @@ function volumeNumbers(raw: string | null | undefined): Set<number> {
 const BARE_TRAILING_VOLUME_RE = /^(.*?)[\s,:.\-–—]+(\d{1,3})\s*$/
 
 /**
+ * A trailing number introduced by a FILE-SPLIT word is a part, not a series
+ * position: "Catch-22, Part 1" is one book delivered in pieces, and multi-part
+ * releases are routine on Audible and OverDrive.
+ *
+ * Reading those as volumes made a book conflict with ITSELF. Verified
+ * 2026-07-28 against the real helper: album tag "Catch 22" with the only
+ * listing titled "Catch-22, Part 1" returned ZERO results -- unmatchable, not
+ * merely mis-ranked -- because the want side read "22" as a volume and the
+ * candidate side read "1" as one, and the two sets are disjoint. Fahrenheit
+ * 451, Apollo 13 and Slaughterhouse 5 all landed at 0.650, below Plex's 0.80
+ * auto-apply bar, so they scan as unmatched.
+ */
+const PART_MARKER_STEM_RE = /\b(?:part|pt|disc|disk|cd|tape|side|file)\s*$/i
+
+/**
  * The volume a candidate advertises as a bare trailing number, or null.
  * @param {string | null | undefined} candTitle the candidate's raw title
  * @param {string} wantTitle the normalized title we searched for
@@ -252,6 +278,8 @@ function bareTrailingVolume(
 	if (!candTitle) return null
 	const m = BARE_TRAILING_VOLUME_RE.exec(candTitle.trim())
 	if (!m) return null
+	// "…, Part 1" is a file split of ONE recording, not volume 1 of a series.
+	if (PART_MARKER_STEM_RE.test(m[1])) return null
 	// The stem must still BE the book we asked for; otherwise a title that merely
 	// ends in a number would be read as a sibling of something unrelated.
 	if (titleSim(wantTitle, normalizeTitle(m[1])) < 0.9) return null
@@ -278,6 +306,36 @@ function volumeConflict(want: Set<number>, cand: Set<number>): boolean {
 	if (want.size === 0 || cand.size === 0) return false
 	for (const n of cand) if (want.has(n)) return false
 	return true
+}
+
+/**
+ * True when one side's numbers come only from a PART marker and the other
+ * side advertises no part at all -- in which case the two sets describe
+ * different things and must not be compared.
+ *
+ * "Part N" is ambiguous: some series really number volumes that way (The
+ * Wandering Inn), but far more often it is a FILE SPLIT of one recording,
+ * which Audible and OverDrive both do routinely. Comparing a file-split
+ * number against a title-derived one made a book conflict with ITSELF:
+ * verified 2026-07-28, album tag "Catch 22" with the only listing titled
+ * "Catch-22, Part 1" returned ZERO results -- the correct book unmatchable,
+ * not merely mis-ranked -- because want was {22} (the title's own digits)
+ * and cand was {1} (the file part). Fahrenheit 451, Apollo 13 and
+ * Slaughterhouse 5 all landed at 0.650, below Plex's 0.80 auto-apply bar.
+ *
+ * Comparing like with like keeps the genuine case working: two candidates
+ * that BOTH carry part markers still conflict on disjoint parts.
+ */
+function partsAreIncomparable(
+	wantParts: Set<number>,
+	candParts: Set<number>,
+	wantAll: Set<number>,
+	candAll: Set<number>
+): boolean {
+	const wantOnlyParts = wantParts.size > 0 && wantParts.size === wantAll.size
+	const candOnlyParts = candParts.size > 0 && candParts.size === candAll.size
+	// Exactly one side is speaking about parts: not a disagreement.
+	return (candOnlyParts && wantParts.size === 0) || (wantOnlyParts && candParts.size === 0)
 }
 // Sized like BUNDLE_PENALTY (0.2): a wrong sibling at 0.85 lands at 0.65, clear
 // of the AUDIO_EDITION_CONFIDENCE_TOLERANCE band so the right sibling wins the
@@ -1128,7 +1186,13 @@ export default class BookSearchHelper {
 					(altTitle ? bareTrailingVolume(c.title, altTitle) : null)
 				if (bare != null) candVolumes.add(bare)
 			}
-			if (!effectivePin && volumeConflict(wantVolumes, candVolumes)) {
+			const incomparableParts = partsAreIncomparable(
+				partNumbers(this.rawTitle),
+				partNumbers(c.title),
+				wantVolumes,
+				candVolumes
+			)
+			if (!effectivePin && !incomparableParts && volumeConflict(wantVolumes, candVolumes)) {
 				confidence = Math.max(0, confidence - VOLUME_MISMATCH_PENALTY)
 				this.volumeDemoted += 1
 			}

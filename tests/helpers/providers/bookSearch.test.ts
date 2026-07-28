@@ -1275,3 +1275,67 @@ describe('runtime evidence outranks cosmetic arms', () => {
 		expect(out[0].id).toBe('audio')
 	})
 })
+
+describe('a file PART is not a series volume', () => {
+	/**
+	 * Verified 2026-07-28 against the real helper: album tag "Catch 22" with
+	 * the only listing titled "Catch-22, Part 1" returned ZERO results -- the
+	 * correct book was unmatchable, not merely ranked low. Fahrenheit 451,
+	 * Apollo 13 and Slaughterhouse 5 all landed at 0.650, under Plex's 0.80
+	 * auto-apply bar, so they scan as unmatched.
+	 *
+	 * Cause: the want side reads any title ending in 1-3 digits as a volume
+	 * ("Catch 22" -> volume 22), and the candidate side read the "Part 1" of
+	 * a multi-part release as a volume too -- disjoint sets, so the
+	 * volume-conflict penalty fired between a book and ITSELF.
+	 *
+	 * A part number is a file split, not a series position. Multi-part
+	 * releases are routine on Audible and OverDrive.
+	 */
+	const listing = (title: string) =>
+		candidate({
+			id: 'real', asin: 'B0REAL0001', provider: 'audible', title,
+			authors: ['An Author'], audioSeconds: 30000
+		})
+
+	async function search(album: string, candTitle: string) {
+		const reg = new ProviderRegistry([stubProvider('audible', [listing(candTitle)])])
+		return new BookSearchHelper(reg, {
+			title: album, author: 'An Author', region: 'us'
+		}).search()
+	}
+
+	test('a numeric title still matches its own multi-part listing', async () => {
+		const out = await search('Catch 22', 'Catch-22, Part 1')
+		expect(out.length).toBeGreaterThan(0)
+		expect(out[0].confidence).toBeGreaterThan(0.8)
+	})
+
+	test('the whole numeric-title class clears the auto-apply bar', async () => {
+		for (const [album, cand] of [
+			['Fahrenheit 451', 'Fahrenheit 451, Part 2'],
+			['Apollo 13', 'Apollo 13: Part 2'],
+			['Slaughterhouse 5', 'Slaughterhouse 5, Part 1']
+		]) {
+			const out = await search(album, cand)
+			expect(out.length).toBeGreaterThan(0)
+			expect(out[0].confidence).toBeGreaterThan(0.8)
+		}
+	})
+
+	test('a genuine numbered sibling is still separated', async () => {
+		// The guard must not go so far that book 1 matches book 10.
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [
+				candidate({ id: 'ten', asin: 'B0TEN00001', provider: 'audible',
+					title: 'Defiance of the Fall, Book 10', authors: ['An Author'],
+					audioSeconds: 30000 })
+			])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Defiance of the Fall', author: 'An Author',
+			seriesPosition: '1', region: 'us'
+		}).search()
+		expect(out.length === 0 || out[0].confidence < 0.8).toBe(true)
+	})
+})
