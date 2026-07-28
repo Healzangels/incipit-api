@@ -605,6 +605,28 @@ export default class BookSearchHelper {
 	}
 
 	/**
+	 * Whether the pin identity earns the FULL pin privilege (confidence
+	 * override + pinned-first): only a B0-shaped store ASIN does. An
+	 * ISBN-10-shaped identity — the isbn field, or an ABS sidecar's `asin`
+	 * that is really the ISBN-10 twin of its own isbn — names a BOOK, not a
+	 * store listing, and which listing a provider resolves it to is data-
+	 * dependent: measured live (He Who Fights with Monsters, 2026-07-28),
+	 * the sidecar's ISBN resolved through Hardcover to the deluxe-hardcover
+	 * "Vol. 1" edition record and auto-matched it over the standard listing
+	 * sitting 14s from the file. So an ISBN-derived pin is still fetched,
+	 * offered, floor-held and group-protected — but it RANKS ON ITS MERITS,
+	 * where the closest-runtime and exact-title arms express the operator's
+	 * actual preference. The case ISBN pinning was built for (The Lost
+	 * Stories Collection) ranks #1 on merits anyway: its ISBN-10 IS the
+	 * audio product id and the only corroborated row.
+	 */
+	private static pinHasListingPrivilege(wantAsin: string | null): boolean {
+		// The B0 prefix alone separates the two worlds: an ISBN-10 is digits
+		// plus a possible X check digit, so it can never start with "B".
+		return wantAsin != null && wantAsin.startsWith('B0')
+	}
+
+	/**
 	 * Execute the search across the album title and, when it differs, the track
 	 * title too.
 	 *
@@ -709,6 +731,9 @@ export default class BookSearchHelper {
 		const asinPinned =
 			top != null &&
 			this.isPinned(top, wantAsin) &&
+			// An ISBN-derived identity at the top is a merits win, not an ASIN
+			// confirmation -- reporting it as pinned would over-claim identity.
+			BookSearchHelper.pinHasListingPrivilege(wantAsin) &&
 			this.pinOverriddenAsin !== wantAsin &&
 			!this.pinOverriddenIds.has(top.id)
 		const decision: MatchDecision = {
@@ -1175,7 +1200,11 @@ export default class BookSearchHelper {
 				this.pinOverriddenIds.add(c.id)
 				this.pinOverriddenAsin = wantAsin
 			}
-			const effectivePin = asinMatch && !pinContradicted
+			// An ISBN-derived pin identity gets no confidence override (and no
+			// penalty exemptions): it scores like any other row -- see
+			// pinHasListingPrivilege for why an ISBN names a book, not a listing.
+			const effectivePin =
+				asinMatch && !pinContradicted && BookSearchHelper.pinHasListingPrivilege(wantAsin)
 			let confidence = effectivePin ? 1 : best.confidence
 			// Authorless title-only guard (see TITLE_ONLY_CEILING): with no author to
 			// verify identity, hold a fuzzy title match below STRONG_MATCH unless its
@@ -1321,8 +1350,11 @@ export default class BookSearchHelper {
 			// Title" against a sidecar title of just "The Actual Title"), that
 			// natural score can land UNDER the floor -- silently deleting the one
 			// edition the sidecar named, which defeats the entire point of fetching
-			// it. Offered-not-winning is the contract for both cases.
-			if (pinContradicted || c.provider === BookSearchHelper.PINNED_PROVIDER) {
+			// it. Offered-not-winning is the contract for both cases -- and for an
+			// ISBN-derived pin identity too (asinMatch without the listing
+			// privilege): it ranks on its merits, but the row the sidecar named
+			// must never vanish from the list.
+			if ((asinMatch && !effectivePin) || c.provider === BookSearchHelper.PINNED_PROVIDER) {
 				confidence = Math.max(confidence, CONFIDENCE_FLOOR)
 			}
 			return {
@@ -1358,6 +1390,9 @@ export default class BookSearchHelper {
 			// tiebreak leading is equivalent to pinned-first, stated explicitly.
 			const pinned = (c: ScoredCandidate) =>
 				this.isPinned(c, wantAsin) &&
+				// An ISBN-derived identity ranks on its merits (see
+				// pinHasListingPrivilege) -- no pinned-first.
+				BookSearchHelper.pinHasListingPrivilege(wantAsin) &&
 				// A revoked pin stays revoked however the row acquired the asin.
 				this.pinOverriddenAsin !== wantAsin &&
 				!this.bundleDemotedIds.has(c.id) &&

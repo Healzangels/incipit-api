@@ -1685,3 +1685,89 @@ describe('ranking determinism', () => {
 		expect(ab[0]).toBe('e1')
 	})
 })
+
+describe('ISBN-derived pins rank on merits', () => {
+	/**
+	 * The live He Who Fights with Monsters case (2026-07-28): the ABS sidecar
+	 * carries "asin": "1774248182" -- the ISBN-10 twin of its own isbn field,
+	 * not a store ASIN -- and the ISBN resolves through Hardcover to the
+	 * deluxe-hardcover "Vol. 1" edition record, which the full pin privilege
+	 * then auto-matched over the standard listing sitting 14s from the file.
+	 *
+	 * An ISBN names a BOOK; which listing a provider resolves it to is
+	 * data-dependent. So an ISBN-derived identity is still fetched, offered
+	 * and group-protected, but ranks on its merits -- the closest-runtime and
+	 * exact-title arms decide. A B0 store ASIN keeps absolute privilege.
+	 */
+	const file = 104195134 // ms
+
+	const bare = () =>
+		candidate({
+			provider: 'overdrive',
+			id: 'overdrive-bare',
+			title: 'He Who Fights with Monsters',
+			authors: ['Shirtaloon'],
+			narrators: ['Heath Miller'],
+			audioSeconds: 104181
+		})
+	const isbnListed = () =>
+		candidate({
+			provider: 'hardcover',
+			id: 'hardcover-vol1',
+			asin: '1774248182',
+			title: 'He Who Fights With Monsters, Vol. 1',
+			authors: ['Shirtaloon'],
+			narrators: ['Heath Miller'],
+			audioSeconds: 104160
+		})
+
+	test('the closer-runtime tag-exact row beats the ISBN row; both stay offered', async () => {
+		const reg = new ProviderRegistry([stubProvider('x', [isbnListed(), bare()])])
+		const out = await new BookSearchHelper(reg, {
+			title: 'He Who Fights with Monsters',
+			author: 'Shirtaloon',
+			duration: file,
+			isbn: '9781774248188',
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('overdrive-bare')
+		expect(out.map((c) => c.id)).toContain('hardcover-vol1')
+	})
+
+	test('the ISBN row still wins when it is the only corroborated listing', async () => {
+		// The Lost Stories Collection shape ISBN pinning was built for: the
+		// ISBN-10 IS the audio product id and nothing else corroborates.
+		const reg = new ProviderRegistry([
+			stubProvider('x', [
+				isbnListed(),
+				candidate({
+					provider: 'openlibrary',
+					id: 'ol-book',
+					title: 'He Who Fights with Monsters',
+					authors: ['Shirtaloon']
+				})
+			])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'He Who Fights with Monsters',
+			author: 'Shirtaloon',
+			duration: file,
+			isbn: '9781774248188',
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('hardcover-vol1')
+	})
+
+	test('a B0 store ASIN keeps absolute privilege over closer runtime', async () => {
+		const pinnedVol1 = { ...isbnListed(), asin: 'B08V3XQ7LK' }
+		const reg = new ProviderRegistry([stubProvider('x', [pinnedVol1, bare()])])
+		const out = await new BookSearchHelper(reg, {
+			title: 'He Who Fights with Monsters',
+			author: 'Shirtaloon',
+			duration: file,
+			asin: 'B08V3XQ7LK',
+			region: 'us'
+		}).search()
+		expect(out[0].asin).toBe('B08V3XQ7LK')
+	})
+})

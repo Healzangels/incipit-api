@@ -192,10 +192,16 @@ describe('ISBN fallback for a dead pinned ASIN', () => {
 		expect(ranked.length).toBeGreaterThan(0)
 	})
 
-	test('a fan-out row carrying the ISBN id gets the pin override when the ASIN is dead', async () => {
-		// The real Lost Stories mechanism: Audible's title search returns the
-		// edition (measured live at #1), so the ISBN identity is corroborated by a
-		// second source and the override applies -- confidence 1.0, ranked first.
+	test('a fan-out row carrying the ISBN id ranks on its merits when the ASIN is dead', async () => {
+		// SUPERSEDED CONTRACT (2026-07-28): this used to assert the full pin
+		// override -- confidence 1.0, ranked first by privilege. An ISBN names
+		// a BOOK, not a store listing, and which listing it resolves to is
+		// provider-dependent (the He Who Fights with Monsters sidecar's ISBN
+		// resolved to the deluxe-hardcover "Vol. 1" record and auto-matched it
+		// over the standard listing). The identity is still adopted -- the row
+		// stays offered whatever it scores -- but the ranking is earned: here
+		// the ISBN row is the strongest title match and still comes first, at
+		// its merit score rather than a minted 1.0.
 		const fromFanOut = candidate({
 			id: ISBN10,
 			asin: ISBN10,
@@ -204,8 +210,12 @@ describe('ISBN fallback for a dead pinned ASIN', () => {
 		})
 		const helper = helperFor([fromFanOut, plainRow], {}, { asin: DEAD_ASIN, isbn: ISBN13 })
 		const ranked = await helper.search()
-		expect(ranked[0]?.asin).toBe(ISBN10)
-		expect(ranked[0]?.confidence).toBe(1)
+		// The exact-title row wins on merits; the ISBN row is adopted as the
+		// pin identity, floor-held, and stays pickable -- offered, not crowned.
+		expect(ranked[0]?.id).toBe('overdrive-1')
+		const isbnRow = ranked.find((c) => c.asin === ISBN10)
+		expect(isbnRow).toBeDefined()
+		expect(isbnRow?.confidence).not.toBe(1)
 	})
 
 	test('the ISBN never displaces a corroborated ASIN as the pin identity', async () => {
@@ -251,6 +261,11 @@ describe('ISBN fallback for a dead pinned ASIN', () => {
 		// returns it. The dead-ASIN promotion must re-run against the MERGED pool,
 		// or the identity the fallback exists to provide never fires for exactly
 		// the tags that need the widening most.
+		//
+		// Under the merits contract (2026-07-28) "engages" means: the row the
+		// sidecar named is adopted as the pin identity and STAYS OFFERED --
+		// floor-held, never silently deleted -- while its rank is earned, not
+		// granted (no minted 1.0).
 		const fromTrackFanOut = candidate({ id: ISBN10, asin: ISBN10 })
 		const registry = {
 			searchAll: async (query: { title: string }) =>
@@ -269,8 +284,9 @@ describe('ISBN fallback for a dead pinned ASIN', () => {
 			isbn: ISBN13
 		} as never)
 		const ranked = await helper.search()
-		expect(ranked[0]?.asin).toBe(ISBN10)
-		expect(ranked[0]?.confidence).toBe(1)
+		const isbnRow = ranked.find((c) => c.asin === ISBN10)
+		expect(isbnRow).toBeDefined()
+		expect(isbnRow?.confidence).not.toBe(1)
 	})
 
 	test('the ISBN-injected row is not self-confirming', async () => {
