@@ -1340,14 +1340,18 @@ export default class BookSearchHelper {
 		// REAL edition whose pin we distrust, so it keeps donating its ASIN/narrators.
 		// The query titles feed the merged-group TITLE policy (call the book what
 		// the library calls it), and the tie epsilon bounds the prefix-extension
-		// merge with the same rounding window the arms below use.
+		// merge with the same rounding window the arms below use. wantVolumes
+		// lets a volume-claiming subtitle merge when the claim AGREES with the
+		// query's own number (publisher styling of the same book, e.g. a
+		// ", Vol. 1" listing of book 1) -- disagreeing claims still block.
 		return dedupeCandidates(
 			accepted,
 			wantAsin,
 			this.aiNarratedIds,
 			this.pinOverriddenIds,
 			[primaryTitle, altTitle ?? ''].filter(Boolean),
-			tieEpsilonSeconds
+			tieEpsilonSeconds,
+			wantVolumes
 		).sort((a, b) => {
 			// The explicitly-hinted ASIN outranks EVERYTHING, including a confidence
 			// tie at 1.0: a perfect title+author+duration candidate also reaches 1.0,
