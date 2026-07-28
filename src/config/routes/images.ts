@@ -69,14 +69,26 @@ const MIN_GRID_STDDEV = 6
 const MAX_CHROMA_DISTANCE = 20
 
 export interface ImagesSimilarBody {
-	a: string
-	b: string
+	a?: string
+	b?: string
+	aSig?: string
+	bSig?: string
 }
 
 export interface ImagesSimilarResponse {
 	similar: boolean
 	distance: number | null
 	undecodable: boolean
+	/**
+	 * Set (with undecodable) when a supplied signature could not be used:
+	 * corrupt, or minted by an older grid geometry. Tells a caching client
+	 * "re-send the bytes", which plain undecodable must not — that one means
+	 * the CONTENT is unusable and retrying bytes would loop.
+	 */
+	staleSig?: boolean
+	/** Signatures for the two sides, returned on every full verdict. */
+	aSig?: string
+	bSig?: string
 }
 
 interface RawImage {
@@ -210,12 +222,80 @@ function gridHash(grid: ImageGrid): bigint {
  * picture", and one would have been hidden. Verified same-picture re-encodes
  * score 0.2-8.2 on this measure; the colour variants scored 60.9.
  */
-function chromaDistance(a: ImageGrid, b: ImageGrid): number {
+function chromaDistance(a: Pick<ImageGrid, 'cb' | 'cr'>, b: Pick<ImageGrid, 'cb' | 'cr'>): number {
 	let total = 0
 	for (let i = 0; i < a.cb.length; i++) {
 		total += Math.abs(a.cb[i] - b.cb[i]) + Math.abs(a.cr[i] - b.cr[i])
 	}
 	return total / a.cb.length
+}
+
+/**
+ * Everything a verdict needs from one image: the 64-bit luma hash plus the
+ * per-cell chroma means the colourway gate compares. A summary only exists
+ * for an image that DECODED and carried structure (the stddev gate ran
+ * before it was built), so replaying one can never smuggle a flat
+ * placeholder past the guards.
+ */
+interface SideSummary {
+	bits: bigint
+	cb: number[]
+	cr: number[]
+}
+
+/**
+ * Version tag for signatures. It encodes the grid geometry (9x8 cells,
+ * CELL_SAMPLES sampling): change any of that and hashes stop being
+ * comparable across versions, so bump the tag — old signatures then decode
+ * to null and the client is told to re-send bytes (staleSig) instead of
+ * silently comparing incompatible grids.
+ */
+const SIG_VERSION = 'g1'
+
+const SIG_CELLS = HASH_ROWS * HASH_COLS
+
+/**
+ * Serializes a side summary into an opaque token the client can replay in
+ * place of the image bytes. The point is traffic, not secrecy: the bundle
+ * compares every poster tile against every other, so each tile's bytes were
+ * being re-uploaded once per PAIR; with signatures each tile is uploaded
+ * once and its ~600-byte token rides on every later consult.
+ *
+ * Chroma means are rounded to one decimal: the gate is a mean-absolute
+ * threshold of 20, so 0.05 of rounding noise cannot flip a verdict, and the
+ * rounding halves the token size.
+ */
+export function encodeSignature(s: SideSummary): string {
+	const payload = {
+		h: s.bits.toString(16),
+		cb: s.cb.map((v) => Math.round(v * 10) / 10),
+		cr: s.cr.map((v) => Math.round(v * 10) / 10)
+	}
+	return SIG_VERSION + '.' + Buffer.from(JSON.stringify(payload)).toString('base64url')
+}
+
+/**
+ * Parses a signature token back into a side summary, or null for anything
+ * that is not a well-formed current-version token. Strict on purpose: a
+ * null here surfaces as staleSig, the one response that tells a caching
+ * client to fall back to bytes.
+ */
+export function decodeSignature(token: string): SideSummary | null {
+	if (!token.startsWith(SIG_VERSION + '.')) return null
+	let payload: unknown
+	try {
+		payload = JSON.parse(Buffer.from(token.slice(SIG_VERSION.length + 1), 'base64url').toString())
+	} catch {
+		return null
+	}
+	if (typeof payload !== 'object' || payload === null) return null
+	const { h, cb, cr } = payload as { h?: unknown; cb?: unknown; cr?: unknown }
+	if (typeof h !== 'string' || !/^[0-9a-f]{1,16}$/.test(h)) return null
+	for (const arr of [cb, cr]) {
+		if (!Array.isArray(arr) || arr.length !== SIG_CELLS) return null
+		if (!arr.every((v) => typeof v === 'number' && Number.isFinite(v))) return null
+	}
+	return { bits: BigInt('0x' + h), cb: cb as number[], cr: cr as number[] }
 }
 
 /**
@@ -241,10 +321,18 @@ export function maxDistance(): number {
 
 /**
  * POST /images/similar: are these two images the same picture?
- * Body: { a, b } as base64. Always 200 with a verdict; undecodable input
- * (unsupported format, corrupt bytes, bad base64) reports
- * { similar: false, undecodable: true } so the client's fail-open stays
- * trivially simple.
+ *
+ * Each side is EITHER base64 image bytes (`a`/`b`) OR a signature returned
+ * by a previous call (`aSig`/`bSig`; preferred when both are sent). Always
+ * 200 with a verdict; undecodable CONTENT (unsupported format, corrupt
+ * bytes, flat placeholder) reports { similar: false, undecodable: true } so
+ * the client's fail-open stays trivially simple, while an unusable
+ * SIGNATURE additionally sets staleSig — the cue to re-send bytes. A side
+ * with neither field is a malformed request and 400s, exactly as a missing
+ * field always has.
+ *
+ * Every full verdict carries aSig/bSig back, so a client comparing one
+ * image against N others uploads its bytes once and replays tokens.
  */
 async function imagesSimilar(app: FastifyInstance) {
 	app.post<{ Body: ImagesSimilarBody; Reply: ImagesSimilarResponse }>(
@@ -254,18 +342,40 @@ async function imagesSimilar(app: FastifyInstance) {
 			schema: {
 				body: {
 					type: 'object',
-					required: ['a', 'b'],
 					properties: {
 						a: { type: 'string', minLength: 1 },
-						b: { type: 'string', minLength: 1 }
+						b: { type: 'string', minLength: 1 },
+						aSig: { type: 'string', minLength: 1 },
+						bSig: { type: 'string', minLength: 1 }
 					}
 				}
 			}
 		},
 		async (request, reply) => {
-			const grids: ImageGrid[] = []
-			for (const field of [request.body.a, request.body.b]) {
-				const img = decodeImage(Buffer.from(field, 'base64'))
+			const sides: Array<[string | undefined, string | undefined]> = [
+				[request.body.a, request.body.aSig],
+				[request.body.b, request.body.bSig]
+			]
+			if (sides.some(([bytes, sig]) => !bytes && !sig)) {
+				return reply.status(400).send({
+					similar: false,
+					distance: null,
+					undecodable: true
+				})
+			}
+			const summaries: SideSummary[] = []
+			for (const [bytes, sig] of sides) {
+				if (sig) {
+					const summary = decodeSignature(sig)
+					if (!summary) {
+						return reply
+							.status(200)
+							.send({ similar: false, distance: null, undecodable: true, staleSig: true })
+					}
+					summaries.push(summary)
+					continue
+				}
+				const img = decodeImage(Buffer.from(bytes as string, 'base64'))
 				if (!img || !img.width || !img.height) {
 					return reply.status(200).send({ similar: false, distance: null, undecodable: true })
 				}
@@ -278,14 +388,21 @@ async function imagesSimilar(app: FastifyInstance) {
 				if (grid.stddev < MIN_GRID_STDDEV) {
 					return reply.status(200).send({ similar: false, distance: null, undecodable: true })
 				}
-				grids.push(grid)
+				summaries.push({ bits: gridHash(grid), cb: grid.cb, cr: grid.cr })
 			}
-			const distance = hammingDistance(gridHash(grids[0]), gridHash(grids[1]))
+			const distance = hammingDistance(summaries[0].bits, summaries[1].bits)
 			// Same luma, different colour = a colourway of one design, which is
 			// a genuine alternative rather than a duplicate.
 			const similar =
-				distance <= maxDistance() && chromaDistance(grids[0], grids[1]) <= MAX_CHROMA_DISTANCE
-			return reply.status(200).send({ similar, distance, undecodable: false })
+				distance <= maxDistance() &&
+				chromaDistance(summaries[0], summaries[1]) <= MAX_CHROMA_DISTANCE
+			return reply.status(200).send({
+				similar,
+				distance,
+				undecodable: false,
+				aSig: encodeSignature(summaries[0]),
+				bSig: encodeSignature(summaries[1])
+			})
 		}
 	)
 }

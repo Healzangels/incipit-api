@@ -370,3 +370,151 @@ describe('threshold calibration', () => {
 		}
 	})
 })
+
+describe('signature replay', () => {
+	// WHY: the bundle compares every poster tile against every other, so one
+	// tile's bytes were re-uploaded once per PAIR. A verdict now returns a
+	// signature per side; replaying it must reproduce the byte-path verdict
+	// exactly, and an unusable signature must say staleSig (re-send bytes),
+	// never plain undecodable (which means the CONTENT is bad and retrying
+	// bytes would loop).
+	let app: FastifyInstance
+
+	async function build(): Promise<FastifyInstance> {
+		const server = Fastify()
+		await server.register(imagesSimilar)
+		return server
+	}
+
+	async function postRaw(app: FastifyInstance, payload: Record<string, string>) {
+		return app.inject({ method: 'POST', url: '/images/similar', payload })
+	}
+
+	afterEach(async () => {
+		if (app) await app.close()
+	})
+
+	test('a full verdict returns a signature per side', async () => {
+		app = await build()
+		const px = paintPortrait(250, 250)
+		const res = await postRaw(app, {
+			a: asJpeg(px, 250, 250, 90).toString('base64'),
+			b: asJpeg(px, 250, 250, 35).toString('base64')
+		})
+		const body = res.json()
+		expect(body.undecodable).toBe(false)
+		expect(typeof body.aSig).toBe('string')
+		expect(typeof body.bSig).toBe('string')
+		expect(body.aSig.startsWith('g1.')).toBe(true)
+	})
+
+	test('replaying both signatures reproduces the byte verdict exactly', async () => {
+		app = await build()
+		const px = paintPortrait(250, 250)
+		const first = (
+			await postRaw(app, {
+				a: asJpeg(px, 250, 250, 90).toString('base64'),
+				b: asJpeg(px, 250, 250, 35).toString('base64')
+			})
+		).json()
+		const replay = (await postRaw(app, { aSig: first.aSig, bSig: first.bSig })).json()
+		expect(replay.similar).toBe(first.similar)
+		expect(replay.distance).toBe(first.distance)
+		expect(replay.undecodable).toBe(false)
+		// Signatures are stable across replays, so a client may cache the
+		// response's tokens without them drifting per call.
+		expect(replay.aSig).toBe(first.aSig)
+		expect(replay.bSig).toBe(first.bSig)
+	})
+
+	test('bytes on one side and a signature on the other agree with all-bytes', async () => {
+		app = await build()
+		const px = paintPortrait(250, 250)
+		const aBytes = asJpeg(px, 250, 250, 90)
+		const bBytes = asJpeg(px, 250, 250, 35)
+		const allBytes = (
+			await postRaw(app, { a: aBytes.toString('base64'), b: bBytes.toString('base64') })
+		).json()
+		const mixed = (
+			await postRaw(app, { a: aBytes.toString('base64'), bSig: allBytes.bSig })
+		).json()
+		expect(mixed.similar).toBe(allBytes.similar)
+		expect(mixed.distance).toBe(allBytes.distance)
+	})
+
+	test('the colourway gate survives the signature round trip', async () => {
+		// Same luma, different colour must stay "not the same picture" when
+		// both sides arrive as signatures -- the chroma grid rides inside the
+		// token, and dropping it there would silently re-open the
+		// Three-Body sepia/blue hole.
+		app = await build()
+		const width = 220
+		const height = 220
+		const sepia = Buffer.alloc(width * height * 4)
+		const blue = Buffer.alloc(width * height * 4)
+		for (let y = 0; y < height; y++) {
+			for (let x = 0; x < width; x++) {
+				const i = (y * width + x) * 4
+				const base = Math.floor((x / width) * 150 + (y / height) * 60)
+				sepia[i] = Math.min(255, base + 60)
+				sepia[i + 1] = Math.min(255, base + 30)
+				sepia[i + 2] = Math.max(0, base - 40)
+				sepia[i + 3] = 255
+				blue[i] = Math.max(0, base - 40)
+				blue[i + 1] = Math.min(255, base + 10)
+				blue[i + 2] = Math.min(255, base + 70)
+				blue[i + 3] = 255
+			}
+		}
+		const seeded = (
+			await postRaw(app, {
+				a: asJpeg(sepia, width, height, 90).toString('base64'),
+				b: asJpeg(blue, width, height, 90).toString('base64')
+			})
+		).json()
+		expect(seeded.similar).toBe(false)
+		const replay = (await postRaw(app, { aSig: seeded.aSig, bSig: seeded.bSig })).json()
+		expect(replay.similar).toBe(false)
+		expect(replay.undecodable).toBe(false)
+	})
+
+	test('an unusable signature says staleSig, not plain undecodable', async () => {
+		app = await build()
+		const px = paintPortrait(250, 250)
+		for (const bad of [
+			'garbage',
+			'g0.' + Buffer.from('{}').toString('base64url'), // older geometry
+			'g1.' + Buffer.from('not json').toString('base64url'),
+			'g1.' + Buffer.from(JSON.stringify({ h: 'ff', cb: [1], cr: [1] })).toString('base64url')
+		]) {
+			const res = await postRaw(app, {
+				a: asJpeg(px, 250, 250, 90).toString('base64'),
+				bSig: bad
+			})
+			expect(res.statusCode).toBe(200)
+			const body = res.json()
+			expect(body.undecodable).toBe(true)
+			expect(body.staleSig).toBe(true)
+			expect(body.similar).toBe(false)
+		}
+	})
+
+	test('undecodable BYTES never claim staleSig', async () => {
+		app = await build()
+		const res = await postRaw(app, {
+			a: Buffer.from('not an image').toString('base64'),
+			b: asJpeg(paintPortrait(100, 100), 100, 100, 90).toString('base64')
+		})
+		const body = res.json()
+		expect(body.undecodable).toBe(true)
+		expect(body.staleSig).toBeUndefined()
+	})
+
+	test('a side with neither bytes nor signature is still a 400', async () => {
+		app = await build()
+		const res = await postRaw(app, {
+			aSig: 'g1.' + Buffer.from('{}').toString('base64url')
+		})
+		expect(res.statusCode).toBe(400)
+	})
+})
