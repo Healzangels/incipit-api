@@ -690,3 +690,58 @@ describe('prefix-extension merge', () => {
 		expect(dedupeCandidates([a, b])).toHaveLength(2)
 	})
 })
+
+describe('prefix-extension merge author gate', () => {
+	// The 2026-07-28 candidate-level audit found the one merge the first cut
+	// missed: He Who Fights with Monsters 12, both rows 69960s and 1.0, shown
+	// twice because one provider leads with the pen name and the other with
+	// the legal name plus the narrator-as-coauthor. Author agreement is
+	// any-overlap on the folded sets; identity still rests on the title
+	// boundary and the runtime window.
+	const subtitled = () =>
+		scored({
+			provider: 'audible',
+			id: 'audible-hwfwm',
+			asin: 'B0HWFWM12X',
+			title: 'He Who Fights with Monsters 12: A LitRPG Adventure',
+			authors: ['Shirtaloon', 'Travis Deverell'],
+			audioSeconds: 69960
+		})
+	const bare = () =>
+		scored({
+			provider: 'overdrive',
+			id: 'overdrive-hwfwm',
+			title: 'He Who Fights with Monsters 12',
+			authors: ['Travis Deverell', 'Shirtaloon', 'Heath Miller'],
+			audioSeconds: 69960
+		})
+
+	test('author ORDER and extra co-authors do not block the merge', () => {
+		expect(dedupeCandidates([subtitled(), bare()])).toHaveLength(1)
+	})
+
+	test('the merged row still takes the tag title', () => {
+		const out = dedupeCandidates(
+			[subtitled(), bare()],
+			null,
+			new Set(),
+			new Set(),
+			['He Who Fights with Monsters 12']
+		)
+		expect(out).toHaveLength(1)
+		expect(out[0].title).toBe('He Who Fights with Monsters 12')
+		expect(out[0].asin).toBe('B0HWFWM12X')
+	})
+
+	test('fully disjoint author sets still never merge', () => {
+		const other = { ...bare(), authors: ['Somebody Else Entirely'] }
+		expect(dedupeCandidates([subtitled(), other])).toHaveLength(2)
+	})
+
+	test('authorless rows never merge by prefix', () => {
+		// An empty folded set overlaps nothing -- without any author witness
+		// a prefix title plus a close runtime is not the same-recording bar.
+		const anon = { ...bare(), authors: [] }
+		expect(dedupeCandidates([subtitled(), anon])).toHaveLength(2)
+	})
+})
