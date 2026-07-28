@@ -1468,6 +1468,12 @@ export default class BookSearchHelper {
 				// decide. Shipped the other way round on 2026-07-27 and verified
 				// wrong on 2026-07-28: a branded edition 22.8 minutes off beat the
 				// byte-exact recording, and a 0s-off row lost to an 88s-off one.
+				const exactTitle = (c: ScoredCandidate) => {
+					const t = normalizeTitle(c.title).toLowerCase()
+					return (
+						t === primaryTitle.toLowerCase() || (altTitle != null && t === altTitle.toLowerCase())
+					)
+				}
 				const runtimeCannotSeparate = withinRoundingNoise(a, b)
 				if (wantNarratorKeys.length) {
 					const byNarrator = Number(narratorMatches(b)) - Number(narratorMatches(a))
@@ -1552,6 +1558,16 @@ export default class BookSearchHelper {
 						const byExtends = Number(prefersFullerTitle(b)) - Number(prefersFullerTitle(a))
 						if (byExtends !== 0) return byExtends
 					}
+					// The symmetric leg: 'query' means TRUST THE TAGS -- inside the
+					// rounding band prefer the row titled what the library calls
+					// the book (measured live on Apex, 2026-07-28: the subtitled
+					// listing won the band via 'fuller' while the operator's tag
+					// is the bare form). Runtime evidence stays sovereign: this
+					// only runs where the delta is provider-rounding noise.
+					if (runtimeCannotSeparate && tieTitlePreference === 'query') {
+						const byTagTitle = Number(exactTitle(b)) - Number(exactTitle(a))
+						if (byTagTitle !== 0) return byTagTitle
+					}
 					if (Math.abs(aDelta - bDelta) > 1e-9) {
 						return aDelta - bDelta
 					}
@@ -1571,12 +1587,6 @@ export default class BookSearchHelper {
 				// narrator, runtime delta, residual confidence) has already declined
 				// to decide, so this can only choose between rows the evidence cannot
 				// tell apart.
-				const exactTitle = (c: ScoredCandidate) => {
-					const t = normalizeTitle(c.title).toLowerCase()
-					return (
-						t === primaryTitle.toLowerCase() || (altTitle != null && t === altTitle.toLowerCase())
-					)
-				}
 				const byExactTitle = Number(exactTitle(b)) - Number(exactTitle(a))
 				if (byExactTitle !== 0) return byExactTitle
 				// Genuinely tied: prefer the richer/more-authoritative source.

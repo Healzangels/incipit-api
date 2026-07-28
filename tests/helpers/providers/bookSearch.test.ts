@@ -1837,3 +1837,80 @@ describe('same-narration branding window', () => {
 		expect(out[0].id).toBe('hc-plain')
 	})
 })
+
+describe('DURATION_TIE_TITLE_PREFERENCE=query is an active tag preference', () => {
+	// Live Apex (2026-07-28): inside the rounding band the 'fuller' default
+	// hands the tie to the marketing-subtitled listing even when the tag row
+	// sits in the same band. 'query' now actively prefers the row titled what
+	// the library calls the book -- and stays inert when runtime genuinely
+	// separates the pair.
+	const file = 41946000
+
+	const bare = () =>
+		candidate({
+			provider: 'overdrive',
+			id: 'od-bare',
+			title: 'Apex',
+			authors: ['Seth Ring'],
+			narrators: ['Pavi Proczko'],
+			audioSeconds: 41976 // 30s off -- FARTHER than the subtitled row
+		})
+	const subtitled = () =>
+		candidate({
+			provider: 'audible',
+			id: 'audible-sub',
+			asin: 'B0APEXQRY01',
+			title: 'Apex: A Fantasy LitRPG Adventure',
+			authors: ['Seth Ring'],
+			narrators: ['Pavi Proczko'],
+			audioSeconds: 41956 // 10s off
+		})
+
+	async function searchWith(pref) {
+		const prior = process.env.DURATION_TIE_TITLE_PREFERENCE
+		if (pref === undefined) delete process.env.DURATION_TIE_TITLE_PREFERENCE
+		else process.env.DURATION_TIE_TITLE_PREFERENCE = pref
+		try {
+			const reg = new ProviderRegistry([stubProvider('x', [bare(), subtitled()])])
+			return await new BookSearchHelper(reg, {
+				title: 'Apex',
+				author: 'Seth Ring',
+				duration: file,
+				region: 'us'
+			}).search()
+		} finally {
+			if (prior === undefined) delete process.env.DURATION_TIE_TITLE_PREFERENCE
+			else process.env.DURATION_TIE_TITLE_PREFERENCE = prior
+		}
+	}
+
+	test("'query' seats the tag-titled row despite a slightly-closer subtitled rival", async () => {
+		const out = await searchWith('query')
+		expect(out[0].id).toBe('od-bare')
+		expect(out.map((c) => c.id)).toContain('audible-sub')
+	})
+
+	test("the default 'fuller' keeps its Nevermoor behavior on the same pair", async () => {
+		const out = await searchWith(undefined)
+		expect(out[0].id).toBe('audible-sub')
+	})
+
+	test("'query' never overrides runtime that genuinely separates", async () => {
+		const prior = process.env.DURATION_TIE_TITLE_PREFERENCE
+		process.env.DURATION_TIE_TITLE_PREFERENCE = 'query'
+		try {
+			const farBare = { ...bare(), audioSeconds: 41946 + 1200 } // 20 min off
+			const reg = new ProviderRegistry([stubProvider('x', [farBare, subtitled()])])
+			const out = await new BookSearchHelper(reg, {
+				title: 'Apex',
+				author: 'Seth Ring',
+				duration: file,
+				region: 'us'
+			}).search()
+			expect(out[0].id).toBe('audible-sub')
+		} finally {
+			if (prior === undefined) delete process.env.DURATION_TIE_TITLE_PREFERENCE
+			else process.env.DURATION_TIE_TITLE_PREFERENCE = prior
+		}
+	})
+})
