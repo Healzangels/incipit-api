@@ -1516,3 +1516,64 @@ describe('the witness that revokes a pin must be a plausible candidate', () => {
 		expect(out[0].id).toBe('realrival')
 	})
 })
+
+describe('a foreign edition named in the TITLE loses on identity', () => {
+	/**
+	 * Tier 1.4, reproduced against the real helper 2026-07-28.
+	 *
+	 * A foreign-edition marker in the title is treated as evidence the
+	 * language FIELD failed to carry, and costs LANGUAGE_CONFLICT_PENALTY
+	 * (0.15) -- which exactly cancels the +0.15 duration corroboration bonus.
+	 * So "Everfound (Spanish Edition)" with a matching runtime lands at 0.850,
+	 * precisely tying an uncorroborated English row, and the winner falls to
+	 * arms below that know nothing about language: `byLanguage` consults only
+	 * `c.language`, so a null field makes the Spanish row invisible to it.
+	 *
+	 * Language is an identity property -- the wrong-language edition is the
+	 * wrong BOOK -- so the ranking arm must see the title marker too, and the
+	 * result must not depend on provider fan-out order.
+	 */
+	const cand = (o: Partial<ProviderCandidate>): ProviderCandidate =>
+		candidate({ title: 'Everfound', authors: ['Neal Shusterman'],
+			narrators: ['A Narrator'], ...o })
+
+	const spanish = () =>
+		cand({ id: 'spanish', asin: 'B0SPANISH1', title: 'Everfound (Spanish Edition)',
+			audioSeconds: 36000 })
+	const english = () =>
+		cand({ id: 'english', provider: 'hardcover', asin: 'B0ENGLISH1',
+			title: 'Everfound', language: 'en' as never, audioSeconds: null })
+
+	async function run(first: ProviderCandidate, second: ProviderCandidate) {
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [first]),
+			stubProvider('hardcover', [second])
+		])
+		return new BookSearchHelper(reg, {
+			title: 'Everfound', author: 'Neal Shusterman',
+			duration: 36000000, region: 'us'
+		}).search()
+	}
+
+	test('the English edition wins regardless of provider order', async () => {
+		for (const [a, b] of [
+			[spanish(), english()],
+			[english(), spanish()]
+		]) {
+			const out = await run(a, b)
+			expect(out[0].id).toBe('english')
+		}
+	})
+
+	test('the marker does not fire when the QUERY itself asks for that edition', async () => {
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [spanish()]),
+			stubProvider('hardcover', [english()])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Everfound (Spanish Edition)', author: 'Neal Shusterman',
+			duration: 36000000, region: 'us'
+		}).search()
+		expect(out[0].id).toBe('spanish')
+	})
+})
