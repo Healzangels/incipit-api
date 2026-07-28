@@ -1505,13 +1505,9 @@ export default class BookSearchHelper {
 				// the byte-exact recording -- that class stays outside the
 				// window and falls to the delta arm exactly as before.
 				const aAbs =
-					a.durationDeltaPct != null && a.audioSeconds
-						? a.durationDeltaPct * a.audioSeconds
-						: null
+					a.durationDeltaPct != null && a.audioSeconds ? a.durationDeltaPct * a.audioSeconds : null
 				const bAbs =
-					b.durationDeltaPct != null && b.audioSeconds
-						? b.durationDeltaPct * b.audioSeconds
-						: null
+					b.durationDeltaPct != null && b.audioSeconds ? b.durationDeltaPct * b.audioSeconds : null
 				const sameNarrationWindow =
 					narratorMatches(a) &&
 					narratorMatches(b) &&
