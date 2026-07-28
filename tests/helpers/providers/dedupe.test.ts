@@ -745,3 +745,72 @@ describe('prefix-extension merge author gate', () => {
 		expect(dedupeCandidates([subtitled(), anon])).toHaveLength(2)
 	})
 })
+
+describe('edition-variant subtitles never merge', () => {
+	// Operator rule (2026-07-28, from the He Who Fights with Monsters Vol. 1
+	// deluxe-hardcover case): listings with materially different metadata are
+	// different listings and must stay separately pickable. Descriptions are
+	// not in the search rows, so the subtitle's own edition language is the
+	// signal -- and a numbered listing (the reverted agreeing-volume case)
+	// blocks unconditionally again.
+	const base = () =>
+		scored({
+			provider: 'overdrive',
+			id: 'overdrive-base',
+			title: 'He Who Fights with Monsters',
+			authors: ['Shirtaloon'],
+			narrators: ['Heath Miller'],
+			audioSeconds: 104181
+		})
+	const variant = (title) =>
+		scored({
+			provider: 'hardcover',
+			id: 'hardcover-variant',
+			asin: 'B0EDITIONXX',
+			title,
+			authors: ['Shirtaloon'],
+			narrators: ['Heath Miller'],
+			audioSeconds: 104160
+		})
+
+	test('a numbered listing stays separately pickable even at the same runtime', () => {
+		// The reverted relaxation merged this when the claim agreed with the
+		// query volume; matching then materialized the deluxe listing's own
+		// title and blurb with the standard listing gone from the list.
+		const out = dedupeCandidates(
+			[variant('He Who Fights With Monsters, Vol. 1'), base()],
+			null,
+			new Set(),
+			new Set(),
+			['He Who Fights with Monsters'],
+			90
+		)
+		expect(out).toHaveLength(2)
+	})
+
+	test.each([
+		'He Who Fights with Monsters: Deluxe Edition',
+		'He Who Fights with Monsters (Annotated)',
+		'He Who Fights with Monsters: 10th Anniversary Edition',
+		'He Who Fights with Monsters (Dramatized Adaptation)',
+		'He Who Fights with Monsters: Collector\'s Edition'
+	])('"%s" is an edition variant, not a relisting', (title) => {
+		expect(dedupeCandidates([variant(title), base()])).toHaveLength(2)
+	})
+
+	test('a plain marketing subtitle still merges', () => {
+		// The Apex/Wundersmith class must survive the new guard: no number,
+		// no edition language -- the same recording relisted with a tagline.
+		const out = dedupeCandidates(
+			[variant('He Who Fights with Monsters: A LitRPG Adventure'), base()]
+		)
+		expect(out).toHaveLength(1)
+	})
+
+	test('unabridged is the default format label, not a variant', () => {
+		const out = dedupeCandidates(
+			[variant('He Who Fights with Monsters (Unabridged)'), base()]
+		)
+		expect(out).toHaveLength(1)
+	})
+})
