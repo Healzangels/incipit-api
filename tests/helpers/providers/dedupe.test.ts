@@ -483,7 +483,6 @@ describe('dedupeCandidates: demoted junk (AI "Virtual Voice") ids', () => {
 	})
 })
 
-
 describe('determinism: arrival order must never matter', () => {
 	// The mixed shape a real fan-out produces: an ASIN re-release cluster, a
 	// book-level duplicate pair, a full-tie same-provider pair, a language pair
@@ -511,8 +510,22 @@ describe('determinism: arrival order must never matter', () => {
 		scored({ provider: 'openlibrary', id: 'OL9W', title: 'Chameleon', authors: ['Piers Anthony'] }),
 		scored({ provider: 'openlibrary', id: 'OL1W', title: 'Twin', authors: ['A'] }),
 		scored({ provider: 'openlibrary', id: 'OL2W', title: 'Twin', authors: ['A'] }),
-		scored({ provider: 'x', id: 'en1', title: 'Bilingual', authors: ['B'], audioSeconds: 36000, language: 'en' }),
-		scored({ provider: 'x', id: 'de1', title: 'Bilingual', authors: ['B'], audioSeconds: 36010, language: 'de' }),
+		scored({
+			provider: 'x',
+			id: 'en1',
+			title: 'Bilingual',
+			authors: ['B'],
+			audioSeconds: 36000,
+			language: 'en'
+		}),
+		scored({
+			provider: 'x',
+			id: 'de1',
+			title: 'Bilingual',
+			authors: ['B'],
+			audioSeconds: 36010,
+			language: 'de'
+		}),
 		scored({ provider: 'apple', id: 'solo', title: 'Loner', authors: ['C'], cover: 'l.jpg' })
 	]
 
@@ -547,5 +560,133 @@ describe('determinism: arrival order must never matter', () => {
 		expect(ba).toHaveLength(1)
 		expect(ab[0].id).toBe(ba[0].id)
 		expect(ab[0].id).toBe('OL1W') // lowest identity key, always
+	})
+})
+
+describe('prefix-extension merge', () => {
+	// The Nevermoor/Apex shape: one recording, two title forms ("Apex" vs
+	// "Apex: A Fantasy LitRPG Adventure"), runtimes differing only by provider
+	// rounding -- sometimes straddling a minute boundary, so the dur: key
+	// leaves them as two look-alike rows the ranker had to arbitrate between.
+	// They merge now, and the OPERATOR's title policy (2026-07-28) decides
+	// what the merged row is called: the library's own tag form when any
+	// member carries it, else the winner's title.
+	const subtitled = () =>
+		scored({
+			provider: 'audible',
+			id: 'audible-1',
+			asin: 'B0APEX00XX',
+			title: 'Apex: A Fantasy LitRPG Adventure',
+			authors: ['Seth Ring'],
+			narrators: ['Neil Hellegers'],
+			audioSeconds: 43230,
+			cover: 'audible.jpg'
+		})
+	const bare = () =>
+		scored({
+			provider: 'overdrive',
+			id: 'overdrive-1',
+			title: 'Apex',
+			authors: ['Seth Ring'],
+			narrators: ['Neil Hellegers'],
+			audioSeconds: 43208
+		})
+
+	test('merges the subtitled and bare forms of one recording', () => {
+		// 22s apart across a minute boundary: the dur: key alone cannot merge
+		// these (buckets 720 vs 721 differ).
+		const out = dedupeCandidates([subtitled(), bare()])
+		expect(out).toHaveLength(1)
+	})
+
+	test('the merged row is called what the library calls it (short tag)', () => {
+		const out = dedupeCandidates([subtitled(), bare()], null, new Set(), new Set(), ['Apex'])
+		expect(out).toHaveLength(1)
+		// The richer Audible row wins the group; the TITLE comes from the tag.
+		expect(out[0].asin).toBe('B0APEX00XX')
+		expect(out[0].title).toBe('Apex')
+	})
+
+	test('the merged row is called what the library calls it (fuller tag)', () => {
+		const out = dedupeCandidates([subtitled(), bare()], null, new Set(), new Set(), [
+			'Apex: A Fantasy LitRPG Adventure'
+		])
+		expect(out).toHaveLength(1)
+		expect(out[0].title).toBe('Apex: A Fantasy LitRPG Adventure')
+	})
+
+	test('no tag match leaves the winner titled as-is', () => {
+		const out = dedupeCandidates([subtitled(), bare()], null, new Set(), new Set(), [
+			'A Completely Different Name'
+		])
+		expect(out).toHaveLength(1)
+		expect(out[0].title).toBe('Apex: A Fantasy LitRPG Adventure')
+	})
+
+	test('a volume-claiming remainder never merges', () => {
+		// Two volumes of a series can coincidentally run close in length; a
+		// subtitle that NUMBERS the work is an identity claim, not marketing.
+		const one = scored({
+			title: 'Defiance of the Fall',
+			authors: ['TheFirstDefier'],
+			audioSeconds: 90000
+		})
+		const ten = scored({
+			id: 'y',
+			title: 'Defiance of the Fall, Book 10',
+			authors: ['TheFirstDefier'],
+			audioSeconds: 90040
+		})
+		expect(dedupeCandidates([one, ten])).toHaveLength(2)
+	})
+
+	test('runtimes outside the rounding window never merge', () => {
+		const a = subtitled()
+		const b = { ...bare(), audioSeconds: 43230 + 300 }
+		expect(dedupeCandidates([a, b])).toHaveLength(2)
+	})
+
+	test('a book-level row (no runtime) never merges by prefix', () => {
+		// Without the runtime witness a prefix match is just two similar names
+		// -- "Dune" the book record must not vanish into "Dune: Book One".
+		const a = subtitled()
+		const b = { ...bare(), audioSeconds: null }
+		expect(dedupeCandidates([a, b])).toHaveLength(2)
+	})
+
+	test('a language conflict blocks the merge', () => {
+		const a = { ...subtitled(), language: 'english' }
+		const b = { ...bare(), language: 'german' }
+		expect(dedupeCandidates([a, b])).toHaveLength(2)
+	})
+
+	test('a bare-space extension is not a subtitle', () => {
+		// "Dune Messiah" is not the fuller form of "Dune" -- same boundary
+		// rule as the ranker's titleExtendsQuery.
+		const a = { ...subtitled(), title: 'Dune', authors: ['Frank Herbert'] }
+		const b = {
+			...bare(),
+			title: 'Dune Messiah',
+			authors: ['Frank Herbert'],
+			audioSeconds: 43230
+		}
+		expect(dedupeCandidates([a, b])).toHaveLength(2)
+	})
+
+	test('junk never donates the tag title', () => {
+		// Same rule as every identity donor: an AI-narrated row's fields must
+		// not graft onto the human edition it merged with.
+		const junkBare = { ...bare(), id: 'junk-1' }
+		const out = dedupeCandidates([subtitled(), junkBare], null, new Set(['junk-1']), new Set(), [
+			'Apex'
+		])
+		expect(out).toHaveLength(1)
+		expect(out[0].title).toBe('Apex: A Fantasy LitRPG Adventure')
+	})
+
+	test('different authors never merge', () => {
+		const a = subtitled()
+		const b = { ...bare(), authors: ['Somebody Else'] }
+		expect(dedupeCandidates([a, b])).toHaveLength(2)
 	})
 })

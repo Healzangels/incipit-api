@@ -1032,14 +1032,19 @@ describe('duration-rounding tie collapse', () => {
 			])
 		])
 
-	test('within the epsilon the fuller form of the same title wins', async () => {
+	test('within the epsilon the two title forms are ONE row, named by the tag', async () => {
+		// Superseded by the prefix-extension merge (2026-07-28): rows that
+		// differ only by a subtitle at matching runtime are the same recording
+		// and never reach the ranker as a choice. The operator's title policy
+		// names the merged row after the library's own tag.
 		const out = await new BookSearchHelper(silverbornShelf(), {
 			title: 'Silverborn',
 			author: 'Jessica Townsend',
 			duration: 65604000,
 			region: 'us'
 		}).search()
-		expect(out[0].id).toBe('full')
+		expect(out).toHaveLength(1)
+		expect(out[0].title).toBe('Silverborn')
 	})
 
 	test('past the epsilon the closest runtime still wins', async () => {
@@ -1074,7 +1079,11 @@ describe('duration-rounding tie collapse', () => {
 		expect(out[0].id).toBe('short')
 	})
 
-	test('DURATION_TIE_TITLE_PREFERENCE=query keeps the library-named row', async () => {
+	test('DURATION_TIE_TITLE_PREFERENCE no longer matters for a merged pair', async () => {
+		// The env preference used to arbitrate which of the two rows won; the
+		// merge removes the choice, and the tag names the survivor under
+		// EITHER setting. (The arm itself still exists for pairs the merge
+		// refuses -- volume-claiming remainders and no-runtime rows.)
 		const prior = process.env.DURATION_TIE_TITLE_PREFERENCE
 		process.env.DURATION_TIE_TITLE_PREFERENCE = 'query'
 		try {
@@ -1084,7 +1093,8 @@ describe('duration-rounding tie collapse', () => {
 				duration: 65604000,
 				region: 'us'
 			}).search()
-			expect(out[0].id).toBe('short')
+			expect(out).toHaveLength(1)
+			expect(out[0].title).toBe('Silverborn')
 		} finally {
 			if (prior === undefined) delete process.env.DURATION_TIE_TITLE_PREFERENCE
 			else process.env.DURATION_TIE_TITLE_PREFERENCE = prior
@@ -1110,12 +1120,12 @@ describe('duration-rounding tie collapse', () => {
 		expect(out[0].id).toBe('plain')
 	})
 
-	test('EQUAL rounded runtimes inside the epsilon also collapse to the fuller title', async () => {
-		// The live Wundersmith holdout: OverDrive's short row sits 12s off,
-		// and Audible's short row and the ISBN full row both list EXACTLY
-		// 42600s (72s off). Equal deltas skipped the collapse entirely and
-		// fell to the exact-title arm, which handed the match back to the
-		// short form -- the one book on the shelf that stayed short.
+	test('EQUAL rounded runtimes inside the epsilon collapse to one tag-named row', async () => {
+		// The live Wundersmith holdout, resolved one level deeper than the
+		// original fix: all three rows are the same recording (12s and 72s of
+		// provider rounding), so the merge collapses the whole shelf to ONE
+		// row and the ranker never arbitrates. Display consistency now comes
+		// from the tag policy, not from preferring the fuller form.
 		const reg = new ProviderRegistry([
 			stubProvider('audible', [
 				townsend('od-short', 'Wundersmith', 42660),
@@ -1129,7 +1139,8 @@ describe('duration-rounding tie collapse', () => {
 			duration: 42672000,
 			region: 'us'
 		}).search()
-		expect(out[0].id).toBe('full')
+		expect(out).toHaveLength(1)
+		expect(out[0].title).toBe('Wundersmith')
 	})
 })
 
@@ -1294,14 +1305,20 @@ describe('a file PART is not a series volume', () => {
 	 */
 	const listing = (title: string) =>
 		candidate({
-			id: 'real', asin: 'B0REAL0001', provider: 'audible', title,
-			authors: ['An Author'], audioSeconds: 30000
+			id: 'real',
+			asin: 'B0REAL0001',
+			provider: 'audible',
+			title,
+			authors: ['An Author'],
+			audioSeconds: 30000
 		})
 
 	async function search(album: string, candTitle: string) {
 		const reg = new ProviderRegistry([stubProvider('audible', [listing(candTitle)])])
 		return new BookSearchHelper(reg, {
-			title: album, author: 'An Author', region: 'us'
+			title: album,
+			author: 'An Author',
+			region: 'us'
 		}).search()
 	}
 
@@ -1327,14 +1344,21 @@ describe('a file PART is not a series volume', () => {
 		// The guard must not go so far that book 1 matches book 10.
 		const reg = new ProviderRegistry([
 			stubProvider('audible', [
-				candidate({ id: 'ten', asin: 'B0TEN00001', provider: 'audible',
-					title: 'Defiance of the Fall, Book 10', authors: ['An Author'],
-					audioSeconds: 30000 })
+				candidate({
+					id: 'ten',
+					asin: 'B0TEN00001',
+					provider: 'audible',
+					title: 'Defiance of the Fall, Book 10',
+					authors: ['An Author'],
+					audioSeconds: 30000
+				})
 			])
 		])
 		const out = await new BookSearchHelper(reg, {
-			title: 'Defiance of the Fall', author: 'An Author',
-			seriesPosition: '1', region: 'us'
+			title: 'Defiance of the Fall',
+			author: 'An Author',
+			seriesPosition: '1',
+			region: 'us'
 		}).search()
 		expect(out.length === 0 || out[0].confidence < 0.8).toBe(true)
 	})
@@ -1365,14 +1389,15 @@ describe('duration evidence belongs to the EDITION, not the row', () => {
 			rows.map((r, i) => stubProvider(i === 0 ? 'audible' : 'hardcover', r))
 		)
 		return new BookSearchHelper(reg, {
-			title: 'Dune', author: 'Frank Herbert', duration: 36000000, region: 'us'
+			title: 'Dune',
+			author: 'Frank Herbert',
+			duration: 36000000,
+			region: 'us'
 		}).search()
 	}
 
 	test('the vetoed edition alone is rejected', async () => {
-		const out = await search([
-			[dune({ id: 'abridged', asin: WRONG, audioSeconds: 7200 })]
-		])
+		const out = await search([[dune({ id: 'abridged', asin: WRONG, audioSeconds: 7200 })]])
 		expect(out).toHaveLength(0)
 	})
 
@@ -1441,8 +1466,11 @@ describe('a revoked pin cannot return on a grafted asin', () => {
 			])
 		])
 		const out = await new BookSearchHelper(reg, {
-			title: 'A Book', author: 'An Author', asin: STALE,
-			duration: 10000000, region: 'us'
+			title: 'A Book',
+			author: 'An Author',
+			asin: STALE,
+			duration: 10000000,
+			region: 'us'
 		}).search()
 		expect(out[0].id).toBe('right')
 	})
@@ -1457,8 +1485,11 @@ describe('a revoked pin cannot return on a grafted asin', () => {
 			])
 		])
 		const out = await new BookSearchHelper(reg, {
-			title: 'A Book', author: 'An Author', asin: GOOD,
-			duration: 10000000, region: 'us'
+			title: 'A Book',
+			author: 'An Author',
+			asin: GOOD,
+			duration: 10000000,
+			region: 'us'
 		}).search()
 		expect(out[0].id).toBe('pinned')
 	})
@@ -1490,16 +1521,24 @@ describe('the witness that revokes a pin must be a plausible candidate', () => {
 			stubProvider('openlibrary', witnesses)
 		])
 		return new BookSearchHelper(reg, {
-			title: 'A Book', author: 'An Author', asin: PIN,
-			duration: 36000000, region: 'us'
+			title: 'A Book',
+			author: 'An Author',
+			asin: PIN,
+			duration: 36000000,
+			region: 'us'
 		}).search()
 	}
 
 	test('an unrelated book with a coincidental runtime does not revoke the pin', async () => {
 		const out = await run([
-			cand({ id: 'ducks', provider: 'openlibrary', asin: null,
+			cand({
+				id: 'ducks',
+				provider: 'openlibrary',
+				asin: null,
 				title: 'A Completely Different Book About Ducks',
-				authors: ['Someone Else'], audioSeconds: 36000 })
+				authors: ['Someone Else'],
+				audioSeconds: 36000
+			})
 		])
 		const pinned = out.find((r) => r.id === 'pinned')
 		expect(pinned).toBeDefined()
@@ -1510,8 +1549,13 @@ describe('the witness that revokes a pin must be a plausible candidate', () => {
 		// The guard must not neuter the override it protects: a genuine
 		// same-book edition whose runtime matches the file still wins.
 		const out = await run([
-			cand({ id: 'realrival', provider: 'openlibrary', asin: 'B0RIVAL001',
-				title: 'A Book', audioSeconds: 36000 })
+			cand({
+				id: 'realrival',
+				provider: 'openlibrary',
+				asin: 'B0RIVAL001',
+				title: 'A Book',
+				audioSeconds: 36000
+			})
 		])
 		expect(out[0].id).toBe('realrival')
 	})
@@ -1534,15 +1578,24 @@ describe('a foreign edition named in the TITLE loses on identity', () => {
 	 * result must not depend on provider fan-out order.
 	 */
 	const cand = (o: Partial<ProviderCandidate>): ProviderCandidate =>
-		candidate({ title: 'Everfound', authors: ['Neal Shusterman'],
-			narrators: ['A Narrator'], ...o })
+		candidate({ title: 'Everfound', authors: ['Neal Shusterman'], narrators: ['A Narrator'], ...o })
 
 	const spanish = () =>
-		cand({ id: 'spanish', asin: 'B0SPANISH1', title: 'Everfound (Spanish Edition)',
-			audioSeconds: 36000 })
+		cand({
+			id: 'spanish',
+			asin: 'B0SPANISH1',
+			title: 'Everfound (Spanish Edition)',
+			audioSeconds: 36000
+		})
 	const english = () =>
-		cand({ id: 'english', provider: 'hardcover', asin: 'B0ENGLISH1',
-			title: 'Everfound', language: 'en' as never, audioSeconds: null })
+		cand({
+			id: 'english',
+			provider: 'hardcover',
+			asin: 'B0ENGLISH1',
+			title: 'Everfound',
+			language: 'en' as never,
+			audioSeconds: null
+		})
 
 	async function run(first: ProviderCandidate, second: ProviderCandidate) {
 		const reg = new ProviderRegistry([
@@ -1550,8 +1603,10 @@ describe('a foreign edition named in the TITLE loses on identity', () => {
 			stubProvider('hardcover', [second])
 		])
 		return new BookSearchHelper(reg, {
-			title: 'Everfound', author: 'Neal Shusterman',
-			duration: 36000000, region: 'us'
+			title: 'Everfound',
+			author: 'Neal Shusterman',
+			duration: 36000000,
+			region: 'us'
 		}).search()
 	}
 
@@ -1571,13 +1626,14 @@ describe('a foreign edition named in the TITLE loses on identity', () => {
 			stubProvider('hardcover', [english()])
 		])
 		const out = await new BookSearchHelper(reg, {
-			title: 'Everfound (Spanish Edition)', author: 'Neal Shusterman',
-			duration: 36000000, region: 'us'
+			title: 'Everfound (Spanish Edition)',
+			author: 'Neal Shusterman',
+			duration: 36000000,
+			region: 'us'
 		}).search()
 		expect(out[0].id).toBe('spanish')
 	})
 })
-
 
 describe('ranking determinism', () => {
 	// Two look-alike audio editions with nothing to separate them: same
