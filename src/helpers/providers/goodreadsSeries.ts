@@ -745,15 +745,22 @@ function newLookupState(): LookupState {
 }
 
 /**
- * Clear the pacing/backoff state. Exported for tests ONLY: tripping the backoff
- * suppresses every later call for a cooldown, and because this module's state is
- * shared across test files in one process, a backoff test would otherwise blank
- * out unrelated suites depending on file order (observed: 7 sibling failures).
+ * Restore ALL of this module's shared state to pristine: pacing, backoff, and
+ * the series-record memo. Exported for tests ONLY: the state lives for the
+ * process and is shared across test files, so anything one test leaves behind
+ * changes what a later test exercises depending on run order. The backoff
+ * variant was observed directly (7 sibling failures once tripped); the memo
+ * variant was subtler and WORSE -- five tests reusing series ids 1 and 2
+ * pinned whichever member counts ran first, and four "parent-series
+ * preference" tests then passed without ever consuming their own fixtures.
+ * One reset restoring everything means there is no "which reset do I need"
+ * trap left to fall into.
  */
 export function resetGoodreadsThrottle(): void {
 	nextAllowedAt = 0
 	backoffUntil = 0
 	requestChain = Promise.resolve()
+	seriesRecordMemo.clear()
 }
 // Serializes the pacing arithmetic: without a shared tail, N concurrent callers
 // each read the same nextAllowedAt and all fire at once.

@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, mock, test } from 'bun:test'
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test'
 
 import { fakeRedis } from '#tests/setup/fakeRedis'
 
@@ -15,6 +15,12 @@ const { fetchGoodreadsAuthorInfo, withGoodreadsAuthorInfo, resetGoodreadsThrottl
 // single process: leaving the backoff tripped blanks every later Goodreads test
 // (measured: 7 sibling failures, and which ones depended on file order).
 afterAll(() => resetGoodreadsThrottle())
+// ...and SHARED between the tests in THIS file too. Each one below trips the
+// backoff; without a fresh start the first test only passed when it ran first
+// (its "network was hit" assertion fails under --randomize), and the miss-cache
+// test passed VACUOUSLY -- the tripped backoff short-circuited before any fetch
+// or cache write, so "nothing was cached" was true because nothing had happened.
+beforeEach(() => resetGoodreadsThrottle())
 
 /**
  * Rate-limit backoff, in its own file on purpose: tripping the backoff sets
@@ -63,7 +69,6 @@ describe('bookinfo.pro rate-limit backoff', () => {
 		// The whole reason a missing author portrait took five diagnostic steps: a
 		// 429, a stand-down skip and a genuine "no such author" all returned null
 		// with no trace, so production could not tell them apart.
-		resetGoodreadsThrottle()
 		rejectWithStatus(429)
 		const warns: string[] = []
 		const debugs: string[] = []
@@ -92,6 +97,10 @@ describe('bookinfo.pro rate-limit backoff', () => {
 
 		const out = await withGoodreadsAuthorInfo('Jessica Townsend', redis)
 		expect(out).toEqual({ image: null, bio: null })
+		// The 429 actually happened IN THIS TEST -- without this, a backoff left
+		// tripped by an earlier test made both assertions pass with no fetch and
+		// no cache decision at all.
+		expect(fetchMock.mock.calls.length).toBeGreaterThan(0)
 		expect(redis.store.size).toBe(0) // nothing written -> it will retry later
 	})
 })

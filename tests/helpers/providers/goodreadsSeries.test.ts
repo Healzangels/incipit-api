@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, mock, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
 
 // No outbound pacing in tests: the live client holds a ~1.1s gap between
 // bookinfo.pro calls, which would add ~45s to this suite for no coverage.
@@ -7,7 +7,17 @@ process.env.GOODREADS_MIN_GAP_MS = '0'
 const fetchMock = mock()
 mock.module('#helpers/utils/fetchPlus', () => ({ default: fetchMock }))
 
-const { fetchGoodreadsSeries, seriesAliasFor } = await import('#helpers/providers/goodreadsSeries')
+const { fetchGoodreadsSeries, seriesAliasFor, resetGoodreadsThrottle } = await import(
+	'#helpers/providers/goodreadsSeries'
+)
+
+// Pristine module state for EVERY test. The series-record memo lives for the
+// process, so without this, whichever test touches a series id first pins its
+// member count for every later test that reuses the id -- under --randomize
+// three tests here flipped by seed, and the four parent-series tests could
+// pass without ever consuming their own member-count fixtures (the counts
+// came from the memo). Belt to the braces of the unique ids below.
+beforeEach(() => resetGoodreadsThrottle())
 
 /** Queue responses in call order; a `null` entry makes that call reject. */
 function respond(...bodies: Array<unknown | null>) {
@@ -74,12 +84,12 @@ describe('goodreads series enrichment', () => {
 				Series: [
 					{
 						Title: 'Sub Series',
-						ForeignId: 1,
+						ForeignId: 51,
 						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }]
 					},
 					{
 						Title: 'Parent Series',
-						ForeignId: 2,
+						ForeignId: 52,
 						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '7' }]
 					}
 				]
@@ -91,6 +101,9 @@ describe('goodreads series enrichment', () => {
 		expect(out?.primary).toEqual({ name: 'Parent Series', position: '7' })
 		// The sub-series is still carried, so a consumer that disagrees can use it.
 		expect(out?.secondary).toEqual({ name: 'Sub Series', position: '1' })
+		// Both member counts came from THIS test's fixtures (search + work + two
+		// /series/{id} calls), not from the process-lifetime memo.
+		expect(fetchMock.mock.calls.length).toBe(4)
 	})
 
 	test('omits position when the work has no link of its own', async () => {
@@ -119,43 +132,54 @@ describe('parent-series preference', () => {
 	// A work in a sub-series, its parent, and a variant. The variant has the
 	// most members but is an edition listing; the parent has more members than
 	// the sub. Order: search, work, then one /series/{id} per pooled series.
-	const multi = () => ({
+	//
+	// `base` keeps every test's series ids UNIQUE (like the language-preference
+	// describe's 9000x ids): reusing ids 1 and 2 across tests meant whichever
+	// ran first pinned their member counts in the module memo, and the fixtures
+	// queued here were never consumed -- these tests passed on someone else's
+	// counts.
+	const multi = (base: number) => ({
 		Title: 'The Grief of Stones',
 		Series: [
 			{
 				Title: 'The Cemeteries of Amalo',
-				ForeignId: 1,
+				ForeignId: base + 1,
 				LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '2' }]
 			},
 			{
 				Title: 'The Chronicles of Osreth',
-				ForeignId: 2,
+				ForeignId: base + 2,
 				LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '3' }]
 			},
 			{
 				Title: 'Osreth Omnibus Edition',
-				ForeignId: 3,
+				ForeignId: base + 3,
 				LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }]
 			}
 		]
 	})
-	// member-count responses, in ForeignId order of the CLEAN pool (1 then 2)
+	// member-count responses, in ForeignId order of the CLEAN pool (base+1 then base+2)
 	const members = (n) => ({ LinkItems: Array.from({ length: n }, (_, i) => i) })
+	// search + work + one /series/{id} per CLEAN-pool series: the counts the
+	// test claims to rank on were fetched from ITS fixtures, not the memo.
+	const expectFixturesConsumed = () => expect(fetchMock.mock.calls.length).toBe(4)
 
 	test('prefers the parent (more members) among clean series', async () => {
-		// clean pool = Cemeteries(1), Osreth(2); the Omnibus Edition is excluded
-		respond([{ workId: 42 }], multi(), members(6), members(9))
+		// clean pool = Cemeteries(111), Osreth(112); the Omnibus Edition is excluded
+		respond([{ workId: 42 }], multi(110), members(6), members(9))
 		const out = await fetchGoodreadsSeries('The Grief of Stones', null)
 		expect(out?.primary).toEqual({ name: 'The Chronicles of Osreth', position: '3' })
 		expect(out?.secondary).toEqual({ name: 'The Cemeteries of Amalo', position: '2' })
+		expectFixturesConsumed()
 	})
 
 	test('excludes an edition/ordering variant even when it is largest', async () => {
-		// If the variant filter were off, Omnibus(#1) with a huge count could win.
-		respond([{ workId: 42 }], multi(), members(6), members(9))
+		// If the variant filter were off, Omnibus with a huge count could win.
+		respond([{ workId: 42 }], multi(120), members(6), members(9))
 		const out = await fetchGoodreadsSeries('The Grief of Stones', null)
 		expect(out?.primary?.name).not.toContain('Omnibus')
 		expect(out?.secondary?.name).not.toContain('Omnibus')
+		expectFixturesConsumed()
 	})
 
 	test('drops a franchise UMBRELLA (-verse/Universe) for the sub-series', async () => {
@@ -170,22 +194,27 @@ describe('parent-series preference', () => {
 				Series: [
 					{
 						Title: "Ender's Saga",
-						ForeignId: 1,
+						ForeignId: 131,
 						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '3' }]
 					},
 					{
 						Title: 'The Enderverse',
-						ForeignId: 2,
+						ForeignId: 132,
 						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '14' }]
 					}
 				]
 			},
-			{ LinkItems: Array.from({ length: 9 }, (_, i) => i) }, // Ender's Saga: 9
-			{ LinkItems: Array.from({ length: 18 }, (_, i) => i) } // Enderverse: 18 (larger)
+			{ LinkItems: Array.from({ length: 9 }, (_, i) => i) } // Ender's Saga: 9
 		)
 		const out = await fetchGoodreadsSeries('Xenocide', null)
 		// The umbrella is larger, but the sub-series is what a reader means.
 		expect(out?.primary).toEqual({ name: "Ender's Saga", position: '3' })
+		// THREE calls, not four: the umbrella is dropped from the pool BY NAME
+		// before member counts are fetched, so its size is never even asked for —
+		// that is the point of name-detection (a size rule would reinstate it).
+		// An Enderverse count fixture used to be queued here and never consumed,
+		// which is how this test read as count-based while running on the memo.
+		expect(fetchMock.mock.calls.length).toBe(3)
 	})
 
 	test('keeps a large TIGHT parent that carries no umbrella marker', async () => {
@@ -198,12 +227,12 @@ describe('parent-series preference', () => {
 				Series: [
 					{
 						Title: 'Legacy of the Drow',
-						ForeignId: 1,
+						ForeignId: 141,
 						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '4' }]
 					},
 					{
 						Title: 'The Legend of Drizzt',
-						ForeignId: 2,
+						ForeignId: 142,
 						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '10' }]
 					}
 				]
@@ -213,6 +242,7 @@ describe('parent-series preference', () => {
 		)
 		const out = await fetchGoodreadsSeries('Passage to Dawn', null)
 		expect(out?.primary).toEqual({ name: 'The Legend of Drizzt', position: '10' })
+		expectFixturesConsumed()
 	})
 })
 
