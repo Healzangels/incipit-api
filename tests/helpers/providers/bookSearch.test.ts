@@ -1463,3 +1463,56 @@ describe('a revoked pin cannot return on a grafted asin', () => {
 		expect(out[0].id).toBe('pinned')
 	})
 })
+
+describe('the witness that revokes a pin must be a plausible candidate', () => {
+	/**
+	 * Tier 1.5, reproduced against the real helper 2026-07-28.
+	 *
+	 * `corroboratedNonPinExists` accepts ANY row in the raw pool as the
+	 * witness that invalidates a pin -- no title check, no author check, not
+	 * even a requirement that the row clear the acceptance floor.
+	 *
+	 * Measured: file 36000s, pin B0PINPINPI on the CORRECT edition whose
+	 * Audible listing drifts to 33000s (9% -- ordinary listing drift, inside
+	 * the graded dead zone). Alone, the pin holds at 1.000. Add an OpenLibrary
+	 * row titled "A Completely Different Book About Ducks" that happens to
+	 * report 36000s, and the correct pinned edition drops to 0.789 -- under
+	 * Plex's 0.80 bar, so the right book goes unmatched. The duck row is
+	 * itself filtered out by the floor, so the operator never sees the cause.
+	 */
+	const cand = (o: Partial<ProviderCandidate>): ProviderCandidate =>
+		candidate({ title: 'A Book', authors: ['An Author'], narrators: ['A Narrator'], ...o })
+	const PIN = 'B0PINPINPI'
+
+	async function run(witnesses: ProviderCandidate[]) {
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [cand({ id: 'pinned', asin: PIN, audioSeconds: 33000 })]),
+			stubProvider('openlibrary', witnesses)
+		])
+		return new BookSearchHelper(reg, {
+			title: 'A Book', author: 'An Author', asin: PIN,
+			duration: 36000000, region: 'us'
+		}).search()
+	}
+
+	test('an unrelated book with a coincidental runtime does not revoke the pin', async () => {
+		const out = await run([
+			cand({ id: 'ducks', provider: 'openlibrary', asin: null,
+				title: 'A Completely Different Book About Ducks',
+				authors: ['Someone Else'], audioSeconds: 36000 })
+		])
+		const pinned = out.find((r) => r.id === 'pinned')
+		expect(pinned).toBeDefined()
+		expect(pinned!.confidence).toBeGreaterThan(0.8)
+	})
+
+	test('a REAL rival edition of the same book still revokes a stale pin', async () => {
+		// The guard must not neuter the override it protects: a genuine
+		// same-book edition whose runtime matches the file still wins.
+		const out = await run([
+			cand({ id: 'realrival', provider: 'openlibrary', asin: 'B0RIVAL001',
+				title: 'A Book', audioSeconds: 36000 })
+		])
+		expect(out[0].id).toBe('realrival')
+	})
+})

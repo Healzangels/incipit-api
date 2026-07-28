@@ -9,6 +9,7 @@ import {
 	extractAsinAndClean,
 	normalizeTitle,
 	scoreCandidate,
+	TITLE_FLOOR,
 	titleSim
 } from '#helpers/providers/matchScorer'
 import type ProviderRegistry from '#helpers/providers/ProviderRegistry'
@@ -1075,10 +1076,34 @@ export default class BookSearchHelper {
 		// otherwise strip a legitimate pin and then win the ranking outright --
 		// inverting AI_NARRATION_PENALTY, which exists precisely so junk cannot beat
 		// a real edition.
+		// The witness must be a plausible candidate for THIS book. It previously
+		// accepted any row in the raw pool -- no title check, no author check,
+		// not even a requirement that it clear the acceptance floor -- so a row
+		// the search itself discards could still revoke a pin. Measured
+		// 2026-07-28: file 36000s, the CORRECT pinned edition drifting 9% in its
+		// Audible listing, and one OpenLibrary row titled "A Completely
+		// Different Book About Ducks" reporting 36000s dropped the pinned
+		// edition from 1.000 to 0.789 -- under Plex's 0.80 bar, so the right
+		// book went unmatched, caused by a row the operator never sees.
+		//
+		// TITLE_FLOOR is the same bar acceptance uses, so anything that could
+		// not be returned as a match cannot silently veto one either.
+		const witnessIsPlausible = (c: ProviderCandidate): boolean => {
+			const t = normalizeTitle(c.title ?? '')
+			if (!t) return false
+			return (
+				titleSim(primaryTitle, t) >= TITLE_FLOOR ||
+				(altTitle != null && titleSim(altTitle, t) >= TITLE_FLOOR)
+			)
+		}
 		const corroboratedNonPinExists =
 			wantAsin != null &&
 			candidates.some(
-				(c) => !this.isPinned(c, wantAsin) && !isAiNarrated(c.narrators) && durationCorroborates(c)
+				(c) =>
+					!this.isPinned(c, wantAsin) &&
+					!isAiNarrated(c.narrators) &&
+					witnessIsPlausible(c) &&
+					durationCorroborates(c)
 			)
 		// Decide the contradiction ONCE for the pinned ASIN, over every row carrying
 		// it, rather than per row: providers routinely return the same edition twice
