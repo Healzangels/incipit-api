@@ -527,6 +527,12 @@ export default class BookSearchHelper {
 	// different edition corroborates it -- a stale/wrong sidecar ASIN. Stripped of
 	// pin privilege in scoring, dedupe, and the pinned-first tiebreak.
 	private pinOverriddenIds = new Set<string>()
+	// The revoked pin's ASIN. `dedupeCandidates` runs AFTER the scoring pass and
+	// GRAFTS a donor's asin onto a group winner that lacks one, so a row that
+	// carried no asin when the pin was evaluated can acquire the stale one
+	// afterwards -- and an id-keyed exclusion cannot see it. The ASIN is the
+	// identity that survives the graft.
+	private pinOverriddenAsin: string | null = null
 	// How many candidates the volume-mismatch penalty hit on the last scoring pass
 	// -- a numbered sibling ("KTF Part 1" against a query for "KTF Part 2"). Zero
 	// for the overwhelming majority of searches, which involve no numbered pair.
@@ -700,7 +706,10 @@ export default class BookSearchHelper {
 		// ASIN-confirmed and therefore `risky: false` -- marking clean exactly the
 		// class of match this guard exists to flag.
 		const asinPinned =
-			top != null && this.isPinned(top, wantAsin) && !this.pinOverriddenIds.has(top.id)
+			top != null &&
+			this.isPinned(top, wantAsin) &&
+			this.pinOverriddenAsin !== wantAsin &&
+			!this.pinOverriddenIds.has(top.id)
 		const decision: MatchDecision = {
 			title: searchedTitle,
 			author: this.options.author ?? null,
@@ -967,6 +976,7 @@ export default class BookSearchHelper {
 		this.bundleDemotedIds.clear()
 		this.aiNarratedIds.clear()
 		this.pinOverriddenIds.clear()
+		this.pinOverriddenAsin = null
 		this.durationDeadzoned = 0
 		this.volumeDemoted = 0
 		this.aiNarrationDemoted = 0
@@ -1131,6 +1141,7 @@ export default class BookSearchHelper {
 			if (pinContradicted) {
 				this.pinDurationOverridden += 1
 				this.pinOverriddenIds.add(c.id)
+				this.pinOverriddenAsin = wantAsin
 			}
 			const effectivePin = asinMatch && !pinContradicted
 			let confidence = effectivePin ? 1 : best.confidence
@@ -1306,6 +1317,8 @@ export default class BookSearchHelper {
 				// tiebreak leading is equivalent to pinned-first, stated explicitly.
 				const pinned = (c: ScoredCandidate) =>
 					this.isPinned(c, wantAsin) &&
+					// A revoked pin stays revoked however the row acquired the asin.
+					this.pinOverriddenAsin !== wantAsin &&
 					!this.bundleDemotedIds.has(c.id) &&
 					!this.aiNarratedIds.has(c.id) &&
 					!this.pinOverriddenIds.has(c.id)

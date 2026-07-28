@@ -1407,3 +1407,59 @@ describe('duration evidence belongs to the EDITION, not the row', () => {
 		expect(out[0].confidence).toBeGreaterThan(0.8)
 	})
 })
+
+describe('a revoked pin cannot return on a grafted asin', () => {
+	/**
+	 * Tier 1.2, reproduced against the real helper 2026-07-28.
+	 *
+	 * The pinned-first arm keys on `c.asin`; the three exclusion sets
+	 * (pinOverriddenIds, aiNarratedIds, bundleDemotedIds) key on `c.id`. But
+	 * `dedupeCandidates` runs AFTER the per-row scoring pass and GRAFTS a
+	 * donor's asin onto a group winner that lacks one -- so a row that had no
+	 * asin when the pin was evaluated acquires the stale one afterwards, is
+	 * never in the override set, and is ranked FIRST as a valid pin.
+	 *
+	 * Measured: file 10000s, sidecar pin B0STALE001 whose Audible row reports
+	 * 12000s (16.7% off, so the duration override revokes the pin). An
+	 * OverDrive row with no asin merges with it and inherits B0STALE001 --
+	 * then ranks first at 0.676, ahead of the correct 1.000 edition, while
+	 * telemetry reported the match asinPinned and risky:false. The guard fired
+	 * and its own instrumentation then declared the result clean.
+	 */
+	const cand = (o: Partial<ProviderCandidate>): ProviderCandidate =>
+		candidate({ title: 'A Book', authors: ['An Author'], ...o })
+
+	test('the donee row does not outrank the corroborated edition', async () => {
+		const STALE = 'B0STALE001'
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [
+				cand({ id: 'pinned', asin: STALE, audioSeconds: 12000 }),
+				cand({ id: 'right', asin: 'B0RIGHT001', audioSeconds: 10000 })
+			]),
+			stubProvider('overdrive', [
+				cand({ id: 'od', provider: 'overdrive', asin: null, audioSeconds: 11990 })
+			])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'A Book', author: 'An Author', asin: STALE,
+			duration: 10000000, region: 'us'
+		}).search()
+		expect(out[0].id).toBe('right')
+	})
+
+	test('a pin that is NOT stale still wins', async () => {
+		// The revocation must not become a blanket demotion of pinned rows.
+		const GOOD = 'B0GOOD0001'
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [
+				cand({ id: 'other', asin: 'B0OTHER001', audioSeconds: 10000 }),
+				cand({ id: 'pinned', asin: GOOD, audioSeconds: 10000 })
+			])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'A Book', author: 'An Author', asin: GOOD,
+			duration: 10000000, region: 'us'
+		}).search()
+		expect(out[0].id).toBe('pinned')
+	})
+})
