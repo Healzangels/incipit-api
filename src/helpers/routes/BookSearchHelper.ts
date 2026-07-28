@@ -14,6 +14,7 @@ import {
 import type ProviderRegistry from '#helpers/providers/ProviderRegistry'
 import type ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
 import type { BookSearchQuery, ProviderCandidate, ScoredCandidate } from '#helpers/providers/types'
+import { envInt } from '#helpers/utils/env'
 import { languageConflict, regionLanguage } from '#helpers/utils/language'
 import { type MatchDecision, recordMatchDecision } from '#helpers/utils/matchTelemetry'
 
@@ -90,11 +91,17 @@ const DURATION_DEADZONE_MAX_PENALTY = 0.3
 // preference (or the arms below the delta) decide instead.
 const DURATION_TIE_EPSILON_SECONDS_DEFAULT = 90
 
-/** The rounding epsilon in seconds; DURATION_TIE_EPSILON_SECONDS overrides. */
+/**
+ * The rounding epsilon in seconds; DURATION_TIE_EPSILON_SECONDS overrides.
+ * A present-but-EMPTY value is absent, not zero -- see envInt.
+ */
 export function durationTieEpsilonSeconds(): number {
-	const raw = Number(process.env.DURATION_TIE_EPSILON_SECONDS)
-	if (Number.isInteger(raw) && raw >= 0 && raw <= 600) return raw
-	return DURATION_TIE_EPSILON_SECONDS_DEFAULT
+	return envInt(
+		process.env.DURATION_TIE_EPSILON_SECONDS,
+		DURATION_TIE_EPSILON_SECONDS_DEFAULT,
+		0,
+		600
+	)
 }
 
 /**
@@ -107,24 +114,49 @@ export function durationTieTitlePreference(): 'fuller' | 'query' {
 	return process.env.DURATION_TIE_TITLE_PREFERENCE === 'query' ? 'query' : 'fuller'
 }
 
-/** Squash a title to its comparable skeleton: lowercase alphanumerics only. */
-function squashTitle(title: string | null | undefined): string {
-	return (title ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '')
+/** Collapse a title for comparison: lowercase, single-spaced, trimmed. */
+function looseTitle(title: string | null | undefined): string {
+	return (title ?? '').toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
 /**
- * Comparator arm: negative when a's title is a strict prefix-extension of b's
- * (a is the fuller form of the same name), positive for the reverse, zero for
- * identical or unrelated titles -- unrelated long junk never wins on length.
+ * True when `title` is the query title PLUS A SUBTITLE -- the same name,
+ * extended at a real separator.
+ *
+ * A per-candidate KEY, not a relation between two candidates. The first cut
+ * compared the two candidates to each other, which made the comparator
+ * intransitive: with a third title that is prefix-unrelated to both, all six
+ * input orders produced three different winners (verified 2026-07-28), so the
+ * match depended on provider fan-out order. Every other arm in the chain
+ * extracts a key from one candidate; this one now does too.
+ *
+ * The separator requirement is the other half. Squashing punctuation away and
+ * testing `startsWith` had no word boundary, so "Dune Messiah" counted as the
+ * fuller form of "Dune" -- likewise "Wintering"/"Winter" and "Ender in
+ * Exile"/"Ender". A subtitle is introduced by punctuation, never by a bare
+ * space.
  */
-export function byFullerTitle(a: { title: string | null }, b: { title: string | null }): number {
-	const na = squashTitle(a.title)
-	const nb = squashTitle(b.title)
-	if (na === nb || !na || !nb) return 0
-	if (na.startsWith(nb)) return -1
-	if (nb.startsWith(na)) return 1
-	return 0
+export function titleExtendsQuery(
+	title: string | null | undefined,
+	queryTitle: string | null | undefined
+): boolean {
+	const full = looseTitle(title)
+	const base = looseTitle(queryTitle)
+	if (!full || !base || full === base || !full.startsWith(base)) return false
+	return /^[\s]*[:\-–—(,]/.test(full.slice(base.length))
 }
+
+/**
+ * Providers that publish catalogued AUDIO editions. The fuller-title
+ * preference is restricted to these because `dedupeCandidates` GRAFTS a
+ * donor's asin onto a group winner that lacks one, so a print/work record can
+ * carry a borrowed asin -- verified 2026-07-28 to reintroduce the Amazing
+ * Maurice failure the asin guard was added to prevent. dedupe never grafts a
+ * provider. (`isAudioEdition()` cannot serve here: this arm is only reachable
+ * when both rows already have a runtime, which makes that predicate a
+ * tautology.)
+ */
+const AUDIO_CATALOG_PROVIDERS = new Set(['audible', 'apple', 'storytel', 'libro', 'overdrive'])
 
 // A BUNDLE record -- "Legacy of the Drow Gift Set", "Expanse Box Set Books 1-3",
 // "The Stormlight Archive, Books 1-4" -- carries the queried book's title as a
@@ -847,6 +879,31 @@ export default class BookSearchHelper {
 			if (!key) return false
 			return wantNarratorKeys.some((want) => key.includes(want) || want.includes(key))
 		}
+		// Hoisted out of the comparator: these were read per COMPARISON, i.e.
+		// O(n log n) env lookups and regex passes per search.
+		const tieEpsilonSeconds = durationTieEpsilonSeconds()
+		const tieTitlePreference = durationTieTitlePreference()
+		// Both runtimes within the provider-rounding epsilon of the file, so
+		// the runtime cannot tell the two candidates apart.
+		const withinRoundingNoise = (a: ScoredCandidate, b: ScoredCandidate): boolean => {
+			const aDelta = a.durationDeltaPct
+			const bDelta = b.durationDeltaPct
+			// No runtime on one or both (an unanalyzed file, a record with no
+			// listed length) is also "runtime cannot separate them" -- the
+			// delta arm below cannot order such a pair either, so a cosmetic
+			// arm is the best signal available rather than a usurper.
+			if (aDelta == null || bDelta == null) return true
+			const aAbs = a.audioSeconds ? aDelta * a.audioSeconds : Infinity
+			const bAbs = b.audioSeconds ? bDelta * b.audioSeconds : Infinity
+			return aAbs <= tieEpsilonSeconds && bAbs <= tieEpsilonSeconds
+		}
+		// A per-candidate key: this row is the query's title plus a subtitle,
+		// AND is itself a catalogued audio edition (see AUDIO_CATALOG_PROVIDERS
+		// for why the asin alone is not enough).
+		const prefersFullerTitle = (c: ScoredCandidate): boolean =>
+			titleExtendsQuery(c.title, primaryTitle) &&
+			Boolean(c.asin) &&
+			AUDIO_CATALOG_PROVIDERS.has(c.provider)
 		this.languageDemoted = 0
 		this.bundleDemoted = 0
 		this.bundleDemotedIds.clear()
@@ -1202,6 +1259,15 @@ export default class BookSearchHelper {
 				// missing, misspelt or differently-credited narrator ("Jim Dale"
 				// vs "Jim Dale and a full cast") costs nothing beyond the tiebreak
 				// it declines to decide. Same rule the ASIN pin follows.
+				// Can runtime tell these two apart? Both gaps inside the
+				// provider-rounding epsilon means no: providers round the SAME
+				// recording differently (OverDrive to the second, Audible to the
+				// minute), so a few seconds of difference is noise, not evidence.
+				// Only then may a COSMETIC arm (narrator branding, fuller title)
+				// decide. Shipped the other way round on 2026-07-27 and verified
+				// wrong on 2026-07-28: a branded edition 22.8 minutes off beat the
+				// byte-exact recording, and a 0s-off row lost to an 88s-off one.
+				const runtimeCannotSeparate = withinRoundingNoise(a, b)
 				if (wantNarratorKeys.length) {
 					const byNarrator = Number(narratorMatches(b)) - Number(narratorMatches(a))
 					if (byNarrator !== 0) return byNarrator
@@ -1215,9 +1281,11 @@ export default class BookSearchHelper {
 					// the tag's exact title. Same shape as the narrator arm: a
 					// ranking signal only, and inert without a narrator hint, so
 					// single-narration libraries never notice it.
-					const byNarratorTitleTag =
-						Number(titleNamesWantedNarrator(b)) - Number(titleNamesWantedNarrator(a))
-					if (byNarratorTitleTag !== 0) return byNarratorTitleTag
+					if (runtimeCannotSeparate) {
+						const byNarratorTitleTag =
+							Number(titleNamesWantedNarrator(b)) - Number(titleNamesWantedNarrator(a))
+						if (byNarratorTitleTag !== 0) return byNarratorTitleTag
+					}
 				}
 				// Both corroborated on duration -- but one is CLOSER.
 				//
@@ -1237,40 +1305,26 @@ export default class BookSearchHelper {
 				const aDelta = a.durationDeltaPct
 				const bDelta = b.durationDeltaPct
 				if (aDelta != null && bDelta != null) {
-					// ...unless BOTH deltas sit inside the provider-rounding
-					// epsilon. Measured on the Nevermoor shelf (2026-07-27): every
-					// provider lists the SAME recording with a differently-rounded
-					// runtime (OverDrive to the second, Audible to the minute), so
-					// 3-24 SECONDS of rounding noise was deciding between a
-					// full-title and a short-title row -- book 1 landed full,
-					// books 2-4 short, purely by luck. Inside the epsilon the
-					// delta is meaningless: prefer the fuller form of the SAME
-					// title (a strict prefix-extension, so unrelated long junk
-					// earns nothing), or fall through to the arms below. Genuinely
-					// different editions -- the narration-separating job this arm
-					// exists for -- have deltas far past the epsilon and are
-					// untouched.
-					// ...INCLUDING when two providers round to the exact same
-					// minute (the live Wundersmith holdout: equal 42600s rows
-					// skipped the collapse entirely and fell to the exact-title
-					// arm, handing the match back to the short form).
-					const eps = durationTieEpsilonSeconds()
-					const aAbsSeconds = a.audioSeconds ? aDelta * a.audioSeconds : Infinity
-					const bAbsSeconds = b.audioSeconds ? bDelta * b.audioSeconds : Infinity
-					const withinRoundingNoise = aAbsSeconds <= eps && bAbsSeconds <= eps
-					if (!withinRoundingNoise && Math.abs(aDelta - bDelta) > 1e-9) {
-						return aDelta - bDelta
+					// Inside the rounding epsilon the delta is noise, so the
+					// fuller form of the SAME name may jump it -- the Nevermoor
+					// shelf (2026-07-27), where 3-24 seconds of OverDrive-vs-
+					// Audible rounding was choosing between a full-title and a
+					// short-title row for the identical recording.
+					//
+					// Then FALL THROUGH to the delta ordering either way. The
+					// first cut returned early inside the epsilon, which deleted
+					// closest-runtime ordering for every pair within 90s of each
+					// other -- verified 2026-07-28: a 0s-off row lost to an
+					// 88s-off row on provider order alone, and on works under
+					// ~30 minutes 90s exceeds DURATION_TOLERANCE itself, killing
+					// the arm outright. The epsilon licenses a preference; it
+					// never discards the evidence underneath it.
+					if (runtimeCannotSeparate && tieTitlePreference === 'fuller') {
+						const byExtends = Number(prefersFullerTitle(b)) - Number(prefersFullerTitle(a))
+						if (byExtends !== 0) return byExtends
 					}
-					if (withinRoundingNoise && durationTieTitlePreference() === 'fuller') {
-						// The fuller row must itself be a catalogued AUDIO edition
-						// (it bears an asin): a print/work record's prettier title
-						// must never pull the match off an audio row -- the Amazing
-						// Maurice guard, where the asin-less Spanish print record
-						// ("...: una historia del mundodisco") title-extends the
-						// correct English audio edition at the same runtime.
-						const byFuller = byFullerTitle(a, b)
-						if (byFuller < 0 && a.asin) return byFuller
-						if (byFuller > 0 && b.asin) return byFuller
+					if (Math.abs(aDelta - bDelta) > 1e-9) {
+						return aDelta - bDelta
 					}
 				}
 				// Neither identity nor format separated them, so a residual gap inside

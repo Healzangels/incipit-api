@@ -4,7 +4,7 @@ import { BookSearchQueryStringSchema } from '#config/types'
 import { CONFIDENCE_FLOOR } from '#helpers/providers/matchScorer'
 import ProviderRegistry from '#helpers/providers/ProviderRegistry'
 import type { BookProvider, BookSearchQuery, ProviderCandidate } from '#helpers/providers/types'
-import BookSearchHelper from '#helpers/routes/BookSearchHelper'
+import BookSearchHelper, { titleExtendsQuery } from '#helpers/routes/BookSearchHelper'
 
 // Build a candidate with sensible defaults so tests only state what they care about.
 function candidate(over: Partial<ProviderCandidate>): ProviderCandidate {
@@ -1015,7 +1015,14 @@ describe('duration-rounding tie collapse', () => {
 	// (the Wundersmith full-title row's is an Australian ISBN-shaped one);
 	// the fuller-title preference requires that, so the fixture mirrors it.
 	const townsend = (id: string, title: string, audioSeconds: number) =>
-		candidate({ id, title, asin: id, authors: ['Jessica Townsend'], audioSeconds })
+		candidate({
+			id,
+			title,
+			asin: id,
+			provider: 'audible',
+			authors: ['Jessica Townsend'],
+			audioSeconds
+		})
 
 	const silverbornShelf = () =>
 		new ProviderRegistry([
@@ -1123,5 +1130,148 @@ describe('duration-rounding tie collapse', () => {
 			region: 'us'
 		}).search()
 		expect(out[0].id).toBe('full')
+	})
+})
+
+describe('runtime evidence outranks cosmetic arms', () => {
+	/**
+	 * The 2026-07-28 review, verified against the real comparator. Two
+	 * regressions from the same evening's tiebreak work:
+	 *
+	 * 1. The rounding-epsilon collapse suppressed the duration-delta arm for
+	 *    EVERY pair whose gaps were both inside the epsilon, not just for
+	 *    ties -- so a 0s-off row could lose to an 88s-off row on nothing but
+	 *    provider fan-out order. The epsilon must license the fuller-title
+	 *    PREFERENCE, never discard the runtime ordering behind it.
+	 * 2. The narrator-branding arm sat ABOVE the delta arm with no duration
+	 *    guard, so a branded edition 22.8 minutes off beat the byte-exact
+	 *    recording. Branding is cosmetic; runtime is evidence.
+	 */
+	const hp = (id: string, title: string, audioSeconds: number, narrator = 'Stephen Fry') =>
+		candidate({
+			id,
+			title,
+			asin: id,
+			authors: ['J.K. Rowling'],
+			narrators: [narrator],
+			audioSeconds
+		})
+
+	test('the closest runtime still wins inside the epsilon', async () => {
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [
+				hp('off88', 'Harry Potter and the Chamber of Secrets', 34880),
+				hp('exact', 'Harry Potter and the Chamber of Secrets', 34968)
+			])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Harry Potter and the Chamber of Secrets',
+			author: 'J.K. Rowling',
+			duration: 34968000,
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('exact')
+	})
+
+	test('a branded edition does not beat the byte-exact runtime', async () => {
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [
+				hp('branded', 'Harry Potter and the Chamber of Secrets (Narrated by Stephen Fry)', 33600),
+				hp('plain', 'Harry Potter and the Chamber of Secrets', 34968)
+			])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Harry Potter and the Chamber of Secrets',
+			author: 'J.K. Rowling',
+			narrator: 'Stephen Fry',
+			duration: 34968000,
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('plain')
+	})
+
+	test('branding still wins when runtime cannot separate the editions', async () => {
+		// The Fry case this arm was written for: same recording, rounded
+		// differently by two providers.
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [
+				hp('plain', 'Harry Potter and the Chamber of Secrets', 34980),
+				hp('branded', 'Harry Potter and the Chamber of Secrets (Narrated by Stephen Fry)', 34968)
+			])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Harry Potter and the Chamber of Secrets',
+			author: 'J.K. Rowling',
+			narrator: 'Stephen Fry',
+			duration: 34968000,
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('branded')
+	})
+
+	test('a subtitle extends the query title; a different word does not', () => {
+		// Tested directly, because at search level a prefix-sharing DIFFERENT
+		// book is eliminated by title similarity long before this arm -- which
+		// is exactly what made the first version of this guard vacuous (the
+		// mutation survived the whole suite). The rule itself is the contract.
+		expect(titleExtendsQuery('Silverborn: The Mystery of Morrigan Crow', 'Silverborn')).toBe(true)
+		expect(titleExtendsQuery('Dune - Special Edition', 'Dune')).toBe(true)
+		expect(
+			titleExtendsQuery('The Invisible Man (AmazonClassics Edition)', 'The Invisible Man')
+		).toBe(true)
+		for (const [full, base] of [
+			['Dune Messiah', 'Dune'],
+			['Wintering', 'Winter'],
+			['Ender in Exile', 'Ender'],
+			['Dune', 'Dune']
+		]) {
+			expect(titleExtendsQuery(full, base)).toBe(false)
+		}
+	})
+
+	test('the preference is a per-candidate key, not a relation (transitivity)', () => {
+		// The relational first cut made the comparator intransitive: with a
+		// third, prefix-unrelated title all six input orders produced three
+		// different winners, so the match depended on provider fan-out order.
+		// A key cannot do that.
+		const key = (t: string) => titleExtendsQuery(t, 'Silverborn')
+		expect(key('Silverborn')).toBe(false)
+		expect(key('The Silverborn')).toBe(false)
+		expect(key('Silverborn: The Mystery of Morrigan Crow')).toBe(true)
+	})
+
+	test('a print/work row with a GRAFTED asin cannot win on its prettier title', async () => {
+		// dedupeCandidates grafts a donor's asin onto a group winner that
+		// lacks one, so `asin` alone stopped proving "catalogued audio
+		// edition" (verified 2026-07-28). The provider cannot be grafted.
+		const reg = new ProviderRegistry([
+			stubProvider('hardcover', [
+				candidate({
+					id: 'print',
+					asin: 'B0GRAFTED1',
+					provider: 'hardcover',
+					title: 'The Amazing Maurice and His Educated Rodents: una historia del mundodisco',
+					authors: ['Terry Pratchett'],
+					audioSeconds: 29272
+				})
+			]),
+			stubProvider('audible', [
+				candidate({
+					id: 'audio',
+					asin: 'B0C6R9GKPS',
+					provider: 'audible',
+					title: 'The Amazing Maurice and His Educated Rodents',
+					authors: ['Terry Pratchett'],
+					audioSeconds: 29272
+				})
+			])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'The Amazing Maurice and His Educated Rodents',
+			author: 'Terry Pratchett',
+			duration: 29272000,
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('audio')
 	})
 })
