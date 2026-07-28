@@ -83,6 +83,49 @@ const LANGUAGE_CONFLICT_PENALTY = 0.15
 const DURATION_VETO_THRESHOLD = 0.25
 const DURATION_DEADZONE_MAX_PENALTY = 0.3
 
+// Providers round the SAME recording's runtime differently (OverDrive to the
+// second, Audible to the minute), so two listings of one recording can differ
+// by up to ~a minute of pure noise. Deltas BOTH inside this epsilon are treated
+// as equal so seconds of rounding never decide a match; the fuller-title
+// preference (or the arms below the delta) decide instead.
+const DURATION_TIE_EPSILON_SECONDS_DEFAULT = 90
+
+/** The rounding epsilon in seconds; DURATION_TIE_EPSILON_SECONDS overrides. */
+export function durationTieEpsilonSeconds(): number {
+	const raw = Number(process.env.DURATION_TIE_EPSILON_SECONDS)
+	if (Number.isInteger(raw) && raw >= 0 && raw <= 600) return raw
+	return DURATION_TIE_EPSILON_SECONDS_DEFAULT
+}
+
+/**
+ * What breaks a rounding-epsilon tie: 'fuller' (default) prefers the fuller
+ * form of the same title -- "Silverborn: The Mystery of Morrigan Crow" over
+ * "Silverborn" -- while 'query' skips straight to the exact-title arm, which
+ * prefers whatever the library calls the book.
+ */
+export function durationTieTitlePreference(): 'fuller' | 'query' {
+	return process.env.DURATION_TIE_TITLE_PREFERENCE === 'query' ? 'query' : 'fuller'
+}
+
+/** Squash a title to its comparable skeleton: lowercase alphanumerics only. */
+function squashTitle(title: string | null | undefined): string {
+	return (title ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '')
+}
+
+/**
+ * Comparator arm: negative when a's title is a strict prefix-extension of b's
+ * (a is the fuller form of the same name), positive for the reverse, zero for
+ * identical or unrelated titles -- unrelated long junk never wins on length.
+ */
+export function byFullerTitle(a: { title: string | null }, b: { title: string | null }): number {
+	const na = squashTitle(a.title)
+	const nb = squashTitle(b.title)
+	if (na === nb || !na || !nb) return 0
+	if (na.startsWith(nb)) return -1
+	if (nb.startsWith(na)) return 1
+	return 0
+}
+
 // A BUNDLE record -- "Legacy of the Drow Gift Set", "Expanse Box Set Books 1-3",
 // "The Stormlight Archive, Books 1-4" -- carries the queried book's title as a
 // substring, so it scores like the single book it contains and can win outright.
@@ -1194,7 +1237,29 @@ export default class BookSearchHelper {
 				const aDelta = a.durationDeltaPct
 				const bDelta = b.durationDeltaPct
 				if (aDelta != null && bDelta != null && Math.abs(aDelta - bDelta) > 1e-9) {
-					return aDelta - bDelta
+					// ...unless BOTH deltas sit inside the provider-rounding
+					// epsilon. Measured on the Nevermoor shelf (2026-07-27): every
+					// provider lists the SAME recording with a differently-rounded
+					// runtime (OverDrive to the second, Audible to the minute), so
+					// 3-24 SECONDS of rounding noise was deciding between a
+					// full-title and a short-title row -- book 1 landed full,
+					// books 2-4 short, purely by luck. Inside the epsilon the
+					// delta is meaningless: prefer the fuller form of the SAME
+					// title (a strict prefix-extension, so unrelated long junk
+					// earns nothing), or fall through to the arms below. Genuinely
+					// different editions -- the narration-separating job this arm
+					// exists for -- have deltas far past the epsilon and are
+					// untouched.
+					const eps = durationTieEpsilonSeconds()
+					const aAbsSeconds = a.audioSeconds ? aDelta * a.audioSeconds : Infinity
+					const bAbsSeconds = b.audioSeconds ? bDelta * b.audioSeconds : Infinity
+					if (!(aAbsSeconds <= eps && bAbsSeconds <= eps)) {
+						return aDelta - bDelta
+					}
+					if (durationTieTitlePreference() === 'fuller') {
+						const byFuller = byFullerTitle(a, b)
+						if (byFuller !== 0) return byFuller
+					}
 				}
 				// Neither identity nor format separated them, so a residual gap inside
 				// the tolerance decides after all — the band only ever lets the two

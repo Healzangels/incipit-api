@@ -997,3 +997,103 @@ describe('narrator-branded edition preference', () => {
 		expect(out[0].id).toBe('plain')
 	})
 })
+
+describe('duration-rounding tie collapse', () => {
+	/**
+	 * Measured live on the Nevermoor shelf (2026-07-27): every provider lists
+	 * the SAME recording with a differently-rounded runtime (OverDrive to the
+	 * second, Audible to the minute), all tie at confidence 1.0, and the
+	 * duration-delta arm then decides the match on 3-24 SECONDS of rounding
+	 * noise -- so book 1 landed on a full-title record and books 2-4 on
+	 * short-title records, purely by luck. When both deltas sit inside the
+	 * rounding epsilon the delta is meaningless: prefer the fuller form of
+	 * the same title (never unrelated long junk), tunable via
+	 * DURATION_TIE_TITLE_PREFERENCE for operators who want the library-named
+	 * row instead. Genuinely different editions (deltas past the epsilon)
+	 * keep the closest-runtime behavior untouched.
+	 */
+	const townsend = (id: string, title: string, audioSeconds: number) =>
+		candidate({ id, title, authors: ['Jessica Townsend'], audioSeconds })
+
+	const silverbornShelf = () =>
+		new ProviderRegistry([
+			stubProvider('audible', [
+				townsend('short', 'Silverborn', 65598),
+				townsend('full', 'Silverborn: The Mystery of Morrigan Crow', 65580)
+			])
+		])
+
+	test('within the epsilon the fuller form of the same title wins', async () => {
+		const out = await new BookSearchHelper(silverbornShelf(), {
+			title: 'Silverborn',
+			author: 'Jessica Townsend',
+			duration: 65604000,
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('full')
+	})
+
+	test('past the epsilon the closest runtime still wins', async () => {
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [
+				townsend('short', 'Silverborn', 65598),
+				townsend('full', 'Silverborn: The Mystery of Morrigan Crow', 65304)
+			])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Silverborn',
+			author: 'Jessica Townsend',
+			duration: 65604000,
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('short')
+	})
+
+	test('unrelated long titles earn nothing from the collapse', async () => {
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [
+				townsend('other', 'A Completely Different Saga Entirely', 65580),
+				townsend('short', 'Silverborn', 65598)
+			])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Silverborn',
+			author: 'Jessica Townsend',
+			duration: 65604000,
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('short')
+	})
+
+	test('DURATION_TIE_TITLE_PREFERENCE=query keeps the library-named row', async () => {
+		const prior = process.env.DURATION_TIE_TITLE_PREFERENCE
+		process.env.DURATION_TIE_TITLE_PREFERENCE = 'query'
+		try {
+			const out = await new BookSearchHelper(silverbornShelf(), {
+				title: 'Silverborn',
+				author: 'Jessica Townsend',
+				duration: 65604000,
+				region: 'us'
+			}).search()
+			expect(out[0].id).toBe('short')
+		} finally {
+			if (prior === undefined) delete process.env.DURATION_TIE_TITLE_PREFERENCE
+			else process.env.DURATION_TIE_TITLE_PREFERENCE = prior
+		}
+	})
+
+	test('no duration at all leaves the Apex exact-title behavior untouched', async () => {
+		const reg = new ProviderRegistry([
+			stubProvider('audible', [
+				candidate({ id: 'tail', title: 'Apex: A Fantasy LitRPG Adventure', authors: ['Seth Ring'] }),
+				candidate({ id: 'plain', title: 'Apex', authors: ['Seth Ring'] })
+			])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Apex',
+			author: 'Seth Ring',
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('plain')
+	})
+})
