@@ -191,3 +191,37 @@ describe('the duration veto behaves as designed', () => {
 		expect(confidence).toBeGreaterThanOrEqual(CONFIDENCE_FLOOR)
 	})
 })
+
+describe('a mid-word hyphen is not a series delimiter', () => {
+	/**
+	 * The bundle fixed this on 2026-07-27 and the API never got it, though
+	 * `update_tools.py`'s comment claims to mirror `SERIES_SUFFIX`. Measured
+	 * 2026-07-28: "The Well-Favored Man, Book 1" normalized to "The Well",
+	 * scoring 0.593 against the real title — BELOW the acceptance floor, so
+	 * the correct book could not be matched at all. `primary` is also the
+	 * string sent to providers, so recall was damaged as well as scoring.
+	 *
+	 * Em and en dashes never appear mid-word, so only the ASCII hyphen needs
+	 * the preceding-whitespace requirement.
+	 */
+	test('keeps hyphenated words intact while stripping the series tail', () => {
+		expect(normalizeTitle('Harry Potter and the Half-Blood Prince, Book 6')).toBe(
+			'Harry Potter and the Half-Blood Prince'
+		)
+		expect(normalizeTitle('The Well-Favored Man, Book 1')).toBe('The Well-Favored Man')
+	})
+
+	test('still strips a spaced or punctuated series delimiter', () => {
+		expect(normalizeTitle('Wintersteel: Cradle, Book 8')).toBe('Wintersteel')
+		expect(normalizeTitle('Wintersteel - Cradle, Book 8')).toBe('Wintersteel')
+		expect(normalizeTitle('Wintersteel—Cradle, Book 8')).toBe('Wintersteel')
+	})
+
+	test('the hyphenated title now scores as itself', () => {
+		// Before the fix this was 0.593 — below TITLE_FLOOR, i.e. the correct
+		// book was unmatchable, not merely ranked lower.
+		const t = normalizeTitle('The Well-Favored Man, Book 1')
+		expect(titleSim(t, 'The Well-Favored Man')).toBeGreaterThan(TITLE_FLOOR)
+		expect(titleSim(t, 'The Well-Favored Man')).toBeGreaterThan(0.99)
+	})
+})

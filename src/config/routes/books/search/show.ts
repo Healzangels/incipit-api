@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify'
 
+import searchRequiresATitle from '#config/routes/books/search/requireQuery'
 import { BookSearchQueryString, BookSearchQueryStringSchema } from '#config/types'
 import { BadRequestError } from '#helpers/errors/ApiErrors'
 import type ProviderRegistry from '#helpers/providers/ProviderRegistry'
@@ -31,8 +32,10 @@ export function makeSearchBookRoute(registry: ProviderRegistry = defaultRegistry
 			}
 
 			const options = parsed.data
-			// Zod makes title/query individually optional; the route requires at least one.
-			if (!options.title && !options.query) throw new BadRequestError(MessageNoSearchTitle)
+			// Zod makes title/query/keywords individually optional; the route
+			// requires at least one. `keywords` belongs in that set — the helper
+			// already resolves it, and it is Plex's authorless fallback.
+			if (searchRequiresATitle(options)) throw new BadRequestError(MessageNoSearchTitle)
 
 			// Per-user provider tokens arrive as headers, not query params, so they
 			// never appear in access logs. The Plex bundle forwards the user's own

@@ -109,6 +109,14 @@ async function registerPlugins() {
 	// Rate limiting
 	await server.register(rateLimit, {
 		global: true,
+		// Redis is OPTIONAL everywhere else in this codebase (the search cache
+		// "degrades to live calls when it is not" there, and GenericShowHelper
+		// swallows Redis rejections specifically so a blip cannot crash-loop the
+		// API). @fastify/rate-limit v10 defaults skipOnError to FALSE, which
+		// contradicted that: a Redis restart made the store's own error escape to
+		// the error handler and 500 every non-allowlisted request. Skipping the
+		// limit is the right failure direction for a self-hosted instance.
+		skipOnError: true,
 		// Key on request.ip (the @fastify/rate-limit default). Fastify derives it
 		// from the X-Forwarded-For chain via `trustProxy: trustedProxies` (set
 		// below) — so behind a reverse proxy it's the real client and it is NOT

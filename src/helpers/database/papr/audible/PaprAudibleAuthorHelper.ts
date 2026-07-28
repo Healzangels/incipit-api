@@ -9,6 +9,7 @@ import {
 	PaprAuthorSearch,
 	PaprDeleteReturn
 } from '#config/typing/papr'
+import { BadRequestError } from '#helpers/errors/ApiErrors'
 import getErrorMessage from '#helpers/utils/getErrorMessage'
 import SharedHelper from '#helpers/utils/shared'
 import {
@@ -78,7 +79,13 @@ export default class PaprAudibleAuthorHelper {
 	 */
 	async findByName(): Promise<PaprAuthorSearch> {
 		if (!this.options.name) {
-			throw new Error(MessageNoSearchParams)
+			// BadRequestError, not a bare Error: a bare one has no statusCode,
+			// so `GET /authors` with no params answered 500 while `?name=`
+			// answered 400 for the same user mistake (verified live
+			// 2026-07-28). types.ts records why that matters — the bundle
+			// reads a transport-shaped failure as "the API is down" and skips
+			// the zero-result author-recovery path entirely.
+			throw new BadRequestError(MessageNoSearchParams)
 		}
 		// Use projection search from mongo until papr implements it natively.
 		// https://github.com/plexinc/papr/issues/98

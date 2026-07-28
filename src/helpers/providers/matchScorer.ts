@@ -68,7 +68,18 @@ const SERIES_PREFIX: RegExp[] = [
 // The colon/dash form runs first and may span an internal comma, or the plain
 // comma rule fires early and strands the ": Xanth" fragment.
 const SERIES_SUFFIX: RegExp[] = [
-	/\s*[:\-–—]\s*[^:]*?\bbook\s+\d+\s*$/i,
+	// An ASCII HYPHEN counts as a series delimiter only when whitespace
+	// precedes it. With the bare class a MID-WORD hyphen qualified, so
+	// "Harry Potter and the Half-Blood Prince, Book 6" reduced to "Harry
+	// Potter and the Half" and "The Well-Favored Man, Book 1" to "The Well"
+	// — the latter scoring 0.593 against its own title, below the acceptance
+	// floor, so the correct book could not be matched at all. This string is
+	// also what gets sent to providers, so recall suffered too. Em and en
+	// dashes never appear mid-word and keep matching unspaced, as do colons.
+	// The bundle shipped this fix on 2026-07-27 (SERIES_TITLE_SUFFIX_RE);
+	// the mirror comment there claims to track this constant, so keep them
+	// in step.
+	/(?:\s*[:–—]|\s+-)\s*[^:]*?\bbook\s+\d+\s*$/i,
 	/\s*\([^)]*#\s*\d+\s*\)\s*$/,
 	/\s*,\s*book\s+\d+\s*$/i
 ]
