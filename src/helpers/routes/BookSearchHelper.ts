@@ -92,6 +92,15 @@ const DURATION_DEADZONE_MAX_PENALTY = 0.3
 // preference (or the arms below the delta) decide instead.
 const DURATION_TIE_EPSILON_SECONDS_DEFAULT = 90
 
+// The wider window the narrator-BRANDING arm alone may use: two listings that
+// both match the hinted narrator and both sit within this many seconds of the
+// file are the same narration re-released (credits/mastering variance --
+// measured 240s between the 2015 and 2024 Fry Order of the Phoenix listings),
+// so the branded release may outrank a slightly-closer unbranded one. Sized to
+// exclude the 22.8-minute (1,368s) branded-vs-byte-exact case that proved the
+// arm must NOT outrank real runtime evidence (2026-07-28).
+const NARRATOR_BRAND_MAX_DELTA_SECONDS = 600
+
 /**
  * The rounding epsilon in seconds; DURATION_TIE_EPSILON_SECONDS overrides.
  * A present-but-EMPTY value is absent, not zero -- see envInt.
@@ -1482,7 +1491,35 @@ export default class BookSearchHelper {
 				// the tag's exact title. Same shape as the narrator arm: a
 				// ranking signal only, and inert without a narrator hint, so
 				// single-narration libraries never notice it.
-				if (runtimeCannotSeparate) {
+				//
+				// The window is WIDER than the rounding epsilon for this arm
+				// alone (measured live on the Fry Order of the Phoenix,
+				// 2026-07-28): two listings that BOTH match the hinted narrator
+				// and BOTH corroborate the file are the same narration in
+				// different releases, and their inter-listing gap (46s vs 286s
+				// there -- credits and mastering, 240s apart) is not identity
+				// evidence, so closest-runtime was seating the unbranded 2015
+				// listing above the branded 2024 one the operator wants. The
+				// 600s bound is what keeps the SAME-DAY lesson intact: a
+				// branded edition 22.8 MINUTES off (1,368s) must still lose to
+				// the byte-exact recording -- that class stays outside the
+				// window and falls to the delta arm exactly as before.
+				const aAbs =
+					a.durationDeltaPct != null && a.audioSeconds
+						? a.durationDeltaPct * a.audioSeconds
+						: null
+				const bAbs =
+					b.durationDeltaPct != null && b.audioSeconds
+						? b.durationDeltaPct * b.audioSeconds
+						: null
+				const sameNarrationWindow =
+					narratorMatches(a) &&
+					narratorMatches(b) &&
+					aAbs != null &&
+					bAbs != null &&
+					aAbs <= NARRATOR_BRAND_MAX_DELTA_SECONDS &&
+					bAbs <= NARRATOR_BRAND_MAX_DELTA_SECONDS
+				if (runtimeCannotSeparate || sameNarrationWindow) {
 					const byNarratorTitleTag =
 						Number(titleNamesWantedNarrator(b)) - Number(titleNamesWantedNarrator(a))
 					if (byNarratorTitleTag !== 0) return byNarratorTitleTag

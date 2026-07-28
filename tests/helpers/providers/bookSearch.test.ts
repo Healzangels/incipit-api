@@ -1765,3 +1765,75 @@ describe('ISBN-derived pins rank on merits', () => {
 		expect(out[0].asin).toBe('B08V3XQ7LK')
 	})
 })
+
+describe('same-narration branding window', () => {
+	/**
+	 * The live Fry Order of the Phoenix case (2026-07-28): the plain 2015-era
+	 * listing sits 46s from the file, the branded 2024 listing 286s -- a 240s
+	 * inter-listing gap, outside the 90s rounding epsilon, so the branding
+	 * arm never ran and closest-runtime seated the unbranded listing on top.
+	 * Both rows match the hinted narrator and both corroborate: that gap is
+	 * mastering variance of ONE narration, not identity evidence, so within
+	 * the 600s window the branded release wins. The 22.8-minute case that
+	 * proved branding must NOT beat real runtime evidence stays outside the
+	 * window and keeps losing.
+	 */
+	const file = 104745754 // ms
+
+	const plain2015 = () =>
+		candidate({
+			provider: 'hardcover',
+			id: 'hc-plain',
+			title: 'Harry Potter and the Order of the Phoenix',
+			authors: ['J.K. Rowling'],
+			narrators: ['Stephen Fry'],
+			audioSeconds: 104700 // 46s off
+		})
+	const branded2024 = () =>
+		candidate({
+			provider: 'audible',
+			id: 'audible-branded',
+			asin: 'B0D1CVZ22J',
+			title: 'Harry Potter and the Order of the Phoenix (Narrated by Stephen Fry)',
+			authors: ['J.K. Rowling'],
+			narrators: ['Stephen Fry'],
+			audioSeconds: 104460 // 286s off
+		})
+
+	test('the branded release wins inside the window despite a closer rival', async () => {
+		const reg = new ProviderRegistry([stubProvider('x', [plain2015(), branded2024()])])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Harry Potter and the Order of the Phoenix (Narrated by Stephen Fry)',
+			author: 'J.K. Rowling',
+			narrator: 'Stephen Fry',
+			duration: file,
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('audible-branded')
+		expect(out.map((c) => c.id)).toContain('hc-plain')
+	})
+
+	test('outside the window the closest runtime still decides (the 22.8-minute rule)', async () => {
+		const farBranded = { ...branded2024(), audioSeconds: 104746 - 1368 } // 22.8 min off
+		const reg = new ProviderRegistry([stubProvider('x', [plain2015(), farBranded])])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Harry Potter and the Order of the Phoenix (Narrated by Stephen Fry)',
+			author: 'J.K. Rowling',
+			narrator: 'Stephen Fry',
+			duration: file,
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('hc-plain')
+	})
+
+	test('without a narrator hint the window never engages', async () => {
+		const reg = new ProviderRegistry([stubProvider('x', [plain2015(), branded2024()])])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Harry Potter and the Order of the Phoenix',
+			author: 'J.K. Rowling',
+			duration: file,
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('hc-plain')
+	})
+})
