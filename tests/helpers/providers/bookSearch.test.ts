@@ -1032,19 +1032,19 @@ describe('duration-rounding tie collapse', () => {
 			])
 		])
 
-	test('within the epsilon the two title forms are ONE row, named by the tag', async () => {
-		// Superseded by the prefix-extension merge (2026-07-28): rows that
-		// differ only by a subtitle at matching runtime are the same recording
-		// and never reach the ranker as a choice. The operator's title policy
-		// names the merged row after the library's own tag.
+	test('within the epsilon the fuller form of the same title wins', async () => {
+		// These two rows carry DIFFERENT ASINs, so under the distinct-listings
+		// rule (2026-07-28, the 2015-vs-2024 Fry case) the prefix merge leaves
+		// them separately pickable and the fuller-title arm arbitrates the
+		// rounding tie -- the original contract of this test, back in force.
 		const out = await new BookSearchHelper(silverbornShelf(), {
 			title: 'Silverborn',
 			author: 'Jessica Townsend',
 			duration: 65604000,
 			region: 'us'
 		}).search()
-		expect(out).toHaveLength(1)
-		expect(out[0].title).toBe('Silverborn')
+		expect(out).toHaveLength(2)
+		expect(out[0].id).toBe('full')
 	})
 
 	test('past the epsilon the closest runtime still wins', async () => {
@@ -1079,11 +1079,9 @@ describe('duration-rounding tie collapse', () => {
 		expect(out[0].id).toBe('short')
 	})
 
-	test('DURATION_TIE_TITLE_PREFERENCE no longer matters for a merged pair', async () => {
-		// The env preference used to arbitrate which of the two rows won; the
-		// merge removes the choice, and the tag names the survivor under
-		// EITHER setting. (The arm itself still exists for pairs the merge
-		// refuses -- volume-claiming remainders and no-runtime rows.)
+	test('DURATION_TIE_TITLE_PREFERENCE=query keeps the library-named row', async () => {
+		// Distinct listings (different ASINs) stay unmerged, so the env
+		// preference decides between them again -- the original contract.
 		const prior = process.env.DURATION_TIE_TITLE_PREFERENCE
 		process.env.DURATION_TIE_TITLE_PREFERENCE = 'query'
 		try {
@@ -1093,8 +1091,7 @@ describe('duration-rounding tie collapse', () => {
 				duration: 65604000,
 				region: 'us'
 			}).search()
-			expect(out).toHaveLength(1)
-			expect(out[0].title).toBe('Silverborn')
+			expect(out[0].id).toBe('short')
 		} finally {
 			if (prior === undefined) delete process.env.DURATION_TIE_TITLE_PREFERENCE
 			else process.env.DURATION_TIE_TITLE_PREFERENCE = prior
@@ -1120,12 +1117,10 @@ describe('duration-rounding tie collapse', () => {
 		expect(out[0].id).toBe('plain')
 	})
 
-	test('EQUAL rounded runtimes inside the epsilon collapse to one tag-named row', async () => {
-		// The live Wundersmith holdout, resolved one level deeper than the
-		// original fix: all three rows are the same recording (12s and 72s of
-		// provider rounding), so the merge collapses the whole shelf to ONE
-		// row and the ranker never arbitrates. Display consistency now comes
-		// from the tag policy, not from preferring the fuller form.
+	test('EQUAL rounded runtimes inside the epsilon also collapse to the fuller title', async () => {
+		// The live Wundersmith holdout: distinct listings (different ASINs)
+		// stay unmerged under the 2026-07-28 rule, so equal deltas inside the
+		// epsilon fall to the fuller-title arm -- the original contract.
 		const reg = new ProviderRegistry([
 			stubProvider('audible', [
 				townsend('od-short', 'Wundersmith', 42660),
@@ -1139,8 +1134,7 @@ describe('duration-rounding tie collapse', () => {
 			duration: 42672000,
 			region: 'us'
 		}).search()
-		expect(out).toHaveLength(1)
-		expect(out[0].title).toBe('Wundersmith')
+		expect(out[0].id).toBe('full')
 	})
 })
 

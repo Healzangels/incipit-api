@@ -814,3 +814,45 @@ describe('edition-variant subtitles never merge', () => {
 		expect(out).toHaveLength(1)
 	})
 })
+
+describe('distinct store listings never merge by prefix', () => {
+	// Operator rule (2026-07-28, the 2015-vs-2024 Stephen Fry case): two rows
+	// BOTH carrying ASINs that differ are distinct listings by the store's own
+	// account -- different release years, provenance, blurbs -- and hiding
+	// either hides unique information. Merging is for the SAME listing
+	// surfaced by providers that don't carry the identifier.
+	const fry2024 = () =>
+		scored({
+			provider: 'audible',
+			id: 'audible-2024',
+			asin: 'B0D1C5R1XF',
+			title: 'Harry Potter and the Goblet of Fire (Narrated by Stephen Fry)',
+			authors: ['J.K. Rowling'],
+			narrators: ['Stephen Fry'],
+			audioSeconds: 75480
+		})
+	const fry2015 = () =>
+		scored({
+			provider: 'hardcover',
+			id: 'hardcover-2015',
+			asin: 'B017WJ5PR4',
+			title: 'Harry Potter and the Goblet of Fire',
+			authors: ['J.K. Rowling'],
+			narrators: ['Stephen Fry'],
+			audioSeconds: 75456
+		})
+
+	test('different-ASIN listings of one recording stay separately pickable', () => {
+		expect(dedupeCandidates([fry2024(), fry2015()])).toHaveLength(2)
+	})
+
+	test('a one-sided ASIN still merges (same listing, identifier-less provider)', () => {
+		const overdriveNoAsin = { ...fry2015(), asin: null }
+		expect(dedupeCandidates([fry2024(), overdriveNoAsin])).toHaveLength(1)
+	})
+
+	test('the SAME ASIN under two title forms still collapses', () => {
+		const sameListing = { ...fry2015(), asin: 'B0D1C5R1XF' }
+		expect(dedupeCandidates([fry2024(), sameListing])).toHaveLength(1)
+	})
+})
