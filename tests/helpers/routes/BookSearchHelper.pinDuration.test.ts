@@ -177,10 +177,11 @@ describe('stale-pin override by duration', () => {
 		// Withdrawing the pin re-exposes it to the language/dead-zone penalties, which
 		// could push it under the floor -- so asking for an ASIN returned a list with
 		// no row carrying it, and the operator could not pick it in Fix Match.
-		const out = await helperFor(
-			[pike({ language: 'de' }), reading({ language: 'en' })],
-			{ duration: FILE_MS, asin: 'B0PIKE00000', region: 'us' }
-		).search()
+		const out = await helperFor([pike({ language: 'de' }), reading({ language: 'en' })], {
+			duration: FILE_MS,
+			asin: 'B0PIKE00000',
+			region: 'us'
+		}).search()
 
 		expect(out[0].id).toBe('reading')
 		expect(out.some((c) => c.asin === 'B0PIKE00000')).toBe(true)
@@ -192,7 +193,13 @@ describe('stale-pin override by duration', () => {
 		const out = await helperFor(
 			[
 				pike(),
-				candidate({ provider: 'apple', id: 'apple-pike', asin: null, narrators: [], audioSeconds: 102180 }),
+				candidate({
+					provider: 'apple',
+					id: 'apple-pike',
+					asin: null,
+					narrators: [],
+					audioSeconds: 102180
+				}),
 				reading()
 			],
 			{ duration: FILE_MS, asin: 'B0PIKE00000' }
@@ -209,5 +216,100 @@ describe('stale-pin override by duration', () => {
 		const decision = getMatchMetrics().recent[0]
 		expect(decision.pinDurationOverridden).toBeGreaterThan(0)
 		expect(decision.asinPinned).toBe(false)
+	})
+})
+
+describe('runtime-fingerprint override for wrong-narration pins', () => {
+	/**
+	 * The Monstrous Regiment case (2026-07-28): a SELF-CONSISTENT wrong
+	 * sidecar -- asin AND narrator both naming the Stephen Briggs edition --
+	 * pinned a narration 660s from the file (1.6%, inside the 5% tolerance,
+	 * so the stale-pin guard above never fires) while the true Katherine
+	 * Parkinson recording sat ONE second away. Field cross-checks cannot
+	 * catch that class; the file's runtime fingerprint can: pin beyond
+	 * provider rounding + a narrator-DISJOINT plausible rival inside it.
+	 */
+	const MR_FILE_S = 41213
+	const MR_FILE_MS = MR_FILE_S * 1000
+
+	// helperFor's file-level default query is The Great Hunt; these fixtures
+	// are Monstrous Regiment, so every search here must say so.
+	const mrHelper = (cands: ProviderCandidate[], options: Record<string, unknown>) =>
+		helperFor(cands, { title: 'Monstrous Regiment', author: 'Terry Pratchett', ...options })
+
+	const briggs = (over: Partial<ProviderCandidate> = {}): ProviderCandidate =>
+		candidate({
+			id: 'briggs',
+			title: 'Monstrous Regiment',
+			authors: ['Terry Pratchett'],
+			asin: 'B0BRIGGS000',
+			narrators: ['Stephen Briggs'],
+			audioSeconds: MR_FILE_S - 660, // 660s off: inside 5%, beyond rounding
+			...over
+		})
+	const parkinson = (over: Partial<ProviderCandidate> = {}): ProviderCandidate =>
+		candidate({
+			id: 'parkinson',
+			title: 'Monstrous Regiment',
+			authors: ['Terry Pratchett'],
+			asin: 'B0PARKS0000',
+			narrators: ['Katherine Parkinson', 'Bill Nighy'],
+			audioSeconds: MR_FILE_S - 1, // the fingerprint
+			...over
+		})
+
+	test('the file fingerprint overrides a self-consistent wrong pin', async () => {
+		const out = await mrHelper([briggs(), parkinson()], {
+			duration: MR_FILE_MS,
+			asin: 'B0BRIGGS000',
+			narrator: 'Stephen Briggs' // the sidecar lies consistently
+		}).search()
+		expect(out[0].id).toBe('parkinson')
+		// The pinned edition is demoted, never deleted -- still pickable.
+		expect(out.some((c) => c.id === 'briggs')).toBe(true)
+	})
+
+	test('a SAME-narration rival never trips the fingerprint (Fry Phoenix shape)', async () => {
+		// Pin 286s off, rival 46s off, both the same narrator: mastering
+		// variance of one narration, not evidence of a wrong pin.
+		const pinned = briggs({ audioSeconds: MR_FILE_S - 286 })
+		const rival = briggs({
+			id: 'relisting',
+			asin: null,
+			audioSeconds: MR_FILE_S - 46
+		})
+		const out = await mrHelper([pinned, rival], {
+			duration: MR_FILE_MS,
+			asin: 'B0BRIGGS000',
+			narrator: 'Stephen Briggs'
+		}).search()
+		expect(out[0].id).toBe('briggs')
+	})
+
+	test('a narrator-less rival can never prove disjointness', async () => {
+		const anon = parkinson({ narrators: [] })
+		const out = await mrHelper([briggs(), anon], {
+			duration: MR_FILE_MS,
+			asin: 'B0BRIGGS000'
+		}).search()
+		expect(out[0].id).toBe('briggs')
+	})
+
+	test('a pin inside provider rounding is never fingerprint-contradicted', async () => {
+		const closePin = briggs({ audioSeconds: MR_FILE_S - 60 })
+		const out = await mrHelper([closePin, parkinson()], {
+			duration: MR_FILE_MS,
+			asin: 'B0BRIGGS000'
+		}).search()
+		expect(out[0].id).toBe('briggs')
+	})
+
+	test('an AI-narrated near-exact rival cannot strip the pin', async () => {
+		const junk = parkinson({ id: 'vv', asin: null, narrators: ['Virtual Voice'] })
+		const out = await mrHelper([briggs(), junk], {
+			duration: MR_FILE_MS,
+			asin: 'B0BRIGGS000'
+		}).search()
+		expect(out[0].id).toBe('briggs')
 	})
 })

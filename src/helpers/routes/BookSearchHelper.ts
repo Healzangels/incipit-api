@@ -962,11 +962,18 @@ export default class BookSearchHelper {
 			.split(/[,&]/)
 			.map((n) => narratorKey(n))
 			.filter((n) => n.length >= 4)
+		// The hint the arms may actually TRUST. Blanked when the runtime
+		// fingerprint discredits the pin (see pinFingerprintContradicted): the
+		// narrator field came from the same wrong sidecar record as the asin,
+		// so once the file's runtime proves that record describes a different
+		// narration, its narrator claim must not win the arbitration the pin
+		// just lost -- the delta arm decides on file evidence instead.
+		let trustedNarratorKeys = wantNarratorKeys
 		const narratorMatches = (c: ScoredCandidate): boolean => {
 			for (const got of c.narrators ?? []) {
 				const key = narratorKey(got)
 				if (!key) continue
-				for (const want of wantNarratorKeys) {
+				for (const want of trustedNarratorKeys) {
 					if (key.includes(want) || want.includes(key)) return true
 				}
 			}
@@ -982,7 +989,7 @@ export default class BookSearchHelper {
 			if (!m) return false
 			const key = narratorKey(m[1])
 			if (!key) return false
-			return wantNarratorKeys.some((want) => key.includes(want) || want.includes(key))
+			return trustedNarratorKeys.some((want) => key.includes(want) || want.includes(key))
 		}
 		// Hoisted out of the comparator: these were read per COMPARISON, i.e.
 		// O(n log n) env lookups and regex passes per search.
@@ -1154,17 +1161,51 @@ export default class BookSearchHelper {
 		// and Hardcover audio rows often have a null runtime, so a per-row test let
 		// the runtime-less twin keep the pin and win anyway. A pin is stale only when
 		// rows that DO report a runtime all disagree with the file.
-		const pinnedDeltas =
-			wantAsin != null
-				? candidates
-						.filter((c) => this.isPinned(c, wantAsin))
-						.map(durationDelta)
-						.filter((d): d is number => d != null)
-				: []
+		const pinnedRows = wantAsin != null ? candidates.filter((c) => this.isPinned(c, wantAsin)) : []
+		const pinnedDeltas = pinnedRows.map(durationDelta).filter((d): d is number => d != null)
+		// RUNTIME-FINGERPRINT contradiction (Monstrous Regiment, 2026-07-28): a
+		// self-consistent wrong sidecar -- asin AND narrator both naming the
+		// Stephen Briggs edition -- pinned a narration 660s from the file while
+		// the true Katherine Parkinson recording sat ONE second away. Field
+		// cross-checks cannot catch that class (every sidecar field agrees with
+		// itself), but the file's runtime is evidence the sidecar cannot fake:
+		// when the pin's own rows all sit beyond provider ROUNDING of the file
+		// while a plausible rival of a DIFFERENT narration sits inside it, the
+		// file fingerprints the other narration. The narrator-disjoint
+		// requirement (both sides non-empty, no key overlap either direction)
+		// protects same-narration re-releases -- the Fry Phoenix pin is 286s
+		// off with a 46s rival, but both are Fry, so it never trips -- and a
+		// provider that lists no narrators can never prove disjointness.
+		const absDeltaSeconds = (c: ProviderCandidate): number | null => {
+			const d = durationDelta(c)
+			return d != null && c.audioSeconds ? d * c.audioSeconds : null
+		}
+		const rowNarratorKeys = (c: ProviderCandidate): string[] =>
+			(c.narrators ?? []).map(narratorKey).filter((k) => k.length >= 4)
+		const narratorsDisjoint = (a: string[], b: string[]): boolean =>
+			a.length > 0 &&
+			b.length > 0 &&
+			a.every((x) => b.every((y) => !x.includes(y) && !y.includes(x)))
+		const pinNarrKeys = pinnedRows.flatMap(rowNarratorKeys)
+		const pinnedAbsDeltas = pinnedRows.map(absDeltaSeconds).filter((d): d is number => d != null)
+		const pinBestAbs = pinnedAbsDeltas.length ? Math.min(...pinnedAbsDeltas) : null
+		const pinFingerprintContradicted =
+			pinBestAbs != null &&
+			pinBestAbs > tieEpsilonSeconds &&
+			candidates.some((c) => {
+				if (this.isPinned(c, wantAsin)) return false
+				if (isAiNarrated(c.narrators)) return false
+				if (!witnessIsPlausible(c)) return false
+				const abs = absDeltaSeconds(c)
+				if (abs == null || abs > tieEpsilonSeconds) return false
+				return narratorsDisjoint(rowNarratorKeys(c), pinNarrKeys)
+			})
+		if (pinFingerprintContradicted) trustedNarratorKeys = []
 		const pinIsStale =
-			corroboratedNonPinExists &&
-			pinnedDeltas.length > 0 &&
-			pinnedDeltas.every((d) => d > DURATION_TOLERANCE)
+			(corroboratedNonPinExists &&
+				pinnedDeltas.length > 0 &&
+				pinnedDeltas.every((d) => d > DURATION_TOLERANCE)) ||
+			pinFingerprintContradicted
 		// The runtime belongs to the EDITION, not the row. The veto is applied per
 		// row, but an ASIN names one edition and providers routinely return it
 		// twice -- and a Hardcover audio row often carries a null runtime. So a
@@ -1478,7 +1519,7 @@ export default class BookSearchHelper {
 					)
 				}
 				const runtimeCannotSeparate = withinRoundingNoise(a, b)
-				if (wantNarratorKeys.length) {
+				if (trustedNarratorKeys.length) {
 					const byNarrator = Number(narratorMatches(b)) - Number(narratorMatches(a))
 					if (byNarrator !== 0) return byNarrator
 					// Among editions that ALL match the requested narrator, the one
