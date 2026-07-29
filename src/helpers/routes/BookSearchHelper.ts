@@ -115,13 +115,16 @@ export function durationTieEpsilonSeconds(): number {
 }
 
 /**
- * What breaks a rounding-epsilon tie: 'fuller' (default) prefers the fuller
- * form of the same title -- "Silverborn: The Mystery of Morrigan Crow" over
- * "Silverborn" -- while 'query' skips straight to the exact-title arm, which
- * prefers whatever the library calls the book.
+ * What breaks a rounding-epsilon tie between title forms of one recording:
+ * 'query' (the default since 2026-07-28) prefers the row titled what the
+ * library calls the book -- trust-the-tags, the operator's curation model --
+ * while 'fuller' prefers the fuller form of the same title ("Silverborn: The
+ * Mystery of Morrigan Crow" over "Silverborn") regardless of the tag.
+ * 'fuller' was the default during the Nevermoor work; libraries preferring
+ * fuller display over their own tags opt back in via the env var.
  */
 export function durationTieTitlePreference(): 'fuller' | 'query' {
-	return process.env.DURATION_TIE_TITLE_PREFERENCE === 'query' ? 'query' : 'fuller'
+	return process.env.DURATION_TIE_TITLE_PREFERENCE === 'fuller' ? 'fuller' : 'query'
 }
 
 /** Collapse a title for comparison: lowercase, single-spaced, trimmed. */

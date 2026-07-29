@@ -1032,19 +1032,24 @@ describe('duration-rounding tie collapse', () => {
 			])
 		])
 
-	test('within the epsilon the fuller form of the same title wins', async () => {
-		// These two rows carry DIFFERENT ASINs, so under the distinct-listings
-		// rule (2026-07-28, the 2015-vs-2024 Fry case) the prefix merge leaves
-		// them separately pickable and the fuller-title arm arbitrates the
-		// rounding tie -- the original contract of this test, back in force.
-		const out = await new BookSearchHelper(silverbornShelf(), {
-			title: 'Silverborn',
-			author: 'Jessica Townsend',
-			duration: 65604000,
-			region: 'us'
-		}).search()
-		expect(out).toHaveLength(2)
-		expect(out[0].id).toBe('full')
+	test("with the 'fuller' opt-in the fuller form of the same title wins", async () => {
+		// 'fuller' became the OPT-IN on 2026-07-28 (query/trust-the-tags is
+		// the default); this pins that the mode still works when chosen.
+		const prior = process.env.DURATION_TIE_TITLE_PREFERENCE
+		process.env.DURATION_TIE_TITLE_PREFERENCE = 'fuller'
+		try {
+			const out = await new BookSearchHelper(silverbornShelf(), {
+				title: 'Silverborn',
+				author: 'Jessica Townsend',
+				duration: 65604000,
+				region: 'us'
+			}).search()
+			expect(out).toHaveLength(2)
+			expect(out[0].id).toBe('full')
+		} finally {
+			if (prior === undefined) delete process.env.DURATION_TIE_TITLE_PREFERENCE
+			else process.env.DURATION_TIE_TITLE_PREFERENCE = prior
+		}
 	})
 
 	test('past the epsilon the closest runtime still wins', async () => {
@@ -1118,9 +1123,10 @@ describe('duration-rounding tie collapse', () => {
 	})
 
 	test('EQUAL rounded runtimes inside the epsilon also collapse to the fuller title', async () => {
-		// The live Wundersmith holdout: distinct listings (different ASINs)
-		// stay unmerged under the 2026-07-28 rule, so equal deltas inside the
-		// epsilon fall to the fuller-title arm -- the original contract.
+		// The live Wundersmith holdout under the 'fuller' OPT-IN: equal deltas
+		// inside the epsilon fall to the fuller-title arm.
+		const prior = process.env.DURATION_TIE_TITLE_PREFERENCE
+		process.env.DURATION_TIE_TITLE_PREFERENCE = 'fuller'
 		const reg = new ProviderRegistry([
 			stubProvider('audible', [
 				townsend('od-short', 'Wundersmith', 42660),
@@ -1128,13 +1134,18 @@ describe('duration-rounding tie collapse', () => {
 				townsend('full', 'Wundersmith: The Calling of Morrigan Crow', 42600)
 			])
 		])
-		const out = await new BookSearchHelper(reg, {
-			title: 'Wundersmith',
-			author: 'Jessica Townsend',
-			duration: 42672000,
-			region: 'us'
-		}).search()
-		expect(out[0].id).toBe('full')
+		try {
+			const out = await new BookSearchHelper(reg, {
+				title: 'Wundersmith',
+				author: 'Jessica Townsend',
+				duration: 42672000,
+				region: 'us'
+			}).search()
+			expect(out[0].id).toBe('full')
+		} finally {
+			if (prior === undefined) delete process.env.DURATION_TIE_TITLE_PREFERENCE
+			else process.env.DURATION_TIE_TITLE_PREFERENCE = prior
+		}
 	})
 })
 
@@ -1890,8 +1901,13 @@ describe('DURATION_TIE_TITLE_PREFERENCE=query is an active tag preference', () =
 		expect(out.map((c) => c.id)).toContain('audible-sub')
 	})
 
-	test("the default 'fuller' keeps its Nevermoor behavior on the same pair", async () => {
+	test("the DEFAULT is 'query': the tag row wins with no env at all", async () => {
 		const out = await searchWith(undefined)
+		expect(out[0].id).toBe('od-bare')
+	})
+
+	test("'fuller' remains available as the explicit opt-in", async () => {
+		const out = await searchWith('fuller')
 		expect(out[0].id).toBe('audible-sub')
 	})
 
