@@ -13,6 +13,7 @@ import PaprAudibleAuthorHelper from '#helpers/database/papr/audible/PaprAudibleA
 import { NotFoundError } from '#helpers/errors/ApiErrors'
 import { withGoodreadsAuthorInfo } from '#helpers/providers/goodreadsSeries'
 import type HardcoverProvider from '#helpers/providers/HardcoverProvider'
+import { isBookAssetUrl } from '#helpers/providers/HardcoverProvider'
 import defaultRegistry from '#helpers/providers/registry'
 import GenericShowHelper from '#helpers/routes/GenericShowHelper'
 import { isSameAuthor } from '#helpers/utils/authorNameMatch'
@@ -54,6 +55,33 @@ export function staticAvatarFor(name: string): string {
  */
 export function isStaticAvatar(url: string | null | undefined): boolean {
 	return Boolean(url && /assets\.hardcover\.app\/static\/avatars\/profile\d+\.png$/i.test(url))
+}
+
+/**
+ * True when a URL is display FURNITURE or the wrong subject rather than a real
+ * portrait: one of the six static avatars, a Hardcover BOOK asset, or the
+ * generated avatar this pass just identified.
+ *
+ * Exported (and covered) because getting this set wrong is silent and
+ * permanent: a non-portrait persisted by an earlier pass rides back in through
+ * the minimal-profile seed looking like a real photo, the profile then reads
+ * COMPLETE, and every downstream gap check -- the Goodreads backstop, the
+ * second chance -- stops running for that author forever. Measured 2026-07-29:
+ * eight authors were stuck on book jackets for exactly this reason, and the
+ * provider-side guard alone did not move any of them.
+ * @param {string | null | undefined} url the stored image URL
+ * @param {string | null} generatedAvatar the avatar identified this pass, if any
+ * @returns {boolean} true when the URL must not be treated as a portrait
+ */
+export function isNonPortraitImage(
+	url: string | null | undefined,
+	generatedAvatar: string | null = null
+): boolean {
+	return (
+		isStaticAvatar(url) ||
+		isBookAssetUrl(url) ||
+		(generatedAvatar != null && url === generatedAvatar)
+	)
 }
 
 export default class AuthorShowHelper extends GenericShowHelper {
@@ -206,8 +234,14 @@ export default class AuthorShowHelper extends GenericShowHelper {
 		// photo: the Goodreads backstop and the second chance would never run for
 		// this author again. Clear it here; the fill rungs at the end put it back
 		// when nothing real arrived this pass either.
+		// A BOOK COVER counts here too. A jacket persisted by an earlier pass
+		// rides back in through the minimal-profile seed / previous-record
+		// restore looking like a real portrait, so the profile reads COMPLETE
+		// and the throttle never re-fetches that author -- the eight authors
+		// measured 2026-07-29 stayed wrong even after the provider-side guard
+		// shipped, precisely because their stored records already held one.
 		const isPlaceholder = (url: string | null | undefined): boolean =>
-			isStaticAvatar(url) || (generatedAvatar != null && url === generatedAvatar)
+			isNonPortraitImage(url, generatedAvatar)
 		if (isPlaceholder(author.image)) author.image = ''
 		if (isPlaceholder(author.imageAlt)) author.imageAlt = ''
 

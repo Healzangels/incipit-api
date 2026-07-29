@@ -301,6 +301,28 @@ function toProviderBook(book: HardcoverBook): ProviderBook {
 	return providerBook(book, audioEdition ?? editions[0])
 }
 
+/**
+ * True when a URL is a Hardcover BOOK asset rather than an author portrait.
+ *
+ * Hardcover's authors.image relation is contributed data and sometimes points
+ * at a book cover: measured 2026-07-29 across the operator's 181 authors,
+ * EIGHT carried `assets.hardcover.app/books/<id>/...` as their photo (Terry
+ * Pratchett and Octavia E. Butler among them), so a jacket was displayed as
+ * the author's face. Path-specific on purpose -- real portraits live under
+ * /author/ or /authors/ (both shapes are live), plus Amazon author-media and
+ * gr-assets, so only the /books/ prefix is rejected.
+ *
+ * Exported because the wrong value also has to be recognised on the way BACK
+ * IN: a book cover persisted by an earlier pass looks like a complete profile,
+ * so the throttle would never re-fetch that author (the same shape as the
+ * static-avatar placeholder rule in AuthorShowHelper).
+ * @param {string | null | undefined} url the candidate image URL
+ * @returns {boolean} true when the URL is a book asset
+ */
+export function isBookAssetUrl(url: string | null | undefined): boolean {
+	return Boolean(url && /assets\.hardcover\.app\/books\//i.test(url))
+}
+
 export default class HardcoverProvider implements BookProvider {
 	readonly name = HARDCOVER_NAME
 	private defaultToken?: string
@@ -516,8 +538,7 @@ export default class HardcoverProvider implements BookProvider {
 			// Path-based on purpose -- real portraits live under /author/ or
 			// /authors/ (both shapes are live), so only the /books/ prefix is
 			// rejected and no valid photo shape is touched.
-			const isBookAsset = (a: { image?: HardcoverImage | null }) =>
-				/assets\.hardcover\.app\/books\//i.test(a.image?.url ?? '')
+			const isBookAsset = (a: { image?: HardcoverImage | null }) => isBookAssetUrl(a.image?.url)
 
 			// Image: any REAL photo (on any same-name row) beats a generated
 			// avatar; within each pool, an exact name match wins. The avatar is
