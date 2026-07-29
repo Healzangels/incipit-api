@@ -1044,6 +1044,22 @@ async function lookupByTitle(
 		const workId = hit.workId
 		if (typeof workId !== 'number') continue
 
+		// Snapshot the degradation BEFORE the /work call. A failed call marks the
+		// whole lookup degraded, and withGoodreadsSeries then refuses to APPLY or
+		// CACHE the answer -- rightly, since a call that failed means we cannot be
+		// sure we saw the best candidate, and overriding a provider series on
+		// partial evidence is the mis-shelving that guard exists to prevent.
+		//
+		// It does not hold once the author record has resolved this work by
+		// IDENTITY: the failure was routed around, not ignored. Restoring the flag
+		// to its pre-call value un-sets only the degradation THIS recovered call
+		// introduced, so a genuine failure elsewhere in the lookup still counts.
+		//
+		// Measured live: without this the fallback logged "recovered this series
+		// from the author record" on every single request while the response kept
+		// serving Audible's name and nothing was ever cached -- the answer was
+		// found and then thrown away, once per request.
+		const degradedBeforeWork = state?.degraded ?? false
 		let work = await getJson<WorkResponse>(`/work/${workId}`, state, logger)
 		if (!work) {
 			// A dead /work record used to end this hit SILENTLY, which is how one
@@ -1054,6 +1070,7 @@ async function lookupByTitle(
 				'goodreads series: /work returned nothing, trying the author record'
 			)
 			work = await workFromAuthorRecord(workId, hit.author?.id, state, logger)
+			if (work && state) state.degraded = degradedBeforeWork
 		}
 		if (!work) continue
 

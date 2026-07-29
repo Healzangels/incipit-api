@@ -7,7 +7,7 @@ process.env.GOODREADS_MIN_GAP_MS = '0'
 const fetchMock = mock()
 mock.module('#helpers/utils/fetchPlus', () => ({ default: fetchMock }))
 
-const { fetchGoodreadsSeries, seriesAliasFor, resetGoodreadsThrottle } = await import(
+const { fetchGoodreadsSeries, withGoodreadsSeries, seriesAliasFor, resetGoodreadsThrottle } = await import(
 	'#helpers/providers/goodreadsSeries'
 )
 
@@ -706,5 +706,100 @@ describe('a broken /work record falls back to the AUTHOR record', () => {
 		// Two calls: /search and /work. A third would mean the author record was
 		// fetched for a book that never needed it.
 		expect(fetchMock.mock.calls.length).toBe(2)
+	})
+})
+
+describe('a recovered work must not be discarded as degraded', () => {
+	/**
+	 * THE gap my first pass missed, caught only by reading the live logs.
+	 *
+	 * The fallback worked immediately in production -- every request logged
+	 * "recovered this series from the author record" with series ["Tier One"] --
+	 * and the response STILL served Audible's "The Tier One Thrillers", and the
+	 * answer was never cached (so it re-ran on every single request).
+	 *
+	 * Because the failed /work call sets state.degraded, and withGoodreadsSeries
+	 * refuses to apply OR cache a degraded lookup. That guard is right in
+	 * general: a call that failed means we cannot be sure we saw the best
+	 * candidate, so overriding a provider series on partial evidence is exactly
+	 * the mis-shelving it exists to prevent.
+	 *
+	 * It is wrong HERE. We did not proceed on partial evidence -- we resolved the
+	 * work by IDENTITY through the author record, which named our work id in a
+	 * series with a position. The failure was routed around, not ignored.
+	 *
+	 * Note the fidelity lesson: the earlier tests drove fetchGoodreadsSeries,
+	 * which returns before that guard, so they passed while production did the
+	 * opposite. This one drives withGoodreadsSeries -- what the route calls.
+	 */
+
+	const AUTHOR_ID = 5155903
+	const WORK_ID = 249535826
+
+	const authorRecord = {
+		ForeignId: AUTHOR_ID,
+		Name: 'Brian Andrews',
+		Works: [{ ForeignId: WORK_ID, Title: 'The Adversary' }],
+		Series: [
+			{
+				ForeignId: 180345,
+				Title: 'Tier One',
+				LinkItems: [{ ForeignWorkId: WORK_ID, PositionInSeries: '9', SeriesPosition: 9 }]
+			}
+		]
+	}
+
+	const audibleBook = () => ({
+		title: 'The Adversary',
+		subtitle: 'Tier One Thrillers, Book 9',
+		authors: [{ name: 'Brian Andrews' }],
+		seriesPrimary: { name: 'The Tier One Thrillers', position: '9' }
+	})
+
+	afterEach(() => fetchMock.mockReset())
+
+	test('the recovered series IS applied over the provider series', async () => {
+		respond([{ workId: WORK_ID, author: { id: AUTHOR_ID } }], null, authorRecord)
+		const out = await withGoodreadsSeries(audibleBook(), null)
+		expect(out.seriesPrimary?.name).toBe('Tier One')
+	})
+
+	test('a failed recovery keeps the degradation, so no stem retry runs', async () => {
+		// CALL COUNT is the assertion. /work fails and the author record fails too,
+		// so nothing was resolved and the lookup stays degraded -- which is what
+		// stops fetchGoodreadsSeries paying for a second paced search against a
+		// mirror that just pushed back. Clearing the flag unconditionally (rather
+		// than only on a successful recovery) lets that retry run.
+		respond([{ workId: WORK_ID, author: { id: AUTHOR_ID } }], null, null)
+		await withGoodreadsSeries(audibleBook(), null)
+		expect(fetchMock.mock.calls.length).toBe(3) // search + work + author, then stop
+	})
+
+	test('degradation from an EARLIER hit is preserved, not cleared', async () => {
+		// Two hits. The first degrades the lookup (its /work fails and its author
+		// record fails too). The second recovers by identity -- but the lookup as a
+		// whole HAS lost evidence, so restoring the pre-call value must restore
+		// TRUE, not hardcode false. Otherwise one recovered hit launders away a
+		// real failure on another and a partial answer gets applied.
+		respond(
+			[
+				{ workId: 111111, author: { id: 999999 } },
+				{ workId: WORK_ID, author: { id: AUTHOR_ID } }
+			],
+			null, // hit 1 /work fails      -> degraded
+			null, // hit 1 /author fails    -> no recovery, degradation stands
+			null, // hit 2 /work fails
+			authorRecord // hit 2 recovers by identity
+		)
+		const out = await withGoodreadsSeries(audibleBook(), null)
+		expect(out.seriesPrimary?.name).toBe('The Tier One Thrillers')
+	})
+
+	test('a genuinely degraded lookup still declines to apply', async () => {
+		// The guard must survive: /work fails AND the author record fails too, so
+		// nothing was resolved by identity and the provider series stands.
+		respond([{ workId: WORK_ID, author: { id: AUTHOR_ID } }], null, null)
+		const out = await withGoodreadsSeries(audibleBook(), null)
+		expect(out.seriesPrimary?.name).toBe('The Tier One Thrillers')
 	})
 })
