@@ -1033,6 +1033,18 @@ export default class BookSearchHelper {
 			...volumeNumbers(this.rawTitle),
 			...volumeNumbers(this.options.trackTitle)
 		])
+		// The want side's PART claims, read from the same two title sources as
+		// wantVolumes above. Reading only rawTitle made a part claim that
+		// arrives via the TRACK title look like "the want side isn't speaking
+		// about parts" -- so an album tagged "The Wandering Inn" with a track
+		// titled "…, Part 2" treated a Part 1 listing as incomparable, and the
+		// disjoint-part conflict this guard exists to keep was silently
+		// skipped: the wrong part kept 0.85, above the auto-apply bar.
+		// Loop-invariant, so hoisted out of the per-candidate map as well.
+		const wantParts = new Set<number>([
+			...partNumbers(this.rawTitle),
+			...partNumbers(this.options.trackTitle)
+		])
 		// Pure-numeric title stems on the QUERY side ("2010"), for the
 		// numeric-title mismatch guard below. Both title forms -- but the track
 		// side only for a FOUR-digit, no-leading-zero stem (a year, the class
@@ -1331,7 +1343,7 @@ export default class BookSearchHelper {
 				if (bare != null) candVolumes.add(bare)
 			}
 			const incomparableParts = partsAreIncomparable(
-				partNumbers(this.rawTitle),
+				wantParts,
 				partNumbers(c.title),
 				wantVolumes,
 				candVolumes

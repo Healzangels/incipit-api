@@ -2004,3 +2004,64 @@ describe('the curated sidecar title outranks the ripper track tag', () => {
 		expect(out[0].id).toBe('audible-long')
 	})
 })
+
+describe('a part claim in the TRACK title still guards the volume conflict', () => {
+	// Ultrareview finding (four finders, CONFIRMED): partsAreIncomparable read
+	// the want side from rawTitle only while wantVolumes also ingests the track
+	// title, so a part number arriving via the track tag made the want side
+	// look part-free -- and the disjoint-part conflict was skipped, letting a
+	// wrong part keep 0.85 (above Plex's 0.80 auto-apply bar).
+	const wanderingInn = (id, title, seconds) =>
+		candidate({
+			provider: 'audible',
+			id,
+			title,
+			authors: ['pirateaba'],
+			audioSeconds: seconds
+		})
+
+	test('the wrong part is demoted when the part claim rides the track title', async () => {
+		const reg = new ProviderRegistry([
+			stubProvider('x', [wanderingInn('part1', 'The Wandering Inn: Part 1', 90000)])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'The Wandering Inn', // album tag says nothing about parts
+			trackTitle: 'The Wandering Inn, Part 2', // the claim lives HERE
+			author: 'pirateaba',
+			region: 'us'
+		}).search()
+		// Offered, but demoted below the auto-apply bar rather than sitting at 0.85.
+		const row = out.find((c) => c.id === 'part1')
+		expect(row).toBeDefined()
+		expect(row.confidence).toBeLessThan(0.8)
+	})
+
+	test('the AGREEING part is untouched', async () => {
+		const reg = new ProviderRegistry([
+			stubProvider('x', [wanderingInn('part2', 'The Wandering Inn: Part 2', 90000)])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'The Wandering Inn',
+			trackTitle: 'The Wandering Inn, Part 2',
+			author: 'pirateaba',
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('part2')
+		expect(out[0].confidence).toBeGreaterThanOrEqual(0.85)
+	})
+
+	test('a part-free query still treats part-marked candidates as incomparable', async () => {
+		// The file-split case the incomparability rule exists for: neither title
+		// form claims a part, so a candidate's "Part 1" marker is a rip artifact
+		// and must not be read as a conflicting volume.
+		const reg = new ProviderRegistry([
+			stubProvider('x', [wanderingInn('p1', 'The Wandering Inn: Part 1', 90000)])
+		])
+		const out = await new BookSearchHelper(reg, {
+			title: 'The Wandering Inn',
+			author: 'pirateaba',
+			region: 'us'
+		}).search()
+		expect(out[0].confidence).toBeGreaterThanOrEqual(0.85)
+	})
+})
