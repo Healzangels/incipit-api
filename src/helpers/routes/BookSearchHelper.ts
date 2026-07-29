@@ -1512,11 +1512,20 @@ export default class BookSearchHelper {
 				// decide. Shipped the other way round on 2026-07-27 and verified
 				// wrong on 2026-07-28: a branded edition 22.8 minutes off beat the
 				// byte-exact recording, and a 0s-off row lost to an 88s-off one.
-				const exactTitle = (c: ScoredCandidate) => {
+				// WHICH of the library's own title forms a candidate matches,
+				// ranked rather than boolean: the album/sidecar title (2)
+				// outranks the track title (1). Both are the operator's voice,
+				// but the sidecar is curated machine-written metadata while the
+				// embedded track tag is whatever the ripper wrote -- measured
+				// live on the Nevermoor shelf (2026-07-28), where three of four
+				// files carry the long form in their track tag while every
+				// sidecar says the short form. Treating the two as equal let one
+				// series rank inconsistently against its own curated titles.
+				const tagTitleTier = (c: ScoredCandidate): number => {
 					const t = normalizeTitle(c.title).toLowerCase()
-					return (
-						t === primaryTitle.toLowerCase() || (altTitle != null && t === altTitle.toLowerCase())
-					)
+					if (t === primaryTitle.toLowerCase()) return 2
+					if (altTitle != null && t === altTitle.toLowerCase()) return 1
+					return 0
 				}
 				const runtimeCannotSeparate = withinRoundingNoise(a, b)
 				if (trustedNarratorKeys.length) {
@@ -1609,7 +1618,7 @@ export default class BookSearchHelper {
 					// is the bare form). Runtime evidence stays sovereign: this
 					// only runs where the delta is provider-rounding noise.
 					if (runtimeCannotSeparate && tieTitlePreference === 'query') {
-						const byTagTitle = Number(exactTitle(b)) - Number(exactTitle(a))
+						const byTagTitle = tagTitleTier(b) - tagTitleTier(a)
 						if (byTagTitle !== 0) return byTagTitle
 					}
 					if (Math.abs(aDelta - bDelta) > 1e-9) {
@@ -1631,7 +1640,7 @@ export default class BookSearchHelper {
 				// narrator, runtime delta, residual confidence) has already declined
 				// to decide, so this can only choose between rows the evidence cannot
 				// tell apart.
-				const byExactTitle = Number(exactTitle(b)) - Number(exactTitle(a))
+				const byExactTitle = tagTitleTier(b) - tagTitleTier(a)
 				if (byExactTitle !== 0) return byExactTitle
 				// Genuinely tied: prefer the richer/more-authoritative source.
 				const byProvider = providerRank(a) - providerRank(b)

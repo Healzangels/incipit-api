@@ -1930,3 +1930,77 @@ describe('DURATION_TIE_TITLE_PREFERENCE=query is an active tag preference', () =
 		}
 	})
 })
+
+describe('the curated sidecar title outranks the ripper track tag', () => {
+	// The Nevermoor shelf (2026-07-28): three of four files carry the long
+	// form in their embedded TRACK tag while every sidecar says the short
+	// form, so the tag-preference arm -- treating both as equally the
+	// operator's voice -- ranked one series against its own curated titles.
+	// The album/sidecar title is the curated source and now outranks the
+	// track tag when the two disagree.
+	const file = 39667948
+	const fileS = Math.round(file / 1000)
+
+	const bare = () =>
+		candidate({
+			provider: 'overdrive',
+			id: 'od-bare',
+			title: 'Nevermoor',
+			authors: ['Jessica Townsend'],
+			narrators: ['Gemma Whelan'],
+			audioSeconds: fileS - 10
+		})
+	const long = () =>
+		candidate({
+			provider: 'audible',
+			id: 'audible-long',
+			asin: 'B074HHQ1KH',
+			title: 'Nevermoor: The Trials of Morrigan Crow',
+			authors: ['Jessica Townsend'],
+			narrators: ['Gemma Whelan'],
+			audioSeconds: fileS - 7 // CLOSER than the bare row
+		})
+
+	test('the sidecar-titled row wins even when the track tag names the other', async () => {
+		const reg = new ProviderRegistry([stubProvider('x', [bare(), long()])])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Nevermoor', // sidecar/album: the curated form
+			trackTitle: 'Nevermoor: The Trials of Morrigan Crow', // the ripper's tag
+			author: 'Jessica Townsend',
+			narrator: 'Gemma Whelan',
+			duration: file,
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('od-bare')
+		expect(out.map((c) => c.id)).toContain('audible-long')
+	})
+
+	test('the track tag still decides when the sidecar title matches nothing', async () => {
+		// Its recall role is untouched: a noisy album tag that matches no
+		// candidate leaves the track title as the only tag voice.
+		const reg = new ProviderRegistry([stubProvider('x', [bare(), long()])])
+		const out = await new BookSearchHelper(reg, {
+			title: '01 Nevermoor unabridged rip',
+			trackTitle: 'Nevermoor: The Trials of Morrigan Crow',
+			author: 'Jessica Townsend',
+			narrator: 'Gemma Whelan',
+			duration: file,
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('audible-long')
+	})
+
+	test('runtime evidence still outranks both tag voices', async () => {
+		const farBare = { ...bare(), audioSeconds: fileS - 1800 } // 30 min off
+		const reg = new ProviderRegistry([stubProvider('x', [farBare, long()])])
+		const out = await new BookSearchHelper(reg, {
+			title: 'Nevermoor',
+			trackTitle: 'Nevermoor: The Trials of Morrigan Crow',
+			author: 'Jessica Townsend',
+			narrator: 'Gemma Whelan',
+			duration: file,
+			region: 'us'
+		}).search()
+		expect(out[0].id).toBe('audible-long')
+	})
+})
