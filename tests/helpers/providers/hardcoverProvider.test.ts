@@ -392,6 +392,63 @@ describe('HardcoverProvider.fetchAuthorInfo (image + bio)', () => {
 		async <T>() =>
 			({ authors }) as T
 
+	test('a BOOK COVER is never served as an author portrait', async () => {
+		// Measured live 2026-07-29: 8 of the operator's 181 authors carried
+		// `assets.hardcover.app/books/<id>/...` as their photo -- Terry Pratchett
+		// and Octavia E. Butler among them -- because Hardcover's contributed
+		// authors.image relation can point at a book asset. A jacket is simply
+		// the wrong subject, so it is dropped rather than displayed.
+		const gql = authorGql([
+			{
+				name: 'George Alec Effinger',
+				bio: 'An American science fiction author.',
+				image: { url: 'https://assets.hardcover.app/books/135179/10360944-L.jpg' }
+			}
+		])
+		const info = await new HardcoverProvider({ token: 'tok', gql }).fetchAuthorInfo(
+			'George Alec Effinger',
+			{ region: 'us' }
+		)
+		expect(info.image).toBeNull()
+		// The BIO on that same record is still perfectly good data.
+		expect(info.bio).toContain('science fiction author')
+	})
+
+	test('a real portrait on a sibling record beats a book cover', async () => {
+		const gql = authorGql([
+			{
+				name: 'Terry Pratchett',
+				bio: null,
+				image: { url: 'https://assets.hardcover.app/books/349845/x-L.jpg' }
+			},
+			{
+				name: 'Terry Pratchett',
+				bio: null,
+				image: { url: 'https://assets.hardcover.app/authors/1/real-L.jpg' }
+			}
+		])
+		const info = await new HardcoverProvider({ token: 'tok', gql }).fetchAuthorInfo(
+			'Terry Pratchett',
+			{ region: 'us' }
+		)
+		expect(info.image).toBe('https://assets.hardcover.app/authors/1/real-L.jpg')
+	})
+
+	test.each([
+		'https://assets.hardcover.app/author/86158/f18a10d8.jpeg',
+		'https://assets.hardcover.app/authors/178795/7241662-L.jpg',
+		'https://images-na.ssl-images-amazon.com/images/S/amzn-author-media-prod/abc.jpg',
+		'https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/authors/1442.jpg'
+	])('keeps the real portrait shape %s', async (url) => {
+		// All four shapes are live in the operator's library -- the guard is
+		// path-specific so none of them may be rejected.
+		const gql = authorGql([{ name: 'A', bio: null, image: { url } }])
+		const info = await new HardcoverProvider({ token: 'tok', gql }).fetchAuthorInfo('A', {
+			region: 'us'
+		})
+		expect(info.image).toBe(url)
+	})
+
 	test('picks image and bio from DIFFERENT same-name records (the Stephen Fry case)', async () => {
 		// Canonical record has the photo but no bio; a duplicate has the bio.
 		const gql = authorGql([
@@ -525,7 +582,11 @@ describe('HardcoverProvider generated-avatar detection', () => {
 			{
 				name: 'Robert Harris',
 				bio: null,
-				image: { url: 'https://assets.hardcover.app/author/61383/avatar.png', width: 270, height: 270 }
+				image: {
+					url: 'https://assets.hardcover.app/author/61383/avatar.png',
+					width: 270,
+					height: 270
+				}
 			}
 		])
 		const info = await new HardcoverProvider({ token: 'tok', gql }).fetchAuthorInfo(
@@ -538,9 +599,15 @@ describe('HardcoverProvider generated-avatar detection', () => {
 
 	test('a real-dimensioned image is not flagged, nor is one with no dims', async () => {
 		const real = authorGql([
-			{ name: 'Aldous Huxley', bio: null, image: { url: 'https://a/h.jpeg', width: 1500, height: 2215 } }
+			{
+				name: 'Aldous Huxley',
+				bio: null,
+				image: { url: 'https://a/h.jpeg', width: 1500, height: 2215 }
+			}
 		])
-		const noDims = authorGql([{ name: 'Aldous Huxley', bio: null, image: { url: 'https://a/h2.jpeg' } }])
+		const noDims = authorGql([
+			{ name: 'Aldous Huxley', bio: null, image: { url: 'https://a/h2.jpeg' } }
+		])
 		const p = new HardcoverProvider({ token: 'tok', gql: real })
 		expect((await p.fetchAuthorInfo('Aldous Huxley', { region: 'us' })).imageGenerated).toBe(false)
 		const p2 = new HardcoverProvider({ token: 'tok', gql: noDims })
@@ -556,7 +623,11 @@ describe('HardcoverProvider generated-avatar detection', () => {
 				bio: null,
 				image: { url: 'https://a/avatar.png', width: 270, height: 270 }
 			},
-			{ name: 'Robert Harris', bio: null, image: { url: 'https://a/real.jpg', width: 600, height: 800 } }
+			{
+				name: 'Robert Harris',
+				bio: null,
+				image: { url: 'https://a/real.jpg', width: 600, height: 800 }
+			}
 		])
 		const info = await new HardcoverProvider({ token: 'tok', gql }).fetchAuthorInfo(
 			'Robert Harris',

@@ -503,11 +503,27 @@ export default class HardcoverProvider implements BookProvider {
 			const isGenerated = (a: { image?: HardcoverImage | null }) =>
 				a.image?.width === 270 && a.image?.height === 270
 
+			// A BOOK COVER, not a portrait. Hardcover's authors.image relation is
+			// contributed data and sometimes points at a book asset: measured
+			// 2026-07-29 across the operator's 181 authors, EIGHT carried
+			// `assets.hardcover.app/books/<id>/...` as their photo -- Terry
+			// Pratchett and Octavia E. Butler among them -- so a book jacket was
+			// displayed as the author's face. Unlike a generated avatar (which is
+			// honest furniture and may fill a blank tile), a book cover is simply
+			// the wrong subject and can never be right, so these are dropped
+			// outright: the caller then falls through to the Goodreads backstop
+			// and, failing that, the static avatar.
+			// Path-based on purpose -- real portraits live under /author/ or
+			// /authors/ (both shapes are live), so only the /books/ prefix is
+			// rejected and no valid photo shape is touched.
+			const isBookAsset = (a: { image?: HardcoverImage | null }) =>
+				/assets\.hardcover\.app\/books\//i.test(a.image?.url ?? '')
+
 			// Image: any REAL photo (on any same-name row) beats a generated
 			// avatar; within each pool, an exact name match wins. The avatar is
 			// still returned when it is all Hardcover has -- flagged, so the
 			// caller can decide it fills an empty slot but displaces nothing.
-			const withImg = authors.filter((a) => a.image?.url)
+			const withImg = authors.filter((a) => a.image?.url && !isBookAsset(a))
 			const realImg = withImg.filter((a) => !isGenerated(a))
 			const pool = realImg.length ? realImg : withImg
 			const pick = pool.find((a) => a.name?.toLowerCase() === lc) ?? pool[0]
