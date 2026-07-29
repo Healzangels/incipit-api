@@ -38,24 +38,43 @@ BEHAVIOUR
     * Directories are walked for m4b/m4a; single files are taken as given.
 
 USAGE (on the box that has the media, e.g. CMacServer)
+    SHELF="/mnt/user/data/media/audiobooks/Brandon Sanderson/Alcatraz vs. the Evil Librarians"
+
     # 1. see which album tags are shared by more than one book
-    python3 retag_album.py --audit "/mnt/user/data/media/audiobooks/Brandon Sanderson"
+    python3 retag_album.py --audit "$SHELF"
 
     # 2. propose per-book albums derived from each file's own track title
-    python3 retag_album.py --from-track-title "/path/to/Alcatraz vs. the Evil Librarians"
+    python3 retag_album.py --from-track-title "$SHELF"
 
-    # 3. commit, then Scan Library Files in Plex
-    python3 retag_album.py --from-track-title --apply "/path/to/..."
+    # 3. commit
+    python3 retag_album.py --from-track-title --apply "$SHELF"
 
     # or set one explicit album for specific files
     python3 retag_album.py --album "The Scrivener's Bones" FILE [FILE...]
 
     Needs mutagen:  pip3 install mutagen
 
-AFTER APPLYING
-    Scan Library Files in Plex. The scanner re-reads the tags and splits the
-    albums; cover.jpg files on disk are untouched and re-serve via prefer_local,
-    so posters survive the split.
+AFTER APPLYING -- RETAGGING ALONE IS NOT ENOUGH FOR FILES PLEX ALREADY HAS
+    Plex fixes an album's membership when the track is FIRST scanned and never
+    revisits it. Measured on the Alcatraz shelf 2026-07-29, in this order:
+
+      * retag + scan            -- tracks touched (updatedAt moved), NOT split
+      * rename the file + scan  -- Plex FOLLOWED the rename and kept the track
+                                   in the same album, still NOT split
+      * verified on disk        -- the two files' album tags were by now
+                                   correct AND different from each other
+
+    The one thing that did work was accidental: the operator had moved book 2
+    out of the library entirely, so its track row was deleted; when it came
+    back it scanned as new and landed in its own album immediately.
+
+    So for a file Plex has already scanned, the tag edit only takes effect once
+    the TRACK ROW is gone. Move the book's folder outside the library root,
+    Scan Library Files (autoEmptyTrash removes the row), move it back, scan
+    again. cover.jpg travels with the folder and re-serves via prefer_local,
+    so posters survive. A brand-new file needs none of this -- it groups by its
+    tag the first time it is seen, which is why fixing tags BEFORE import is
+    always cheaper than fixing them after.
 """
 
 import argparse
