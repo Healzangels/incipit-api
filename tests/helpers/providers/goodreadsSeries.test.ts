@@ -588,3 +588,123 @@ function fakeRedisFor(key: string, value: unknown) {
 		}
 	}
 }
+
+describe('a broken /work record falls back to the AUTHOR record', () => {
+	/**
+	 * Measured live 2026-07-29 on Brian Andrews' Tier One series (10 books):
+	 *   /search "The Adversary Brian Andrews"  -> workId 249535826, author 5155903
+	 *   /work/249535826                        -> HTTP 500, persistent (3 of 3)
+	 *   /work/<the other nine>                 -> all fine, Series ["Tier One"]
+	 *   /series/180345 ("Tier One")            -> lists 249535826 at position 9
+	 *
+	 * One broken upstream record, and the whole visible symptom: with no
+	 * Goodreads answer the book KEPT Audible's series name, so book 9 shelved as
+	 * "The Tier One Thrillers, Book 9" while book 10 shelved as "Tier One, Book
+	 * 10" -- one series, two shelves, unfixable from the UI.
+	 *
+	 * The author record closes it by IDENTITY, not by comparing names:
+	 *   /author/5155903 -> Series[] where id 180345 "Tier One" has a LinkItems
+	 *   entry naming ForeignWorkId 249535826 at position 9, and Works[] carries
+	 *   that work's Title so the title gate still runs.
+	 *
+	 * Frequency: 0 failures in 40 random library books, so this is a rare
+	 * outlier -- but it fires ONLY where the current code produces nothing, so it
+	 * cannot change the series of any book that resolves today.
+	 */
+
+	const AUTHOR_ID = 5155903
+	const WORK_ID = 249535826
+
+	const authorRecord = (over: Record<string, unknown> = {}) => ({
+		ForeignId: AUTHOR_ID,
+		Name: 'Brian Andrews',
+		Works: [{ ForeignId: WORK_ID, Title: 'The Adversary' }],
+		Series: [
+			{
+				ForeignId: 180345,
+				Title: 'Tier One',
+				LinkItems: [
+					{ ForeignWorkId: WORK_ID, PositionInSeries: '9', SeriesPosition: 9 },
+					{ ForeignWorkId: 269094999, PositionInSeries: '10', SeriesPosition: 10 }
+				]
+			}
+		],
+		...over
+	})
+
+	afterEach(() => fetchMock.mockReset())
+
+	test('a 500 on the work is recovered from the author record', async () => {
+		respond([{ workId: WORK_ID, author: { id: AUTHOR_ID } }], null, authorRecord())
+		const out = await fetchGoodreadsSeries('The Adversary', 'Brian Andrews')
+		expect(out?.primary?.name).toBe('Tier One')
+		expect(out?.primary?.position).toBe('9')
+	})
+
+	test('the fallback does NOT bypass the caller title gate', async () => {
+		// Works[] names a completely different book for this workId, so the work
+		// we were handed is not ours and its series must not be adopted.
+		//
+		// Verified by mutation that the CALLER's gate is what rejects this:
+		// disabling workFromAuthorRecord's own title check leaves this test green,
+		// because the synthetic record then carries the wrong title onward and the
+		// caller scores it against ours. That is the property worth pinning -- the
+		// fallback feeds the existing gates rather than routing around them. The
+		// in-function check is defence-in-depth (it fails closed one step earlier
+		// and logs why), NOT load-bearing, and this test does not claim to cover it.
+		respond(
+			[{ workId: WORK_ID, author: { id: AUTHOR_ID } }],
+			null,
+			authorRecord({ Works: [{ ForeignId: WORK_ID, Title: 'Some Entirely Other Book' }] })
+		)
+		expect(await fetchGoodreadsSeries('The Adversary', 'Brian Andrews')).toBeNull()
+	})
+
+	test('the author gate still runs', async () => {
+		respond(
+			[{ workId: WORK_ID, author: { id: AUTHOR_ID } }],
+			null,
+			authorRecord({ Name: 'Someone Else Entirely' })
+		)
+		expect(await fetchGoodreadsSeries('The Adversary', 'Brian Andrews')).toBeNull()
+	})
+
+	test('a series that does not name our work is not adopted', async () => {
+		// The author's other series must not leak onto this book.
+		respond(
+			[{ workId: WORK_ID, author: { id: AUTHOR_ID } }],
+			null,
+			authorRecord({
+				Series: [
+					{
+						ForeignId: 49079,
+						Title: 'Jack Ryan',
+						LinkItems: [{ ForeignWorkId: 111111, PositionInSeries: '3', SeriesPosition: 3 }]
+					}
+				]
+			})
+		)
+		expect(await fetchGoodreadsSeries('The Adversary', 'Brian Andrews')).toBeNull()
+	})
+
+	test('no author id on the search hit means no fallback FETCH', async () => {
+		// The CALL COUNT is the assertion. Without it this test passes even with
+		// the authorId guard removed: /author/undefined has no queued response,
+		// so it resolves to nothing and the outcome looks identical. Two calls =
+		// /search and /work only.
+		respond([{ workId: WORK_ID }], null)
+		expect(await fetchGoodreadsSeries('The Adversary', 'Brian Andrews')).toBeNull()
+		expect(fetchMock.mock.calls.length).toBe(2)
+	})
+
+	test('a working /work record never triggers the author fetch', async () => {
+		// THE blast-radius guarantee: books that resolve today are untouched, and
+		// they must not pay an extra round trip either.
+		respond([{ workId: 42, author: { id: AUTHOR_ID } }], work())
+		const out = await fetchGoodreadsSeries('The Grief of Stones', 'Katherine Addison')
+		expect(out?.primary?.name).toBe('The Cemeteries of Amalo')
+		// Two calls: /search and /work. A third would mean the author record was
+		// fetched for a book that never needed it.
+		expect(fetchMock.mock.calls.length).toBe(2)
+	})
+})

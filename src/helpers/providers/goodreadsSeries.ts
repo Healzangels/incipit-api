@@ -199,6 +199,88 @@ interface WorkSeries {
 	LinkItems?: WorkSeriesLink[]
 }
 
+/**
+ * The mirror's author record, as the SERIES fallback reads it.
+ *
+ * Separate from GoodreadsAuthorResponse (photo + bio, further down) because
+ * these are the only two fields this path cares about and widening that
+ * interface would imply the enrichment path reads them.
+ */
+interface AuthorSeriesRecord {
+	Name?: string
+	Series?: WorkSeries[]
+	Works?: Array<{ ForeignId?: number; Title?: string }>
+}
+
+/**
+ * A work-shaped record rebuilt from the AUTHOR record, for when /work is broken.
+ *
+ * Measured live 2026-07-29 on Brian Andrews' Tier One series: /work/249535826
+ * ("The Adversary", book 9) answers HTTP 500 persistently while the other nine
+ * works return Series ["Tier One"] normally. With no Goodreads answer the book
+ * kept Audible's series name, so book 9 shelved as "The Tier One Thrillers,
+ * Book 9" beside book 10's "Tier One, Book 10" -- one series, two shelves,
+ * unfixable from the UI because re-matching re-derives the same string.
+ *
+ * The author record closes it by IDENTITY, never by comparing names:
+ * /author/5155903 returns Series[] in which id 180345 "Tier One" carries a
+ * LinkItems entry naming ForeignWorkId 249535826 at position 9, and Works[]
+ * carries that work's Title so the caller's title gate still runs.
+ *
+ * Returns null unless BOTH facts are present -- a title to verify against and at
+ * least one series that names this work. Fails closed: without a title the
+ * caller could not tell our book from a sibling, and adopting a series then is
+ * exactly the mis-shelving the gates exist to prevent.
+ *
+ * Frequency: 0 failures across 40 random library books, so this is a rare
+ * outlier. It fires ONLY where the work lookup produced nothing, so it cannot
+ * change the series of any book that resolves today.
+ */
+async function workFromAuthorRecord(
+	workId: number,
+	authorId: number | undefined,
+	state?: LookupState,
+	logger?: FastifyBaseLogger
+): Promise<WorkResponse | null> {
+	if (typeof authorId !== 'number') return null
+	const record = await getJson<AuthorSeriesRecord>(`/author/${authorId}`, state, logger)
+	if (!record) return null
+
+	const title = (record.Works ?? []).find((w) => w?.ForeignId === workId)?.Title
+	if (typeof title !== 'string' || title.length === 0) {
+		logger?.debug(
+			{ workId, authorId },
+			'goodreads series: author record does not title this work, not trusting its series'
+		)
+		return null
+	}
+
+	const series = (record.Series ?? []).filter(
+		(s): s is WorkSeries =>
+			!!s &&
+			typeof s.Title === 'string' &&
+			s.Title.length > 0 &&
+			(s.LinkItems ?? []).some((l) => l?.ForeignWorkId === workId)
+	)
+	if (series.length === 0) {
+		logger?.debug(
+			{ workId, authorId },
+			'goodreads series: author record names no series containing this work'
+		)
+		return null
+	}
+
+	logger?.warn(
+		{ workId, authorId, series: series.map((s) => s.Title) },
+		'goodreads series: /work was unusable, recovered this series from the author record'
+	)
+	return {
+		Title: title,
+		Authors: record.Name ? [{ Name: record.Name }] : [],
+		Series: series
+	}
+}
+
 interface SeriesResponse {
 	LinkItems?: unknown[]
 	// The series page's own description. For a translated series, Goodreads
@@ -962,7 +1044,17 @@ async function lookupByTitle(
 		const workId = hit.workId
 		if (typeof workId !== 'number') continue
 
-		const work = await getJson<WorkResponse>(`/work/${workId}`, state, logger)
+		let work = await getJson<WorkResponse>(`/work/${workId}`, state, logger)
+		if (!work) {
+			// A dead /work record used to end this hit SILENTLY, which is how one
+			// broken record split the Tier One shelf without leaving a trace to
+			// diagnose. Log it, then try to rebuild the record from the author.
+			logger?.debug(
+				{ workId, authorId: hit.author?.id },
+				'goodreads series: /work returned nothing, trying the author record'
+			)
+			work = await workFromAuthorRecord(workId, hit.author?.id, state, logger)
+		}
 		if (!work) continue
 
 		// Verify before trusting. Compare against every title form the work
