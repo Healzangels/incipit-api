@@ -10,6 +10,7 @@ import { bestSquareCover } from '#helpers/providers/squareCover'
 import BookDataHelper from '#helpers/routes/BookDataHelper'
 import BookShowHelper from '#helpers/routes/BookShowHelper'
 import RouteCommonHelper from '#helpers/routes/RouteCommonHelper'
+import { applyPins } from '#helpers/series/shelfPins'
 import { applyShelfPolicy } from '#helpers/series/shelfPolicy'
 import { languageConflict, regionLanguage } from '#helpers/utils/language'
 import { recordLanguageMismatchedLookup } from '#helpers/utils/matchTelemetry'
@@ -103,7 +104,14 @@ async function _show(fastify: FastifyInstance) {
 			// Q2 shelf policy runs LAST and at serve time, so pre-policy answers in
 			// the goodreads cache obey it too — no invalidation rides along (P3).
 			applyShelfPolicy(
-				await withGoodreadsSeries(await withSquareCover(book), fastify.redis ?? null, request.log)
+				applyPins(
+					await withGoodreadsSeries(
+						await withSquareCover(book),
+						fastify.redis ?? null,
+						request.log
+					),
+					asin
+				)
 			)
 
 		const dataHelper = new BookDataHelper(defaultRegistry, asin, region, credentials, request.log)
