@@ -1,0 +1,41 @@
+{
+ "decidedAt": "2026-07-30",
+ "Q1": {
+  "choice": "nameBeatsNone (operator option A: ordering name over nothing = current shelves)",
+  "resolutions": {
+   "155705": {
+    "series": "Foundation",
+    "position": "3",
+    "album": "Second Foundation"
+   },
+   "155565": {
+    "series": "A Jack Ryan Novel (chronological order)",
+    "position": "19",
+    "album": "Tom Clancy Oath of Office"
+   },
+   "155559": {
+    "series": "A Jack Ryan Novel (chronological order)",
+    "position": "18",
+    "album": "Tom Clancy: Power and Empire"
+   },
+   "155567": {
+    "series": "A Jack Ryan Novel (chronological order)",
+    "position": "22",
+    "album": "Tom Clancy Chain of Command"
+   },
+   "153757": {
+    "series": "Under the Dome Split-Volume",
+    "position": "1",
+    "album": "Under the Dome"
+   }
+  },
+  "standingGoal": "unify Jack Ryan family onto one 'Jack Ryan, Book N' shelf via operator-APPROVED pins; system never synthesizes numbers"
+ },
+ "Q2": {
+  "choice": "split (operator-accepted recommendation)",
+  "shelfOutcome": "NONE for all Q2 rows (tag-vs-nothing is mood-layer, not shelf)",
+  "tagPolicy": "real sub-series name -> tag only; cross-author franchise container -> nothing; omnibus range -> tag only, never range-start",
+  "verifyCondition": "harness must prove only the 31 Q2 rows change shelf outcome"
+ },
+ "families": "OPERATOR-REVIEW pending (19 rows, 6 families) - excluded from hard gate, listed in burn-down"
+}
