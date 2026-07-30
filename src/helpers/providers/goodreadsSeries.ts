@@ -1638,12 +1638,28 @@ async function lookupByTitle(
 			volumeHintRulesOutWork(
 				volumeHint,
 				result.primary?.position,
-				// NOT `all`: the orderings isOrdering() demotes out of the shelving
-				// pool are unfit to be a shelf, so they are unfit to vouch for a
-				// volume either. A "Publication Order" listing that happens to place
-				// the work at the hint's number would otherwise disarm the veto and
-				// let a sibling work through at someone else's position.
-				all.filter((s) => !isOrdering(s)).map((s) => positionFor(s, workId))
+				// Who may vouch for a volume: the ANSWER's own position, plus the
+				// listings that could legitimately BE a shelf. Both halves are
+				// load-bearing.
+				//
+				// The demotion filter is the same one the pool uses -- orderings AND
+				// umbrellas. A listing the module refuses to shelve on is unfit to
+				// vouch for a volume: "Mistborn" + subtitle "Mistborn, Book 2" was
+				// accepted as The Mistborn Saga #1 purely because The Cosmere Universe
+				// supplies a 2. Measured on the mirror, 15 of 148 sampled works have a
+				// corroborating position available ONLY from an umbrella.
+				//
+				// The answer's own position must be included explicitly. It used to
+				// arrive for free as a member of `all`, which is why this function
+				// carries no `answerPosition === want` shortcut -- but filtering
+				// falsified that: on the variantOnly path the ANSWER is itself an
+				// ordering, so filtering removed the very position that vouches for
+				// it and the answer was vetoed by a hint it exactly agreed with
+				// (three Foundation rows, all self-agreeing, all nulled).
+				[
+					result.primary?.position,
+					...all.filter((s) => !isOrdering(s) && !isUmbrella(s)).map((s) => positionFor(s, workId))
+				]
 			)
 		) {
 			logger?.debug(

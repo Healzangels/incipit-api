@@ -1750,3 +1750,111 @@ describe('Gate C must survive the shelf-language rename', () => {
 		expect(out.seriesPrimary?.name).toBe('The Funke Universe')
 	})
 })
+
+describe('the volume veto: who may vouch for a volume', () => {
+	const members = (n: number) => ({ LinkItems: Array.from({ length: n }, (_, i) => i) })
+
+	test('an UMBRELLA listing must not corroborate the volume hint either', async () => {
+		// b2094a5 filtered ORDERINGS out of the corroboration set but left UMBRELLAS
+		// in, although the pool filter three lines above demotes both identically
+		// (`!isOrdering(s) && !isUmbrella(s)`). A franchise umbrella the module
+		// refuses to shelve on was still trusted to vouch for a volume.
+		//
+		// Live shape: "Mistborn" + subtitle "Mistborn, Book 2" -- work 66322 lists
+		// The Mistborn Saga #1, The Cosmere Universe #2, Mistborn Era 1 #1. The hint
+		// is 2 and only the UMBRELLA supplies a 2, so the veto stayed silent and the
+		// answer came back as The Mistborn Saga #1 for a book whose own subtitle says
+		// Book 2. Measured base rate on the mirror: 15 of 148 sampled works (10.1%)
+		// have a second corroborating position supplied ONLY by an umbrella.
+		respond(
+			[{ workId: 42 }],
+			{
+				Title: 'Mistborn',
+				Series: [
+					{
+						Title: 'The Mistborn Saga',
+						ForeignId: 801,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }]
+					},
+					{
+						Title: 'The Cosmere Universe',
+						ForeignId: 802,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '2' }]
+					}
+				]
+			},
+			members(9)
+		)
+		const out = await fetchGoodreadsSeries(
+			'Mistborn',
+			'Brandon Sanderson',
+			undefined,
+			undefined,
+			'Mistborn, Book 2'
+		)
+		expect(out).toBeNull()
+	})
+
+	test('an answer that IS an ordering may vouch for its own position', async () => {
+		// REGRESSION from b2094a5. volumeHintRulesOutWork deliberately omits a
+		// `Number(answerPosition) === want` shortcut, on the documented grounds that
+		// "the ranked series is itself one of workPositions". The ordering filter
+		// falsified that: on the variantOnly path (clean is empty, so pool = all) the
+		// ANSWER is an ordering, so its own position was filtered out of the set that
+		// vouches for it -- and the answer was vetoed by a hint it exactly agrees
+		// with.
+		//
+		// Live: three Foundation rows (Foundation/Book 3, Prelude/Book 1, Forward the
+		// Foundation/Book 2) all self-agreeing, all returning null since b2094a5.
+		respond([{ workId: 42 }], {
+			Title: 'Forward the Foundation',
+			Series: [
+				{
+					Title: 'Foundation (Chronological Order)',
+					ForeignId: 811,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '2' }]
+				}
+			]
+		})
+		const out = await fetchGoodreadsSeries(
+			'Forward the Foundation',
+			'Isaac Asimov',
+			undefined,
+			undefined,
+			'The Foundation Series, Book 2'
+		)
+		expect(out?.primary).toEqual({ name: 'Foundation (Chronological Order)', position: '2' })
+	})
+
+	test('a CLEAN sibling listing still vouches', async () => {
+		// The property the whole veto relaxation exists for must survive both fixes.
+		respond(
+			[{ workId: 42 }],
+			{
+				Title: 'Starless Night',
+				Series: [
+					{
+						Title: 'The Legend of Drizzt',
+						ForeignId: 821,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '8' }]
+					},
+					{
+						Title: 'Legacy of the Drow',
+						ForeignId: 822,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '2' }]
+					}
+				]
+			},
+			members(30),
+			members(4)
+		)
+		const out = await fetchGoodreadsSeries(
+			'Starless Night',
+			'R. A. Salvatore',
+			undefined,
+			undefined,
+			'Legend of Drizzt: Legacy of the Drow, Book 2'
+		)
+		expect(out?.primary).toEqual({ name: 'The Legend of Drizzt', position: '8' })
+	})
+})
