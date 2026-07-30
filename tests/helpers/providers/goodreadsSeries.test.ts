@@ -1383,3 +1383,123 @@ describe('volumeHintRulesOutWork', () => {
 		expect(ruled('7', '1', ['1', undefined, null, '', '1-2'])).toBe(true)
 	})
 })
+
+describe('defects found by review of the 2026-07-29/30 series work', () => {
+	const members = (n: number) => ({ LinkItems: Array.from({ length: n }, (_, i) => i) })
+
+	test('an ORDERING listing must not corroborate the volume hint', async () => {
+		// REGRESSION from dd72fcd. volumeHintRulesOutWork is handed
+		// `all.map(positionFor)` -- EVERY listing on the work, including the
+		// publication-order / chronological / omnibus listings that isOrdering()
+		// demotes out of the shelving pool a few lines above. So a listing the module
+		// itself declares unfit to be a shelf is trusted to disarm the veto.
+		//
+		// Title "Ahriman" + subtitle "Ahriman, Book 3" is the exact shape the veto
+		// exists for: the sibling work "Ahriman: Exile" sits at #1 and must be
+		// refused. A "Black Library Publication Order" listing that happens to place
+		// it at 3 corroborates the hint and lets the wrong work through -- two books
+		// at #1 on one shelf.
+		respond(
+			[{ workId: 7 }],
+			{
+				Title: 'Ahriman: Exile',
+				Series: [
+					{
+						Title: 'Ahriman',
+						ForeignId: 500,
+						LinkItems: [{ ForeignWorkId: 7, PositionInSeries: '1' }]
+					},
+					{
+						Title: 'Black Library Publication Order',
+						ForeignId: 600,
+						LinkItems: [{ ForeignWorkId: 7, PositionInSeries: '3' }]
+					}
+				]
+			},
+			members(9),
+			members(400)
+		)
+		const out = await fetchGoodreadsSeries(
+			'Ahriman',
+			'John French',
+			undefined,
+			undefined,
+			'Ahriman, Book 3'
+		)
+		expect(out).toBeNull()
+	})
+
+	test('a REAL sibling series still corroborates', async () => {
+		// The counterpart, so the fix cannot be "reject everything": Legacy of the
+		// Drow #2 is a genuine shelf and must still disarm the veto for
+		// The Legend of Drizzt #8.
+		respond(
+			[{ workId: 42 }],
+			{
+				Title: 'Starless Night',
+				Series: [
+					{
+						Title: 'The Legend of Drizzt',
+						ForeignId: 301,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '8' }]
+					},
+					{
+						Title: 'Legacy of the Drow',
+						ForeignId: 302,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '2' }]
+					}
+				]
+			},
+			members(30),
+			members(4)
+		)
+		const out = await fetchGoodreadsSeries(
+			'Starless Night',
+			'R. A. Salvatore',
+			undefined,
+			undefined,
+			'Legend of Drizzt: Legacy of the Drow, Book 2'
+		)
+		expect(out?.primary).toEqual({ name: 'The Legend of Drizzt', position: '8' })
+	})
+
+	test('the series-name fold survives a Unicode normalization difference', async () => {
+		// foldSeriesName normalized apostrophes but not Unicode form, so an NFD name
+		// never compared equal to its visually identical NFC twin and Gate C silently
+		// did not fire. The repo already ships src/helpers/utils/foldDiacritics.ts.
+		const { rescueWouldSpendItsOwnSubSeries } = await import('#helpers/providers/goodreadsSeries')
+		const nfc = 'Elantriz\u00e9'
+		const nfd = 'Elantrize\u0301'
+		expect(nfc).not.toBe(nfd)
+		expect(
+			rescueWouldSpendItsOwnSubSeries(
+				{ primary: { name: 'X', position: '1' }, rescuedOver: [nfd] },
+				nfc
+			)
+		).toBe(true)
+	})
+
+	test('one malformed /work record does not abandon the remaining candidates', async () => {
+		// 5863bc7 hardened workFromAuthorRecord with Array.isArray on the stated
+		// premise that a mirror under load answers with an object where a list
+		// belongs -- but left the three `?? []` reads on the PRIMARY /work parse,
+		// which run on every hit of every lookup. The same commit's blanket
+		// try/catch then turns the TypeError into a silent abandonment.
+		respond(
+			[{ workId: 1 }, { workId: 2 }],
+			{ Title: 'The Grief of Stones', Series: { Title: 'Not An Array' } },
+			{
+				Title: 'The Grief of Stones',
+				Series: [
+					{
+						Title: 'The Cemeteries of Amalo',
+						ForeignId: 700,
+						LinkItems: [{ ForeignWorkId: 2, PositionInSeries: '2' }]
+					}
+				]
+			}
+		)
+		const out = await fetchGoodreadsSeries('The Grief of Stones', 'Katherine Addison')
+		expect(out?.primary).toEqual({ name: 'The Cemeteries of Amalo', position: '2' })
+	})
+})

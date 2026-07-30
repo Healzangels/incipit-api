@@ -609,6 +609,10 @@ export interface GoodreadsSeriesResult {
  */
 export const foldSeriesName = (value: string): string =>
 	value
+		// Canonical form FIRST: 'e\u0301' and '\u00e9' render identically but are
+		// different strings, so without this an NFD sub-series name never matched its
+		// NFC twin and the refusal silently did not fire.
+		.normalize('NFC')
 		.replace(/[‘’ʼ′´]/g, "'")
 		.replace(/^\s*(?:the|a|an)\s+/i, '')
 		.replace(/\s+/g, ' ')
@@ -1450,7 +1454,7 @@ async function lookupByTitle(
 		// editions, and 40 unique names is plenty to find a language match.
 		const editionTitles = [
 			...new Set(
-				(work.Books ?? [])
+				(Array.isArray(work.Books) ? work.Books : [])
 					.map((b) => b?.Title)
 					.filter((t): t is string => typeof t === 'string' && t.length > 0)
 			)
@@ -1484,7 +1488,7 @@ async function lookupByTitle(
 		// different author and a different series. Reject only on a POSITIVE
 		// mismatch: the mirror omits Authors on some works, and reading absent as
 		// wrong would discard good answers to guard against a hypothetical one.
-		const credited = (work.Authors ?? [])
+		const credited = (Array.isArray(work.Authors) ? work.Authors : [])
 			.map((a) => a?.Name)
 			.filter((n): n is string => typeof n === 'string' && n.length > 0)
 		if (author && credited.length > 0 && !credited.some((n) => isSameAuthor(author, n))) {
@@ -1495,7 +1499,7 @@ async function lookupByTitle(
 			continue
 		}
 
-		const all = (work.Series ?? []).filter(
+		const all = (Array.isArray(work.Series) ? work.Series : []).filter(
 			(s): s is WorkSeries => !!s && typeof s.Title === 'string' && s.Title.length > 0
 		)
 		// `continue`, not `return`: a work with no series editions says nothing
@@ -1613,7 +1617,12 @@ async function lookupByTitle(
 			volumeHintRulesOutWork(
 				volumeHint,
 				result.primary?.position,
-				all.map((s) => positionFor(s, workId))
+				// NOT `all`: the orderings isOrdering() demotes out of the shelving
+				// pool are unfit to be a shelf, so they are unfit to vouch for a
+				// volume either. A "Publication Order" listing that happens to place
+				// the work at the hint's number would otherwise disarm the veto and
+				// let a sibling work through at someone else's position.
+				all.filter((s) => !isOrdering(s)).map((s) => positionFor(s, workId))
 			)
 		) {
 			logger?.debug(

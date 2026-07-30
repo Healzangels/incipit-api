@@ -373,6 +373,52 @@ describe('ApiHelper edge cases should', () => {
 		expect(helper.getSeriesSecondary([obj])).toBeUndefined()
 	})
 
+	test('the rescue must not put the SAME series in both slots', async () => {
+		// REGRESSION from fb058d2. The rescue counts PARSEABLE entries, but
+		// getSeriesSecondary was still gated on raw allSeries.length > 1 -- so with
+		// two entries of which only one parses, the lone candidate was emitted as
+		// BOTH seriesPrimary and seriesSecondary. Before the rescue existed primary
+		// was undefined and getFinalData emitted neither field, so this is new.
+		//
+		// The harm is concrete: the bundle writes seriesSecondary as its own
+		// "Series: X" mood, so the album gets the same series tagged twice and moods
+		// are never cleared.
+		//
+		// The existing test 'does not populate the SECONDARY slot too' only passes a
+		// ONE-entry array, where getSeriesSecondary's own length gate already covers
+		// it -- it passed throughout while this case was broken.
+		const series = [
+			{ asin: 'not-an-asin', title: 'Broken Entry', sequence: '1', url: '' },
+			{ asin: 'B00YDDXB60', title: 'Legend of Drizzt', sequence: '12', url: '' }
+		]
+		helper.audibleResponse = {
+			...mockResponse.product,
+			content_delivery_type: 'MultiPartBook',
+			publication_name: 'Legend of Drizzt: Paths of Darkness'
+		}
+		expect(helper.getSeriesPrimary(series)).toEqual({
+			asin: 'B00YDDXB60',
+			name: 'Legend of Drizzt',
+			position: '12'
+		})
+		expect(helper.getSeriesSecondary(series)).toBeUndefined()
+	})
+
+	test('two parseable entries still yield a secondary', async () => {
+		// The counterpart: the fix must not silence a legitimate secondary.
+		helper.audibleResponse = {
+			...mockResponse.product,
+			content_delivery_type: 'MultiPartBook',
+			publication_name: 'First Series'
+		}
+		expect(
+			helper.getSeriesSecondary([
+				{ asin: 'B00YDDXB60', title: 'First Series', sequence: '1', url: '' },
+				{ asin: 'B00YDDXB61', title: 'Second Series', sequence: '2', url: '' }
+			])
+		).toEqual({ asin: 'B00YDDXB61', name: 'Second Series', position: '2' })
+	})
+
 	test('getSeriesPrimary returns undefined when content_delivery_type is Unknown', async () => {
 		const obj = {
 			asin: '123',

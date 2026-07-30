@@ -294,6 +294,12 @@ class ApiHelper {
 	 */
 	getSeriesSecondary(allSeries: AudibleSeries[]): ApiSeries | undefined {
 		let seriesSecondary = {}
+		// Count PARSEABLE entries, not raw array length. getSeriesPrimary's lone-
+		// candidate rescue counts the same way, so a raw-length gate here emitted the
+		// very same series as BOTH primary and secondary whenever the array held an
+		// unparseable sibling -- and the bundle writes secondary as its own
+		// "Series: X" mood, which moods never clear.
+		const parseable = allSeries.filter((series) => this.getSeries(series))
 		allSeries.forEach((series: AudibleSeries) => {
 			if (!this.audibleResponse) throw new Error(ErrorMessageNoData(this.asin, 'ApiHelper'))
 			// Only return series for MultiPartBook/SinglePartBook, makes linter happy
@@ -306,7 +312,7 @@ class ApiHelper {
 			const seriesJson = this.getSeries(series)
 			// Check and set secondary series
 			if (
-				allSeries.length > 1 &&
+				parseable.length > 1 &&
 				seriesJson &&
 				seriesJson.name !== this.audibleResponse.publication_name
 			) {
