@@ -15,7 +15,12 @@ interface Row {
 	ratingKey: string
 	album: string
 	pinType: string
-	required: { outcome: string; series?: string | null; position?: string | null }
+	required: {
+		outcome: string
+		series?: string | null
+		position?: string | null
+		displayTitle?: string | null
+	}
 	mintPin?: boolean
 }
 const corpus = JSON.parse(readFileSync(join(FIXTURES, 'series-golden-corpus.json'), 'utf8')) as {
@@ -39,6 +44,7 @@ for (const rk of red) {
 	pins[row.recordId] = {
 		series: row.required.series,
 		...(row.required.position ? { position: row.required.position } : {}),
+		...(row.required.displayTitle ? { displayTitle: row.required.displayTitle } : {}),
 		source: row.pinType
 	}
 }

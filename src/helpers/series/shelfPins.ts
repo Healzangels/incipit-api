@@ -21,6 +21,11 @@ import { foldSeriesName } from '#helpers/providers/goodreadsSeries'
 export interface ShelfPin {
 	series?: string
 	position?: string
+	/** Operator-stated display title, for records that bake series/edition text
+	 *  into the TITLE itself (": Legend of Drizzt: Paths of Darkness, Book 2")
+	 *  where re-matching cannot help — the correct record IS the long-titled
+	 *  one. Same R4 shape as a stated number. */
+	displayTitle?: string
 	/** Suppress the shelf outright (the Unfettered class). */
 	none?: boolean
 	/** With none: keep the displaced name as the tag instead of erasing it. */
@@ -34,6 +39,7 @@ interface PinSeries {
 	position?: string | null
 }
 interface PinBook {
+	title?: string
 	seriesPrimary?: PinSeries | null
 	seriesSecondary?: unknown
 }
@@ -53,6 +59,7 @@ export function applyPins<T extends PinBook>(
 	if (!pin) return book
 	const resolved = book.seriesPrimary?.name ? book.seriesPrimary : undefined
 	const out = { ...book }
+	if (pin.displayTitle) (out as PinBook).title = pin.displayTitle
 
 	if (pin.none) {
 		delete (out as PinBook).seriesPrimary

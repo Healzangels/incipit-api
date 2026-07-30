@@ -9,6 +9,12 @@ import { applyPins, type ShelfPin } from '#helpers/series/shelfPins'
 describe('applyPins', () => {
 	const pins: Record<string, ShelfPin> = {
 		B00FRILVJ1: { series: 'The Riyria Chronicles', position: '1', source: 'census-verdict' },
+		B0LONGNAME: {
+			series: 'The Legend of Drizzt',
+			position: '12',
+			displayTitle: 'The Spine of the World',
+			source: 'operator-stated'
+		},
 		B0UNFETTER: { none: true, source: 'operator-stated' },
 		B0TAGKEEP1: { none: true, keepTag: true, source: 'operator-stated' }
 	}
@@ -53,6 +59,25 @@ describe('applyPins', () => {
 		)
 		expect(out.seriesPrimary).toBeUndefined()
 		expect(out.seriesSecondary).toEqual({ name: 'Some Real Series', position: '4' })
+	})
+
+	test('a displayTitle pin overrides the served title', () => {
+		// The record bakes ": Legend of Drizzt: Paths of Darkness, Book 2" into
+		// its TITLE (subtitle empty) while every sibling uses the short name.
+		// Re-matching cannot fix it — the correct record IS the long-titled one —
+		// so the operator states the display title, same R4 shape as a number.
+		const out = applyPins(
+			{ title: 'The Spine of the World: Legend of Drizzt: Paths of Darkness, Book 2' },
+			'B0LONGNAME',
+			pins
+		)
+		expect(out.title).toBe('The Spine of the World')
+		expect(out.seriesPrimary).toEqual({ name: 'The Legend of Drizzt', position: '12' })
+	})
+
+	test('a pin without displayTitle leaves the title untouched', () => {
+		const out = applyPins({ title: 'The Crown Tower' }, 'B00FRILVJ1', pins)
+		expect(out.title).toBe('The Crown Tower')
 	})
 
 	test('a pin clears a secondary that would echo it', () => {
