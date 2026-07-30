@@ -543,6 +543,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -4332,7 +4333,7 @@
   ]
  },
  "B0G4XLYP38": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "The Dresden Files #18.75",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -4352,7 +4353,7 @@
   ]
  },
  "B002DN9ID2": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "Earthseed #1",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -4362,7 +4363,7 @@
   ]
  },
  "B0C6FPG3PX": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "Xenogenesis #1",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -4762,7 +4763,7 @@
   ]
  },
  "B0BN4N3N4J": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "The Bound and the Broken #2.5",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -4772,7 +4773,7 @@
   ]
  },
  "B0C2QYJ2BT": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "The Bound and the Broken #3",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -4792,7 +4793,7 @@
   ]
  },
  "B0C6FK9841": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "Xenogenesis #3",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -4832,7 +4833,7 @@
   ]
  },
  "B0C6FMLQZL": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "Xenogenesis #2",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -11616,7 +11617,7 @@
   ]
  },
  "B000WS9ZIS": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "Temeraire #1",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -11626,7 +11627,7 @@
   ]
  },
  "B0BXBN6KWM": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "The Inheritance Cycle #5",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -11636,7 +11637,7 @@
   ]
  },
  "hardcover-book-445582": {
-  "primary": "UNAVAILABLE(429)",
+  "primary": null,
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -11646,8 +11647,8 @@
   ]
  },
  "B09LZ2SNH5": {
-  "primary": "UNAVAILABLE(404)",
-  "secondary": null,
+  "primary": "Discworld #2",
+  "secondary": "Discworld - Rincewind #2",
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
@@ -11656,8 +11657,8 @@
   ]
  },
  "B09LZ61HQ1": {
-  "primary": "UNAVAILABLE(404)",
-  "secondary": null,
+  "primary": "Discworld #4",
+  "secondary": "Discworld - Death #1",
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
@@ -12004,8 +12005,8 @@
   ]
  },
  "B09LZ3T7QH": {
-  "primary": "UNAVAILABLE(404)",
-  "secondary": null,
+  "primary": "Discworld #13",
+  "secondary": "Kolekcja Świat Dysku #30",
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
@@ -12154,8 +12155,8 @@
   ]
  },
  "hardcover-edition-32770706": {
-  "primary": "UNAVAILABLE(429)",
-  "secondary": null,
+  "primary": "Discworld #31",
+  "secondary": "Discworld - Industrial Revolution #3",
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
@@ -14837,7 +14838,7 @@
   ]
  },
  "B07XLNNL5C": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "Cradle #6",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -14847,7 +14848,7 @@
   ]
  },
  "B07XTPSFPY": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "Cradle #7",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -14887,7 +14888,7 @@
   ]
  },
  "B08J8CRCCT": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "Cradle #8",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -14897,7 +14898,7 @@
   ]
  },
  "B08X6TN2SR": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "Cradle #9",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -14907,7 +14908,7 @@
   ]
  },
  "B09JPGN283": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "Cradle #10",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -14987,7 +14988,7 @@
   ]
  },
  "B0BXQHDHBH": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "Cradle #12",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -15067,7 +15068,7 @@
   ]
  },
  "B0BVMVLJL9": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "The Last Horizon #1",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -15077,7 +15078,7 @@
   ]
  },
  "B0D3898T56": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "The Last Horizon #3",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -15087,7 +15088,7 @@
   ]
  },
  "B0CL1FXB2B": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "The Last Horizon #2",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -15107,8 +15108,8 @@
   ]
  },
  "B0DM1GQ5GK": {
-  "primary": "UNAVAILABLE(404)",
-  "secondary": null,
+  "primary": "Memory, Sorrow, and Thorn #2",
+  "secondary": "Vzpomínka, Žal a Trn #3",
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
@@ -15117,7 +15118,7 @@
   ]
  },
  "B09GQYW3N2": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "The Aldoran Chronicles #3",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -15308,6 +15309,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15317,6 +15319,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15336,6 +15339,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15345,6 +15349,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15354,6 +15359,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15417,6 +15423,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15426,35 +15433,42 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
  "apple-audiobook-1032040112": {
-  "primary": null,
+  "primary": "The Legend of Drizzt #31",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "apple-audiobook-595807561": {
-  "primary": null,
+  "primary": "The Legend of Drizzt #23",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "apple-audiobook-609834561": {
-  "primary": null,
+  "primary": "The Legend of Drizzt #24",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B00BW5V1FU": {
   "primary": "Legend of Drizzt #1",
@@ -15462,6 +15476,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15471,6 +15486,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15480,6 +15496,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15489,6 +15506,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15498,6 +15516,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15507,6 +15526,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15516,6 +15536,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15525,6 +15546,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15534,6 +15556,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15543,6 +15566,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15552,6 +15576,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15561,6 +15586,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15570,6 +15596,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15579,6 +15606,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15588,6 +15616,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15597,6 +15626,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15606,6 +15636,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15642,6 +15673,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15660,6 +15692,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15678,6 +15711,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15687,6 +15721,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15696,6 +15731,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15723,6 +15759,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15741,6 +15778,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15750,6 +15788,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15759,6 +15798,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15777,6 +15817,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "test",
    "prod"
   ]
  },
@@ -15805,6 +15846,66 @@
   "reviewedAt": "2026-07-30",
   "boxes": [
    "prod"
+  ]
+ },
+ "B00KHYRK8E": {
+  "primary": "Science of Discworld #1",
+  "secondary": null,
+  "available": true,
+  "firstSeen": "2026-07-30",
+  "reviewedAt": "2026-07-30",
+  "boxes": [
+   "test"
+  ]
+ },
+ "B09M9BXZ5S": {
+  "primary": "The Legend of Drizzt #38",
+  "secondary": "The Way of the Drow #2",
+  "available": true,
+  "firstSeen": "2026-07-30",
+  "reviewedAt": "2026-07-30",
+  "boxes": [
+   "test"
+  ]
+ },
+ "B0BR8N8JK2": {
+  "primary": "The Legend of Drizzt #39",
+  "secondary": "The Way of the Drow #3",
+  "available": true,
+  "firstSeen": "2026-07-30",
+  "reviewedAt": "2026-07-30",
+  "boxes": [
+   "test"
+  ]
+ },
+ "overdrive-5613898": {
+  "primary": "White Sand #2",
+  "secondary": null,
+  "available": true,
+  "firstSeen": "2026-07-30",
+  "reviewedAt": "2026-07-30",
+  "boxes": [
+   "test"
+  ]
+ },
+ "B018UG5G5E": {
+  "primary": "UNAVAILABLE(404)",
+  "secondary": null,
+  "available": false,
+  "firstSeen": "2026-07-30",
+  "reviewedAt": "2026-07-30",
+  "boxes": [
+   "test"
+  ]
+ },
+ "hardcover-edition-31094451": {
+  "primary": "UNAVAILABLE(429)",
+  "secondary": null,
+  "available": false,
+  "firstSeen": "2026-07-30",
+  "reviewedAt": "2026-07-30",
+  "boxes": [
+   "test"
   ]
  }
 }
