@@ -262,6 +262,108 @@ describe('ApiHelper edge cases should', () => {
 		expect(helper.getSeriesSecondary([obj])).toBeUndefined()
 	})
 
+	test('getSeriesPrimary keeps the lone series when publication_name is null', async () => {
+		// MEASURED against live Audible 2026-07-30. Every Legend of Drizzt audiobook
+		// has this shape:
+		//   B00FRILVJO Starless Night   publication_name null, series
+		//                               [{asin B00YDDXB60, "Legend of Drizzt", seq 8}]
+		//   B00HFW9SUE Spine of World   ... seq 12      B00HNF85YI Sea of Swords ... seq 13
+		// getSeriesPrimary only assigns when `publication_name && name === publication_name`,
+		// so a null publication_name left seriesPrimary {} and the book had NO provider
+		// series at all -- which is why those 14 albums depend entirely on the Goodreads
+		// answer and lose their shelf whenever it is unavailable.
+		const obj = { asin: 'B00YDDXB60', title: 'Legend of Drizzt', sequence: '8', url: '' }
+		helper.audibleResponse = {
+			...mockResponse.product,
+			content_delivery_type: 'MultiPartBook',
+			publication_name: undefined
+		}
+		expect(helper.getSeriesPrimary([obj])).toEqual({
+			asin: 'B00YDDXB60',
+			name: 'Legend of Drizzt',
+			position: '8'
+		})
+	})
+
+	test('an AMBIGUOUS series list is still refused when publication_name is null', async () => {
+		// Deliberately limited to ONE candidate. With several entries and no
+		// publication_name to choose by there is no evidence which is the shelf, and
+		// guessing would move books off shelves they already sit on. Measured cost of
+		// refusing this case: zero -- 0 of 1203 book-type records hit it.
+		helper.audibleResponse = {
+			...mockResponse.product,
+			content_delivery_type: 'MultiPartBook',
+			publication_name: undefined
+		}
+		expect(
+			helper.getSeriesPrimary([
+				{ asin: 'B00YDDXB60', title: 'First Series', sequence: '1', url: '' },
+				{ asin: 'B00YDDXB61', title: 'Second Series', sequence: '2', url: '' }
+			])
+		).toBeUndefined()
+	})
+
+	test('publication_name still wins when it names one of several series', async () => {
+		// The rescue must not outrank the real rule.
+		helper.audibleResponse = {
+			...mockResponse.product,
+			content_delivery_type: 'MultiPartBook',
+			publication_name: 'Second Series'
+		}
+		expect(
+			helper.getSeriesPrimary([
+				{ asin: 'B00YDDXB60', title: 'First Series', sequence: '1', url: '' },
+				{ asin: 'B00YDDXB61', title: 'Second Series', sequence: '2', url: '' }
+			])
+		).toEqual({ asin: 'B00YDDXB61', name: 'Second Series', position: '2' })
+	})
+
+	test('a lone series that publication_name CONTRADICTS is not rescued', async () => {
+		// publication_name naming a different series is evidence, not absence: the
+		// rescue fires only when there was nothing to choose by.
+		helper.audibleResponse = {
+			...mockResponse.product,
+			content_delivery_type: 'MultiPartBook',
+			publication_name: 'A Different Series'
+		}
+		expect(
+			helper.getSeriesPrimary([
+				{ asin: 'B00YDDXB60', title: 'Legend of Drizzt', sequence: '8', url: '' }
+			])
+		).toBeUndefined()
+	})
+
+	test('one VALID candidate beside an unparseable entry is still rescued', async () => {
+		// "Exactly one candidate" counts entries getSeries could actually parse, not
+		// raw array length. A malformed sibling entry (bad asin) must not suppress a
+		// shelf we can otherwise name. Pinned because counting raw entries instead
+		// gives the same answer on every other case in this file.
+		helper.audibleResponse = {
+			...mockResponse.product,
+			content_delivery_type: 'MultiPartBook',
+			publication_name: undefined
+		}
+		expect(
+			helper.getSeriesPrimary([
+				{ asin: 'not-an-asin', title: 'Broken Entry', sequence: '1', url: '' },
+				{ asin: 'B00YDDXB60', title: 'Legend of Drizzt', sequence: '8', url: '' }
+			])
+		).toEqual({ asin: 'B00YDDXB60', name: 'Legend of Drizzt', position: '8' })
+	})
+
+	test('the lone-series rescue does not populate the SECONDARY slot too', async () => {
+		// getSeriesSecondary is gated on allSeries.length > 1, so one entry cannot
+		// land in both slots. Pinned because the rescue would be actively harmful
+		// if it did -- the bundle writes secondary as its own "Series: X" mood.
+		const obj = { asin: 'B00YDDXB60', title: 'Legend of Drizzt', sequence: '8', url: '' }
+		helper.audibleResponse = {
+			...mockResponse.product,
+			content_delivery_type: 'MultiPartBook',
+			publication_name: undefined
+		}
+		expect(helper.getSeriesSecondary([obj])).toBeUndefined()
+	})
+
 	test('getSeriesPrimary returns undefined when content_delivery_type is Unknown', async () => {
 		const obj = {
 			asin: '123',
