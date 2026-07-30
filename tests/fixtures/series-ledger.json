@@ -1597,44 +1597,48 @@
   ]
  },
  "B077PBVD8X": {
-  "primary": "Eisenhorn/Ravenor/Bequin #0.2",
-  "secondary": "Warhammer 40,000 #-",
+  "primary": "Eisenhorn #0.2",
+  "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B075QLD2C2": {
-  "primary": "Eisenhorn/Ravenor/Bequin #1",
-  "secondary": "Eisenhorn #1",
+  "primary": "Eisenhorn #1",
+  "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B075QL2BHN": {
-  "primary": "Eisenhorn/Ravenor/Bequin #3",
-  "secondary": "Eisenhorn #3",
+  "primary": "Eisenhorn #3",
+  "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B075QN2PZW": {
-  "primary": "Eisenhorn/Ravenor/Bequin #2",
-  "secondary": "Eisenhorn #2",
+  "primary": "Eisenhorn #2",
+  "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B0BB84KVBQ": {
   "primary": "Gaunt's Ghosts #9",
@@ -11124,8 +11128,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
-   "test",
-   "prod"
+   "test"
   ]
  },
  "B002V0TJZ4": {
@@ -13332,8 +13335,8 @@
   ]
  },
  "B0189QQ70I": {
-  "primary": "UNAVAILABLE(404)",
-  "secondary": null,
+  "primary": "The Mistborn Saga #6",
+  "secondary": "The Cosmere #16",
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
