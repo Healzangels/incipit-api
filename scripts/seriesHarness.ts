@@ -33,6 +33,7 @@ import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 
 import { foldSeriesName, withGoodreadsSeries } from '#helpers/providers/goodreadsSeries'
+import { applyShelfPolicy } from '#helpers/series/shelfPolicy'
 
 interface CorpusSeries {
 	name?: string | null
@@ -167,7 +168,9 @@ async function evaluate(row: CorpusRow): Promise<RowResult> {
 	let primary: CorpusSeries | null
 	let secondary: CorpusSeries | null
 	try {
-		const out = (await withGoodreadsSeries(book, null)) as {
+		// Model the FULL serve pipeline: the route applies the shelf policy after
+		// enrichment, so the harness must too or it scores an output nobody serves.
+		const out = applyShelfPolicy(await withGoodreadsSeries(book, null)) as {
 			seriesPrimary?: CorpusSeries
 			seriesSecondary?: CorpusSeries
 		}

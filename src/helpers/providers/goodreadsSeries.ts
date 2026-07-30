@@ -706,7 +706,7 @@ const CACHE_PREFIX = 'grseries:v4:'
  * @param {string|null|undefined} position the raw Goodreads position
  * @returns {boolean} true when it is a plain number, optionally with a fraction
  */
-function isShelvablePosition(position: string | null | undefined): boolean {
+export function isShelvablePosition(position: string | null | undefined): boolean {
 	return position != null && /^\d+(\.\d+)?$/.test(String(position).trim())
 }
 
