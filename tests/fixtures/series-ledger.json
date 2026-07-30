@@ -30,14 +30,15 @@
   ]
  },
  "1039400582": {
-  "primary": "Galaxy's Edge #12",
+  "primary": "Galaxy's Edge #16",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "1039401279": {
   "primary": "The Bladeborn Saga #1",
@@ -70,14 +71,15 @@
   ]
  },
  "1039403808": {
-  "primary": "Galaxy's Edge #13",
+  "primary": "Galaxy's Edge #17",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "1039404693": {
   "primary": "Undying Mercenaries #15",
@@ -2285,26 +2287,6 @@
   ]
  },
  "B09DDJ8KDC": {
-  "primary": "Galaxy's Edge #14",
-  "secondary": null,
-  "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
-  "boxes": [
-   "test",
-   "prod"
-  ]
- },
- "B09NB1FTD3": {
-  "primary": "Galaxy's Edge #15",
-  "secondary": null,
-  "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
-  "boxes": [
-   "test",
-   "prod"
-  ]
- },
- "B0BMSRGPQW": {
   "primary": "Galaxy's Edge #18",
   "secondary": null,
   "firstSeen": "2026-07-30",
@@ -2312,27 +2294,52 @@
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
+ },
+ "B09NB1FTD3": {
+  "primary": "Galaxy's Edge #19",
+  "secondary": null,
+  "firstSeen": "2026-07-30",
+  "reviewedAt": "2026-07-30",
+  "boxes": [
+   "test",
+   "prod"
+  ],
+  "available": true
+ },
+ "B0BMSRGPQW": {
+  "primary": "Galaxy's Edge #22",
+  "secondary": null,
+  "firstSeen": "2026-07-30",
+  "reviewedAt": "2026-07-30",
+  "boxes": [
+   "test",
+   "prod"
+  ],
+  "available": true
  },
  "B0B8LDB4W3": {
-  "primary": "Galaxy's Edge #17",
+  "primary": "Galaxy's Edge #21",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B09V1VZ312": {
-  "primary": "Galaxy's Edge #16",
+  "primary": "Galaxy's Edge #20",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B084MLYMCZ": {
   "primary": "Galaxy's Edge: Savage Wars #2",
@@ -2725,7 +2732,7 @@
   ]
  },
  "hardcover-book-376172": {
-  "primary": "UNAVAILABLE(429)",
+  "primary": "Xanth #29",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -2735,7 +2742,7 @@
   ]
  },
  "hardcover-book-890051": {
-  "primary": "UNAVAILABLE(429)",
+  "primary": "Xanth #31",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -2745,7 +2752,7 @@
   ]
  },
  "hardcover-book-32255": {
-  "primary": "UNAVAILABLE(429)",
+  "primary": "Xanth #30",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -2755,7 +2762,7 @@
   ]
  },
  "hardcover-book-377103": {
-  "primary": "UNAVAILABLE(429)",
+  "primary": "Xanth #32",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -2895,7 +2902,7 @@
   ]
  },
  "hardcover-book-458080": {
-  "primary": "UNAVAILABLE(429)",
+  "primary": "Xanth #33",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -2945,7 +2952,7 @@
   ]
  },
  "hardcover-book-459518": {
-  "primary": "UNAVAILABLE(429)",
+  "primary": "Xanth #34",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -4233,14 +4240,15 @@
   ]
  },
  "B09Y286JK6": {
-  "primary": "The Dresden Files #17.2",
+  "primary": "The Dresden Files #17.5",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B07JWDD9DX": {
   "primary": "Red Rising Saga #5",
@@ -4253,14 +4261,15 @@
   ]
  },
  "B09FC52TN9": {
-  "primary": null,
+  "primary": "The Dresden Files #17.1",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B0C37SR79V": {
   "primary": "The Cinder Spires #2",
@@ -4803,7 +4812,7 @@
   ]
  },
  "B0CGF8JJ2D": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "The Bound and the Broken #3.5",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -5063,7 +5072,7 @@
   ]
  },
  "B086Q7T426": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "Rampart Trilogy #1",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -5113,7 +5122,7 @@
   ]
  },
  "B00UKE53IK": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "Jeremy Logan #4",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -5123,8 +5132,8 @@
   ]
  },
  "B07D2JTQQS": {
-  "primary": "UNAVAILABLE(404)",
-  "secondary": null,
+  "primary": "Jack Ryan #3",
+  "secondary": "Jack Ryan Universe #4",
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
@@ -5193,8 +5202,8 @@
   ]
  },
  "B00GM389IY": {
-  "primary": "UNAVAILABLE(404)",
-  "secondary": null,
+  "primary": "Jack Ryan #9",
+  "secondary": "Jack Ryan Universe #17",
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
@@ -5213,8 +5222,8 @@
   ]
  },
  "B004FHZQEO": {
-  "primary": "UNAVAILABLE(404)",
-  "secondary": null,
+  "primary": "John Clark #1",
+  "secondary": "Jack Ryan Universe (Publication Order) #6",
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
@@ -5223,7 +5232,7 @@
   ]
  },
  "B084NVNFBH": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": null,
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -5343,7 +5352,7 @@
   ]
  },
  "hardcover-edition-32301732": {
-  "primary": "UNAVAILABLE(429)",
+  "primary": "Artemis Fowl #1",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -5383,7 +5392,7 @@
   ]
  },
  "hardcover-edition-30403743": {
-  "primary": "UNAVAILABLE(429)",
+  "primary": "Artemis Fowl #8",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -5523,7 +5532,7 @@
   ]
  },
  "B0D6NSD57S": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "The Hunger Games #0.5",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -5563,7 +5572,7 @@
   ]
  },
  "hardcover-edition-30402171": {
-  "primary": "UNAVAILABLE(429)",
+  "primary": "The Hunger Games #3",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -5573,8 +5582,8 @@
   ]
  },
  "B0FRNTBH9W": {
-  "primary": "UNAVAILABLE(404)",
-  "secondary": null,
+  "primary": "The Chronicles of the Black Company #11",
+  "secondary": "A Pitiless Rain #1",
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
@@ -6062,8 +6071,8 @@
   ]
  },
  "B07ZL4DD28": {
-  "primary": "UNAVAILABLE(404)",
-  "secondary": null,
+  "primary": "The Expanse #7.5",
+  "secondary": "The Expanse (Chronological) #7.5",
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
@@ -6072,7 +6081,7 @@
   ]
  },
  "B076BBFTNN": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "Der große Bruderkrieg #3",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -6542,14 +6551,15 @@
   ]
  },
  "B075RQLGPW": {
-  "primary": "The Horusian Wars #1",
-  "secondary": "Warhammer 40,000 #-",
+  "primary": "Horusian Wars #1",
+  "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B07FQWYHB7": {
   "primary": "The Horusian Wars #2",
@@ -8851,7 +8861,7 @@
   ]
  },
  "B09R3CTVVX": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": null,
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -8901,7 +8911,7 @@
   ]
  },
  "B00CTSPI62": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": null,
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -8911,7 +8921,7 @@
   ]
  },
  "hardcover-edition-31548748": {
-  "primary": "UNAVAILABLE(429)",
+  "primary": null,
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -8921,7 +8931,7 @@
   ]
  },
  "hardcover-edition-22358496": {
-  "primary": "UNAVAILABLE(429)",
+  "primary": null,
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -8931,7 +8941,7 @@
   ]
  },
  "B008U2P6HC": {
-  "primary": "UNAVAILABLE(404)",
+  "primary": "The Shining #1",
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -9011,7 +9021,7 @@
   ]
  },
  "hardcover-book-378688": {
-  "primary": "UNAVAILABLE(429)",
+  "primary": null,
   "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -12670,7 +12680,6 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
-   "test",
    "prod"
   ]
  },
@@ -12680,7 +12689,6 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
-   "test",
    "prod"
   ]
  },
@@ -12905,14 +12913,15 @@
   ]
  },
  "B009XEKR3O": {
-  "primary": "The Cosmere Universe #7.5",
-  "secondary": "Elantris #-",
+  "primary": "Elantris #2",
+  "secondary": null,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "overdrive-2654484": {
   "primary": "Alcatraz vs. the Evil Librarians #4",
@@ -13283,8 +13292,8 @@
   ]
  },
  "hardcover-edition-32495053": {
-  "primary": "UNAVAILABLE(429)",
-  "secondary": null,
+  "primary": "Skyward #1",
+  "secondary": "Cytoverse #1",
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
@@ -13383,8 +13392,8 @@
   ]
  },
  "B09G3KQRNK": {
-  "primary": "UNAVAILABLE(404)",
-  "secondary": null,
+  "primary": "Skyward #2.3",
+  "secondary": "Skyward Flight #3",
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
@@ -13393,8 +13402,8 @@
   ]
  },
  "B00FGIFROU": {
-  "primary": "UNAVAILABLE(404)",
-  "secondary": null,
+  "primary": "The Stormlight Archive #1",
+  "secondary": "The Cosmere #7",
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
@@ -13403,8 +13412,8 @@
   ]
  },
  "B0CQ2WYS21": {
-  "primary": "UNAVAILABLE(404)",
-  "secondary": null,
+  "primary": "The Stormlight Archive #5",
+  "secondary": "The Cosmere #33",
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
@@ -15454,7 +15463,6 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
-   "test",
    "prod"
   ],
   "available": true
@@ -15465,7 +15473,6 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
-   "test",
    "prod"
   ],
   "available": true
@@ -15817,8 +15824,7 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
-   "test",
-   "prod"
+   "test"
   ]
  },
  "B082FQRWWR": {
@@ -15889,8 +15895,8 @@
   ]
  },
  "B018UG5G5E": {
-  "primary": "UNAVAILABLE(404)",
-  "secondary": null,
+  "primary": "Warbreaker #1",
+  "secondary": "The Cosmere #6",
   "available": false,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
@@ -15899,13 +15905,88 @@
   ]
  },
  "hardcover-edition-31094451": {
-  "primary": "UNAVAILABLE(429)",
-  "secondary": null,
+  "primary": "White Sand #1",
+  "secondary": "The Cosmere #20",
   "available": false,
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
    "test"
+  ]
+ },
+ "B00AWVBWKE": {
+  "primary": "The Legend of Drizzt #23",
+  "secondary": "Neverwinter #1",
+  "available": true,
+  "firstSeen": "2026-07-30",
+  "reviewedAt": "2026-07-30",
+  "boxes": [
+   "test",
+   "prod"
+  ]
+ },
+ "B00AWVC0PK": {
+  "primary": "The Legend of Drizzt #24",
+  "secondary": "Neverwinter #2",
+  "available": true,
+  "firstSeen": "2026-07-30",
+  "reviewedAt": "2026-07-30",
+  "boxes": [
+   "test",
+   "prod"
+  ]
+ },
+ "B00IGBW8SM": {
+  "primary": "The Legend of Drizzt #28",
+  "secondary": "Companions Codex #1",
+  "available": true,
+  "firstSeen": "2026-07-30",
+  "reviewedAt": "2026-07-30",
+  "boxes": [
+   "test",
+   "prod"
+  ]
+ },
+ "B00NFO4TH8": {
+  "primary": "The Legend of Drizzt #29",
+  "secondary": "Companions Codex #2",
+  "available": true,
+  "firstSeen": "2026-07-30",
+  "reviewedAt": "2026-07-30",
+  "boxes": [
+   "test",
+   "prod"
+  ]
+ },
+ "B0118JEFUW": {
+  "primary": "The Legend of Drizzt #31",
+  "secondary": "Legend of Drizzt: Homecoming #1",
+  "available": true,
+  "firstSeen": "2026-07-30",
+  "reviewedAt": "2026-07-30",
+  "boxes": [
+   "test",
+   "prod"
+  ]
+ },
+ "0063029804": {
+  "primary": "The Legend of Drizzt #37",
+  "secondary": "The Way of the Drow #1",
+  "available": true,
+  "firstSeen": "2026-07-30",
+  "reviewedAt": "2026-07-30",
+  "boxes": [
+   "test"
+  ]
+ },
+ "overdrive-6177641": {
+  "primary": "The Legend of Drizzt #37",
+  "secondary": "The Way of the Drow #1",
+  "available": true,
+  "firstSeen": "2026-07-30",
+  "reviewedAt": "2026-07-30",
+  "boxes": [
+   "prod"
   ]
  }
 }

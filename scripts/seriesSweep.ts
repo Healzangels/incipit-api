@@ -82,6 +82,12 @@ async function served(id: string): Promise<Answer & { available: boolean }> {
 async function main(): Promise<void> {
 	const init = process.argv.includes('--init')
 	const accept = process.argv.includes('--accept')
+	// --only <id,id,...>: selective accept — a review queue routinely mixes
+	// approved arrivals with rows held for pins or operator decisions, and
+	// all-or-nothing accept would fold the held rows' wrong serving into the
+	// baseline. Ignored without --accept.
+	const onlyArg = process.argv[process.argv.indexOf('--only') + 1]
+	const only = process.argv.includes('--only') ? new Set(onlyArg.split(',')) : null
 	const ledger: Record<string, LedgerEntry> = existsSync(LEDGER)
 		? (JSON.parse(readFileSync(LEDGER, 'utf8')) as Record<string, LedgerEntry>)
 		: {}
@@ -131,7 +137,7 @@ async function main(): Promise<void> {
 						was: { primary: prior.primary, secondary: prior.secondary },
 						is: now_
 					})
-					if (accept) {
+					if (accept && (!only || only.has(id))) {
 						ledger[id] = { ...prior, ...now_, reviewedAt: now }
 					}
 				}
