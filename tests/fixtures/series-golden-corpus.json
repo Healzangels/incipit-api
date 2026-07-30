@@ -162,6 +162,13 @@
     "rows": [
      "734421"
     ]
+   },
+   {
+    "date": "2026-07-30",
+    "what": "Heroic Hearts anthology pin (operator-stated Dresden #17.1)",
+    "rows": [
+     "730500"
+    ]
    }
   ]
  },
@@ -27179,6 +27186,40 @@
    "mintPin": true,
    "sourceOfTruth": "mirror /series/49134: work 15201053 'Neverwinter' at position 24",
    "group": "salvatore-apple-prod",
+   "knownDefectNow": true
+  },
+  {
+   "recordId": "B09FC52TN9",
+   "ratingKey": "730500",
+   "album": "Heroic Hearts",
+   "artist": "Jim Butcher",
+   "inputs": {
+    "title": "Heroic Hearts",
+    "subtitle": null,
+    "author": "Jim Butcher",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "inputSource": "prod record, measured 2026-07-30"
+   },
+   "servedNow": {
+    "primary": null,
+    "secondary": null,
+    "plexSortTitleNow": "",
+    "note": "anthology work lists EIGHT universes, all free-text positions (Dresden '17.1 - Little Things'); resolver correctly declines \u2014 the only clean numerics are OTHER authors' universes (Darkest Powers #3.4)"
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "The Dresden Files",
+    "position": "17.1",
+    "expectedSortPrefix": "Dresden Files, Book 17.1 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "mintPin": true,
+   "sourceOfTruth": "Operator 2026-07-30: 'Based on Goodreads looks like it should be Book 17.1' (goodreads.com/book/58734999; mirror work 85291724 Dresden listing '17.1 - Little Things'). Operator states the number the free-text position carries \u2014 R4's escape hatch, first anthology-shape use.",
+   "group": "anthology-host-universe",
    "knownDefectNow": true
   }
  ]
