@@ -16,15 +16,16 @@ interface Row {
 	album: string
 	pinType: string
 	required: { outcome: string; series?: string | null; position?: string | null }
+	mintPin?: boolean
 }
 const corpus = JSON.parse(readFileSync(join(FIXTURES, 'series-golden-corpus.json'), 'utf8')) as {
 	rows: Row[]
 }
-const baseline = JSON.parse(
-	readFileSync(join(FIXTURES, 'series-harness-baseline.json'), 'utf8')
-) as { fails: { ratingKey: string }[] }
-
-const red = new Set(baseline.fails.map((f) => f.ratingKey))
+// Pins are DURABLE, flag-driven corpus policy: minted from rows the operator
+// has marked mintPin, never from the baseline — a pin heals its red, so a
+// baseline-derived generator erases its own inputs on the next run (caught
+// live: regenerating after the pins landed dropped all 32).
+const red = new Set(corpus.rows.filter((r) => r.mintPin).map((r) => r.ratingKey))
 const byRk = new Map(corpus.rows.map((r) => [r.ratingKey, r]))
 const pins: Record<string, { series: string; position?: string; source: string }> = {}
 const skipped: string[] = []

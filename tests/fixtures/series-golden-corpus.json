@@ -147,6 +147,14 @@
     "rows": [
      "154213"
     ]
+   },
+   {
+    "date": "2026-07-30",
+    "what": "added 2 prod-only apple Drizzt rows (operator-reported Book-1 collision)",
+    "rows": [
+     "734419",
+     "734423"
+    ]
    }
   ]
  },
@@ -1075,7 +1083,8 @@
    "knownDefectNow": true,
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
-   ]
+   ],
+   "mintPin": true
   },
   {
    "recordId": "apple-audiobook-923599546",
@@ -1117,7 +1126,8 @@
    "knownDefectNow": true,
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
-   ]
+   ],
+   "mintPin": true
   },
   {
    "recordId": "B09LZ2SNH5",
@@ -3900,7 +3910,8 @@
    ],
    "pinType": "measured-hard",
    "sourceOfTruth": "Provider \"Ahriman: Warhammer 40,000 #N\" and Goodreads \"Ahriman #N\" corroborate (mirror work 44805055 for Unchanged: Ahriman #3 + W40K positionless). The GR work is titled bare \"Ahriman\" - the shape that made \"Ahriman\"+\"Book 3\" adopt sibling \"Ahriman: Exile\" #1: the subtitle marker's number half must corroborate the SAME listing (C7).",
-   "group": "named-ahriman"
+   "group": "named-ahriman",
+   "mintPin": true
   },
   {
    "recordId": "1800264011",
@@ -3956,7 +3967,8 @@
    ],
    "pinType": "measured-hard",
    "sourceOfTruth": "Provider \"Ahriman: Warhammer 40,000 #N\" and Goodreads \"Ahriman #N\" corroborate (mirror work 44805055 for Unchanged: Ahriman #3 + W40K positionless). The GR work is titled bare \"Ahriman\" - the shape that made \"Ahriman\"+\"Book 3\" adopt sibling \"Ahriman: Exile\" #1: the subtitle marker's number half must corroborate the SAME listing (C7).",
-   "group": "named-ahriman"
+   "group": "named-ahriman",
+   "mintPin": true
   },
   {
    "recordId": "B0B4PMPLFD",
@@ -4015,7 +4027,8 @@
    "group": "named-ahriman",
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
-   ]
+   ],
+   "mintPin": true
   },
   {
    "recordId": "B0B4PLYFNB",
@@ -5780,7 +5793,8 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "v5 bump-cost: cold moves this to \"A Jack Ryan Novel (chronological order) #21\" - scored a REGRESSION (fragments a coherent Jack Ryan shelf). Required = keep Jack Ryan #17.",
    "group": "named-clancy",
-   "note": "One of the 3 Tom Clancy v5 regression rows; C5 ratchet case (recompute must not fragment)."
+   "note": "One of the 3 Tom Clancy v5 regression rows; C5 ratchet case (recompute must not fragment).",
+   "mintPin": true
   },
   {
    "recordId": "B07B3QDGFS",
@@ -5833,7 +5847,8 @@
    ],
    "pinType": "operator-stated",
    "sourceOfTruth": "v5: cold gives \"A Jack Ryan Jr. Novel #5\" (publisher listing name + different taxonomy) - scored a REGRESSION. Required = keep Jack Ryan, Jr. #11 (GR taxonomy consistent with the other 9 Jr rows).",
-   "group": "named-clancy"
+   "group": "named-clancy",
+   "mintPin": true
   },
   {
    "recordId": "B06XP12NZC",
@@ -5886,7 +5901,8 @@
    ],
    "pinType": "operator-stated",
    "sourceOfTruth": "v5: cold gives \"A Jack Ryan Jr. Novel #4\" - scored a REGRESSION. Required = keep Jack Ryan, Jr. #10.",
-   "group": "named-clancy"
+   "group": "named-clancy",
+   "mintPin": true
   },
   {
    "recordId": "B00A9W1U58",
@@ -5955,7 +5971,8 @@
    "knownDefectNow": true,
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
-   ]
+   ],
+   "mintPin": true
   },
   {
    "recordId": "0593216229",
@@ -6012,7 +6029,8 @@
    "knownDefectNow": true,
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
-   ]
+   ],
+   "mintPin": true
   },
   {
    "recordId": "B07DK2KCJD",
@@ -7590,7 +7608,8 @@
    "note": "Mirror-500 ratchet case: a transport failure must never rename a shelf (C5).",
    "inputsVerified": [
     "live mirror /work probe 2026-07-30 (500 reproduced)"
-   ]
+   ],
+   "mintPin": true
   },
   {
    "recordId": "B004VA839A",
@@ -7647,7 +7666,8 @@
    "knownDefectNow": true,
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
-   ]
+   ],
+   "mintPin": true
   },
   {
    "recordId": "overdrive-728448",
@@ -8243,7 +8263,8 @@
    "knownDefectNow": true,
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
-   ]
+   ],
+   "mintPin": true
   },
   {
    "recordId": "B00F5BVQQQ",
@@ -8301,7 +8322,8 @@
    "sourceOfTruth": "Census TIER A (\"strict Elantris signature\"): \"Riyria\" is the combined-universe container; the library already shelves Riyria Revelations AND The Riyria Chronicles as their own primaries (Winter's Daughter #4), so these rows sit on the container shelf while their sub-series shelf exists - and the Chronicles shelf is SPLIT 6-vs-1 today. Mirror (Drumindor work 59577640, Crown Tower 21821161): both listings exist; provider supplies The Riyria Chronicles #N. Emperor's-Soul-shaped: provider's specific series displaced by the broader container.",
    "group": "named-riyria",
    "note": "reviewNeeded: operator has stated the R5 identity pair (Riyria != The Riyria Chronicles) but not explicitly ruled this family; the alternative reading (Riyria as an R1 parent like Drizzt) would instead require re-shelving Winter's Daughter onto Riyria. Either way the 6-vs-1 split violates R6.",
-   "knownDefectNow": true
+   "knownDefectNow": true,
+   "mintPin": true
   },
   {
    "recordId": "B0G6MTH7LC",
@@ -8359,7 +8381,8 @@
    "sourceOfTruth": "Census TIER A (\"strict Elantris signature\"): \"Riyria\" is the combined-universe container; the library already shelves Riyria Revelations AND The Riyria Chronicles as their own primaries (Winter's Daughter #4), so these rows sit on the container shelf while their sub-series shelf exists - and the Chronicles shelf is SPLIT 6-vs-1 today. Mirror (Drumindor work 59577640, Crown Tower 21821161): both listings exist; provider supplies The Riyria Chronicles #N. Emperor's-Soul-shaped: provider's specific series displaced by the broader container.",
    "group": "named-riyria",
    "note": "reviewNeeded: operator has stated the R5 identity pair (Riyria != The Riyria Chronicles) but not explicitly ruled this family; the alternative reading (Riyria as an R1 parent like Drizzt) would instead require re-shelving Winter's Daughter onto Riyria. Either way the 6-vs-1 split violates R6.",
-   "knownDefectNow": true
+   "knownDefectNow": true,
+   "mintPin": true
   },
   {
    "recordId": "B0GDRVSG7Z",
@@ -8417,7 +8440,8 @@
    "sourceOfTruth": "Census TIER A (\"strict Elantris signature\"): \"Riyria\" is the combined-universe container; the library already shelves Riyria Revelations AND The Riyria Chronicles as their own primaries (Winter's Daughter #4), so these rows sit on the container shelf while their sub-series shelf exists - and the Chronicles shelf is SPLIT 6-vs-1 today. Mirror (Drumindor work 59577640, Crown Tower 21821161): both listings exist; provider supplies The Riyria Chronicles #N. Emperor's-Soul-shaped: provider's specific series displaced by the broader container.",
    "group": "named-riyria",
    "note": "reviewNeeded: operator has stated the R5 identity pair (Riyria != The Riyria Chronicles) but not explicitly ruled this family; the alternative reading (Riyria as an R1 parent like Drizzt) would instead require re-shelving Winter's Daughter onto Riyria. Either way the 6-vs-1 split violates R6.",
-   "knownDefectNow": true
+   "knownDefectNow": true,
+   "mintPin": true
   },
   {
    "recordId": "B0G6MDLP8N",
@@ -8475,7 +8499,8 @@
    "sourceOfTruth": "Census TIER A (\"strict Elantris signature\"): \"Riyria\" is the combined-universe container; the library already shelves Riyria Revelations AND The Riyria Chronicles as their own primaries (Winter's Daughter #4), so these rows sit on the container shelf while their sub-series shelf exists - and the Chronicles shelf is SPLIT 6-vs-1 today. Mirror (Drumindor work 59577640, Crown Tower 21821161): both listings exist; provider supplies The Riyria Chronicles #N. Emperor's-Soul-shaped: provider's specific series displaced by the broader container.",
    "group": "named-riyria",
    "note": "reviewNeeded: operator has stated the R5 identity pair (Riyria != The Riyria Chronicles) but not explicitly ruled this family; the alternative reading (Riyria as an R1 parent like Drizzt) would instead require re-shelving Winter's Daughter onto Riyria. Either way the 6-vs-1 split violates R6.",
-   "knownDefectNow": true
+   "knownDefectNow": true,
+   "mintPin": true
   },
   {
    "recordId": "B0D828ZG1Y",
@@ -8536,7 +8561,8 @@
    "knownDefectNow": true,
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
-   ]
+   ],
+   "mintPin": true
   },
   {
    "recordId": "B01N264EEK",
@@ -11099,7 +11125,8 @@
    "knownDefectNow": true,
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
-   ]
+   ],
+   "mintPin": true
   },
   {
    "recordId": "B018W9PRIU",
@@ -11154,7 +11181,8 @@
    "pinType": "measured-hard",
    "sourceOfTruth": "Served TODAY on \"Shannara - Terry's Suggested Order for New Readers\" (an ordering - R3 defect; census shard 3 flagged it as the one ordering-primary). Mirror work 877015: The Original Shannara Trilogy #1 exists alongside four ordering listings. Provider series is the edition-marked junk \"The Sword of Shannara (Unabridged) #N\" (no lookup-bypass credit).",
    "group": "named-shannara",
-   "knownDefectNow": true
+   "knownDefectNow": true,
+   "mintPin": true
   },
   {
    "recordId": "B002VA38KQ",
@@ -11209,7 +11237,8 @@
    "pinType": "measured-hard",
    "sourceOfTruth": "Served TODAY on \"Shannara - Terry's Suggested Order for New Readers\" (an ordering - R3 defect; census shard 3 flagged it as the one ordering-primary). Mirror work 877015: The Original Shannara Trilogy #1 exists alongside four ordering listings. Provider series is the edition-marked junk \"The Sword of Shannara (Unabridged) #N\" (no lookup-bypass credit).",
    "group": "named-shannara",
-   "knownDefectNow": true
+   "knownDefectNow": true,
+   "mintPin": true
   },
   {
    "recordId": "B017V4IM1G",
@@ -12181,7 +12210,8 @@
    "pinType": "census-verdict",
    "sourceOfTruth": "Census shard 0 TIER B: primary is positionless cross-author franchise \"Warhammer 40,000\"; the secondary \"Warhammer 40,000 : Imperial Guard\" #1 is a real positioned sub-series. R2 + a positioned sub-listing = the sub shelves; today the album has NO shelf prefix at all.",
    "group": "census-umbrella-fix",
-   "knownDefectNow": true
+   "knownDefectNow": true,
+   "mintPin": true
   },
   {
    "recordId": "B002V0JZOO",
@@ -13351,7 +13381,8 @@
    "knownDefectNow": true,
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
-   ]
+   ],
+   "mintPin": true
   },
   {
    "recordId": "B0041HJKKY",
@@ -16786,7 +16817,8 @@
    ],
    "pinType": "current-correct-default",
    "sourceOfTruth": "Census 2026-07-29 dual-series row, verdict 'dual-ok' (shard 1): the current answer is the required answer (assignment: 82-of-93 parent-primary-correct class).",
-   "group": "census-dual"
+   "group": "census-dual",
+   "mintPin": true
   },
   {
    "recordId": "B07D2JTQQS",
@@ -17581,7 +17613,8 @@
    ],
    "pinType": "current-correct-default",
    "sourceOfTruth": "Census 2026-07-29 dual-series row, verdict 'dual-ok' (shard 1): the current answer is the required answer (assignment: 82-of-93 parent-primary-correct class).",
-   "group": "census-dual"
+   "group": "census-dual",
+   "mintPin": true
   },
   {
    "recordId": "B076B516QM",
@@ -17734,7 +17767,8 @@
    ],
    "pinType": "current-correct-default",
    "sourceOfTruth": "Census 2026-07-29 dual-series row, verdict 'dual-ok' (shard 1): the current answer is the required answer (assignment: 82-of-93 parent-primary-correct class).",
-   "group": "census-dual"
+   "group": "census-dual",
+   "mintPin": true
   },
   {
    "recordId": "B076B4696S",
@@ -18834,7 +18868,8 @@
    ],
    "pinType": "current-correct-default",
    "sourceOfTruth": "Census 2026-07-29 dual-series row, verdict 'dual-ok' (shard 2): the current answer is the required answer (assignment: 82-of-93 parent-primary-correct class).",
-   "group": "census-dual"
+   "group": "census-dual",
+   "mintPin": true
   },
   {
    "recordId": "B00GM389IY",
@@ -19528,7 +19563,8 @@
    ],
    "pinType": "current-correct-default",
    "sourceOfTruth": "Census 2026-07-29 dual-series row, verdict 'dual-ok' (shard 2): the current answer is the required answer (assignment: 82-of-93 parent-primary-correct class).",
-   "group": "census-dual"
+   "group": "census-dual",
+   "mintPin": true
   },
   {
    "recordId": "B0765CJ89B",
@@ -19690,7 +19726,8 @@
    ],
    "pinType": "current-correct-default",
    "sourceOfTruth": "Census 2026-07-29 dual-series row, verdict 'dual-ok' (shard 2): the current answer is the required answer (assignment: 82-of-93 parent-primary-correct class).",
-   "group": "census-dual"
+   "group": "census-dual",
+   "mintPin": true
   },
   {
    "recordId": "B0036NHZ10",
@@ -20789,7 +20826,8 @@
    ],
    "pinType": "current-correct-default",
    "sourceOfTruth": "Census 2026-07-29 dual-series row, verdict 'parent-primary-ok' (shard 3): the current answer is the required answer (assignment: 82-of-93 parent-primary-correct class).",
-   "group": "census-dual"
+   "group": "census-dual",
+   "mintPin": true
   },
   {
    "recordId": "B003XSSV0M",
@@ -21266,7 +21304,8 @@
    ],
    "pinType": "current-correct-default",
    "sourceOfTruth": "Census 2026-07-29 dual-series row, verdict 'inverted-healthy' (shard 3): the current answer is the required answer (assignment: 82-of-93 parent-primary-correct class).",
-   "group": "census-dual"
+   "group": "census-dual",
+   "mintPin": true
   },
   {
    "recordId": "1780308396",
@@ -21707,7 +21746,8 @@
    ],
    "pinType": "current-correct-default",
    "sourceOfTruth": "Census 2026-07-29 dual-series row, verdict 'inverted-healthy' (shard 3): the current answer is the required answer (assignment: 82-of-93 parent-primary-correct class).",
-   "group": "census-dual"
+   "group": "census-dual",
+   "mintPin": true
   },
   {
    "recordId": "1250818168",
@@ -27028,6 +27068,76 @@
    "pinType": "current-correct-default",
    "sourceOfTruth": "Random-sample no-change row (seed 42): single series, provider rebuilt, cold recompute identical to served. Current answer is correct-by-default; any change here is a regression by definition. Goodreads REPLACED an inconsistent provider series on this row (R8/C1-relevant input shape).",
    "group": "random-single-nochange"
+  },
+  {
+   "recordId": "apple-audiobook-595807561",
+   "ratingKey": "734419",
+   "album": "Gauntlgrym: Legend of Drizzt",
+   "artist": "R. A. Salvatore",
+   "inputs": {
+    "title": "Gauntlgrym: Legend of Drizzt",
+    "subtitle": null,
+    "author": "R. A. Salvatore",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "inputSource": "prod-only apple record, measured 2026-07-30"
+   },
+   "servedNow": {
+    "primary": null,
+    "secondary": null,
+    "plexSortTitleNow": "Forgotten Realms Chronological, Book 1 - Gauntlgrym: Legend of Drizzt",
+    "note": "stale pre-policy sort; BOTH prod albums wedged at Book 1 (operator-reported collision)"
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "The Legend of Drizzt",
+    "position": "23",
+    "expectedSortPrefix": "Legend of Drizzt, Book 23 - "
+   },
+   "specRule": [
+    "R1",
+    "R4"
+   ],
+   "pinType": "measured-hard",
+   "mintPin": true,
+   "sourceOfTruth": "mirror /series/49134 LinkItems: work 11076657 at position 23; same class as the test-box apple pair (LoD #28/#29)",
+   "group": "salvatore-apple-prod",
+   "knownDefectNow": true
+  },
+  {
+   "recordId": "apple-audiobook-1032040112",
+   "ratingKey": "734423",
+   "album": "Archmage: Legend of Drizzt",
+   "artist": "R. A. Salvatore",
+   "inputs": {
+    "title": "Archmage: Legend of Drizzt",
+    "subtitle": null,
+    "author": "R. A. Salvatore",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "inputSource": "prod-only apple record, measured 2026-07-30"
+   },
+   "servedNow": {
+    "primary": null,
+    "secondary": null,
+    "plexSortTitleNow": "Forgotten Realms Chronological, Book 1 - Archmage: Legend of Drizzt",
+    "note": "stale pre-policy sort; BOTH prod albums wedged at Book 1 (operator-reported collision)"
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "The Legend of Drizzt",
+    "position": "31",
+    "expectedSortPrefix": "Legend of Drizzt, Book 31 - "
+   },
+   "specRule": [
+    "R1",
+    "R4"
+   ],
+   "pinType": "measured-hard",
+   "mintPin": true,
+   "sourceOfTruth": "mirror /series/49134 LinkItems: work 43492207 at position 31; same class as the test-box apple pair (LoD #28/#29)",
+   "group": "salvatore-apple-prod",
+   "knownDefectNow": true
   }
  ]
 }
