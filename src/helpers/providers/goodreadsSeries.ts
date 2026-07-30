@@ -161,6 +161,62 @@ const EDITION_MARKER_RE =
  * @param {string} title the full title as the provider gave it
  * @returns {string|null} the stem, or null when it is absent or too thin to use
  */
+/**
+ * The half AFTER a volume prefix, when the provider prepended one.
+ *
+ * `titleWithoutSubtitle` keeps what precedes the last colon, because providers
+ * usually stack "Series: Title: Marketing". Some prepend a VOLUME instead --
+ * "Sons of Valor IV: False Flag" -- and then the identity is the half it throws
+ * away. Measured: /search "Sons of Valor IV" returns 0 hits while
+ * /search "False Flag" returns work 228408706, Sons of Valor #4, which is what
+ * every sibling on that shelf already uses.
+ *
+ * GATE 1 lives here: the text before the numeral must be the series we ALREADY
+ * hold. Without that check the shape alone is far too common to trust -- of the
+ * 7 library titles matching it, "The 6:20 Man" is a clock time whose pre-colon
+ * half is "The", and this is what rejects it. Returns null when there is no
+ * provider series to verify against, so a book with no series never takes this
+ * path (it has nothing to disagree with).
+ *
+ * @param {string} title the provider title
+ * @param {string|null|undefined} providerSeries the series we already hold
+ * @returns {string|null} the post-colon half, or null when the gate fails
+ */
+function titleAfterVolumePrefix(
+	title: string,
+	providerSeries: string | null | undefined
+): string | null {
+	// Crash guard, and the reason a series-less book never takes this path. Its
+	// removal is NOT caught by the suite: flat(undefined) throws, the throw is
+	// swallowed upstream (enrichment is best-effort), and the outcome is the same
+	// null. Documented rather than claimed as covered.
+	if (!providerSeries) return null
+	if (EDITION_MARKER_RE.test(title)) return null
+	// Roman numerals need 2+ characters: a lone I/V/X/L/C is far more likely a
+	// middle initial or a real word than a volume. Arabic 1-2 digits covers the
+	// rest without matching a year.
+	const m = /^(.{2,60}?)\s+(?:[IVXLC]{2,6}|\d{1,2})\s*:\s*(.+)$/.exec(title.trim())
+	if (!m) return null
+	const [, prefix, rest] = m
+	const post = rest.trim()
+	if (post.length < 4 || !/[a-z]/i.test(post)) return null
+	// Fold articles and the descriptor nouns providers bolt on, so "Sons of Valor"
+	// matches "The Sons of Valor Series".
+	const flat = (s: string) =>
+		s
+			.replace(/[‘’]/g, "'")
+			.replace(/^\s*(?:the|a|an)\s+/i, '')
+			.replace(/\b(series|thrillers?|novels?|saga|sequence|trilogy|chronicles?)\b/gi, '')
+			.replace(/\s+/g, ' ')
+			.trim()
+			.toLowerCase()
+	const a = flat(prefix)
+	const b = flat(providerSeries)
+	if (!a || !b) return null
+	if (a !== b && !b.includes(a) && !a.includes(b)) return null
+	return post
+}
+
 function titleWithoutSubtitle(title: string): string | null {
 	// An edition marker anywhere in the title disqualifies the retry: the bare
 	// stem is a DIFFERENT product, so a hit would be a confident wrong answer
@@ -246,7 +302,14 @@ async function workFromAuthorRecord(
 	const record = await getJson<AuthorSeriesRecord>(`/author/${authorId}`, state, logger)
 	if (!record) return null
 
-	const title = (record.Works ?? []).find((w) => w?.ForeignId === workId)?.Title
+	// Array.isArray, not `?? []`: a mirror under load has been seen answering with
+	// a scalar or an object where a list belongs, and `.find`/`.filter`/`.some` on
+	// a non-array throws a TypeError straight out of the enrichment -- a 500 for
+	// the whole book, from a path whose entire contract is best-effort. This path
+	// runs PRECISELY when the mirror is misbehaving, which is when a malformed
+	// body is likeliest.
+	const works = Array.isArray(record.Works) ? record.Works : []
+	const title = works.find((w) => w?.ForeignId === workId)?.Title
 	if (typeof title !== 'string' || title.length === 0) {
 		logger?.debug(
 			{ workId, authorId },
@@ -255,12 +318,26 @@ async function workFromAuthorRecord(
 		return null
 	}
 
-	const series = (record.Series ?? []).filter(
+	// The author gate downstream rejects only on a POSITIVE mismatch, so handing
+	// it an empty Authors list disables it outright -- on the one path that has no
+	// /work record to be credited from. That is how a summary-publisher record
+	// ("Brief Books", "BookBuddy" -- the shapes that gate exists to stop) clears
+	// the title gate and overwrites a correct series. If the record cannot name
+	// its own author there is nothing to verify against, so decline instead.
+	if (typeof record.Name !== 'string' || record.Name.length === 0) {
+		logger?.debug(
+			{ workId, authorId },
+			'goodreads series: author record names no author, cannot verify the credit'
+		)
+		return null
+	}
+
+	const series = (Array.isArray(record.Series) ? record.Series : []).filter(
 		(s): s is WorkSeries =>
 			!!s &&
 			typeof s.Title === 'string' &&
 			s.Title.length > 0 &&
-			(s.LinkItems ?? []).some((l) => l?.ForeignWorkId === workId)
+			(Array.isArray(s.LinkItems) ? s.LinkItems : []).some((l) => l?.ForeignWorkId === workId)
 	)
 	if (series.length === 0) {
 		logger?.debug(
@@ -276,7 +353,7 @@ async function workFromAuthorRecord(
 	)
 	return {
 		Title: title,
-		Authors: record.Name ? [{ Name: record.Name }] : [],
+		Authors: [{ Name: record.Name }],
 		Series: series
 	}
 }
@@ -399,7 +476,16 @@ export function seriesAliasFor(description: string | null, language: string): st
 // so it is the right answer when the sub-series cannot place the book at all.
 const SERIES_ORDERING_RE =
 	/\b(publication order|chronological|split[\s-]?volume|omnibus|box[\s-]?set|edition)\b/i
-const SERIES_UMBRELLA_RE = /\b\w*verse\b/i
+const SERIES_UMBRELLA_RE = /\b\w*verse\b/gi
+// A franchise umbrella names itself with a coined "-verse" compound (Universe,
+// Enderverse, the Cosmere Universe). Matching "\w*verse" alone also caught
+// ordinary English words that merely end in those letters -- "Reverse Harem
+// Chronicles", "Diverse Energies", "Traverse", "Inverse" all tested TRUE -- and a
+// real shelf misread as an umbrella is demoted out of the ranking, so the book
+// keeps the inconsistent provider name and can never converge. Exclude the closed
+// set of common words; a coined franchise name is never one of them.
+const SERIES_UMBRELLA_STOPWORDS =
+	/^(?:adverse|averse|converse|diverse|inverse|obverse|perverse|reverse|transverse|traverse|verse)$/i
 
 /** An edition variant or franchise ordering: demoted, and never rescued. */
 function isOrdering(series: WorkSeries): boolean {
@@ -408,7 +494,11 @@ function isOrdering(series: WorkSeries): boolean {
 
 /** A franchise umbrella: demoted, but eligible to be rescued. */
 function isUmbrella(series: WorkSeries): boolean {
-	return !isOrdering(series) && SERIES_UMBRELLA_RE.test(series.Title ?? '')
+	if (isOrdering(series)) return false
+	// Every -verse word, not just the first: "Reverse Harem Universe" must still
+	// read as an umbrella on the strength of "Universe".
+	const words = (series.Title ?? '').match(SERIES_UMBRELLA_RE) ?? []
+	return words.some((w) => !SERIES_UMBRELLA_STOPWORDS.test(w))
 }
 
 /**
@@ -587,6 +677,29 @@ export async function withGoodreadsSeries<T extends SeriesEnrichable>(
 	redis: RedisLike | null,
 	logger?: FastifyBaseLogger
 ): Promise<T> {
+	// The module's own doctrine, enforced at the boundary rather than trusted:
+	// "an outage, a 404 or a rate limit must never fail the request that asked for
+	// it". getJson honours it for transport errors, but everything AROUND the
+	// fetches can still throw -- a malformed mirror body reaching a `.filter`, or
+	// encodeURIComponent on a lone surrogate in a title (URIError) -- and the route
+	// calls this with no try of its own, so one bad record 500s a whole book
+	// response to enrich one cosmetic field.
+	try {
+		return await seriesEnriched(book, redis, logger)
+	} catch (err) {
+		logger?.warn(
+			{ title: book?.title, err },
+			'goodreads series: enrichment threw, serving the book unenriched'
+		)
+		return book
+	}
+}
+
+async function seriesEnriched<T extends SeriesEnrichable>(
+	book: T,
+	redis: RedisLike | null,
+	logger?: FastifyBaseLogger
+): Promise<T> {
 	if (!book?.title) return book
 	const hadSeries = Boolean(book.seriesPrimary?.name)
 	// AUTHORITY MODE. A book's series used to come from whichever provider won
@@ -648,7 +761,14 @@ export async function withGoodreadsSeries<T extends SeriesEnrichable>(
 		// away from it while it finishes in the background and still warms the
 		// cache for the next refresh -- the answer is only NEEDED then anyway.
 		const lookup = (async () => {
-			const fetched = await fetchGoodreadsSeries(title, author, logger, probe)
+			const fetched = await fetchGoodreadsSeries(
+				title,
+				author,
+				logger,
+				probe,
+				book.subtitle,
+				book.seriesPrimary?.name
+			)
 			// Only cache an answer the mirror actually gave us. A null produced
 			// while rate-limited/unreachable would otherwise pin "no series" on
 			// this book for the whole TTL -- the exact damage a throttling event
@@ -683,8 +803,16 @@ export async function withGoodreadsSeries<T extends SeriesEnrichable>(
 			const overBudget = new Promise<typeof TIME_BUDGET_EXCEEDED>((resolve) => {
 				timer = setTimeout(() => resolve(TIME_BUDGET_EXCEEDED), budget)
 			})
-			const winner = await Promise.race([lookup, overBudget])
-			clearTimeout(timer)
+			// finally, not a bare call after the race: a throw out of the lookup
+			// skipped clearTimeout, leaving the timer armed for the whole budget and
+			// holding the resolve closure -- and through it this request's book, logger
+			// and redis handle -- alive with it.
+			let winner: GoodreadsSeriesResult | null | typeof TIME_BUDGET_EXCEEDED
+			try {
+				winner = await Promise.race([lookup, overBudget])
+			} finally {
+				clearTimeout(timer)
+			}
 			if (winner === TIME_BUDGET_EXCEEDED) {
 				lookup.catch(() => undefined)
 				logger?.warn(
@@ -941,9 +1069,13 @@ async function getJson<T>(
  * poster on the wrong item elsewhere in this stack.
  */
 function positionFor(series: WorkSeries, workId: number): string | undefined {
-	const links = series.LinkItems ?? []
-	const mine =
-		links.find((l) => l.ForeignWorkId === workId) ?? (links.length === 1 ? links[0] : null)
+	const links = Array.isArray(series.LinkItems) ? series.LinkItems : []
+	// The sole-link fallback covers a record that omits ForeignWorkId, NOT one that
+	// names a different work. A single link naming someone else is someone else's
+	// number: adopting it published a stranger's position over our own correct one
+	// and, worse, made an unpositioned series look shelvable so it won the ranking.
+	const sole = links.length === 1 && links[0]?.ForeignWorkId == null ? links[0] : null
+	const mine = links.find((l) => l?.ForeignWorkId === workId) ?? sole
 	if (!mine) return undefined
 	if (typeof mine.PositionInSeries === 'string' && mine.PositionInSeries.trim()) {
 		const trimmed = mine.PositionInSeries.trim()
@@ -967,15 +1099,23 @@ function positionFor(series: WorkSeries, workId: number): string | undefined {
  * @param {string} title the title to look up
  * @param {string|null} author the author, used only to sharpen the text search
  * @param {FastifyBaseLogger} [logger] optional request logger
+ * @param {LookupState} [state] shared degradation state for this lookup
+ * @param {string|null} [subtitle] the book's subtitle, read ONLY for the volume
+ *   marker. Audible splits a title across both halves, so "Book 9" routinely
+ *   lives here while the title looks clean; the veto that uses it is blind to
+ *   the commonest provider shape without it. It is deliberately NOT part of the
+ *   search query or the title gates, which are tuned for the title alone.
  * @returns {Promise<GoodreadsSeriesResult|null>} verified series, or null
  */
 export async function fetchGoodreadsSeries(
 	title: string,
 	author: string | null,
 	logger?: FastifyBaseLogger,
-	state?: LookupState
+	state?: LookupState,
+	subtitle?: string | null,
+	providerSeries?: string | null
 ): Promise<GoodreadsSeriesResult | null> {
-	const first = await lookupByTitle(title, author, logger, state)
+	const first = await lookupByTitle(title, author, logger, state, false, subtitle)
 	if (first) return first
 
 	// A degraded miss is not a miss. A timed-out /work on pass 1 might have been
@@ -1001,14 +1141,77 @@ export async function fetchGoodreadsSeries(
 	// faces the same title and author gates, which is what keeps a generic stem
 	// ("Star Wars", "The Beginning") from adopting a stranger's series.
 	const base = titleWithoutSubtitle(title)
-	if (!base) return null
+	if (!base) return volumePrefixRetry(title, author, logger, state, subtitle, providerSeries)
 	logger?.debug({ title, base }, 'goodreads series: no hit, retrying without the subtitle')
 	// strictGate: a stripped stem must match a candidate's FULL title. The
 	// relaxed arms exist for full titles ("our subtitle half", "the candidate's
 	// stem"); handing them a stem is sibling-matching by construction --
 	// "Ahriman" scores 1.0 against every "Ahriman: X" sibling's stem.
-	return lookupByTitle(base, author, logger, state, true)
+	// The subtitle rides along: stripping the marketing subtitle changes which
+	// TITLE we search for, not which volume the book is, so the veto must still
+	// hold the stem pass to our own volume number.
+	const stem = await lookupByTitle(base, author, logger, state, true, subtitle)
+	if (stem) return stem
+	// LAST resort, and only for the volume-prefix shape (see
+	// titleAfterVolumePrefix). Reached only when both passes above found nothing,
+	// which is what keeps it off every book that resolves today.
+	return volumePrefixRetry(title, author, logger, state, subtitle, providerSeries)
 }
+
+/**
+ * The third pass: search the half after a volume prefix.
+ *
+ * GATE 1 is titleAfterVolumePrefix (the prefix must be the series we hold).
+ * GATE 2 is here: the ANSWER's series must agree with the series we already
+ * hold. That verifies the result rather than trusting the query, and it is what
+ * rejects a generic post-colon half -- "He Who Fights with Monsters 11: A LitRPG
+ * Adventure" searches "A LitRPG Adventure", lands on an unrelated work, and its
+ * series does not match, so the provider series stands.
+ */
+async function volumePrefixRetry(
+	title: string,
+	author: string | null,
+	logger: FastifyBaseLogger | undefined,
+	state: LookupState | undefined,
+	subtitle: string | null | undefined,
+	providerSeries: string | null | undefined
+): Promise<GoodreadsSeriesResult | null> {
+	if (state?.degraded) return null
+	const post = titleAfterVolumePrefix(title, providerSeries)
+	if (!post) return null
+	logger?.debug(
+		{ title, post, providerSeries },
+		'goodreads series: no hit, retrying the half after the volume prefix'
+	)
+	const found = await lookupByTitle(post, author, logger, state, true, subtitle)
+	if (!found?.primary?.name) return null
+	const flat = (v: string) =>
+		v
+			.replace(/[\u2018\u2019]/g, "'")
+			.replace(/^\s*(?:the|a|an)\s+/i, '')
+			.replace(/\b(series|thrillers?|novels?|saga|sequence|trilogy|chronicles?)\b/gi, '')
+			.replace(/\s+/g, ' ')
+			.trim()
+			.toLowerCase()
+	const got = flat(found.primary.name)
+	const want = flat(providerSeries ?? '')
+	if (!got || !want || (got !== want && !want.includes(got) && !got.includes(want))) {
+		logger?.debug(
+			{ title, post, found: found.primary.name, providerSeries },
+			'goodreads series: volume-prefix retry answered a DIFFERENT series, keeping the provider one'
+		)
+		return null
+	}
+	logger?.warn(
+		{ title, post, series: found.primary },
+		'goodreads series: recovered via the volume-prefix retry'
+	)
+	return found
+}
+
+// Not a /g regex: exec() on a global pattern carries lastIndex between calls, and
+// this one is used against two strings in a row.
+const VOLUME_HINT_RE = /\bbook\s+(\d+(?:\.\d+)?)\b/i
 
 /** One search-and-verify pass for exactly the title given. */
 async function lookupByTitle(
@@ -1016,7 +1219,8 @@ async function lookupByTitle(
 	author: string | null,
 	logger?: FastifyBaseLogger,
 	state?: LookupState,
-	strictGate = false
+	strictGate = false,
+	subtitle?: string | null
 ): Promise<GoodreadsSeriesResult | null> {
 	const want = normalizeTitle(title)
 	if (!want) return null
@@ -1032,35 +1236,74 @@ async function lookupByTitle(
 	// 1's exact title, for many series) a 1.0 match. The number is the one fact
 	// we hold about WHICH volume this is; an answer whose position contradicts
 	// it is the wrong work, however well the name matched.
-	const volumeHint = /\bbook\s+(\d+(?:\.\d+)?)\b/i.exec(title)?.[1]
+	//
+	// BOTH halves, like the edition guard upstream: Audible stores the marker in
+	// whichever half it likes, and "Tier One Thrillers, Book 9" as the SUBTITLE of
+	// a clean-looking title is the commonest shape there is. Reading only the title
+	// left the veto dark for exactly those rows -- measured, "Ahriman" + subtitle
+	// "Ahriman, Book 3" adopted the sibling work "Ahriman: Exile" at position 1,
+	// putting two books at #1 on one shelf.
+	const volumeHint =
+		VOLUME_HINT_RE.exec(title)?.[1] ?? (subtitle ? VOLUME_HINT_RE.exec(subtitle)?.[1] : undefined)
 
 	const q = encodeURIComponent([title, author].filter(Boolean).join(' '))
 	const hits = await getJson<SearchHit[]>(`/search?q=${q}`, state, logger)
 	if (!Array.isArray(hits) || hits.length === 0) return null
 
+	// /search returns BOOKS, so two hits can be two editions of ONE work. The
+	// author path below already builds "distinct author ids" for exactly this
+	// reason; without the same guard here, three editions of one wrong work spend
+	// the whole candidate window on one /work record (re-fetched per hit) and the
+	// correct work sitting behind them is never examined.
+	const seenWorkIds = new Set<number>()
+	// This hit's OWN degradation, pending until we know whether the hit becomes the
+	// answer. Flushed at the top of the next iteration (this hit was discarded) and
+	// after the loop (nothing was adopted); the `return` at the end of the body is
+	// the one exit that drops it, and dropping it is the whole forgiveness -- see
+	// the /work call below.
+	let pendingDegradation = false
 	// Only the first few: /search is relevance-ordered, and walking deeper trades
 	// a real risk of a same-universe false accept for a vanishing chance of a hit.
 	for (const hit of hits.slice(0, 3)) {
+		if (pendingDegradation) {
+			if (state) state.degraded = true
+			pendingDegradation = false
+		}
 		const workId = hit.workId
 		if (typeof workId !== 'number') continue
+		if (seenWorkIds.has(workId)) continue
+		seenWorkIds.add(workId)
 
-		// Snapshot the degradation BEFORE the /work call. A failed call marks the
-		// whole lookup degraded, and withGoodreadsSeries then refuses to APPLY or
-		// CACHE the answer -- rightly, since a call that failed means we cannot be
-		// sure we saw the best candidate, and overriding a provider series on
-		// partial evidence is the mis-shelving that guard exists to prevent.
+		// A probe of THIS hit's own, following the idiom seriesRecord established:
+		// the shared flag is sticky, so a failure the author record routes around
+		// must never be written to it in the first place rather than written and
+		// then rewound. Rewinding cannot tell "the failure was routed around" from
+		// "something else degraded us meanwhile", and it silently launders any call
+		// a later change drops into the window.
 		//
-		// It does not hold once the author record has resolved this work by
-		// IDENTITY: the failure was routed around, not ignored. Restoring the flag
-		// to its pre-call value un-sets only the degradation THIS recovered call
-		// introduced, so a genuine failure elsewhere in the lookup still counts.
+		// A failed /work marks the whole lookup degraded, and withGoodreadsSeries
+		// then refuses to APPLY or CACHE the answer -- rightly, since a call that
+		// failed means we cannot be sure we saw the best candidate, and overriding a
+		// provider series on partial evidence is the mis-shelving that guard exists
+		// to prevent.
 		//
-		// Measured live: without this the fallback logged "recovered this series
-		// from the author record" on every single request while the response kept
-		// serving Audible's name and nothing was ever cached -- the answer was
-		// found and then thrown away, once per request.
-		const degradedBeforeWork = state?.degraded ?? false
-		let work = await getJson<WorkResponse>(`/work/${workId}`, state, logger)
+		// It does not hold once the author record has resolved this work by IDENTITY
+		// AND that work is the one we return: the failure was routed around, not
+		// ignored. Measured live -- without the forgiveness the fallback logged
+		// "recovered this series from the author record" on every single request while
+		// the response kept serving Audible's name and nothing was ever cached: the
+		// answer was found and then thrown away, once per request.
+		//
+		// It is conditioned on RETURNING, not on recovering, because a recovered work
+		// is still only a candidate. Every gate below can discard it -- and the
+		// recovered record is thinner than a real one (one title form, no edition
+		// titles, an author-scoped series list), so it is likelier to be discarded --
+		// at which point the evidence the failed call would have carried really is
+		// lost. Forgiving at the recovery site instead let a rejected candidate's
+		// failure vanish, which applied a wrong series over the provider's and cached
+		// a manufactured "no series" verdict.
+		const workProbe = newLookupState()
+		let work = await getJson<WorkResponse>(`/work/${workId}`, workProbe, logger)
 		if (!work) {
 			// A dead /work record used to end this hit SILENTLY, which is how one
 			// broken record split the Tier One shelf without leaving a trace to
@@ -1069,9 +1312,9 @@ async function lookupByTitle(
 				{ workId, authorId: hit.author?.id },
 				'goodreads series: /work returned nothing, trying the author record'
 			)
-			work = await workFromAuthorRecord(workId, hit.author?.id, state, logger)
-			if (work && state) state.degraded = degradedBeforeWork
+			work = await workFromAuthorRecord(workId, hit.author?.id, workProbe, logger)
 		}
+		if (workProbe.degraded) pendingDegradation = true
 		if (!work) continue
 
 		// Verify before trusting. Compare against every title form the work
@@ -1297,6 +1540,11 @@ async function lookupByTitle(
 		return result
 	}
 
+	// Nothing was adopted, so the last hit's degradation was never forgiven: the
+	// evidence its failed /work call would have carried really is lost. Flushing it
+	// keeps this miss out of the cache and stops the stem retry paying for a second
+	// paced search against a mirror that just failed.
+	if (pendingDegradation && state) state.degraded = true
 	return null
 }
 

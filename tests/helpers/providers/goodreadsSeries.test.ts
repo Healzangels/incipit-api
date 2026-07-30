@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
 
+import { fakeRedis } from '#tests/setup/fakeRedis'
+
 // No outbound pacing in tests: the live client holds a ~1.1s gap between
 // bookinfo.pro calls, which would add ~45s to this suite for no coverage.
 process.env.GOODREADS_MIN_GAP_MS = '0'
@@ -7,9 +9,8 @@ process.env.GOODREADS_MIN_GAP_MS = '0'
 const fetchMock = mock()
 mock.module('#helpers/utils/fetchPlus', () => ({ default: fetchMock }))
 
-const { fetchGoodreadsSeries, withGoodreadsSeries, seriesAliasFor, resetGoodreadsThrottle } = await import(
-	'#helpers/providers/goodreadsSeries'
-)
+const { fetchGoodreadsSeries, withGoodreadsSeries, seriesAliasFor, resetGoodreadsThrottle } =
+	await import('#helpers/providers/goodreadsSeries')
 
 // Pristine module state for EVERY test. The series-record memo lives for the
 // process, so without this, whichever test touches a series id first pins its
@@ -735,6 +736,9 @@ describe('a recovered work must not be discarded as degraded', () => {
 
 	const AUTHOR_ID = 5155903
 	const WORK_ID = 249535826
+	const SERIES_ID = 180345
+	// The shared profile these tests run under (no GOODREADS_SERIES_URL set).
+	const HIT_TTL = 2592000
 
 	const authorRecord = {
 		ForeignId: AUTHOR_ID,
@@ -742,12 +746,26 @@ describe('a recovered work must not be discarded as degraded', () => {
 		Works: [{ ForeignId: WORK_ID, Title: 'The Adversary' }],
 		Series: [
 			{
-				ForeignId: 180345,
+				ForeignId: SERIES_ID,
 				Title: 'Tier One',
-				LinkItems: [{ ForeignWorkId: WORK_ID, PositionInSeries: '9', SeriesPosition: 9 }]
+				// TWO links, so "resolved by IDENTITY" is actually anchored. With a lone
+				// link, positionFor's sole-link fallback could hand back this position
+				// even if the ForeignWorkId match were broken, and the block's headline
+				// claim would hold for the wrong reason.
+				LinkItems: [
+					{ ForeignWorkId: WORK_ID, PositionInSeries: '9', SeriesPosition: 9 },
+					{ ForeignWorkId: 269094999, PositionInSeries: '10', SeriesPosition: 10 }
+				]
 			}
 		]
 	}
+
+	// The /series record the alias rename asks for after the answer is resolved.
+	// Queued explicitly in every fixture below: an EXHAUSTED bun mock returns
+	// `undefined` rather than rejecting, so an unqueued call is silently absorbed as
+	// a degraded fetch -- which is how the first version of this block cached
+	// nothing while asserting only the series name, and passed.
+	const seriesRecord = { LinkItems: [{ ForeignWorkId: WORK_ID }], Description: '' }
 
 	const audibleBook = () => ({
 		title: 'The Adversary',
@@ -758,29 +776,46 @@ describe('a recovered work must not be discarded as degraded', () => {
 
 	afterEach(() => fetchMock.mockReset())
 
-	test('the recovered series IS applied over the provider series', async () => {
-		respond([{ workId: WORK_ID, author: { id: AUTHOR_ID } }], null, authorRecord)
-		const out = await withGoodreadsSeries(audibleBook(), null)
-		expect(out.seriesPrimary?.name).toBe('Tier One')
+	test('the recovered series is applied over the provider series AND cached', async () => {
+		// Drives the REAL redis surface, because "nothing was ever cached" is half
+		// the reported symptom and asserting the series name alone cannot see it.
+		const redis = fakeRedis()
+		respond([{ workId: WORK_ID, author: { id: AUTHOR_ID } }], null, authorRecord, seriesRecord)
+		const out = await withGoodreadsSeries(audibleBook(), redis)
+		expect(out.seriesPrimary).toEqual({ name: 'Tier One', position: '9' })
+		// The fallback is only reached by asking the AUTHOR record -- assert the path,
+		// not just the queue position, or a regression that re-fetched /work would
+		// consume this fixture's body and still look green.
+		expect(fetchMock.mock.calls[2][0]).toContain(`/author/${AUTHOR_ID}`)
+		const key = `grseries:v4:the adversary|brian andrews`
+		expect(redis.store.get(key)).toBe(JSON.stringify({ primary: { name: 'Tier One', position: '9' } }))
+		expect(redis.expires.get(key)).toBe(HIT_TTL)
 	})
 
 	test('a failed recovery keeps the degradation, so no stem retry runs', async () => {
-		// CALL COUNT is the assertion. /work fails and the author record fails too,
-		// so nothing was resolved and the lookup stays degraded -- which is what
-		// stops fetchGoodreadsSeries paying for a second paced search against a
-		// mirror that just pushed back. Clearing the flag unconditionally (rather
-		// than only on a successful recovery) lets that retry run.
+		// CALL COUNT is the assertion, and the title carries a COLON so the stem
+		// retry is actually reachable -- with a colon-less title `titleWithoutSubtitle`
+		// returns null and the count is pinned by the title shape rather than by the
+		// flag, which is why the first version of this test could not fail.
+		//
+		// /work fails and the author record fails too, so nothing was resolved and the
+		// lookup stays degraded -- which is what stops fetchGoodreadsSeries paying for
+		// a second paced search against a mirror that just pushed back.
 		respond([{ workId: WORK_ID, author: { id: AUTHOR_ID } }], null, null)
-		await withGoodreadsSeries(audibleBook(), null)
+		await withGoodreadsSeries(
+			{ ...audibleBook(), title: 'The Adversary: A Tier One Thriller' },
+			null
+		)
 		expect(fetchMock.mock.calls.length).toBe(3) // search + work + author, then stop
 	})
 
 	test('degradation from an EARLIER hit is preserved, not cleared', async () => {
 		// Two hits. The first degrades the lookup (its /work fails and its author
 		// record fails too). The second recovers by identity -- but the lookup as a
-		// whole HAS lost evidence, so restoring the pre-call value must restore
-		// TRUE, not hardcode false. Otherwise one recovered hit launders away a
-		// real failure on another and a partial answer gets applied.
+		// whole HAS lost evidence, so the forgiveness must not reach back and clear
+		// it. Otherwise one recovered hit launders away a real failure on another and
+		// a partial answer gets applied.
+		const redis = fakeRedis()
 		respond(
 			[
 				{ workId: 111111, author: { id: 999999 } },
@@ -789,17 +824,198 @@ describe('a recovered work must not be discarded as degraded', () => {
 			null, // hit 1 /work fails      -> degraded
 			null, // hit 1 /author fails    -> no recovery, degradation stands
 			null, // hit 2 /work fails
-			authorRecord // hit 2 recovers by identity
+			authorRecord, // hit 2 recovers by identity
+			seriesRecord
 		)
-		const out = await withGoodreadsSeries(audibleBook(), null)
+		const out = await withGoodreadsSeries(audibleBook(), redis)
 		expect(out.seriesPrimary?.name).toBe('The Tier One Thrillers')
+		expect(redis.store.size).toBe(0)
 	})
 
-	test('a genuinely degraded lookup still declines to apply', async () => {
-		// The guard must survive: /work fails AND the author record fails too, so
-		// nothing was resolved by identity and the provider series stands.
-		respond([{ workId: WORK_ID, author: { id: AUTHOR_ID } }], null, null)
-		const out = await withGoodreadsSeries(audibleBook(), null)
+	test('a recovery the GATES REJECT stays degraded, so nothing is applied or cached', async () => {
+		// The forgiveness must be spent only on the hit that becomes the ANSWER. Here
+		// the author record resolves the work by identity, so the recovery succeeds --
+		// and then the title gate throws that work away, which means the /work failure
+		// was not routed around after all and its lost evidence still counts.
+		//
+		// Forgiving at the recovery site instead reports a PRISTINE lookup: measured,
+		// that applied a rejected candidate's series over the provider's, and where
+		// nothing else answered it pinned this book's miss in the cache for the miss
+		// TTL -- a "no series" verdict manufactured entirely out of a failed call.
+		const redis = fakeRedis()
+		respond(
+			[{ workId: WORK_ID, author: { id: AUTHOR_ID } }],
+			null, // /work fails -> degraded
+			// Recovers by identity, but titles the work something else entirely.
+			{ ...authorRecord, Works: [{ ForeignId: WORK_ID, Title: 'An Entirely Different Novel' }] }
+		)
+		const out = await withGoodreadsSeries(audibleBook(), redis)
 		expect(out.seriesPrimary?.name).toBe('The Tier One Thrillers')
+		expect(redis.store.size).toBe(0)
+	})
+})
+
+describe('volume-prefixed titles: retry with the half after the colon', () => {
+	/**
+	 * Measured corpus, 7 of 1512 albums match `<words> <roman|N>: <rest>`:
+	 *
+	 *  | title                          | existing chain | reaches retry |
+	 *  |--------------------------------|----------------|---------------|
+	 *  | Sons of Valor IV: False Flag   | NO ANSWER      | YES -> fixed  |
+	 *  | A Soldier's Life: Book 3: ...  | NO ANSWER      | yes -> 0 hits |
+	 *  | The 6:20 Man                   | answer         | no (gate 0)   |
+	 *  | Artemis Fowl 6: The Time ...   | answer         | no (gate 0)   |
+	 *  | Diablo III: The Order          | answer         | no (gate 0)   |
+	 *  | He Who Fights with Monsters 11 | answer         | no (gate 0)   |
+	 *  | He Who Fights with Monsters 12 | answer         | no (gate 0)   |
+	 *
+	 * So the LIVE blast radius is one album fixed, none changed. Gates 1 and 2
+	 * are unreachable today -- they are here because a future mirror change that
+	 * turns any of those five into a no-answer would open the path, and HWFWM is
+	 * a series where a wrong match has already cost this operator.
+	 *
+	 * WHY the existing stem retry cannot do this: it strips the LAST colon and
+	 * keeps what precedes it, because providers stack "Series: Title: Marketing".
+	 * Here the provider prepended a VOLUME instead, so the identity is the half
+	 * it discards -- /search "Sons of Valor IV" returns 0 hits while
+	 * /search "False Flag" returns the right work (228408706, Sons of Valor #4).
+	 */
+
+	const sonsWork = {
+		Title: 'False Flag',
+		Authors: [{ Name: 'Brian Andrews' }],
+		Series: [
+			{
+				Title: 'Sons of Valor',
+				ForeignId: 312471,
+				LinkItems: [{ ForeignWorkId: 228408706, PositionInSeries: '4', SeriesPosition: 4 }]
+			}
+		]
+	}
+
+	const sonsBook = (over: Record<string, unknown> = {}) => ({
+		title: 'Sons of Valor IV: False Flag',
+		authors: [{ name: 'Brian Andrews' }],
+		seriesPrimary: { name: 'The Sons of Valor Series', position: '4' },
+		...over
+	})
+
+	/** Every path fetched, so a gate can assert a query was never ISSUED. */
+	const paths = () => fetchMock.mock.calls.map((c) => String(c[0]))
+	/** The exact q= values searched, decoded. Substring matching is useless here:
+	 *  the FULL-title search already contains the post-colon half, so a loose
+	 *  needle reports the third pass ran when it did not. */
+	const queries = () =>
+		paths()
+			.filter((u) => u.includes('/search'))
+			.map((u) => decodeURIComponent(u.split('q=')[1] ?? ''))
+	const searchedExactly = (q: string) => queries().includes(q)
+
+	afterEach(() => fetchMock.mockReset())
+
+	test('the post-colon half recovers the series', async () => {
+		// pass 1 full title: 0 hits. pass 2 stem "Sons of Valor IV": 0 hits.
+		// pass 3 "False Flag": the right work.
+		respond([], [], [{ workId: 228408706, author: { id: 5155903 } }], sonsWork)
+		const out = await withGoodreadsSeries(sonsBook(), null)
+		expect(out.seriesPrimary?.name).toBe('Sons of Valor')
+		expect(out.seriesPrimary?.position).toBe('4')
+	})
+
+	test('GATE 2: an answer whose series disagrees is rejected (the HWFWM shape)', async () => {
+		// The post-colon half is generic sales copy, so the search lands on an
+		// unrelated work. Its series does not match the one we already hold, so
+		// the provider series must stand.
+		const strayWork = {
+			Title: 'A LitRPG Adventure',
+			Authors: [{ Name: 'Shirtaloon' }],
+			Series: [
+				{
+					Title: 'Some Other Series',
+					ForeignId: 99,
+					LinkItems: [{ ForeignWorkId: 555, PositionInSeries: '1' }]
+				}
+			]
+		}
+		respond([], [], [{ workId: 555, author: { id: 1 } }], strayWork)
+		const out = await withGoodreadsSeries(
+			{
+				title: 'He Who Fights with Monsters 11: A LitRPG Adventure',
+				authors: [{ name: 'Shirtaloon' }],
+				seriesPrimary: { name: 'He Who Fights with Monsters', position: '11' }
+			},
+			null
+		)
+		expect(out.seriesPrimary?.name).toBe('He Who Fights with Monsters')
+	})
+
+	test('GATE 2: an answer with NO series is rejected (the Diablo shape)', async () => {
+		respond([], [], [{ workId: 777, author: { id: 1 } }], {
+			Title: 'The Order',
+			Authors: [{ Name: 'Nate Kenyon' }],
+			Series: []
+		})
+		const out = await withGoodreadsSeries(
+			{
+				title: 'Diablo III: The Order',
+				authors: [{ name: 'Nate Kenyon' }],
+				seriesPrimary: { name: 'Diablo', position: '8' }
+			},
+			null
+		)
+		expect(out.seriesPrimary?.name).toBe('Diablo')
+	})
+
+	test('GATE 1: a clock time is not a volume -- no third search at all', async () => {
+		// "The 6:20 Man": the pre-colon half is "The", which is not a volume
+		// designation of "The 6:20 Man". CALL COUNT is the assertion: two searches
+		// (full + stem), never a third.
+		respond([], [])
+		await withGoodreadsSeries(
+			{
+				title: 'The 6:20 Man',
+				authors: [{ name: 'David Baldacci' }],
+				seriesPrimary: { name: 'The 6:20 Man', position: '1' }
+			},
+			null
+		)
+		expect(searchedExactly('20 Man David Baldacci')).toBe(false)
+	})
+
+	test('GATE 1: no provider series means nothing to verify against, so no retry', async () => {
+		respond([], [])
+		await withGoodreadsSeries(
+			{ title: 'Sons of Valor IV: False Flag', authors: [{ name: 'Brian Andrews' }] },
+			null
+		)
+		expect(searchedExactly('False Flag Brian Andrews')).toBe(false)
+	})
+
+	test('a SINGLE roman letter is not treated as a volume (deliberate)', async () => {
+		// "The Expanse I: Leviathan Wakes" would in fact retry correctly -- the
+		// post-colon half IS the real title. It is excluded anyway: a lone I/V/X/L/C
+		// is far more often an initial or a word than a volume, and nothing in the
+		// 1512-album library needs it. Widening the net for a case we do not have
+		// is how the earlier title heuristics went wrong, so this pins the narrow
+		// choice rather than leaving it to drift.
+		respond([], [])
+		await withGoodreadsSeries(
+			{
+				title: 'The Expanse I: Leviathan Wakes',
+				authors: [{ name: 'James S. A. Corey' }],
+				seriesPrimary: { name: 'The Expanse', position: '1' }
+			},
+			null
+		)
+		expect(searchedExactly('Leviathan Wakes James S. A. Corey')).toBe(false)
+	})
+
+	test('GATE 0: a book the first pass answers never reaches the retry', async () => {
+		respond([{ workId: 228408706, author: { id: 5155903 } }], sonsWork)
+		const out = await withGoodreadsSeries(sonsBook(), null)
+		expect(out.seriesPrimary?.name).toBe('Sons of Valor')
+		// Not a raw call count: a series carrying a ForeignId also triggers one
+		// /series/{id} alias fetch. What matters is that no SECOND search ran.
+		expect(paths().filter((u) => u.includes('/search')).length).toBe(1)
 	})
 })

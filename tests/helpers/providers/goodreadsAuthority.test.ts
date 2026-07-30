@@ -41,17 +41,22 @@ const respond = (...bodies: Array<unknown | null>) => {
 }
 
 /**
- * A /work payload placing OUR work (id 42) in `series` at `position`.
+ * A /work payload placing OUR work (id 42 by default) in `series` at `position`.
  *
  * `Authors` defaults to empty, which the author gate treats as "nothing to
  * check" -- so these fixtures exercise the series logic without every one of
  * them having to name an author. Pass `{author}` to exercise the gate itself.
+ *
+ * Pass `{workId}` whenever the /search hit names a work other than 42. The
+ * LinkItem has to NAME the work being looked up: positionFor only falls back to a
+ * lone link when that link omits ForeignWorkId, precisely so a link belonging to a
+ * different work cannot lend it its number.
  */
 const work = (
 	title: string,
 	series: string,
 	position: string | number | null,
-	opts: { author?: string } = {}
+	opts: { author?: string; workId?: number } = {}
 ) => ({
 	Title: title,
 	Authors: opts.author ? [{ Name: opts.author }] : [],
@@ -60,7 +65,7 @@ const work = (
 			Title: series,
 			LinkItems: [
 				{
-					ForeignWorkId: 42,
+					ForeignWorkId: opts.workId ?? 42,
 					PositionInSeries: position == null ? undefined : String(position),
 					SeriesPosition: typeof position === 'number' ? position : undefined
 				}
@@ -466,7 +471,7 @@ describe('goodreads as series authority', () => {
 		expect(nine.seriesPrimary?.position).toBe('9')
 		respond(
 			[{ workId: 43 }],
-			work('Defiance of the Fall, Book 10', 'Defiance of the Fall', 10)
+			work('Defiance of the Fall, Book 10', 'Defiance of the Fall', 10, { workId: 43 })
 		)
 		const ten = await withGoodreadsSeries(
 			book({
