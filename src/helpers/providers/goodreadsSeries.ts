@@ -495,6 +495,15 @@ function isOrdering(series: WorkSeries): boolean {
 /** A franchise umbrella: demoted, but eligible to be rescued. */
 function isUmbrella(series: WorkSeries): boolean {
 	if (isOrdering(series)) return false
+	// A HYPHEN-joined coinage first: \w cannot cross a hyphen, so "Spider-Verse"
+	// tokenizes to the bare word "Verse", which the stopword list (rightly) holds
+	// as an ordinary English word. Measured on the mirror, 8 titles diverge between
+	// this predicate and the plain /\b\w*verse\b/ it replaced, and 4 sit on
+	// multi-series works -- where the undetected umbrella entered the pool as CLEAN
+	// and won on member count, overwriting a positioned sub-series.
+	// The space-separated case is deliberately NOT exempted: a bare "Verse" after a
+	// space is genuinely ambiguous, and "Reverse Harem Story" is a real shelf.
+	if (/[\w'’]-verse\b/i.test(series.Title ?? '')) return true
 	// Every -verse word, not just the first: "Reverse Harem Universe" must still
 	// read as an umbrella on the strength of "Universe".
 	const words = (series.Title ?? '').match(SERIES_UMBRELLA_RE) ?? []
@@ -1530,6 +1539,8 @@ async function lookupByTitle(
 		let ranked = all
 		let variantOnly = false
 		let rescuedOver: string[] | undefined
+		let countProbe: LookupState | undefined
+		let rescuedOverSeries: WorkSeries[] | undefined
 		if (all.length > 1) {
 			// Drop edition-variants, franchise orderings and umbrellas, but only if
 			// a clean series survives -- otherwise keep them, a variant beats none.
@@ -1564,12 +1575,22 @@ async function lookupByTitle(
 				// replacing a provider "Elantris #2" with the umbrella that displaced
 				// Elantris is the one case where this rescue makes a shelf worse
 				// rather than better.
-				if (rescued.length) rescuedOver = clean.map((s) => String(s.Title))
+				if (rescued.length) {
+					rescuedOver = clean.map((s) => String(s.Title))
+					rescuedOverSeries = clean
+				}
 				pool = rescued.length ? [...clean, ...rescued] : clean
 			}
 			const counts = new Map<WorkSeries, number>()
+			// The counts get their own probe, like /work and /author. They are paid
+			// BEFORE the volume veto, so a cosmetic count failure on a candidate the
+			// veto then discards used to degrade the shared state permanently -- and a
+			// later clean hit was refused because of a failure that belonged to a
+			// candidate nobody kept. Flushed onto the shared state at the return path
+			// instead (a wrong count really does misrank the answer we DO return).
+			countProbe = newLookupState()
 			for (const s of pool) {
-				counts.set(s, await seriesMemberCount(s.ForeignId, state, logger))
+				counts.set(s, await seriesMemberCount(s.ForeignId, countProbe, logger))
 			}
 			// A series that cannot POSITION our book is useless for shelving
 			// however large, so positioned series rank first; among those the
@@ -1660,7 +1681,28 @@ async function lookupByTitle(
 			}
 			result.primary = await renamed(ranked[0], result.primary)
 			if (result.secondary) result.secondary = await renamed(ranked[1], result.secondary)
+			// rescuedOver holds CANONICAL titles, but the provider names the shelf in
+			// the display language -- the same response can return secondary "Inkworld"
+			// while rescuedOver still says "Tintenwelt", so Gate C never matched and
+			// the umbrella took the shelf it exists to protect. Record both forms.
+			// Free: every entry was in `pool`, so its /series record is already
+			// memoized by the member-count pass above.
+			if (result.rescuedOver && rescuedOverSeries) {
+				const aliases: string[] = []
+				for (const chosen of rescuedOverSeries) {
+					const aliasProbe = newLookupState()
+					const info = await seriesRecord(chosen.ForeignId, aliasProbe, logger)
+					if (aliasProbe.degraded && state) state.uncacheable = true
+					const alias = seriesAliasFor(info.description, language)
+					if (alias && !result.rescuedOver.includes(alias)) aliases.push(alias)
+				}
+				if (aliases.length) result.rescuedOver = [...result.rescuedOver, ...aliases]
+			}
 		}
+		// This answer SURVIVED the veto, so a failed member count really did rank it.
+		// Flush the count probe onto the shared state now -- a discarded candidate's
+		// count failure died with it a few lines above.
+		if (countProbe?.degraded && state) state.degraded = true
 		logger?.debug({ workId, series: result }, 'goodreads series: resolved')
 		return result
 	}

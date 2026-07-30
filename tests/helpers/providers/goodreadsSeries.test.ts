@@ -1503,3 +1503,250 @@ describe('defects found by review of the 2026-07-29/30 series work', () => {
 		expect(out?.primary).toEqual({ name: 'The Cemeteries of Amalo', position: '2' })
 	})
 })
+
+describe('review round two: shared state, hyphenated umbrellas, aliased rescues', () => {
+	const members = (n: number) => ({ LinkItems: Array.from({ length: n }, (_, i) => i) })
+
+	test('a count failure on a DISCARDED candidate does not kill the lookup', async () => {
+		// The per-hit workProbe idiom from 5863bc7 was never extended to the /series
+		// member counts, which still write to the SHARED state. The volume veto is the
+		// only `continue` that can fire AFTER the counts, so a cosmetic count failure
+		// on a candidate the veto then throws away can never be rewound -- and a later
+		// clean hit is refused because state.degraded is set.
+		//
+		// Reachable: of the 11 library rows the veto still fires on, the 3 Jack Ryan
+		// chronological ones sit on works carrying THREE series, so a count IS paid
+		// and then discarded. A 429 also arms a module-wide 60s backoff, so count
+		// failures arrive in bursts rather than singly.
+		respond(
+			[{ workId: 42 }, { workId: 43 }],
+			{
+				Title: 'Alpha Book',
+				Series: [
+					{
+						Title: 'Alpha One',
+						ForeignId: 501,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '5' }]
+					},
+					{
+						Title: 'Alpha Two',
+						ForeignId: 502,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '8' }]
+					}
+				]
+			},
+			null, // /series/501 fails -- a count on the candidate the veto discards
+			members(9),
+			{
+				Title: 'Alpha Book',
+				Series: [
+					{
+						Title: 'Alpha Three',
+						ForeignId: 503,
+						LinkItems: [{ ForeignWorkId: 43, PositionInSeries: '3' }]
+					}
+				]
+			}
+		)
+		const state = { degraded: false }
+		const out = await fetchGoodreadsSeries(
+			'Alpha Book',
+			'An Author',
+			undefined,
+			state,
+			'Probe Series, Book 3'
+		)
+		expect(out?.primary).toEqual({ name: 'Alpha Three', position: '3' })
+		// The surviving answer paid no failed count of its own, so nothing may be
+		// degraded -- that flag is what stops the answer being applied AND cached.
+		expect(state.degraded).toBe(false)
+	})
+
+	test('a count failure on the SURVIVING answer still degrades', async () => {
+		// The counterpart: the documented guarantee is that a wrong count misranks
+		// the pool, so a failure that touched the answer we return must still be
+		// reported. Fixing the above by simply never propagating would break this.
+		respond(
+			[{ workId: 42 }],
+			{
+				Title: 'Beta Book',
+				Series: [
+					{
+						Title: 'Beta One',
+						ForeignId: 511,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }]
+					},
+					{
+						Title: 'Beta Two',
+						ForeignId: 512,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '2' }]
+					}
+				]
+			},
+			null,
+			members(9)
+		)
+		const state = { degraded: false }
+		await fetchGoodreadsSeries('Beta Book', 'An Author', undefined, state)
+		expect(state.degraded).toBe(true)
+	})
+
+	test('a hyphen-joined -Verse still reads as a franchise umbrella', async () => {
+		// SERIES_UMBRELLA_RE matches \w* words, and \w cannot cross a hyphen, so
+		// "Spider-Verse" tokenizes to the bare word "Verse" -- which is in the
+		// stopword list. The umbrella then entered the pool as a CLEAN series and won
+		// on member count, overwriting the provider's positioned sub-series.
+		// Measured on the live mirror: 8 titles diverge between the old and new
+		// predicate, 4 of them on multi-series works.
+		respond(
+			[{ workId: 42 }],
+			{
+				Title: 'A Spider Book',
+				Series: [
+					{
+						Title: 'Spider-Man',
+						ForeignId: 601,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '5' }]
+					},
+					{
+						Title: 'Spider-Verse',
+						ForeignId: 602,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '3' }]
+					}
+				]
+			},
+			members(3),
+			members(40)
+		)
+		const out = await fetchGoodreadsSeries('A Spider Book', 'An Author')
+		expect(out?.primary).toEqual({ name: 'Spider-Man', position: '5' })
+	})
+
+	test('the words the stopword list exists for are still NOT umbrellas', async () => {
+		// "Reverse Harem Story" and "Lucky Lady Reverse Harem" are real series and are
+		// exactly the false positives the stopword list was added to fix. The hyphen
+		// exemption must not readmit them.
+		respond(
+			[{ workId: 42 }],
+			{
+				Title: 'A Harem Book',
+				Series: [
+					{
+						Title: 'Reverse Harem Story',
+						ForeignId: 611,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '2' }]
+					},
+					{
+						Title: 'Some Other Shelf',
+						ForeignId: 612,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '4' }]
+					}
+				]
+			},
+			members(30),
+			members(3)
+		)
+		const out = await fetchGoodreadsSeries('A Harem Book', 'An Author')
+		// Both are clean, so the larger one wins on member count -- the point is that
+		// "Reverse Harem Story" was NOT demoted as an umbrella.
+		expect(out?.primary).toEqual({ name: 'Reverse Harem Story', position: '2' })
+	})
+})
+
+describe('Gate C must survive the shelf-language rename', () => {
+	afterEach(() => {
+		fetchMock.mockReset()
+		delete process.env.GOODREADS_SERIES_LANGUAGE
+	})
+
+	const members = (n: number) => ({ LinkItems: Array.from({ length: n }, (_, i) => i) })
+	const TINTENWELT_DESC =
+		'<b>Also known as:</b>\n - Inkworld (English)\n - Mundo de tinta (Spanish)'
+
+	// rescuedOver is filled from the CANONICAL Goodreads titles inside the ranking,
+	// while the shelf-language rename rewrites only result.primary/secondary. So the
+	// same response can hand back secondary "Inkworld" and rescuedOver ["Tintenwelt"]
+	// -- and a provider holding the English name never matched, letting the umbrella
+	// take a shelf Gate C exists to protect. The rename is live on this deployment
+	// (Inkheart resolves to "Inkworld" while /work and /series both say "Tintenwelt").
+	const aliasedRescue = (base: number) => ({
+		Title: 'The Color of Revenge',
+		Series: [
+			{
+				Title: 'Tintenwelt',
+				ForeignId: base + 1,
+				LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '' }]
+			},
+			{
+				Title: 'The Funke Universe',
+				ForeignId: base + 2,
+				LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '4' }]
+			}
+		]
+	})
+
+	test('a provider holding the ALIASED name is still protected', async () => {
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		respond(
+			[{ workId: 42 }],
+			aliasedRescue(92000),
+			{ Title: 'Tintenwelt', Description: TINTENWELT_DESC, LinkItems: [1, 2, 3] },
+			members(40),
+			{ Title: 'The Funke Universe', Description: 'TODO', LinkItems: [1, 2, 3] },
+			{ Title: 'Tintenwelt', Description: TINTENWELT_DESC, LinkItems: [1, 2, 3] }
+		)
+		const out = await withGoodreadsSeries(
+			{
+				title: 'The Color of Revenge',
+				authors: [{ name: 'Cornelia Funke' }],
+				seriesPrimary: { name: 'Inkworld', position: '4' }
+			},
+			fakeRedis()
+		)
+		expect(out.seriesPrimary).toEqual({ name: 'Inkworld', position: '4' })
+	})
+
+	test('a provider holding the CANONICAL name is still protected', async () => {
+		// The pre-existing arm must not regress while the alias arm is added.
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		respond(
+			[{ workId: 42 }],
+			aliasedRescue(92100),
+			{ Title: 'Tintenwelt', Description: TINTENWELT_DESC, LinkItems: [1, 2, 3] },
+			members(40),
+			{ Title: 'The Funke Universe', Description: 'TODO', LinkItems: [1, 2, 3] },
+			{ Title: 'Tintenwelt', Description: TINTENWELT_DESC, LinkItems: [1, 2, 3] }
+		)
+		const out = await withGoodreadsSeries(
+			{
+				title: 'The Color of Revenge',
+				authors: [{ name: 'Cornelia Funke' }],
+				seriesPrimary: { name: 'Tintenwelt', position: '4' }
+			},
+			fakeRedis()
+		)
+		expect(out.seriesPrimary).toEqual({ name: 'Tintenwelt', position: '4' })
+	})
+
+	test('an UNRELATED provider series is still overwritten', async () => {
+		// Gate C stays narrow: only the displaced series is protected.
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		respond(
+			[{ workId: 42 }],
+			aliasedRescue(92200),
+			{ Title: 'Tintenwelt', Description: TINTENWELT_DESC, LinkItems: [1, 2, 3] },
+			members(40),
+			{ Title: 'The Funke Universe', Description: 'TODO', LinkItems: [1, 2, 3] },
+			{ Title: 'Tintenwelt', Description: TINTENWELT_DESC, LinkItems: [1, 2, 3] }
+		)
+		const out = await withGoodreadsSeries(
+			{
+				title: 'The Color of Revenge',
+				authors: [{ name: 'Cornelia Funke' }],
+				seriesPrimary: { name: 'Something Else Entirely', position: '9' }
+			},
+			fakeRedis()
+		)
+		expect(out.seriesPrimary?.name).toBe('The Funke Universe')
+	})
+})
