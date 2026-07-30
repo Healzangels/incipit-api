@@ -65,17 +65,17 @@ async function libraryRecords(): Promise<Map<string, Set<string>>> {
 	return ids
 }
 
-async function served(id: string): Promise<Answer> {
+async function served(id: string): Promise<Answer & { available: boolean }> {
 	try {
 		const r = await fetch(`${API}/books/${encodeURIComponent(id)}?region=us`)
-		if (!r.ok) return { primary: `UNAVAILABLE(${r.status})`, secondary: null }
+		if (!r.ok) return { primary: `UNAVAILABLE(${r.status})`, secondary: null, available: false }
 		const d = (await r.json()) as {
 			seriesPrimary?: { name?: string; position?: string | null }
 			seriesSecondary?: { name?: string; position?: string | null }
 		}
-		return { primary: show(d.seriesPrimary), secondary: show(d.seriesSecondary) }
+		return { primary: show(d.seriesPrimary), secondary: show(d.seriesSecondary), available: true }
 	} catch {
-		return { primary: 'UNAVAILABLE(error)', secondary: null }
+		return { primary: 'UNAVAILABLE(error)', secondary: null, available: false }
 	}
 }
 
@@ -94,6 +94,8 @@ async function main(): Promise<void> {
 
 	const now = new Date().toISOString().slice(0, 10)
 	const fresh: string[] = []
+	const flaps: string[] = []
+	const resolved: { id: string; is: Answer }[] = []
 	const changed: { id: string; was: Answer; is: Answer }[] = []
 	const queue = [...records.entries()]
 	let done = 0
@@ -109,7 +111,21 @@ async function main(): Promise<void> {
 				ledger[id] = { ...now_, firstSeen: now, reviewedAt: now, boxes: [...boxes] }
 			} else {
 				prior.boxes = [...boxes]
-				if (prior.primary !== now_.primary) {
+				const priorUnavailable = Boolean(prior.primary?.startsWith('UNAVAILABLE'))
+				if (!now_.available) {
+					// A transient 404/429 is NOT a reading: never queue a real baseline
+					// against it, never overwrite the ledger with it.
+					if (!priorUnavailable) flaps.push(id)
+				} else if (priorUnavailable) {
+					// The record resolved: heal the baseline silently (informational).
+					resolved.push({ id, is: now_ })
+					ledger[id] = {
+						...prior,
+						primary: now_.primary,
+						secondary: now_.secondary,
+						reviewedAt: now
+					}
+				} else if (prior.primary !== now_.primary) {
 					changed.push({
 						id,
 						was: { primary: prior.primary, secondary: prior.secondary },
@@ -128,12 +144,15 @@ async function main(): Promise<void> {
 
 	const gone = Object.keys(ledger).filter((id) => !records.has(id))
 	console.log(`\nNEW (auto-baselined): ${fresh.length}`)
+	console.log(`FLAPS (transient unavailability, not queued): ${flaps.length}`)
+	console.log(`RESOLVED (was unavailable, baseline healed): ${resolved.length}`)
+	for (const r of resolved) console.log(`  ${r.id} -> ${r.is.primary ?? 'NONE'}`)
 	console.log(`CHANGED (review queue): ${changed.length}`)
 	for (const c of changed)
 		console.log(`  ${c.id}  was ${c.was.primary ?? 'NONE'}  ->  now ${c.is.primary ?? 'NONE'}`)
 	console.log(`GONE (in ledger, in no library): ${gone.length}`)
 
-	if (init || accept || fresh.length) {
+	if (init || accept || fresh.length || resolved.length) {
 		writeFileSync(LEDGER, JSON.stringify(ledger, null, 1))
 		console.log(`ledger written: ${Object.keys(ledger).length} records`)
 	}
