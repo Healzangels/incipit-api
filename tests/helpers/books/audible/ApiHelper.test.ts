@@ -318,19 +318,28 @@ describe('ApiHelper edge cases should', () => {
 		).toEqual({ asin: 'B00YDDXB61', name: 'Second Series', position: '2' })
 	})
 
-	test('a lone series that publication_name CONTRADICTS is not rescued', async () => {
-		// publication_name naming a different series is evidence, not absence: the
-		// rescue fires only when there was nothing to choose by.
+	test('a lone series is rescued when publication_name names a SUB-ARC', async () => {
+		// THE REAL LIVE SHAPE, measured 2026-07-30 with the response groups this class
+		// actually requests (publication_name is ABSENT from a narrower
+		// series,product_desc,contributors fetch -- reading it there makes the field
+		// look null and invites the wrong gate):
+		//
+		//   B00HFW9SUE  publication_name "Legend of Drizzt: Paths of Darkness"
+		//               series           [{B00YDDXB60, "Legend of Drizzt", seq 12}]
+		//
+		// publication_name is a marketing label naming the sub-arc; the series array
+		// holds the parent. They never match, so the book had no provider series at
+		// all. The lone entry IS the shelf.
 		helper.audibleResponse = {
 			...mockResponse.product,
 			content_delivery_type: 'MultiPartBook',
-			publication_name: 'A Different Series'
+			publication_name: 'Legend of Drizzt: Paths of Darkness'
 		}
 		expect(
 			helper.getSeriesPrimary([
-				{ asin: 'B00YDDXB60', title: 'Legend of Drizzt', sequence: '8', url: '' }
+				{ asin: 'B00YDDXB60', title: 'Legend of Drizzt', sequence: '12', url: '' }
 			])
-		).toBeUndefined()
+		).toEqual({ asin: 'B00YDDXB60', name: 'Legend of Drizzt', position: '12' })
 	})
 
 	test('one VALID candidate beside an unparseable entry is still rescued', async () => {
@@ -341,14 +350,14 @@ describe('ApiHelper edge cases should', () => {
 		helper.audibleResponse = {
 			...mockResponse.product,
 			content_delivery_type: 'MultiPartBook',
-			publication_name: undefined
+			publication_name: 'Legend of Drizzt: Paths of Darkness'
 		}
 		expect(
 			helper.getSeriesPrimary([
 				{ asin: 'not-an-asin', title: 'Broken Entry', sequence: '1', url: '' },
-				{ asin: 'B00YDDXB60', title: 'Legend of Drizzt', sequence: '8', url: '' }
+				{ asin: 'B00YDDXB60', title: 'Legend of Drizzt', sequence: '12', url: '' }
 			])
-		).toEqual({ asin: 'B00YDDXB60', name: 'Legend of Drizzt', position: '8' })
+		).toEqual({ asin: 'B00YDDXB60', name: 'Legend of Drizzt', position: '12' })
 	})
 
 	test('the lone-series rescue does not populate the SECONDARY slot too', async () => {

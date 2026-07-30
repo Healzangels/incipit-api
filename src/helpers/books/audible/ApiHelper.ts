@@ -227,13 +227,9 @@ class ApiHelper {
 	 */
 	getSeriesPrimary(allSeries: AudibleSeries[]): ApiSeries | undefined {
 		let seriesPrimary = {}
-		// The lone valid candidate, for the no-publication_name rescue below.
-		// publicationName is captured INSIDE the loop, where content_delivery_type has
-		// already narrowed the response union -- the field does not exist on every
-		// member of that union, so it cannot be read after the loop.
+		// The lone valid candidate, for the unmatched-publication_name rescue below.
 		let onlyCandidate: ApiSeries | undefined
 		let candidateCount = 0
-		let publicationName: string | undefined
 		allSeries.forEach((series: AudibleSeries) => {
 			if (!this.audibleResponse) throw new Error(ErrorMessageNoData(this.asin, 'ApiHelper'))
 			// Only return series for MultiPartBook/SinglePartBook, makes linter happy
@@ -243,7 +239,6 @@ class ApiHelper {
 			) {
 				return undefined
 			}
-			publicationName = this.audibleResponse.publication_name
 			const seriesJson = this.getSeries(series)
 			if (seriesJson) {
 				candidateCount += 1
@@ -257,25 +252,34 @@ class ApiHelper {
 				seriesPrimary = seriesJson
 			}
 		})
-		// RESCUE: Audible often omits publication_name entirely while still naming
-		// exactly one series. The match above can then never fire, so the book comes
-		// back with NO provider series at all -- measured on every Legend of Drizzt
-		// audiobook (B00FRILVJO "Starless Night": publication_name null, series
-		// [{B00YDDXB60, "Legend of Drizzt", seq 8}]). Those books depend entirely on
-		// the Goodreads answer for a shelf, so anything that makes Goodreads quiet
-		// leaves them unshelved.
+		// RESCUE: publication_name is a marketing label and routinely names a SUB-ARC
+		// that is not in the series array at all, so the match above never fires and
+		// the book comes back with NO provider series. Measured against live Audible
+		// 2026-07-30 on every Legend of Drizzt audiobook:
 		//
-		// Deliberately narrow on both sides:
-		//   * ONE candidate only. With several entries and nothing to choose by there
-		//     is no evidence which is the shelf, and guessing would move books off
-		//     shelves they already sit on. Measured cost of refusing that case: zero,
-		//     0 of 1203 book-type records hit it.
-		//   * publication_name ABSENT, not merely unmatched. A publication_name naming
-		//     some other series is evidence, not absence, and must not be overridden.
-		// No "and seriesPrimary is still empty" clause: with publication_name absent
-		// the match above cannot have fired, so it is always empty here. A condition
-		// that can never be false is a line no test can kill.
-		if (!publicationName && candidateCount === 1) {
+		//   B00FRILVJO  publication_name "Legend of Drizzt: Legacy of the Drow"
+		//   B00HFW9SUE  publication_name "Legend of Drizzt: Paths of Darkness"
+		//   B00RNGB73S  publication_name "Legend of Drizzt: Companions Codex"
+		//   ...all with series [{B00YDDXB60, "Legend of Drizzt", seq N}] -- the PARENT.
+		//
+		// Those books depend entirely on the Goodreads answer for a shelf, so anything
+		// that makes Goodreads quiet leaves them unshelved.
+		//
+		// NOTE the response group matters: publication_name is absent from a
+		// series,product_desc,contributors fetch and only appears with product_attrs /
+		// product_extended_attrs, which is what this class requests. A narrower probe
+		// makes the field look null and invites the wrong gate.
+		//
+		// ONE parseable candidate only. With several entries and nothing to choose by
+		// there is no evidence which is the shelf, and guessing would move books off
+		// shelves they already sit on. Measured cost of refusing: 0 of 1203 book-type
+		// records hit that case.
+		// No "and seriesPrimary is still empty" clause. It reads like a safety rail
+		// but cannot change the outcome: with exactly one PARSEABLE candidate, the
+		// only value the match above could have assigned is that same candidate. A
+		// condition no mutation can kill is worse than no condition -- it implies a
+		// guarantee the code does not actually make.
+		if (candidateCount === 1) {
 			seriesPrimary = onlyCandidate ?? {}
 		}
 		// Check if series is valid
