@@ -693,7 +693,14 @@ const AUTHOR_MISS_TTL_SECONDS = 3600
 // v4: the shelf-language rename (Tintenwelt -> Inkworld) changed what a lookup
 // answers, and the hit TTL is a week -- a version bump is how every cached
 // canonical-name answer re-resolves now instead of after TTL.
-const CACHE_PREFIX = 'grseries:v4:'
+// v5: the key gained the volume hint, the folded provider series, and the
+// serve language -- every input that changes the ANSWER (v4 keyed only
+// title|author, and a hintless row's entry could poison a hinted sibling:
+// probe-proven two-books-at-#1 through the cache). A prefix bump is the
+// file's convention for "cached answers are wrong at rest"; the v4 entries
+// orphan and every row recomputes cold on next request, with the drift
+// ledger's review queue as the designed landing net for the turnover.
+const CACHE_PREFIX = 'grseries:v5:'
 
 /**
  * Whether a Goodreads position can be used as a shelf key.
@@ -748,12 +755,33 @@ export function volumeHintRulesOutWork(
 	return !workPositions.some((p) => Number(p) === want)
 }
 
-function cacheKey(title: string, author: string | null): string {
+function cacheKey(
+	title: string,
+	author: string | null,
+	subtitle?: string | null,
+	providerSeriesName?: string | null
+): string {
 	// The RAW title, not normalizeTitle: the normalizer exists to score matches,
 	// and it strips exactly the ", Book N" marker that distinguishes one volume
 	// of a series from the next. A cache key only needs to be stable, not fuzzy.
 	const flat = title.trim().replace(/\s+/g, ' ').toLowerCase()
-	return CACHE_PREFIX + flat + '|' + (author || '').toLowerCase()
+	// Only the DERIVED inputs join the key, not the raw subtitle: two rows whose
+	// subtitles differ cosmetically but yield the same volume hint deserve the
+	// same entry. The provider series is folded for the same reason.
+	const hint =
+		VOLUME_HINT_RE.exec(title)?.[1] ?? (subtitle ? VOLUME_HINT_RE.exec(subtitle)?.[1] : undefined)
+	return (
+		CACHE_PREFIX +
+		flat +
+		'|' +
+		(author || '').toLowerCase() +
+		'|' +
+		(hint ?? '') +
+		'|' +
+		(providerSeriesName ? foldSeriesName(providerSeriesName) : '') +
+		'|' +
+		(preferredSeriesLanguage() ?? '')
+	)
 }
 
 /**
@@ -834,7 +862,7 @@ async function seriesEnriched<T extends SeriesEnrichable>(
 
 	const title = book.title
 	const author = book.authors?.[0]?.name ?? null
-	const key = cacheKey(title, author)
+	const key = cacheKey(title, author, book.subtitle, book.seriesPrimary?.name)
 
 	let result: GoodreadsSeriesResult | null | undefined
 	if (redis) {

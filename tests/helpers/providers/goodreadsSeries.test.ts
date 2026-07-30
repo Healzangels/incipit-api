@@ -572,7 +572,7 @@ describe('series name hygiene', () => {
 		// answers converge -- not only inside the lookup.
 		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
 		fetchMock.mockReset()
-		const redis = fakeRedisFor('grseries:v4:crooked kingdom|leigh bardugo', {
+		const redis = fakeRedisFor('grseries:v5:crooked kingdom|leigh bardugo|||English', {
 			primary: { name: 'Six of Crows ', position: '2' }
 		})
 		const book = { title: 'Crooked Kingdom', authors: [{ name: 'Leigh Bardugo' }] }
@@ -790,11 +790,14 @@ describe('a recovered work must not be discarded as degraded', () => {
 		// not just the queue position, or a regression that re-fetched /work would
 		// consume this fixture's body and still look green.
 		expect(fetchMock.mock.calls[2][0]).toContain(`/author/${AUTHOR_ID}`)
-		const key = `grseries:v4:the adversary|brian andrews`
-		expect(redis.store.get(key)).toBe(
+		// The v5 key carries the volume hint + folded provider series + language;
+		// assert the single grseries entry rather than hand-assembling segments.
+		const key = [...redis.store.keys()].find((k) => k.startsWith('grseries:v5:'))
+		expect(key).toBeDefined()
+		expect(redis.store.get(key as string)).toBe(
 			JSON.stringify({ primary: { name: 'Tier One', position: '9' } })
 		)
-		expect(redis.expires.get(key)).toBe(HIT_TTL)
+		expect(redis.expires.get(key as string)).toBe(HIT_TTL)
 	})
 
 	test('a failed recovery keeps the degradation, so no stem retry runs', async () => {
@@ -1856,5 +1859,150 @@ describe('the volume veto: who may vouch for a volume', () => {
 			'Legend of Drizzt: Legacy of the Drow, Book 2'
 		)
 		expect(out?.primary).toEqual({ name: 'The Legend of Drizzt', position: '8' })
+	})
+})
+
+describe('the cache key carries everything the answer depends on', () => {
+	// PROBE-PROVEN cross-row poisoning (review 2026-07-30): row A {title
+	// 'Ahriman', no subtitle, no provider series} resolves the sibling work at
+	// #1 and caches it; row B {same title+author, subtitle 'Ahriman, Book 3',
+	// provider Ahriman #3} then read that entry with ZERO fetches, never ran
+	// the volume veto, and was overwritten to #1 — two books at #1 on one
+	// shelf, the exact symptom the veto exists to prevent, reintroduced
+	// through the cache. The key was (title, author) while the answer also
+	// depends on the volume hint, the provider series, and the serve language.
+	const members = (n: number) => ({ LinkItems: Array.from({ length: n }, (_, i) => i) })
+	// The single-series path pays one /series alias fetch (language rename);
+	// an exhausted mock reads as degraded -> uncacheable -> nothing cached, so
+	// every successful-lookup fixture must queue it.
+	const aliasRecord = () => ({ Title: 'Ahriman', Description: 'TODO', LinkItems: [1, 2] })
+	const ahrimanExile = {
+		Title: 'Ahriman: Exile',
+		Series: [
+			{
+				Title: 'Ahriman',
+				ForeignId: 901,
+				LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }]
+			}
+		]
+	}
+
+	test("a row WITH a volume hint never consumes a hintless row's entry", async () => {
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		const redis = fakeRedis()
+		// Row A: no subtitle, no provider series — adopts Ahriman #1 and caches it.
+		respond([{ workId: 42 }], ahrimanExile, aliasRecord())
+		const a = await withGoodreadsSeries(
+			{ title: 'Ahriman', authors: [{ name: 'John French' }] },
+			redis
+		)
+		expect(a.seriesPrimary).toEqual({ name: 'Ahriman', position: '1' })
+		expect(redis.store.size).toBeGreaterThan(0)
+
+		// Row B: same title+author, subtitle names Book 3, provider holds #3.
+		// It must MISS the cache (different key), re-run the lookup, and keep
+		// its provider series — not adopt A's #1.
+		respond([{ workId: 42 }], ahrimanExile, aliasRecord())
+		const b = await withGoodreadsSeries(
+			{
+				title: 'Ahriman',
+				subtitle: 'Ahriman, Book 3',
+				authors: [{ name: 'John French' }],
+				seriesPrimary: { name: 'Ahriman', position: '3' }
+			},
+			redis
+		)
+		expect(b.seriesPrimary).toEqual({ name: 'Ahriman', position: '3' })
+		expect(fetchMock).toHaveBeenCalled()
+	})
+
+	test("a row with a DIFFERENT provider series misses a series-less row's null", async () => {
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		const redis = fakeRedis()
+		// Series-less row misses everything and caches the null sentinel.
+		respond([], [])
+		await withGoodreadsSeries(
+			{ title: 'Sons of Valor IV: False Flag', authors: [{ name: 'Brian Andrews' }] },
+			redis
+		)
+		const nullEntries = [...redis.store.values()].filter((v) => v === 'null').length
+		expect(nullEntries).toBe(1)
+
+		// The same title WITH a provider series must not short-circuit on that
+		// sentinel — its gates depend on the series it carries.
+		respond(
+			[],
+			[],
+			[{ workId: 42 }],
+			{
+				Title: 'False Flag',
+				Series: [
+					{
+						Title: 'Sons of Valor',
+						ForeignId: 902,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '4' }]
+					}
+				]
+			},
+			members(4),
+			{ Title: 'Sons of Valor', Description: 'TODO', LinkItems: [1, 2] }
+		)
+		const out = await withGoodreadsSeries(
+			{
+				title: 'Sons of Valor IV: False Flag',
+				authors: [{ name: 'Brian Andrews' }],
+				seriesPrimary: { name: 'The Sons of Valor Series', position: '4' }
+			},
+			redis
+		)
+		expect(out.seriesPrimary?.name).toBe('Sons of Valor')
+	})
+
+	test('the SAME full identity still hits the cache', async () => {
+		// The key must not overshoot: identical inputs -> second call is free.
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		const redis = fakeRedis()
+		respond([{ workId: 42 }], ahrimanExile, aliasRecord())
+		await withGoodreadsSeries(
+			{ title: 'Ahriman: Exile', authors: [{ name: 'John French' }] },
+			redis
+		)
+		fetchMock.mockReset()
+		const again = await withGoodreadsSeries(
+			{ title: 'Ahriman: Exile', authors: [{ name: 'John French' }] },
+			redis
+		)
+		expect(again.seriesPrimary).toEqual({ name: 'Ahriman', position: '1' })
+		expect(fetchMock).not.toHaveBeenCalled()
+	})
+
+	test('cosmetic subtitle variants with the SAME hint share one entry', async () => {
+		// The key carries the DERIVED volume hint, not the raw subtitle: two rows
+		// whose subtitles differ cosmetically but say the same "Book 3" must hit
+		// one entry — keying the raw string would shred the hit rate for nothing.
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		const redis = fakeRedis()
+		const book = (subtitle: string) => ({
+			title: 'Ahriman',
+			subtitle,
+			authors: [{ name: 'John French' }],
+			seriesPrimary: { name: 'Ahriman', position: '3' }
+		})
+		respond([], [], [])
+		await withGoodreadsSeries(book('Ahriman, Book 3'), redis)
+		fetchMock.mockReset()
+		await withGoodreadsSeries(book('Ahriman,  Book 3 '), redis)
+		expect(fetchMock).not.toHaveBeenCalled()
+	})
+
+	test('the key namespace is v5', async () => {
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		const redis = fakeRedis()
+		respond([{ workId: 42 }], ahrimanExile, aliasRecord())
+		await withGoodreadsSeries(
+			{ title: 'Ahriman: Exile', authors: [{ name: 'John French' }] },
+			redis
+		)
+		expect([...redis.store.keys()].every((k) => k.startsWith('grseries:v5:'))).toBe(true)
 	})
 })
