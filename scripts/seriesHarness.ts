@@ -297,14 +297,22 @@ async function main(): Promise<void> {
 			process.exit(2)
 		}
 		const baseline = JSON.parse(readFileSync(BASELINE_PATH, 'utf8')) as { fails: RowResult[] }
-		const baseKeys = new Set(baseline.fails.map((f) => `${f.ratingKey}|${f.classification}`))
-		const fresh = fails.filter((f) => !baseKeys.has(`${f.ratingKey}|${f.classification}`))
-		const healed = baseline.fails.filter(
-			(b) =>
-				!fails.some((f) => f.ratingKey === b.ratingKey && f.classification === b.classification)
+		// New failures key by ROW, not row|class: an already-red album drifting
+		// between red classes (junk name removed -> MISSING instead of WRONG) is
+		// progress to report, not a fresh regression to block on.
+		const baseByRk = new Map(baseline.fails.map((f) => [f.ratingKey, f]))
+		const fresh = fails.filter((f) => !baseByRk.has(f.ratingKey))
+		const shifted = fails.filter(
+			(f) =>
+				baseByRk.has(f.ratingKey) && baseByRk.get(f.ratingKey)?.classification !== f.classification
 		)
+		const healed = baseline.fails.filter((b) => !fails.some((f) => f.ratingKey === b.ratingKey))
 		console.log(`\n== gate ==  baseline reds: ${baseline.fails.length}  now: ${fails.length}`)
 		for (const h of healed) console.log(`  HEALED  rk${h.ratingKey} ${h.album.slice(0, 40)}`)
+		for (const c of shifted)
+			console.log(
+				`  CLASS-SHIFT  rk${c.ratingKey} ${c.album.slice(0, 40)} ${baseByRk.get(c.ratingKey)?.classification} -> ${c.classification}`
+			)
 		for (const f of fresh)
 			console.error(`  NEW-FAILURE  ${f.classification} rk${f.ratingKey} ${f.album.slice(0, 40)}`)
 		if (fresh.length || reconcileFailed) process.exit(1)
