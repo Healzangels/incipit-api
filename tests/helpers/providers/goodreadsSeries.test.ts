@@ -1019,3 +1019,212 @@ describe('volume-prefixed titles: retry with the half after the colon', () => {
 		expect(paths().filter((u) => u.includes('/search')).length).toBe(1)
 	})
 })
+
+describe('a rescued umbrella must not spend the sub-series it stepped over', () => {
+	// THE EMPEROR'S SOUL. Measured live 2026-07-29 against the mirror at
+	// 10.0.1.99:8788 and the API at 10.0.1.99:3737:
+	//
+	//   /work/19161502 Series:
+	//     "Elantris"             id 87970   LinkItems[ours] PositionInSeries ""   SeriesPosition 0
+	//     "The Cosmere Universe" id 135117  LinkItems[ours] PositionInSeries "7.5"
+	//   api.audible.com/1.0/catalog/products/B009XEKR3O
+	//     series [{ asin B08KXL8CWM, title "Elantris", sequence "2" }]
+	//   GET /books/B009XEKR3O -> seriesPrimary { "The Cosmere Universe", "7.5" }
+	//   Plex titleSort "Cosmere Universe, Book 7.5 - The Emperor's Soul"
+	//
+	// The umbrella rescue is not missing here -- it is the mechanism that produced
+	// that row. Elantris cannot place the book (PositionInSeries ""), so the rescue
+	// branch re-admits the umbrella, and positioned-first ranking puts it at
+	// ranked[0], where it overwrites Audible's clean, positioned "Elantris #2".
+	//
+	// The module's own doctrine (see the refusals in withGoodreadsSeries) is that a
+	// FALLBACK answer must not spend a clean provider series. The rescue branch is
+	// the one path that produces a fallback without declaring itself one.
+	//
+	// Blast radius, measured over 1401 resolvable library records: exactly ONE sets
+	// rescuedOver -- B009XEKR3O. The gate is inert on the other 1400.
+	const emperorsSoul = (base: number) => ({
+		Title: "The Emperor's Soul",
+		Series: [
+			{
+				Title: 'Elantris',
+				ForeignId: base + 1,
+				LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '', SeriesPosition: 0 }]
+			},
+			{
+				Title: 'The Cosmere Universe',
+				ForeignId: base + 2,
+				LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '7.5' }]
+			}
+		]
+	})
+	const members = (n: number) => ({ LinkItems: Array.from({ length: n }, (_, i) => i) })
+
+	test('the rescue still fires, so a book with NO series is still gap-filled', async () => {
+		// Guard against "fixing" this by deleting the rescue. Its whole purpose is
+		// a book that would otherwise have no shelf at all.
+		respond([{ workId: 42 }], emperorsSoul(200), members(9), members(32))
+		const out = await fetchGoodreadsSeries("The Emperor's Soul", 'Brandon Sanderson')
+		expect(out?.primary).toEqual({ name: 'The Cosmere Universe', position: '7.5' })
+		expect(out?.rescuedOver).toEqual(['Elantris'])
+	})
+
+	test('rescuedOver is NOT set when a clean sub-series could place the book', async () => {
+		// Hoid's Travails: Tress -> #1, Yumi -> #2, both POSITIONED, so
+		// clean.some(canPlace) is true and the rescue branch is never entered.
+		// A previous sub-series demotion was reverted for breaking this shelf.
+		respond(
+			[{ workId: 42 }],
+			{
+				Title: 'Tress of the Emerald Sea',
+				Series: [
+					{
+						Title: "Hoid's Travails",
+						ForeignId: 211,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }]
+					},
+					{
+						Title: 'The Cosmere Universe',
+						ForeignId: 212,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '30' }]
+					}
+				]
+			},
+			members(2)
+		)
+		const out = await fetchGoodreadsSeries('Tress of the Emerald Sea', 'Brandon Sanderson')
+		expect(out?.primary).toEqual({ name: "Hoid's Travails", position: '1' })
+		expect(out?.rescuedOver).toBeUndefined()
+	})
+
+	test('the provider Elantris #2 survives instead of being overwritten', async () => {
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		respond([{ workId: 42 }], emperorsSoul(220), members(9), members(32))
+		const book = {
+			title: "The Emperor's Soul",
+			authors: [{ name: 'Brandon Sanderson' }],
+			seriesPrimary: { name: 'Elantris', position: '2' }
+		}
+		const out = await withGoodreadsSeries(book, fakeRedis())
+		expect(out.seriesPrimary).toEqual({ name: 'Elantris', position: '2' })
+	})
+
+	test('EVERY displaced sub-series is recorded, not just the first', async () => {
+		// Two clean sub-series, NEITHER able to number this book, plus an umbrella
+		// that can. Recording only clean[0] would let the umbrella spend the second
+		// one -- a mutation that survived the rest of this suite.
+		const twoSubs = {
+			Title: "The Emperor's Soul",
+			Series: [
+				{
+					Title: 'Elantris',
+					ForeignId: 261,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '' }]
+				},
+				{
+					Title: 'Dragonsteel',
+					ForeignId: 262,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '' }]
+				},
+				{
+					Title: 'The Cosmere Universe',
+					ForeignId: 263,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '7.5' }]
+				}
+			]
+		}
+		respond([{ workId: 42 }], twoSubs, members(9), members(4), members(32))
+		const out = await fetchGoodreadsSeries("The Emperor's Soul", 'Brandon Sanderson')
+		expect(out?.rescuedOver).toEqual(['Elantris', 'Dragonsteel'])
+
+		// ...and the SECOND one is protected on the apply path too.
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		respond([{ workId: 42 }], twoSubs, members(9), members(4), members(32))
+		const out2 = await withGoodreadsSeries(
+			{
+				title: "The Emperor's Soul",
+				authors: [{ name: 'Brandon Sanderson' }],
+				seriesPrimary: { name: 'Dragonsteel', position: '1' }
+			},
+			fakeRedis()
+		)
+		expect(out2.seriesPrimary).toEqual({ name: 'Dragonsteel', position: '1' })
+	})
+
+	test('a DIFFERENT provider series is still overwritten, so authority is kept', async () => {
+		// The blanket alternative -- marking every rescued answer variantOnly --
+		// would refuse here too and lose Goodreads authority for the whole
+		// franchise. Measured: Mistborn Saga #9 must still be replaced.
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		respond([{ workId: 42 }], emperorsSoul(240), members(9), members(32))
+		const book = {
+			title: "The Emperor's Soul",
+			authors: [{ name: 'Brandon Sanderson' }],
+			seriesPrimary: { name: 'The Mistborn Saga', position: '9' }
+		}
+		const out = await withGoodreadsSeries(book, fakeRedis())
+		expect(out.seriesPrimary).toEqual({ name: 'The Cosmere Universe', position: '7.5' })
+	})
+})
+
+describe('the fold that decides "the same series"', () => {
+	// EXACT after fold. Never substring, never descriptor nouns -- the two `flat`
+	// helpers already in this module do both, and reusing either would merge
+	// shelves this library deliberately keeps apart.
+	let rescueWouldSpendItsOwnSubSeries: (
+		r: unknown,
+		n?: string | null
+	) => boolean
+
+	beforeEach(async () => {
+		;({ rescueWouldSpendItsOwnSubSeries } = await import('#helpers/providers/goodreadsSeries'))
+	})
+
+	const rescued = (...names: string[]) => ({ primary: { name: 'X', position: '1' }, rescuedOver: names })
+
+	test('an exact name matches', () => {
+		expect(rescueWouldSpendItsOwnSubSeries(rescued('Elantris'), 'Elantris')).toBe(true)
+	})
+
+	test('a leading article is folded', () => {
+		expect(rescueWouldSpendItsOwnSubSeries(rescued('The Elantris'), 'Elantris')).toBe(true)
+		expect(rescueWouldSpendItsOwnSubSeries(rescued('Elantris'), 'The Elantris')).toBe(true)
+	})
+
+	test('a curly apostrophe is folded', () => {
+		expect(rescueWouldSpendItsOwnSubSeries(rescued('Hoid’s Travails'), "Hoid's Travails")).toBe(
+			true
+		)
+	})
+
+	test('descriptor nouns are NOT folded: Riyria is not The Riyria Chronicles', () => {
+		// Both are real, DISTINCT shelves in this library (census 2026-07-29,
+		// rk 155492 Drumindor: primary "Riyria" #5, secondary "The Riyria
+		// Chronicles" #5). The module's existing `flat` strips "chronicles" and
+		// would merge them.
+		expect(rescueWouldSpendItsOwnSubSeries(rescued('Riyria'), 'The Riyria Chronicles')).toBe(false)
+	})
+
+	test('a substring is NOT a match: Jack Ryan is not Jack Ryan, Jr.', () => {
+		// rk 155442 Tom Clancy Firing Point: primary "Jack Ryan" #16, secondary
+		// "Jack Ryan, Jr." #13. Substring matching would collapse them.
+		expect(rescueWouldSpendItsOwnSubSeries(rescued('Jack Ryan'), 'Jack Ryan, Jr.')).toBe(false)
+		expect(rescueWouldSpendItsOwnSubSeries(rescued('Jack Ryan, Jr.'), 'Jack Ryan')).toBe(false)
+	})
+
+	test('no rescue means no refusal, whatever the provider series says', () => {
+		expect(rescueWouldSpendItsOwnSubSeries({ primary: { name: 'X' } }, 'Elantris')).toBe(false)
+		expect(rescueWouldSpendItsOwnSubSeries(rescued(), 'Elantris')).toBe(false)
+		expect(rescueWouldSpendItsOwnSubSeries(null, 'Elantris')).toBe(false)
+	})
+
+	test('no provider series means no refusal', () => {
+		expect(rescueWouldSpendItsOwnSubSeries(rescued('Elantris'), undefined)).toBe(false)
+		expect(rescueWouldSpendItsOwnSubSeries(rescued('Elantris'), '')).toBe(false)
+		expect(rescueWouldSpendItsOwnSubSeries(rescued('Elantris'), '   ')).toBe(false)
+	})
+
+	test('it checks EVERY series the rescue stepped over, not just the first', () => {
+		expect(rescueWouldSpendItsOwnSubSeries(rescued('Other', 'Elantris'), 'Elantris')).toBe(true)
+	})
+})

@@ -586,6 +586,52 @@ export interface GoodreadsSeriesResult {
 	// field, not good enough to overwrite a clean provider series -- see the
 	// refusal in withGoodreadsSeries.
 	variantOnly?: boolean
+	// The CLEAN series a rescued franchise umbrella stepped over. Set only by the
+	// rescue branch in lookupByTitle: every clean listing named this book without
+	// numbering it, so an umbrella that CAN number it was re-admitted and won the
+	// ranking. That makes the answer a fallback in the same sense variantOnly is,
+	// and it must not be spent on the very sub-series it displaced -- see
+	// rescueWouldSpendItsOwnSubSeries.
+	rescuedOver?: string[]
+}
+
+/**
+ * Series-name identity for the rescue refusal: fold a leading article, the
+ * typographic apostrophes providers mix freely, and whitespace.
+ *
+ * Deliberately NOT the `flat` helpers elsewhere in this module. Those also strip
+ * descriptor nouns (series/saga/chronicles/...) and their callers compare with
+ * `includes`, which is right for matching one title against a provider's wordier
+ * spelling of the SAME series. It is wrong here: this library keeps "Riyria" and
+ * "The Riyria Chronicles" as distinct shelves, and "Jack Ryan" and "Jack Ryan,
+ * Jr." as distinct series (census 2026-07-29, rk 155492 and rk 155442). Exact
+ * after fold, never substring.
+ */
+export const foldSeriesName = (value: string): string =>
+	value
+		.replace(/[‘’ʼ′´]/g, "'")
+		.replace(/^\s*(?:the|a|an)\s+/i, '')
+		.replace(/\s+/g, ' ')
+		.trim()
+		.toLowerCase()
+
+/**
+ * True when applying this answer would replace a provider series with the very
+ * franchise umbrella that displaced it.
+ *
+ * Extracted rather than written inline at the call site on purpose: mutation
+ * testing on this project found inline guards go unenforced -- a prune condition
+ * replaced wholesale with `true` once left every test green. A named function is
+ * something a test can pin.
+ */
+export function rescueWouldSpendItsOwnSubSeries(
+	result: GoodreadsSeriesResult | null | undefined,
+	providerSeriesName?: string | null
+): boolean {
+	if (!result?.rescuedOver?.length || !providerSeriesName) return false
+	const want = foldSeriesName(providerSeriesName)
+	if (!want) return false
+	return result.rescuedOver.some((name) => foldSeriesName(name) === want)
 }
 
 /** A book that may already carry a series, and the fields a lookup needs. */
@@ -867,6 +913,29 @@ async function seriesEnriched<T extends SeriesEnrichable>(
 	// (Chronological Order) #1", which is exactly the sort of name the demotion
 	// list exists to keep off a shelf. Measured live on Prelude to Foundation
 	// and Forward the Foundation.
+	// A rescued umbrella cannot spend the sub-series it displaced. Same doctrine as
+	// the variantOnly refusal below, for the one fallback path that does not set it:
+	// The Emperor's Soul is in Elantris on Goodreads with NO position, so the
+	// umbrella was re-admitted to place it -- and applying that answer would swap
+	// the provider's clean "Elantris #2" for "The Cosmere Universe #7.5", moving the
+	// book off the shelf its own siblings sit on.
+	//
+	// Narrow on purpose. It refuses ONLY when the umbrella displaced the very series
+	// the provider already named; a provider series the rescue did NOT step over is
+	// still overwritten, so Goodreads keeps its authority everywhere else. Measured
+	// over 1401 resolvable library records: 1 sets rescuedOver.
+	if (hadSeries && rescueWouldSpendItsOwnSubSeries(result, book.seriesPrimary?.name)) {
+		logger?.debug(
+			{
+				title,
+				goodreads: result.primary,
+				kept: book.seriesPrimary,
+				rescuedOver: result.rescuedOver
+			},
+			'goodreads series: a rescued umbrella would displace the provider sub-series, keeping it'
+		)
+		return book
+	}
 	if (hadSeries && result.variantOnly) {
 		logger?.debug(
 			{ title, goodreads: result.primary, kept: book.seriesPrimary },
@@ -1418,6 +1487,7 @@ async function lookupByTitle(
 		// (the common case) skips the /series lookups entirely.
 		let ranked = all
 		let variantOnly = false
+		let rescuedOver: string[] | undefined
 		if (all.length > 1) {
 			// Drop edition-variants, franchise orderings and umbrellas, but only if
 			// a clean series survives -- otherwise keep them, a variant beats none.
@@ -1448,6 +1518,11 @@ async function lookupByTitle(
 				// the rescued umbrella outranks the clean series that could not place
 				// it, and nothing changes for a book whose sub-series CAN.
 				const rescued = all.filter((s) => isUmbrella(s) && canPlace(s))
+				// Remember WHAT the umbrella stepped over. The apply path needs it:
+				// replacing a provider "Elantris #2" with the umbrella that displaced
+				// Elantris is the one case where this rescue makes a shelf worse
+				// rather than better.
+				if (rescued.length) rescuedOver = clean.map((s) => String(s.Title))
 				pool = rescued.length ? [...clean, ...rescued] : clean
 			}
 			const counts = new Map<WorkSeries, number>()
@@ -1491,6 +1566,7 @@ async function lookupByTitle(
 		const result: GoodreadsSeriesResult = { primary: toSeries(ranked[0]) }
 		if (ranked[1]) result.secondary = toSeries(ranked[1])
 		if (variantOnly) result.variantOnly = true
+		if (rescuedOver?.length) result.rescuedOver = rescuedOver
 		// The volume-marker veto (see volumeHint above): our own title says which
 		// volume this is, and an answer that contradicts it means the name matched
 		// but the WORK did not -- for "Series, Book N" titles the bare series name
