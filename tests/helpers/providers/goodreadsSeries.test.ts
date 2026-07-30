@@ -2006,3 +2006,84 @@ describe('the cache key carries everything the answer depends on', () => {
 		expect([...redis.store.keys()].every((k) => k.startsWith('grseries:v5:'))).toBe(true)
 	})
 })
+
+describe('a forgiven recovery whose answer GATE 2 rejects must not cache a miss', () => {
+	// PROBE-PROVEN (review 2026-07-30): passes 1-2 miss cleanly, pass 3's /work
+	// fails on transport, the author record recovers the work, every gate inside
+	// lookupByTitle passes and `return result` forgives the degradation — then
+	// volumePrefixRetry's GATE 2 rejects the answer for naming a different
+	// series and returns null with probe.degraded FALSE. seriesEnriched wrote
+	// the 'null' sentinel: one transport blip blanked the book's enrichment for
+	// the whole miss TTL. The forgiveness is conditioned on lookupByTitle's own
+	// return, but gate 2 lives one level UP, which the promise never covered.
+	test('the manufactured miss is not cached', async () => {
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		const redis = fakeRedis()
+		respond(
+			[], // pass 1: full title
+			[], // pass 2: stem
+			[{ workId: 77, author: { id: 9 } }], // pass 3: post-colon half
+			null, // /work/77 transport failure
+			{
+				// author record recovers the work — with a series GATE 2 will reject
+				Name: 'Brian Andrews',
+				Works: [{ ForeignId: 77, Title: 'Assault' }],
+				Series: [
+					{
+						Title: 'Bravo Team',
+						ForeignId: 903,
+						LinkItems: [{ ForeignWorkId: 77, PositionInSeries: '2' }]
+					}
+				]
+			},
+			// The alias record MUST be queued: an exhausted mock reads as a degraded
+			// alias fetch -> uncacheable -> nothing cached, which masks this very
+			// defect for an unrelated reason (caught doing exactly that, first try).
+			{ Title: 'Bravo Team', Description: 'TODO', LinkItems: [1, 2] }
+		)
+		const out = await withGoodreadsSeries(
+			{
+				title: 'Sons of Valor II: Assault',
+				authors: [{ name: 'Brian Andrews' }],
+				seriesPrimary: { name: 'Sons of Valor', position: '2' }
+			},
+			redis
+		)
+		expect(out.seriesPrimary).toEqual({ name: 'Sons of Valor', position: '2' })
+		// The whole point: NOTHING may be cached off the back of a failed /work.
+		expect(redis.store.size).toBe(0)
+	})
+
+	test('a CLEAN gate-2 rejection still caches the miss', async () => {
+		// The fix must stay narrow: with no transport failure anywhere, a gate-2
+		// rejection is a real, cacheable "Goodreads has nothing for this row".
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		const redis = fakeRedis()
+		respond(
+			[],
+			[],
+			[{ workId: 78 }],
+			{
+				Title: 'Assault',
+				Series: [
+					{
+						Title: 'Bravo Team',
+						ForeignId: 904,
+						LinkItems: [{ ForeignWorkId: 78, PositionInSeries: '2' }]
+					}
+				]
+			},
+			{ Title: 'Bravo Team', Description: 'TODO', LinkItems: [1, 2] }
+		)
+		const out = await withGoodreadsSeries(
+			{
+				title: 'Sons of Valor II: Assault',
+				authors: [{ name: 'Brian Andrews' }],
+				seriesPrimary: { name: 'Sons of Valor', position: '2' }
+			},
+			redis
+		)
+		expect(out.seriesPrimary).toEqual({ name: 'Sons of Valor', position: '2' })
+		expect([...redis.store.values()]).toContain('null')
+	})
+})

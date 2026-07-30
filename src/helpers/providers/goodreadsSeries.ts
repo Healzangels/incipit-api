@@ -1095,6 +1095,12 @@ interface LookupState {
 	// hit TTL while a sibling's healthy lookup gets the alias: one shelf split
 	// across two names by the cache. Apply now, re-ask on the next refresh.
 	uncacheable?: boolean
+	// Set when an answer was ACCEPTED on the strength of the author-record
+	// recovery after a failed /work — the forgiveness is conditioned on that
+	// answer surviving to the CALLER. A caller that then discards it (gate 2 of
+	// the volume-prefix retry) must re-arm the degradation, or a transport blip
+	// caches a manufactured miss for the whole miss TTL.
+	recoveredOverFailure?: boolean
 }
 
 /** A fresh degradation scope for one logical lookup. */
@@ -1348,6 +1354,11 @@ async function volumePrefixRetry(
 			{ title, post, found: found.primary.name, providerSeries },
 			'goodreads series: volume-prefix retry answered a DIFFERENT series, keeping the provider one'
 		)
+		// The discarded answer may have been accepted only via the author-record
+		// recovery after a failed /work. Discarding it here means the evidence that
+		// /work call carried really is lost — re-arm the degradation so this
+		// manufactured miss is neither applied nor CACHED.
+		if (state?.recoveredOverFailure) state.degraded = true
 		return null
 	}
 	logger?.warn(
@@ -1747,6 +1758,7 @@ async function lookupByTitle(
 		// Flush the count probe onto the shared state now -- a discarded candidate's
 		// count failure died with it a few lines above.
 		if (countProbe?.degraded && state) state.degraded = true
+		if (pendingDegradation && state) state.recoveredOverFailure = true
 		logger?.debug({ workId, series: result }, 'goodreads series: resolved')
 		return result
 	}
