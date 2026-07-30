@@ -177,6 +177,13 @@
      "152830",
      "156115"
     ]
+   },
+   {
+    "date": "2026-07-30",
+    "what": "Eisenhorn family decided: option B (Eisenhorn #0.2/1/2/3), all four pinned",
+    "rows": [
+     "family"
+    ]
    }
   ]
  },
@@ -12795,25 +12802,21 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "OPERATOR-REVIEW",
-     "optionA_current": "Eisenhorn/Ravenor/Bequin #1 (family-consistent current state)",
-     "optionB_provider_faithful": "Eisenhorn #1 (family-consistent alternative)",
-     "invariant": "the WHOLE family resolves the same way; a mixed split violates R6"
-    }
+    "outcome": "SERIES",
+    "series": "Eisenhorn",
+    "position": "1",
+    "expectedSortPrefix": "Eisenhorn, Book 1 - "
    },
    "specRule": [
     "R1",
     "R2",
     "R6"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "Primary is the slash-joined Inquisition mega-container; provider supplies plain Eisenhorn #N (the actual trilogy). Positions coincide, so this is a NAME choice: container name vs sub-series name on one shelf.",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator decision 2026-07-30: Eisenhorn family = option B ('Lets go B'). All four pinned \u2014 the mirror drifted 3 of 4 here on its own during the v5 turnover and could drift again; the pin set locks the family.",
    "group": "census-family-eisenhorn",
-   "note": "Census verdicts conflict across shards (TIER C required-negative vs definite) - the operator call is genuinely open; either way all four rows move together."
+   "note": "Census verdicts conflict across shards (TIER C required-negative vs definite) - the operator call is genuinely open; either way all four rows move together.",
+   "mintPin": true
   },
   {
    "recordId": "B075QN2PZW",
@@ -12856,25 +12859,21 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "OPERATOR-REVIEW",
-     "optionA_current": "Eisenhorn/Ravenor/Bequin #2 (family-consistent current state)",
-     "optionB_provider_faithful": "Eisenhorn #2 (family-consistent alternative)",
-     "invariant": "the WHOLE family resolves the same way; a mixed split violates R6"
-    }
+    "outcome": "SERIES",
+    "series": "Eisenhorn",
+    "position": "2",
+    "expectedSortPrefix": "Eisenhorn, Book 2 - "
    },
    "specRule": [
     "R1",
     "R2",
     "R6"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "Primary is the slash-joined Inquisition mega-container; provider supplies plain Eisenhorn #N (the actual trilogy). Positions coincide, so this is a NAME choice: container name vs sub-series name on one shelf.",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator decision 2026-07-30: Eisenhorn family = option B ('Lets go B'). All four pinned \u2014 the mirror drifted 3 of 4 here on its own during the v5 turnover and could drift again; the pin set locks the family.",
    "group": "census-family-eisenhorn",
-   "note": "Census verdicts conflict across shards (TIER C required-negative vs definite) - the operator call is genuinely open; either way all four rows move together."
+   "note": "Census verdicts conflict across shards (TIER C required-negative vs definite) - the operator call is genuinely open; either way all four rows move together.",
+   "mintPin": true
   },
   {
    "recordId": "B075QL2BHN",
@@ -12917,25 +12916,21 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "OPERATOR-REVIEW",
-     "optionA_current": "Eisenhorn/Ravenor/Bequin #3 (family-consistent current state)",
-     "optionB_provider_faithful": "Eisenhorn #3 (family-consistent alternative)",
-     "invariant": "the WHOLE family resolves the same way; a mixed split violates R6"
-    }
+    "outcome": "SERIES",
+    "series": "Eisenhorn",
+    "position": "3",
+    "expectedSortPrefix": "Eisenhorn, Book 3 - "
    },
    "specRule": [
     "R1",
     "R2",
     "R6"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "Primary is the slash-joined Inquisition mega-container; provider supplies plain Eisenhorn #N (the actual trilogy). Positions coincide, so this is a NAME choice: container name vs sub-series name on one shelf.",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator decision 2026-07-30: Eisenhorn family = option B ('Lets go B'). All four pinned \u2014 the mirror drifted 3 of 4 here on its own during the v5 turnover and could drift again; the pin set locks the family.",
    "group": "census-family-eisenhorn",
-   "note": "Census verdicts conflict across shards (TIER C required-negative vs definite) - the operator call is genuinely open; either way all four rows move together."
+   "note": "Census verdicts conflict across shards (TIER C required-negative vs definite) - the operator call is genuinely open; either way all four rows move together.",
+   "mintPin": true
   },
   {
    "recordId": "B077PBVD8X",
@@ -12978,25 +12973,21 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "OPERATOR-REVIEW",
-     "optionA_current": "Eisenhorn/Ravenor/Bequin #0.2 (family-consistent current state)",
-     "optionB_provider_faithful": "Eisenhorn #0.2 (family-consistent alternative)",
-     "invariant": "the WHOLE family resolves the same way; a mixed split violates R6"
-    }
+    "outcome": "SERIES",
+    "series": "Eisenhorn",
+    "position": "0.2",
+    "expectedSortPrefix": "Eisenhorn, Book 0.2 - "
    },
    "specRule": [
     "R1",
     "R2",
     "R6"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "Primary is the slash-joined Inquisition mega-container; provider supplies plain Eisenhorn #N (the actual trilogy). Positions coincide, so this is a NAME choice: container name vs sub-series name on one shelf.",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator decision 2026-07-30: Eisenhorn family = option B ('Lets go B'). All four pinned \u2014 the mirror drifted 3 of 4 here on its own during the v5 turnover and could drift again; the pin set locks the family.",
    "group": "census-family-eisenhorn",
-   "note": "Census verdicts conflict across shards (TIER C required-negative vs definite) - the operator call is genuinely open; either way all four rows move together."
+   "note": "Census verdicts conflict across shards (TIER C required-negative vs definite) - the operator call is genuinely open; either way all four rows move together.",
+   "mintPin": true
   },
   {
    "recordId": "B00J8VK1WY",
