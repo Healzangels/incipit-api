@@ -441,7 +441,10 @@ describe('series language preference', () => {
 describe('seriesAliasFor', () => {
 	test('reads an alias from the declared list', () => {
 		expect(
-			seriesAliasFor('<b>Also known as:</b>\n - Inkworld (English)\n - Mundo de tinta (Spanish)', 'English')
+			seriesAliasFor(
+				'<b>Also known as:</b>\n - Inkworld (English)\n - Mundo de tinta (Spanish)',
+				'English'
+			)
 		).toBe('Inkworld')
 	})
 
@@ -788,7 +791,9 @@ describe('a recovered work must not be discarded as degraded', () => {
 		// consume this fixture's body and still look green.
 		expect(fetchMock.mock.calls[2][0]).toContain(`/author/${AUTHOR_ID}`)
 		const key = `grseries:v4:the adversary|brian andrews`
-		expect(redis.store.get(key)).toBe(JSON.stringify({ primary: { name: 'Tier One', position: '9' } }))
+		expect(redis.store.get(key)).toBe(
+			JSON.stringify({ primary: { name: 'Tier One', position: '9' } })
+		)
 		expect(redis.expires.get(key)).toBe(HIT_TTL)
 	})
 
@@ -1171,16 +1176,16 @@ describe('the fold that decides "the same series"', () => {
 	// EXACT after fold. Never substring, never descriptor nouns -- the two `flat`
 	// helpers already in this module do both, and reusing either would merge
 	// shelves this library deliberately keeps apart.
-	let rescueWouldSpendItsOwnSubSeries: (
-		r: unknown,
-		n?: string | null
-	) => boolean
+	let rescueWouldSpendItsOwnSubSeries: (r: unknown, n?: string | null) => boolean
 
 	beforeEach(async () => {
 		;({ rescueWouldSpendItsOwnSubSeries } = await import('#helpers/providers/goodreadsSeries'))
 	})
 
-	const rescued = (...names: string[]) => ({ primary: { name: 'X', position: '1' }, rescuedOver: names })
+	const rescued = (...names: string[]) => ({
+		primary: { name: 'X', position: '1' },
+		rescuedOver: names
+	})
 
 	test('an exact name matches', () => {
 		expect(rescueWouldSpendItsOwnSubSeries(rescued('Elantris'), 'Elantris')).toBe(true)
@@ -1226,5 +1231,155 @@ describe('the fold that decides "the same series"', () => {
 
 	test('it checks EVERY series the rescue stepped over, not just the first', () => {
 		expect(rescueWouldSpendItsOwnSubSeries(rescued('Other', 'Elantris'), 'Elantris')).toBe(true)
+	})
+})
+
+describe('the volume hint may number a DIFFERENT series of the right work', () => {
+	// THE DRIZZT REGRESSION. Measured 2026-07-29 over all 1401 resolvable library
+	// records: the veto fires on 34, and 30 of those are rows whose live answer a
+	// cold lookup no longer reproduces.
+	//
+	// Audible subtitles a sub-arc: "Legend of Drizzt: Legacy of the Drow, Book 2".
+	// VOLUME_HINT_RE reads 2 out of that, while the ranked Goodreads answer is the
+	// PARENT series at #8 -- and the ranking prefers the parent deliberately. Both
+	// numbers are right for their own series, but the veto compared them as though
+	// they named one, threw the whole work away, and because these ASINs carry a
+	// null publication_name there is no provider series to catch the fall: 12
+	// Legend of Drizzt albums end up with NO SERIES AT ALL.
+	//
+	// The corroboration the fix rests on is in the mirror's own record: a listing
+	// of THE SAME WORK sits at the hint's number. 19 of the 30 rows are
+	// corroborated that way (12 Drizzt, 5 Thomas Covenant, Mage of No Renown, The
+	// Empire's Ruin) and are what this repairs. The other 11 are not -- the hint
+	// numbers an ordering Goodreads does not carry (7 Galaxy's Edge seasons, 3
+	// Jack Ryan chronological, The Law) -- and they stay vetoed.
+	//
+	// Blast radius, both arms run over all 1401 records: 19 change, every one from
+	// "no answer" to an answer, and every one lands on exactly what the live API
+	// serves today. Relative to the current shelves this changes zero albums; it
+	// stops 19 from moving when their TTL expires.
+	const drizzt = {
+		Title: 'Starless Night',
+		Series: [
+			{
+				Title: 'The Legend of Drizzt',
+				ForeignId: 301,
+				LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '8' }]
+			},
+			{
+				Title: 'Legacy of the Drow',
+				ForeignId: 302,
+				LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '2' }]
+			}
+		]
+	}
+	const members = (n: number) => ({ LinkItems: Array.from({ length: n }, (_, i) => i) })
+
+	test('a hint numbering the sub-arc no longer vetoes the parent answer', async () => {
+		respond([{ workId: 42 }], drizzt, members(30), members(4))
+		const out = await fetchGoodreadsSeries(
+			'Starless Night',
+			'R. A. Salvatore',
+			undefined,
+			undefined,
+			'Legend of Drizzt: Legacy of the Drow, Book 2'
+		)
+		expect(out?.primary).toEqual({ name: 'The Legend of Drizzt', position: '8' })
+		expect(out?.secondary).toEqual({ name: 'Legacy of the Drow', position: '2' })
+	})
+
+	test('an UNcorroborated hint still vetoes -- no listing of the work is at that number', async () => {
+		// The guard the veto exists for: "Ahriman" + subtitle "Ahriman, Book 3"
+		// adopted the sibling work "Ahriman: Exile" at position 1, putting two
+		// books at #1 on one shelf. No series positions THAT work at 3, so the
+		// corroboration search finds nothing and the veto still fires.
+		respond([{ workId: 42 }], {
+			Title: 'Ahriman: Exile',
+			Series: [
+				{
+					Title: 'Ahriman',
+					ForeignId: 303,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }]
+				}
+			]
+		})
+		const out = await fetchGoodreadsSeries(
+			'Ahriman',
+			'John French',
+			undefined,
+			undefined,
+			'Ahriman, Book 3'
+		)
+		expect(out).toBeNull()
+	})
+
+	test('an unpositioned listing cannot corroborate a hint', async () => {
+		// Number(undefined) and Number('') are not the hint, so a positionless
+		// sibling listing must not launder a contradiction into an accept.
+		respond([{ workId: 42 }], {
+			Title: 'Some Book',
+			Series: [
+				{
+					Title: 'Real Series',
+					ForeignId: 304,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }]
+				},
+				{
+					Title: 'Vague Listing',
+					ForeignId: 305,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '' }]
+				}
+			]
+		})
+		const out = await fetchGoodreadsSeries(
+			'Some Book',
+			'An Author',
+			undefined,
+			undefined,
+			'Real Series, Book 7'
+		)
+		expect(out).toBeNull()
+	})
+})
+
+describe('volumeHintRulesOutWork', () => {
+	let ruled: (
+		h: string | undefined,
+		a: string | null | undefined,
+		w: Array<string | null | undefined>
+	) => boolean
+	beforeEach(async () => {
+		;({ volumeHintRulesOutWork: ruled } = await import('#helpers/providers/goodreadsSeries'))
+	})
+
+	test('no hint never rules anything out', () => {
+		expect(ruled(undefined, '8', ['8'])).toBe(false)
+		expect(ruled('', '8', ['8'])).toBe(false)
+	})
+
+	test('an answer with no position cannot contradict a hint', () => {
+		expect(ruled('2', undefined, [])).toBe(false)
+		expect(ruled('2', null, [])).toBe(false)
+		expect(ruled('2', '', [])).toBe(false)
+	})
+
+	test('a non-numeric hint cannot contradict anything', () => {
+		// Number('') is 0, so the emptiness guard is load-bearing, not decoration.
+		expect(ruled('The Primarchs Short Story', '8', ['8'])).toBe(false)
+	})
+
+	test('the hint matching ANY of the work series positions corroborates it', () => {
+		expect(ruled('2', '8', ['8', '2'])).toBe(false)
+		expect(ruled('2', '2', ['2'])).toBe(false)
+		expect(ruled('7.5', '1', ['1', '7.5'])).toBe(false)
+	})
+
+	test('the hint matching NO series position rules the work out', () => {
+		expect(ruled('3', '1', ['1'])).toBe(true)
+		expect(ruled('3', '1', ['1', '2'])).toBe(true)
+	})
+
+	test('a positionless or free-text listing cannot corroborate', () => {
+		expect(ruled('7', '1', ['1', undefined, null, '', '1-2'])).toBe(true)
 	})
 })

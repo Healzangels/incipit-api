@@ -697,6 +697,44 @@ function isShelvablePosition(position: string | null | undefined): boolean {
 	return position != null && /^\d+(\.\d+)?$/.test(String(position).trim())
 }
 
+/**
+ * True when the volume marker in OUR OWN title rules this work out.
+ *
+ * The marker is the one fact we hold about WHICH volume this is, so an answer
+ * that contradicts it means the name matched but the work did not -- for
+ * "Series, Book N" titles the bare series name IS book 1's title.
+ *
+ * But the marker numbers whichever series the PROVIDER chose to subtitle with,
+ * and that is routinely a sub-arc: "Legend of Drizzt: Legacy of the Drow, Book 2"
+ * yields hint 2 while the ranked answer is the parent at #8. Comparing those two
+ * numbers as though they named one series threw away 30 correct answers -- 12
+ * Legend of Drizzt albums lost their series entirely, because those ASINs carry a
+ * null publication_name and there was no provider series to catch the fall.
+ *
+ * So corroborate against the WORK, not against the ranked series alone: if any
+ * series lists this work at the hint's number, the hint and the answer are two
+ * true statements about the same book. The guard the veto exists for survives --
+ * "Ahriman" + subtitle "Ahriman, Book 3" adopting the sibling work
+ * "Ahriman: Exile" is still ruled out, because no series positions THAT work at 3.
+ */
+export function volumeHintRulesOutWork(
+	volumeHint: string | undefined,
+	answerPosition: string | null | undefined,
+	workPositions: Array<string | null | undefined>
+): boolean {
+	if (!volumeHint || !answerPosition) return false
+	const want = Number(volumeHint)
+	// Number('') is 0, so the emptiness check above is load-bearing, not decoration.
+	if (!Number.isFinite(want)) return false
+	// No `Number(answerPosition) === want` shortcut: the ranked series is itself one
+	// of workPositions, so that case is already covered here. Writing it twice would
+	// leave a line no test can kill.
+	//
+	// Number(undefined) and Number('1-2') are both NaN, and NaN never equals want --
+	// an unpositioned or free-text listing cannot corroborate a work.
+	return !workPositions.some((p) => Number(p) === want)
+}
+
 function cacheKey(title: string, author: string | null): string {
 	// The RAW title, not normalizeTitle: the normalizer exists to score matches,
 	// and it strips exactly the ", Book N" marker that distinguishes one volume
@@ -1572,13 +1610,15 @@ async function lookupByTitle(
 		// but the WORK did not -- for "Series, Book N" titles the bare series name
 		// IS book 1's title. Walk on rather than trust it.
 		if (
-			volumeHint &&
-			result.primary?.position &&
-			Number(result.primary.position) !== Number(volumeHint)
+			volumeHintRulesOutWork(
+				volumeHint,
+				result.primary?.position,
+				all.map((s) => positionFor(s, workId))
+			)
 		) {
 			logger?.debug(
-				{ workId, position: result.primary.position, volumeHint },
-				'goodreads series: answer contradicts the volume in our own title, skipping it'
+				{ workId, position: result.primary?.position, volumeHint },
+				'goodreads series: no listing of this work sits at the volume in our own title, skipping it'
 			)
 			continue
 		}
