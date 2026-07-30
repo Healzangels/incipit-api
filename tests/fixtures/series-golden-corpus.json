@@ -155,6 +155,13 @@
      "734419",
      "734423"
     ]
+   },
+   {
+    "date": "2026-07-30",
+    "what": "Neverwinter apple row (operator-reported, third of the FRC class)",
+    "rows": [
+     "734421"
+    ]
    }
   ]
  },
@@ -27136,6 +27143,41 @@
    "pinType": "measured-hard",
    "mintPin": true,
    "sourceOfTruth": "mirror /series/49134 LinkItems: work 43492207 at position 31; same class as the test-box apple pair (LoD #28/#29)",
+   "group": "salvatore-apple-prod",
+   "knownDefectNow": true
+  },
+  {
+   "recordId": "apple-audiobook-609834561",
+   "ratingKey": "734421",
+   "album": "Neverwinter: Legend of Drizzt",
+   "artist": "R. A. Salvatore",
+   "inputs": {
+    "title": "Neverwinter: Legend of Drizzt",
+    "subtitle": null,
+    "author": "R. A. Salvatore",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "inputSource": "prod-only apple record, measured 2026-07-30"
+   },
+   "servedNow": {
+    "primary": null,
+    "secondary": null,
+    "plexSortTitleNow": "Forgotten Realms Chronological, Book 2 - Neverwinter: Legend of Drizzt",
+    "note": "stale pre-policy sort (operator-reported, same class as Gauntlgrym/Archmage)"
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "The Legend of Drizzt",
+    "position": "24",
+    "expectedSortPrefix": "Legend of Drizzt, Book 24 - "
+   },
+   "specRule": [
+    "R1",
+    "R4"
+   ],
+   "pinType": "measured-hard",
+   "mintPin": true,
+   "sourceOfTruth": "mirror /series/49134: work 15201053 'Neverwinter' at position 24",
    "group": "salvatore-apple-prod",
    "knownDefectNow": true
   }
