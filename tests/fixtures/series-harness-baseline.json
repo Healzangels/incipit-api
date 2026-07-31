@@ -1,17 +1,5 @@
 {
- "writtenAt": "2026-07-30T22:10:00Z",
- "rowCount": 498,
- "fails": [
-  {
-   "ratingKey": "155245",
-   "album": "Unfettered",
-   "recordId": "B00HJCEGKM",
-   "pinType": "conditional",
-   "knownDefectNow": false,
-   "excluded": false,
-   "classification": "UNEXPECTED_SERIES",
-   "required": "NONE",
-   "got": "Tales by Masters of Fantasy #1"
-  }
- ]
+ "writtenAt": "2026-07-31T00:00:00Z",
+ "rowCount": 504,
+ "fails": []
 }
