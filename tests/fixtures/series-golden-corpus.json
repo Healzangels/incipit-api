@@ -198,6 +198,13 @@
     "rows": [
      "family"
     ]
+   },
+   {
+    "date": "2026-07-31",
+    "what": "Riordan + Halo families decided: option B (9 rows, pins)",
+    "rows": [
+     "families"
+    ]
    }
   ]
  },
@@ -12345,25 +12352,21 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "OPERATOR-REVIEW",
-     "optionA_current": "Camp Half-Blood Chronicles #1 (family-consistent current state)",
-     "optionB_provider_faithful": "Percy Jackson and the Olympians #1 (family-consistent alternative)",
-     "invariant": "the WHOLE family resolves the same way; a mixed split violates R6"
-    }
+    "outcome": "SERIES",
+    "series": "Percy Jackson and the Olympians",
+    "position": "1",
+    "expectedSortPrefix": "Percy Jackson and the Olympians, Book 1 - "
    },
    "specRule": [
     "R1",
     "R2",
     "R6"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "All six Riordan albums serve Camp Half-Blood Chronicles primary today (consistent shelf); the provider supplies Percy Jackson and the Olympians #N where it has a series at all, and the mirror (Sea of Monsters work 43554) lists BOTH. CHB spans PJO/Heroes of Olympus/Trials of Apollo - container-of-series like the banned umbrellas, but single-author single-continuity like the R1 parents (Drizzt). The spec's parent-vs-umbrella boundary genuinely does not decide this family; census shard 2 flagged the Wrath row \"strong\".",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'Riordan family = B' (switch to the provider-faithful sub-series per the family packet)",
    "group": "census-family-riordan",
-   "note": "Wrath of the Triple Goddess is the discriminating row: CHB #12 vs PJO #7. Whichever way the operator rules, all six rows move together. Three rows (Sea of Monsters/Titan's Curse/Last Olympian) also exhibit the live dup primary==secondary slot defect."
+   "note": "Wrath of the Triple Goddess is the discriminating row: CHB #12 vs PJO #7. Whichever way the operator rules, all six rows move together. Three rows (Sea of Monsters/Titan's Curse/Last Olympian) also exhibit the live dup primary==secondary slot defect.",
+   "mintPin": true
   },
   {
    "recordId": "B000GB8WGM",
@@ -12397,25 +12400,21 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "OPERATOR-REVIEW",
-     "optionA_current": "Camp Half-Blood Chronicles #2 (family-consistent current state)",
-     "optionB_provider_faithful": "Percy Jackson and the Olympians #2 (family-consistent alternative)",
-     "invariant": "the WHOLE family resolves the same way; a mixed split violates R6"
-    }
+    "outcome": "SERIES",
+    "series": "Percy Jackson and the Olympians",
+    "position": "2",
+    "expectedSortPrefix": "Percy Jackson and the Olympians, Book 2 - "
    },
    "specRule": [
     "R1",
     "R2",
     "R6"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "All six Riordan albums serve Camp Half-Blood Chronicles primary today (consistent shelf); the provider supplies Percy Jackson and the Olympians #N where it has a series at all, and the mirror (Sea of Monsters work 43554) lists BOTH. CHB spans PJO/Heroes of Olympus/Trials of Apollo - container-of-series like the banned umbrellas, but single-author single-continuity like the R1 parents (Drizzt). The spec's parent-vs-umbrella boundary genuinely does not decide this family; census shard 2 flagged the Wrath row \"strong\".",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'Riordan family = B' (switch to the provider-faithful sub-series per the family packet)",
    "group": "census-family-riordan",
-   "note": "Wrath of the Triple Goddess is the discriminating row: CHB #12 vs PJO #7. Whichever way the operator rules, all six rows move together. Three rows (Sea of Monsters/Titan's Curse/Last Olympian) also exhibit the live dup primary==secondary slot defect."
+   "note": "Wrath of the Triple Goddess is the discriminating row: CHB #12 vs PJO #7. Whichever way the operator rules, all six rows move together. Three rows (Sea of Monsters/Titan's Curse/Last Olympian) also exhibit the live dup primary==secondary slot defect.",
+   "mintPin": true
   },
   {
    "recordId": "B000PSJBBG",
@@ -12449,25 +12448,21 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "OPERATOR-REVIEW",
-     "optionA_current": "Camp Half-Blood Chronicles #3 (family-consistent current state)",
-     "optionB_provider_faithful": "Percy Jackson and the Olympians #3 (family-consistent alternative)",
-     "invariant": "the WHOLE family resolves the same way; a mixed split violates R6"
-    }
+    "outcome": "SERIES",
+    "series": "Percy Jackson and the Olympians",
+    "position": "3",
+    "expectedSortPrefix": "Percy Jackson and the Olympians, Book 3 - "
    },
    "specRule": [
     "R1",
     "R2",
     "R6"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "All six Riordan albums serve Camp Half-Blood Chronicles primary today (consistent shelf); the provider supplies Percy Jackson and the Olympians #N where it has a series at all, and the mirror (Sea of Monsters work 43554) lists BOTH. CHB spans PJO/Heroes of Olympus/Trials of Apollo - container-of-series like the banned umbrellas, but single-author single-continuity like the R1 parents (Drizzt). The spec's parent-vs-umbrella boundary genuinely does not decide this family; census shard 2 flagged the Wrath row \"strong\".",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'Riordan family = B' (switch to the provider-faithful sub-series per the family packet)",
    "group": "census-family-riordan",
-   "note": "Wrath of the Triple Goddess is the discriminating row: CHB #12 vs PJO #7. Whichever way the operator rules, all six rows move together. Three rows (Sea of Monsters/Titan's Curse/Last Olympian) also exhibit the live dup primary==secondary slot defect."
+   "note": "Wrath of the Triple Goddess is the discriminating row: CHB #12 vs PJO #7. Whichever way the operator rules, all six rows move together. Three rows (Sea of Monsters/Titan's Curse/Last Olympian) also exhibit the live dup primary==secondary slot defect.",
+   "mintPin": true
   },
   {
    "recordId": "B002V8L8KU",
@@ -12510,25 +12505,21 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "OPERATOR-REVIEW",
-     "optionA_current": "Camp Half-Blood Chronicles #4 (family-consistent current state)",
-     "optionB_provider_faithful": "Percy Jackson and the Olympians #4 (family-consistent alternative)",
-     "invariant": "the WHOLE family resolves the same way; a mixed split violates R6"
-    }
+    "outcome": "SERIES",
+    "series": "Percy Jackson and the Olympians",
+    "position": "4",
+    "expectedSortPrefix": "Percy Jackson and the Olympians, Book 4 - "
    },
    "specRule": [
     "R1",
     "R2",
     "R6"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "All six Riordan albums serve Camp Half-Blood Chronicles primary today (consistent shelf); the provider supplies Percy Jackson and the Olympians #N where it has a series at all, and the mirror (Sea of Monsters work 43554) lists BOTH. CHB spans PJO/Heroes of Olympus/Trials of Apollo - container-of-series like the banned umbrellas, but single-author single-continuity like the R1 parents (Drizzt). The spec's parent-vs-umbrella boundary genuinely does not decide this family; census shard 2 flagged the Wrath row \"strong\".",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'Riordan family = B' (switch to the provider-faithful sub-series per the family packet)",
    "group": "census-family-riordan",
-   "note": "Wrath of the Triple Goddess is the discriminating row: CHB #12 vs PJO #7. Whichever way the operator rules, all six rows move together. Three rows (Sea of Monsters/Titan's Curse/Last Olympian) also exhibit the live dup primary==secondary slot defect."
+   "note": "Wrath of the Triple Goddess is the discriminating row: CHB #12 vs PJO #7. Whichever way the operator rules, all six rows move together. Three rows (Sea of Monsters/Titan's Curse/Last Olympian) also exhibit the live dup primary==secondary slot defect.",
+   "mintPin": true
   },
   {
    "recordId": "B0028TY17O",
@@ -12562,25 +12553,21 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "OPERATOR-REVIEW",
-     "optionA_current": "Camp Half-Blood Chronicles #5 (family-consistent current state)",
-     "optionB_provider_faithful": "Percy Jackson and the Olympians #5 (family-consistent alternative)",
-     "invariant": "the WHOLE family resolves the same way; a mixed split violates R6"
-    }
+    "outcome": "SERIES",
+    "series": "Percy Jackson and the Olympians",
+    "position": "5",
+    "expectedSortPrefix": "Percy Jackson and the Olympians, Book 5 - "
    },
    "specRule": [
     "R1",
     "R2",
     "R6"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "All six Riordan albums serve Camp Half-Blood Chronicles primary today (consistent shelf); the provider supplies Percy Jackson and the Olympians #N where it has a series at all, and the mirror (Sea of Monsters work 43554) lists BOTH. CHB spans PJO/Heroes of Olympus/Trials of Apollo - container-of-series like the banned umbrellas, but single-author single-continuity like the R1 parents (Drizzt). The spec's parent-vs-umbrella boundary genuinely does not decide this family; census shard 2 flagged the Wrath row \"strong\".",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'Riordan family = B' (switch to the provider-faithful sub-series per the family packet)",
    "group": "census-family-riordan",
-   "note": "Wrath of the Triple Goddess is the discriminating row: CHB #12 vs PJO #7. Whichever way the operator rules, all six rows move together. Three rows (Sea of Monsters/Titan's Curse/Last Olympian) also exhibit the live dup primary==secondary slot defect."
+   "note": "Wrath of the Triple Goddess is the discriminating row: CHB #12 vs PJO #7. Whichever way the operator rules, all six rows move together. Three rows (Sea of Monsters/Titan's Curse/Last Olympian) also exhibit the live dup primary==secondary slot defect.",
+   "mintPin": true
   },
   {
    "recordId": "apple-audiobook-1726570647",
@@ -12614,25 +12601,21 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "OPERATOR-REVIEW",
-     "optionA_current": "Camp Half-Blood Chronicles #12 (family-consistent current state)",
-     "optionB_provider_faithful": "Percy Jackson and the Olympians #7 (family-consistent alternative)",
-     "invariant": "the WHOLE family resolves the same way; a mixed split violates R6"
-    }
+    "outcome": "SERIES",
+    "series": "Percy Jackson and the Olympians",
+    "position": "7",
+    "expectedSortPrefix": "Percy Jackson and the Olympians, Book 7 - "
    },
    "specRule": [
     "R1",
     "R2",
     "R6"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "All six Riordan albums serve Camp Half-Blood Chronicles primary today (consistent shelf); the provider supplies Percy Jackson and the Olympians #N where it has a series at all, and the mirror (Sea of Monsters work 43554) lists BOTH. CHB spans PJO/Heroes of Olympus/Trials of Apollo - container-of-series like the banned umbrellas, but single-author single-continuity like the R1 parents (Drizzt). The spec's parent-vs-umbrella boundary genuinely does not decide this family; census shard 2 flagged the Wrath row \"strong\".",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'Riordan family = B' (switch to the provider-faithful sub-series per the family packet)",
    "group": "census-family-riordan",
-   "note": "Wrath of the Triple Goddess is the discriminating row: CHB #12 vs PJO #7. Whichever way the operator rules, all six rows move together. Three rows (Sea of Monsters/Titan's Curse/Last Olympian) also exhibit the live dup primary==secondary slot defect."
+   "note": "Wrath of the Triple Goddess is the discriminating row: CHB #12 vs PJO #7. Whichever way the operator rules, all six rows move together. Three rows (Sea of Monsters/Titan's Curse/Last Olympian) also exhibit the live dup primary==secondary slot defect.",
+   "mintPin": true
   },
   {
    "recordId": "B07LH5LMRX",
@@ -12675,25 +12658,21 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "OPERATOR-REVIEW",
-     "optionA_current": "Halo #8 (family-consistent current state)",
-     "optionB_provider_faithful": "The Forerunner Saga #1 (family-consistent alternative)",
-     "invariant": "the WHOLE family resolves the same way; a mixed split violates R6"
-    }
+    "outcome": "SERIES",
+    "series": "The Forerunner Saga",
+    "position": "1",
+    "expectedSortPrefix": "Forerunner Saga, Book 1 - "
    },
    "specRule": [
     "R1",
     "R2",
     "R6"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "Halo is a cross-author video-game franchise container (R2 signal) with positions; The Forerunner Saga is the actual Greg Bear trilogy in secondary. No other Halo book is in the library. Provider numbers Halo one LOWER (7/8/9) than the served 8/9/10 - the franchise index is not even stable across sources (C8).",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'Halo family = B' (switch to the provider-faithful sub-series per the family packet)",
    "group": "census-family-halo",
-   "note": "Census flags: TIER B / definite / strong across three shards."
+   "note": "Census flags: TIER B / definite / strong across three shards.",
+   "mintPin": true
   },
   {
    "recordId": "B07LH7M4KN",
@@ -12736,25 +12715,21 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "OPERATOR-REVIEW",
-     "optionA_current": "Halo #9 (family-consistent current state)",
-     "optionB_provider_faithful": "The Forerunner Saga #2 (family-consistent alternative)",
-     "invariant": "the WHOLE family resolves the same way; a mixed split violates R6"
-    }
+    "outcome": "SERIES",
+    "series": "The Forerunner Saga",
+    "position": "2",
+    "expectedSortPrefix": "Forerunner Saga, Book 2 - "
    },
    "specRule": [
     "R1",
     "R2",
     "R6"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "Halo is a cross-author video-game franchise container (R2 signal) with positions; The Forerunner Saga is the actual Greg Bear trilogy in secondary. No other Halo book is in the library. Provider numbers Halo one LOWER (7/8/9) than the served 8/9/10 - the franchise index is not even stable across sources (C8).",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'Halo family = B' (switch to the provider-faithful sub-series per the family packet)",
    "group": "census-family-halo",
-   "note": "Census flags: TIER B / definite / strong across three shards."
+   "note": "Census flags: TIER B / definite / strong across three shards.",
+   "mintPin": true
   },
   {
    "recordId": "B07LH4WC4P",
@@ -12797,25 +12772,21 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "OPERATOR-REVIEW",
-     "optionA_current": "Halo #10 (family-consistent current state)",
-     "optionB_provider_faithful": "The Forerunner Saga #3 (family-consistent alternative)",
-     "invariant": "the WHOLE family resolves the same way; a mixed split violates R6"
-    }
+    "outcome": "SERIES",
+    "series": "The Forerunner Saga",
+    "position": "3",
+    "expectedSortPrefix": "Forerunner Saga, Book 3 - "
    },
    "specRule": [
     "R1",
     "R2",
     "R6"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "Halo is a cross-author video-game franchise container (R2 signal) with positions; The Forerunner Saga is the actual Greg Bear trilogy in secondary. No other Halo book is in the library. Provider numbers Halo one LOWER (7/8/9) than the served 8/9/10 - the franchise index is not even stable across sources (C8).",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'Halo family = B' (switch to the provider-faithful sub-series per the family packet)",
    "group": "census-family-halo",
-   "note": "Census flags: TIER B / definite / strong across three shards."
+   "note": "Census flags: TIER B / definite / strong across three shards.",
+   "mintPin": true
   },
   {
    "recordId": "B075QLD2C2",
