@@ -184,6 +184,13 @@
     "rows": [
      "family"
     ]
+   },
+   {
+    "date": "2026-07-31",
+    "what": "Unfettered decided: positive pin #1 (trilogy exists)",
+    "rows": [
+     "155245"
+    ]
    }
   ]
  },
@@ -15845,21 +15852,18 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "Q2",
-     "ifQ2_positionlessNameMayTag": "Unfettered as a positionless tag; NO shelf prefix",
-     "ifQ2_nothingWins": "NONE"
-    }
+    "outcome": "SERIES",
+    "series": "Unfettered",
+    "position": "1",
+    "expectedSortPrefix": "Unfettered, Book 1 - "
    },
    "specRule": [
     "Q2"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "Served today: Unfettered with NO position (anthology; STALE sort \"Tales by Masters of Fantasy, Book 1\" from an older answer (P3)). No source supplies a position (R4 forbids synthesis).",
-   "group": "q2-positionless"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'we should allow for unfettered 1, 2, 3 as those books exist' (goodreads 31177603 / 40542425). Positive pin \u2014 the anthology trilogy is real and sequels may arrive; also retires the resolver's flip-flop (positionless one run, 'Tales by Masters of Fantasy #1' the next).",
+   "group": "q2-positionless",
+   "mintPin": true
   },
   {
    "recordId": "B0F22VKVZX",
