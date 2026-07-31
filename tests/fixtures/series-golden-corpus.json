@@ -205,6 +205,13 @@
     "rows": [
      "families"
     ]
+   },
+   {
+    "date": "2026-07-31",
+    "what": "Final three families decided: Gibney/Hodges B, Moorcock B (album deleted), Diablo A. ZERO pending rows remain.",
+    "rows": [
+     "families"
+    ]
    }
   ]
  },
@@ -13057,25 +13064,21 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "OPERATOR-REVIEW",
-     "optionA_current": "Holly Gibney #0.1 (family-consistent current state)",
-     "optionB_provider_faithful": "Bill Hodges (trilogy rows) / Holly Gibney (If It Bleeds) #1 (family-consistent alternative)",
-     "invariant": "the WHOLE family resolves the same way; a mixed split violates R6"
-    }
+    "outcome": "SERIES",
+    "series": "Bill Hodges",
+    "position": "1",
+    "expectedSortPrefix": "Bill Hodges, Book 1 - "
    },
    "specRule": [
     "R1",
     "R2",
     "R6"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "The Hodges trilogy serves Holly Gibney #0.1-0.3 today (provider: Bill Hodges Trilogy #1-3); If It Bleeds is provider-native Holly Gibney #2 (mirror work 70552618 agrees). Two real overlapping character series; option B splits into two shelves, option A keeps one Gibney shelf with fractional prequel positions.",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: Gibney/Hodges family = B ('1) B'): the trilogy under its real name, If It Bleeds stays Gibney",
    "group": "census-family-gibney",
-   "note": "Census: TIER C borderline-inverted / borderline."
+   "note": "Census: TIER C borderline-inverted / borderline.",
+   "mintPin": true
   },
   {
    "recordId": "B00U7T90L4",
@@ -13118,25 +13121,21 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "OPERATOR-REVIEW",
-     "optionA_current": "Holly Gibney #0.2 (family-consistent current state)",
-     "optionB_provider_faithful": "Bill Hodges (trilogy rows) / Holly Gibney (If It Bleeds) #2 (family-consistent alternative)",
-     "invariant": "the WHOLE family resolves the same way; a mixed split violates R6"
-    }
+    "outcome": "SERIES",
+    "series": "Bill Hodges",
+    "position": "2",
+    "expectedSortPrefix": "Bill Hodges, Book 2 - "
    },
    "specRule": [
     "R1",
     "R2",
     "R6"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "The Hodges trilogy serves Holly Gibney #0.1-0.3 today (provider: Bill Hodges Trilogy #1-3); If It Bleeds is provider-native Holly Gibney #2 (mirror work 70552618 agrees). Two real overlapping character series; option B splits into two shelves, option A keeps one Gibney shelf with fractional prequel positions.",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: Gibney/Hodges family = B ('1) B'): the trilogy under its real name, If It Bleeds stays Gibney",
    "group": "census-family-gibney",
-   "note": "Census: TIER C borderline-inverted / borderline."
+   "note": "Census: TIER C borderline-inverted / borderline.",
+   "mintPin": true
   },
   {
    "recordId": "B018RDY61A",
@@ -13179,25 +13178,21 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "OPERATOR-REVIEW",
-     "optionA_current": "Holly Gibney #0.3 (family-consistent current state)",
-     "optionB_provider_faithful": "Bill Hodges (trilogy rows) / Holly Gibney (If It Bleeds) #3 (family-consistent alternative)",
-     "invariant": "the WHOLE family resolves the same way; a mixed split violates R6"
-    }
+    "outcome": "SERIES",
+    "series": "Bill Hodges",
+    "position": "3",
+    "expectedSortPrefix": "Bill Hodges, Book 3 - "
    },
    "specRule": [
     "R1",
     "R2",
     "R6"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "The Hodges trilogy serves Holly Gibney #0.1-0.3 today (provider: Bill Hodges Trilogy #1-3); If It Bleeds is provider-native Holly Gibney #2 (mirror work 70552618 agrees). Two real overlapping character series; option B splits into two shelves, option A keeps one Gibney shelf with fractional prequel positions.",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: Gibney/Hodges family = B ('1) B'): the trilogy under its real name, If It Bleeds stays Gibney",
    "group": "census-family-gibney",
-   "note": "Census: TIER C borderline-inverted / borderline."
+   "note": "Census: TIER C borderline-inverted / borderline.",
+   "mintPin": true
   },
   {
    "recordId": "1797104802",
@@ -13237,25 +13232,21 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "OPERATOR-REVIEW",
-     "optionA_current": "Holly Gibney #2 (family-consistent current state)",
-     "optionB_provider_faithful": "Bill Hodges (trilogy rows) / Holly Gibney (If It Bleeds) #2 (family-consistent alternative)",
-     "invariant": "the WHOLE family resolves the same way; a mixed split violates R6"
-    }
+    "outcome": "SERIES",
+    "series": "Holly Gibney",
+    "position": "2",
+    "expectedSortPrefix": "Holly Gibney, Book 2 - "
    },
    "specRule": [
     "R1",
     "R2",
     "R6"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "The Hodges trilogy serves Holly Gibney #0.1-0.3 today (provider: Bill Hodges Trilogy #1-3); If It Bleeds is provider-native Holly Gibney #2 (mirror work 70552618 agrees). Two real overlapping character series; option B splits into two shelves, option A keeps one Gibney shelf with fractional prequel positions.",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: Gibney/Hodges family = B ('1) B'): the trilogy under its real name, If It Bleeds stays Gibney",
    "group": "census-family-gibney",
-   "note": "Census: TIER C borderline-inverted / borderline."
+   "note": "Census: TIER C borderline-inverted / borderline.",
+   "mintPin": true
   },
   {
    "recordId": "overdrive-145217",
@@ -13292,25 +13283,21 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "OPERATOR-REVIEW",
-     "optionA_current": "The Eternal Champion Sequence #5.3 (family-consistent current state)",
-     "optionB_provider_faithful": "The Elric Saga #2 (family-consistent alternative)",
-     "invariant": "the WHOLE family resolves the same way; a mixed split violates R6"
-    }
+    "outcome": "SERIES",
+    "series": "The Elric Saga",
+    "position": "2",
+    "expectedSortPrefix": "Elric Saga, Book 2 - "
    },
    "specRule": [
     "R1",
     "R2",
     "R6"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "Primary is Moorcock's multiverse mega-cycle (fractional #5.3 = a franchise index); provider supplies The Elric Saga #2. Census shard 2: strong.",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: Moorcock = B ('2) ... let's still do B') \u2014 album DELETED from the library 2026-07-31; pinned anyway so a returning copy resolves correctly; ledger will carry it as GONE",
    "group": "census-family-moorcock",
-   "note": "Single row; Elric has no other library siblings to anchor either way."
+   "note": "Single row; Elric has no other library siblings to anchor either way.",
+   "mintPin": true
   },
   {
    "recordId": "B0081TGOWK",
@@ -13353,25 +13340,21 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "OPERATOR-REVIEW",
-     "optionA_current": "Diablo #8 (family-consistent current state)",
-     "optionB_provider_faithful": "Diablo III #2 (family-consistent alternative)",
-     "invariant": "the WHOLE family resolves the same way; a mixed split violates R6"
-    }
+    "outcome": "SERIES",
+    "series": "Diablo",
+    "position": "8",
+    "expectedSortPrefix": "Diablo, Book 8 - "
    },
    "specRule": [
     "R1",
     "R2",
     "R6"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "Cross-author game-franchise container (Diablo #8, provider says #9 - index skew again) vs the actual Diablo III sub-series #2 in secondary. Census shard 2: strong.",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: Diablo = A ('3) A'): keep the current franchise position for The Order; Sin War stays on its own sub-series shelf per its earlier pin",
    "group": "census-family-diablo",
-   "note": "Sibling row Sin War Book Two is separately WRONG on position (see named-diablo hard row)."
+   "note": "Sibling row Sin War Book Two is separately WRONG on position (see named-diablo hard row).",
+   "mintPin": true
   },
   {
    "recordId": "1950366294",
