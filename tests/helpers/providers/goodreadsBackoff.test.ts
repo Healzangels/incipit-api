@@ -65,6 +65,34 @@ describe('bookinfo.pro rate-limit backoff', () => {
 		expect(fetchMock.mock.calls.length).toBe(callsAfter429)
 	})
 
+	test('GOODREADS_BACKOFF_MS is read LAZILY, so a runner can disable the stand-down', async () => {
+		// The harness sets this in its module BODY, which runs AFTER its imports.
+		// While BACKOFF_MS was a module-level const it was already frozen at 60000
+		// by then, so determinism mode never disabled anything: record and replay
+		// arms each armed independent 60s wall-clock stand-downs and skipped
+		// DIFFERENT rows. A skipped row also makes zero fetches, so it consumes no
+		// replay entries and produces no misses — the run reported itself faithful
+		// while silently nulling rows.
+		const prior = process.env.GOODREADS_BACKOFF_MS
+		process.env.GOODREADS_BACKOFF_MS = '0'
+		try {
+			rejectWithStatus(429)
+			expect(await fetchGoodreadsAuthorInfo('Jessica Townsend')).toEqual({
+				image: null,
+				bio: null
+			})
+			const after = fetchMock.mock.calls.length
+			expect(after).toBeGreaterThan(0)
+			// With a zero window the stand-down expires immediately, so the NEXT
+			// lookup must reach the network again rather than being skipped.
+			expect(await fetchGoodreadsAuthorInfo('Graham McNeill')).toEqual({ image: null, bio: null })
+			expect(fetchMock.mock.calls.length).toBeGreaterThan(after)
+		} finally {
+			if (prior === undefined) delete process.env.GOODREADS_BACKOFF_MS
+			else process.env.GOODREADS_BACKOFF_MS = prior
+		}
+	})
+
 	test('a rate-limit and the stand-down that follows are both LOGGED', async () => {
 		// The whole reason a missing author portrait took five diagnostic steps: a
 		// 429, a stand-down skip and a genuine "no such author" all returned null

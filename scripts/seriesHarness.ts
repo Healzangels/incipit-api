@@ -275,9 +275,22 @@ async function main(): Promise<void> {
 	// gate's conclusion is built on inputs the recording never contained.
 	if (process.env.GOODREADS_REPLAY_PATH) {
 		const rs = replayStats()
-		console.log(`replay: served ${rs.served}, misses ${rs.misses}`)
+		console.log(`replay: served ${rs.served}, misses ${rs.misses}, remaining ${rs.remaining}`)
 		if (rs.misses > 0) {
 			console.error('REPLAY MISSES — run invalid; re-record the baseline.')
+			process.exit(2)
+		}
+		// Zero misses is NOT the same as a faithful replay. Leftover entries mean
+		// this arm made FEWER requests than the recording did — a short-circuit
+		// somewhere (a stale backoff, a cache hit, a heuristic that stopped
+		// fetching) — so rows were decided on no evidence while the run reported
+		// itself clean. Measured 2026-07-31: served 1 / misses 0 with 3 of 4
+		// exchanges unconsumed and the row silently nulled.
+		if (rs.remaining > 0) {
+			console.error(
+				`REPLAY UNDER-CONSUMED: ${rs.remaining} recorded exchange(s) never used — ` +
+					'this arm short-circuited somewhere; run invalid.'
+			)
 			process.exit(2)
 		}
 	}

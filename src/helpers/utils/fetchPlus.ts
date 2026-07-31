@@ -1,5 +1,5 @@
 import { AxiosError, AxiosResponse } from 'axios'
-import { appendFileSync, readFileSync } from 'fs'
+import { appendFileSync, readFileSync, writeFileSync } from 'fs'
 
 import pooledAxios from '#helpers/utils/connectionPool'
 import sleep from '#helpers/utils/sleep'
@@ -205,8 +205,23 @@ function loadReplay(path: string): Map<string, RecordedExchange[]> {
 	return queues
 }
 
-export function replayStats(): { served: number; misses: number } {
-	return { ...stats }
+/**
+ * Replay accounting.
+ *
+ * `remaining` is the load-bearing addition: `served`/`misses` alone cannot tell
+ * a faithful replay from an UNDER-consuming one. A run that short-circuits —
+ * a stale backoff, a cache hit, a heuristic that stops fetching — makes fewer
+ * requests than were recorded, consumes fewer entries, and reports
+ * `misses: 0`. Measured on 2026-07-31: a run reported `served 1, misses 0` with
+ * 3 of 4 recorded exchanges never consumed and the row silently nulled. Zero
+ * misses is not the same as a faithful replay; zero misses AND zero remaining
+ * is.
+ * @returns {{served: number, misses: number, remaining: number}} replay counters
+ */
+export function replayStats(): { served: number; misses: number; remaining: number } {
+	let remaining = 0
+	if (replayQueues) for (const q of replayQueues.values()) remaining += q.length
+	return { ...stats, remaining }
 }
 
 /** Test seam: forget the memoized replay file and counters. */
@@ -215,10 +230,23 @@ export function resetRecorderForTests(): void {
 	replayQueues = null
 	stats.served = 0
 	stats.misses = 0
+	truncatedRecordFiles.clear()
 }
 
+// TRUNCATE on the first write of a process, append after that. Recording used
+// to append unconditionally, so re-recording to the same path DOUBLED the file
+// and the per-URL FIFO then served the FIRST run's stale bodies — the operation
+// whose whole purpose is to refresh the baseline silently froze it instead, and
+// the over-long queue also made over-consumption unable to produce a miss.
+const truncatedRecordFiles = new Set<string>()
 function record(path: string, entry: RecordedExchange): void {
-	appendFileSync(path, JSON.stringify(entry) + '\n')
+	const line = JSON.stringify(entry) + '\n'
+	if (truncatedRecordFiles.has(path)) {
+		appendFileSync(path, line)
+		return
+	}
+	truncatedRecordFiles.add(path)
+	writeFileSync(path, line)
 }
 
 async function fetchRouted(

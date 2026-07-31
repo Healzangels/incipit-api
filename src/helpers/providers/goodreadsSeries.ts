@@ -1072,7 +1072,18 @@ function minRequestGapMs(): number {
 // arm that finishes in under a second — the two arms then skip different
 // rows. GOODREADS_BACKOFF_MS=0 disables it for record/replay runs only; the
 // serving default stays 60s.
-const BACKOFF_MS = Number(process.env.GOODREADS_BACKOFF_MS ?? 60000)
+//
+// READ LAZILY, like minRequestGapMs and timeBudgetMs above. As a module-level
+// const this was frozen at IMPORT time, and the harness sets the env var in its
+// module BODY — which runs after its imports — so the determinism mode never
+// actually disabled anything and both arms kept arming independent 60s
+// stand-downs. Worse, a backoff-skipped row makes zero fetches, so it consumes
+// zero replay entries and produces zero misses: the run reported itself
+// faithful while silently nulling rows.
+function backoffMs(): number {
+	const raw = Number(process.env.GOODREADS_BACKOFF_MS)
+	return Number.isFinite(raw) && raw >= 0 ? raw : 60000
+}
 
 let nextAllowedAt = 0
 let backoffUntil = 0
@@ -1188,14 +1199,12 @@ async function getJson<T>(
 		// an always-429 mirror).
 		const status = (err as { status?: number })?.status
 		if (status === 429 || status === 503) {
-			backoffUntil = Date.now() + BACKOFF_MS
+			const ms = backoffMs()
+			backoffUntil = Date.now() + ms
 			// warn, not debug: being pushed back off the mirror degrades enrichment
 			// library-wide for the next minute, and it is the one condition an
 			// operator would want to see without raising the log level.
-			logger?.warn(
-				{ path, status, backoffMs: BACKOFF_MS },
-				'goodreads: rate-limited, standing down'
-			)
+			logger?.warn({ path, status, backoffMs: ms }, 'goodreads: rate-limited, standing down')
 		}
 		// A 4xx OTHER than 429 is the mirror ANSWERING: 404 means no such work or
 		// author, which is a real miss worth caching. Only transport failures
