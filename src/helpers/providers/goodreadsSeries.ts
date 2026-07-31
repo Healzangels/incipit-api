@@ -566,9 +566,21 @@ async function seriesRecord(
 	// "no members" for the life of the process -- and the count is exactly how a
 	// parent series is told from its sub-series, so a wrongly-0 parent loses the
 	// ranking and books get shelved under the narrower series.
+	//
+	// NEVER memoize a ZERO, degraded or not. `getJson` classifies a 4xx as the
+	// mirror ANSWERING rather than degrading (correctly -- a 404 on a /work is a
+	// real miss worth caching), but that let a 404 on a /series id, or any 200
+	// whose body carried no LinkItems, write count: 0 permanently. One such
+	// response then demoted that parent for EVERY remaining book in the series
+	// until the process restarted: the "one series, two shelves" split this
+	// module exists to prevent, produced by the module itself.
+	//
+	// The cost of refusing is one re-ask per book for a genuinely empty series,
+	// which is rare and cheap; an unknown count already sorts last, so the
+	// ranking outcome for a real empty series is unchanged.
 	if (probe.degraded) {
 		if (state) state.degraded = true
-	} else {
+	} else if (info.count > 0) {
 		seriesRecordMemo.set(foreignId, info)
 	}
 	return info

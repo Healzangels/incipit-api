@@ -20,11 +20,35 @@ const { fetchGoodreadsSeries, withGoodreadsSeries, seriesAliasFor, resetGoodread
 // came from the memo). Belt to the braces of the unique ids below.
 beforeEach(() => resetGoodreadsThrottle())
 
-/** Queue responses in call order; a `null` entry makes that call reject. */
+/**
+ * Queue responses in call order.
+ *  - `null`      -> that call rejects with NO status (a transport failure)
+ *  - `status(n)` -> that call rejects with an HTTP status (the mirror ANSWERING)
+ *
+ * The distinction is load-bearing and used to be inexpressible here: every
+ * simulated failure was a status-less transport error, so the whole "the mirror
+ * answered 404" branch — which is classified as ANSWERED, not degraded, and is
+ * therefore memoized — had no test coverage at all.
+ */
+function status(code: number) {
+	return { __status: code }
+}
 function respond(...bodies: Array<unknown | null>) {
 	fetchMock.mockReset()
 	for (const body of bodies) {
 		if (body === null) fetchMock.mockImplementationOnce(() => Promise.reject(new Error('boom')))
+		else if (body && typeof body === 'object' && '__status' in body)
+			fetchMock.mockImplementationOnce(() =>
+				Promise.reject(
+					Object.assign(
+						new Error('Request failed with status ' + (body as { __status: number }).__status),
+						{
+							name: 'FetchError',
+							status: (body as { __status: number }).__status
+						}
+					)
+				)
+			)
 		else fetchMock.mockImplementationOnce(() => Promise.resolve({ data: body }))
 	}
 }
@@ -172,6 +196,40 @@ describe('parent-series preference', () => {
 		expect(out?.primary).toEqual({ name: 'The Chronicles of Osreth', position: '3' })
 		expect(out?.secondary).toEqual({ name: 'The Cemeteries of Amalo', position: '2' })
 		expectFixturesConsumed()
+	})
+
+	test('a 404 on the parent /series does NOT pin it at zero members', async () => {
+		// A 404 is the mirror ANSWERING, so it is classified as answered rather
+		// than degraded — and an answered response used to be memoized. That put
+		// count: 0 in a process-lifetime memo with no TTL, and the member count is
+		// exactly how a parent series is told from its sub-series. So one 404 on a
+		// renamed/moved/deleted series id demoted the parent for EVERY remaining
+		// book in that series until the container restarted: the "one series, two
+		// shelves" split this module exists to prevent, produced by the module.
+		//
+		// First book: the parent's count is unknown, so the sub-arc wins — that is
+		// correct and unavoidable on the evidence available.
+		respond([{ workId: 42 }], multi(190), members(6), status(404))
+		const first = await fetchGoodreadsSeries('The Grief of Stones', null)
+		expect(first?.primary).toEqual({ name: 'The Cemeteries of Amalo', position: '2' })
+
+		// Second book, same series, mirror now healthy. Note the call shape: the
+		// SUB-ARC's count (6) was a real answer and IS memoized, so only the
+		// parent — the one that 404'd — is asked again. Three calls, not four,
+		// and that asymmetry is the fix working: successes still memoize, zeros
+		// never do.
+		respond([{ workId: 42 }], multi(190), members(9))
+		const second = await fetchGoodreadsSeries('The Grief of Stones', null)
+		expect(second?.primary).toEqual({ name: 'The Chronicles of Osreth', position: '3' })
+		expect(fetchMock.mock.calls.length).toBe(3)
+	})
+
+	test('a REAL empty series is still memoized-free but ranks last, not first', async () => {
+		// Refusing to memoize a zero costs one re-ask per book for a genuinely
+		// empty series; it must not change the ranking outcome.
+		respond([{ workId: 42 }], multi(200), members(6), members(0))
+		const out = await fetchGoodreadsSeries('The Grief of Stones', null)
+		expect(out?.primary).toEqual({ name: 'The Cemeteries of Amalo', position: '2' })
 	})
 
 	test('excludes an edition/ordering variant even when it is largest', async () => {
