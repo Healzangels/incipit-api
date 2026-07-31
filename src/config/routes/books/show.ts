@@ -13,7 +13,10 @@ import RouteCommonHelper from '#helpers/routes/RouteCommonHelper'
 import { applyPins } from '#helpers/series/shelfPins'
 import { applyShelfPolicy } from '#helpers/series/shelfPolicy'
 import { languageConflict, regionLanguage } from '#helpers/utils/language'
-import { recordLanguageMismatchedLookup } from '#helpers/utils/matchTelemetry'
+import {
+	recordLanguageMismatchedLookup,
+	recordStaleServedOnUpstreamUnavailable
+} from '#helpers/utils/matchTelemetry'
 import { MessageNotFoundInDb } from '#static/messages'
 
 /**
@@ -155,10 +158,39 @@ async function _show(fastify: FastifyInstance) {
 				credentials,
 				logger: request.log
 			})
-			if (!rescued) throw err
-			request.log.warn({ asin, region, code }, 'delisted asin rescued via a provider record')
-			flagLanguageMismatch(rescued, region, request.log)
-			return finish(rescued)
+			if (rescued) {
+				request.log.warn({ asin, region, code }, 'delisted asin rescued via a provider record')
+				flagLanguageMismatch(rescued, region, request.log)
+				return finish(rescued)
+			}
+			// STALE-WHILE-ERROR. The provider rescue above runs against the same
+			// upstreams that just refused us, so under load it fails too — and we
+			// then 404'd a book we already hold a full record for.
+			//
+			// "Unavailable" is not a stable property of the product. Measured
+			// 2026-07-31 against this deployment: 20 concurrent requests for one
+			// known-good ASIN returned 404 PRODUCT_DELISTED twenty times out of
+			// twenty, while the same record served fine when asked once, seconds
+			// later. A refresh is exactly that access pattern, and the agent's
+			// documented response to a failed fetch is to keep the existing
+			// metadata and move on — so ~15% of albums silently did not update in
+			// the 2026-07-31 full refresh.
+			//
+			// A stored record is strictly better than a 404 here: worst case it is
+			// stale, and the next successful pass refreshes it. Counted, not
+			// silent — staleServedOnUpstreamUnavailable rising on /metrics is the
+			// signal that the upstream is refusing us, which a 200 otherwise hides.
+			const stored = await helper.getDataWithProjection().catch(() => null)
+			if (stored && 'image' in stored) {
+				recordStaleServedOnUpstreamUnavailable()
+				request.log.warn(
+					{ asin, region, code },
+					'upstream reported unavailable; served the STORED record instead of 404'
+				)
+				flagLanguageMismatch(stored, region, request.log)
+				return finish(stored as ApiBook)
+			}
+			throw err
 		}
 		flagLanguageMismatch(book, region, request.log)
 		return book && 'image' in book ? finish(book as ApiBook) : book

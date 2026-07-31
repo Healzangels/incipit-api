@@ -27,10 +27,20 @@ const SQUARE_URL = 'https://example.invalid/square-1400.jpg'
 /** Whatever the "database" hands the route for this request. */
 let served: Record<string, unknown> = {}
 
+/** What `handler()` does: return a record, or throw the given error. */
+let handlerThrows: Error | null = null
+/** What the STORED record lookup returns when the fallback reaches for it. */
+let storedRecord: Record<string, unknown> | null = null
+
 mock.module('#helpers/routes/BookShowHelper', () => ({
 	default: class {
 		async handler() {
+			if (handlerThrows) throw handlerThrows
 			return served
+		}
+		async getDataWithProjection() {
+			if (!storedRecord) throw new Error('no stored record')
+			return storedRecord
 		}
 	}
 }))
@@ -72,6 +82,7 @@ mock.module('#helpers/routes/BookDataHelper', () => ({
 
 const { default: booksShow } = await import('#config/routes/books/show')
 const { getMatchMetrics, resetMatchMetrics } = await import('#helpers/utils/matchTelemetry')
+const { NotFoundError } = await import('#helpers/errors/ApiErrors')
 
 async function get(asin: string, query = '') {
 	const app = Fastify()
@@ -99,6 +110,8 @@ describe('GET /books/:asin runs the whole serve pipeline', () => {
 	beforeEach(() => {
 		resetMatchMetrics()
 		served = bookRecord()
+		handlerThrows = null
+		storedRecord = null
 	})
 
 	test('an operator PIN reaches the response (applyPins gets the real asin)', async () => {
@@ -177,5 +190,59 @@ describe('GET /books/:asin runs the whole serve pipeline', () => {
 		const before = getMatchMetrics().languageMismatchedLookups
 		await get('B0TESTASIN', '?region=us')
 		expect(getMatchMetrics().languageMismatchedLookups).toBe(before)
+	})
+})
+
+/**
+ * A transient upstream refusal must not read as "this book does not exist".
+ *
+ * Measured 2026-07-31 against the deployed api: 20 concurrent requests for one
+ * known-good ASIN returned 404 PRODUCT_DELISTED twenty times out of twenty,
+ * while the same record served fine when asked once. A library refresh IS that
+ * access pattern, and the agent's documented response to a failed fetch is to
+ * keep existing metadata and move on — which is why ~15% of albums silently did
+ * not update in that day's full refresh.
+ */
+describe('upstream says unavailable but we hold a record', () => {
+	beforeEach(() => {
+		resetMatchMetrics()
+		handlerThrows = new NotFoundError('delisted', {
+			asin: 'B0TESTASIN',
+			code: 'PRODUCT_DELISTED'
+		})
+		storedRecord = null
+	})
+
+	test('serves the STORED record rather than 404ing', async () => {
+		storedRecord = bookRecord({ title: 'A Stored Book' })
+		const { status, body } = await get('B0TESTASIN')
+		expect(status).toBe(200)
+		expect(body.title).toBe('A Stored Book')
+		// and the pipeline still runs on it
+		expect(body.imageSquare).toBe(SQUARE_URL)
+	})
+
+	test('counts it, so a refusing upstream is visible behind the 200', async () => {
+		storedRecord = bookRecord()
+		const before = getMatchMetrics().staleServedOnUpstreamUnavailable
+		await get('B0TESTASIN')
+		expect(getMatchMetrics().staleServedOnUpstreamUnavailable).toBe(before + 1)
+	})
+
+	test('still 404s when there is genuinely no stored record', async () => {
+		storedRecord = null
+		const { status } = await get('B0TESTASIN')
+		expect(status).toBe(404)
+		expect(getMatchMetrics().staleServedOnUpstreamUnavailable).toBe(0)
+	})
+
+	test('a NON-availability failure is not swallowed by the fallback', async () => {
+		// Only PRODUCT_DELISTED / REGION_UNAVAILABLE are rescued; anything else
+		// must keep propagating or a real bug hides behind a stale record.
+		handlerThrows = new NotFoundError('not in db', { asin: 'B0TESTASIN', code: 'OTHER' })
+		storedRecord = bookRecord({ title: 'Should Not Be Served' })
+		const { status, body } = await get('B0TESTASIN')
+		expect(status).toBe(404)
+		expect(body.title).toBeUndefined()
 	})
 })

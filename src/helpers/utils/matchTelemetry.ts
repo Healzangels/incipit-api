@@ -139,6 +139,8 @@ export interface MatchMetrics {
 	 * log, so the open-mode /metrics payload stays content-free.
 	 */
 	languageMismatchedLookups: number
+	/** Upstream said the product was unavailable, but we held a record and served it. */
+	staleServedOnUpstreamUnavailable: number
 	/** Confidence distribution of matched searches. */
 	byConfidence: Record<string, number>
 	avgConfidence: number | null
@@ -168,6 +170,8 @@ const store: {
 	aiNarrationDemotedSearches: number
 	pinDurationOverriddenSearches: number
 	languageMismatchedLookups: number
+	/** Upstream said the product was unavailable, but we held a record and served it. */
+	staleServedOnUpstreamUnavailable: number
 	confidenceSum: number
 	byConfidence: Map<string, number>
 	recent: MatchDecision[]
@@ -189,6 +193,7 @@ const store: {
 	aiNarrationDemotedSearches: 0,
 	pinDurationOverriddenSearches: 0,
 	languageMismatchedLookups: 0,
+	staleServedOnUpstreamUnavailable: 0,
 	confidenceSum: 0,
 	byConfidence: new Map(),
 	recent: []
@@ -271,6 +276,7 @@ export function getMatchMetrics(): MatchMetrics {
 		aiNarrationDemotedSearches: store.aiNarrationDemotedSearches,
 		pinDurationOverriddenSearches: store.pinDurationOverriddenSearches,
 		languageMismatchedLookups: store.languageMismatchedLookups,
+		staleServedOnUpstreamUnavailable: store.staleServedOnUpstreamUnavailable,
 		byConfidence: Object.fromEntries(store.byConfidence),
 		avgConfidence: matched > 0 ? store.confidenceSum / matched : null,
 		recent: [...store.recent]
@@ -286,6 +292,21 @@ export function recordLanguageMismatchedLookup(): void {
 }
 
 /** Clear all aggregates (tests, and any future manual reset). */
+/**
+ * Upstream reported a product unavailable while we held a stored record, and we
+ * served the record instead of a 404.
+ *
+ * This is the counter to WATCH: it rising means the upstream is refusing us
+ * under load, which is invisible otherwise because the response is a normal 200.
+ * Measured 2026-07-31 against the deployed api — 20 concurrent requests for one
+ * known-good ASIN returned 404 PRODUCT_DELISTED twenty times out of twenty,
+ * while the same record served fine when asked once.
+ * @returns {void}
+ */
+export function recordStaleServedOnUpstreamUnavailable(): void {
+	store.staleServedOnUpstreamUnavailable += 1
+}
+
 export function resetMatchMetrics(): void {
 	store.total = 0
 	store.matched = 0
@@ -304,6 +325,7 @@ export function resetMatchMetrics(): void {
 	store.aiNarrationDemotedSearches = 0
 	store.pinDurationOverriddenSearches = 0
 	store.languageMismatchedLookups = 0
+	store.staleServedOnUpstreamUnavailable = 0
 	store.confidenceSum = 0
 	store.byConfidence.clear()
 	store.recent.length = 0
