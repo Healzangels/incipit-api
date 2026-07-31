@@ -359,6 +359,17 @@
    "prod"
   ]
  },
+ "1515987884": {
+  "primary": "Victor the Assassin #8",
+  "secondary": null,
+  "available": true,
+  "firstSeen": "2026-07-31",
+  "reviewedAt": "2026-07-31",
+  "boxes": [
+   "test",
+   "prod"
+  ]
+ },
  "1522649689": {
   "primary": "Orphan X #4",
   "secondary": null,
@@ -1308,14 +1319,15 @@
   ]
  },
  "1984887904": {
-  "primary": "Jack Ryan, Jr. #12",
-  "secondary": null,
+  "primary": "Jack Ryan #27",
+  "secondary": "Jack Ryan, Jr. #12",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "1984888471": {
   "primary": null,
@@ -2111,14 +2123,15 @@
   ]
  },
  "B0CGS1GWMT": {
-  "primary": "Jack Ryan #19",
+  "primary": "Jack Ryan #38",
   "secondary": "A Jack Ryan Novel (publication order) #24",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B0DNBTQ2D1": {
   "primary": "Sons of Valor #4",
@@ -3456,34 +3469,37 @@
   ]
  },
  "B07LH5LMRX": {
-  "primary": "Halo #8",
-  "secondary": "The Forerunner Saga #1",
+  "primary": "The Forerunner Saga #1",
+  "secondary": null,
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B07LH7M4KN": {
-  "primary": "Halo #9",
-  "secondary": "The Forerunner Saga #2",
+  "primary": "The Forerunner Saga #2",
+  "secondary": null,
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B07LH4WC4P": {
-  "primary": "Halo #10",
-  "secondary": "The Forerunner Saga #3",
+  "primary": "The Forerunner Saga #3",
+  "secondary": null,
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B0050JS832": {
   "primary": null,
@@ -3715,14 +3731,15 @@
   ]
  },
  "B00XV1C5EO": {
-  "primary": "Jack Ryan, Jr. #8",
-  "secondary": null,
+  "primary": "Jack Ryan #19",
+  "secondary": "Jack Ryan, Jr. #8",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B0071D0SOM": {
   "primary": null,
@@ -3735,14 +3752,15 @@
   ]
  },
  "B01CUP1FPQ": {
-  "primary": "Jack Ryan, Jr. #9",
-  "secondary": null,
+  "primary": "Jack Ryan #21",
+  "secondary": "Jack Ryan, Jr. #9",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "overdrive-2475607": {
   "primary": null,
@@ -3874,14 +3892,15 @@
   ]
  },
  "B00HJCEGKM": {
-  "primary": "Tales by Masters of Fantasy #1",
-  "secondary": "Unfettered #-",
+  "primary": "Unfettered #1",
+  "secondary": "Tales by Masters of Fantasy #1",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "overdrive-76361": {
   "primary": "Robert Langdon #1",
@@ -4416,64 +4435,70 @@
   ]
  },
  "B074HGCJZ8": {
-  "primary": "A Jack Ryan Novel (chronological order) #18",
+  "primary": "Jack Ryan #24",
   "secondary": "A Jack Ryan Novel (publication order) #17",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B07DK2KCJD": {
-  "primary": "A Jack Ryan Novel (chronological order) #19",
+  "primary": "Jack Ryan #26",
   "secondary": "A Jack Ryan Novel (publication order) #18",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "0593453255": {
-  "primary": "A Jack Ryan Novel (chronological order) #22",
+  "primary": "Jack Ryan #32",
   "secondary": "A Jack Ryan Novel (publication order) #21",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "0593106792": {
-  "primary": "Jack Ryan #15",
+  "primary": "Jack Ryan #28",
   "secondary": "A Jack Ryan Novel (publication order) #19",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "0593287371": {
-  "primary": "Jack Ryan #17",
+  "primary": "Jack Ryan #30",
   "secondary": "A Jack Ryan Novel (publication order) #20",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B0BXK4QWDS": {
-  "primary": "Jack Ryan #18",
+  "primary": "Jack Ryan #37",
   "secondary": "A Jack Ryan Novel (publication order) #23",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B00C7C7LZQ": {
   "primary": "Jericho Quinn #3",
@@ -4886,34 +4911,37 @@
   ]
  },
  "B00A9W1U58": {
-  "primary": "Jack Ryan, Jr. #4",
+  "primary": "Jack Ryan #15",
   "secondary": "A Jack Ryan Novel (publication order) #12",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B004KAPD4Y": {
-  "primary": "Jack Ryan #1",
+  "primary": "Jack Ryan #2",
   "secondary": "A Jack Ryan Novel (publication order) #2",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B002V0KDY0": {
-  "primary": "Jack Ryan #2",
+  "primary": "Jack Ryan #11",
   "secondary": "A Jack Ryan Novel (publication order) #9",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B01HFHMKH6": {
   "primary": null,
@@ -4936,34 +4964,37 @@
   ]
  },
  "B004EBW0K4": {
-  "primary": "Jack Ryan #4",
+  "primary": "Jack Ryan #3",
   "secondary": "A Jack Ryan Novel (publication order) #3",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B004XN6PVS": {
-  "primary": "Jack Ryan #6",
+  "primary": "Jack Ryan #5",
   "secondary": "A Jack Ryan Novel (publication order) #5",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B004EBZ2GI": {
-  "primary": "Jack Ryan #5",
+  "primary": "Jack Ryan #4",
   "secondary": "A Jack Ryan Novel (publication order) #4",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B004JOAIDM": {
   "primary": "Jack Ryan #7",
@@ -4986,54 +5017,59 @@
   ]
  },
  "B004AY444A": {
-  "primary": "Jack Ryan, Jr. #2",
+  "primary": "Jack Ryan #13",
   "secondary": "A Jack Ryan Novel (publication order) #10",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B002UZKKOO": {
-  "primary": "Jack Ryan, Jr. #1",
-  "secondary": null,
+  "primary": "Jack Ryan #12",
+  "secondary": "Jack Ryan, Jr. #1",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B006FX933G": {
-  "primary": "Jack Ryan, Jr. #3",
+  "primary": "Jack Ryan #14",
   "secondary": "A Jack Ryan Novel (publication order) #11",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B004I6ZR78": {
-  "primary": "John Clark #2",
-  "secondary": null,
+  "primary": "Jack Ryan #9",
+  "secondary": "John Clark #2",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B004FJA3TA": {
-  "primary": "John Clark #3",
+  "primary": "Jack Ryan #10",
   "secondary": "A Jack Ryan Novel (publication order) #8",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B0051JN7N2": {
   "primary": "Max Moore #1",
@@ -5136,14 +5172,15 @@
   ]
  },
  "B07D2JTQQS": {
-  "primary": "Jack Ryan #3",
+  "primary": "Jack Ryan #1",
   "secondary": "Jack Ryan Universe #4",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B002V8HF7U": {
   "primary": "Artemis Fowl #2",
@@ -5206,14 +5243,15 @@
   ]
  },
  "B00GM389IY": {
-  "primary": "Jack Ryan #9",
+  "primary": "Jack Ryan #16",
   "secondary": "Jack Ryan Universe #17",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B07HHH7L77": {
   "primary": "The Hunger Games #1",
@@ -5226,14 +5264,15 @@
   ]
  },
  "B004FHZQEO": {
-  "primary": "John Clark #1",
+  "primary": "Jack Ryan #6",
   "secondary": "Jack Ryan Universe (Publication Order) #6",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B084NVNFBH": {
   "primary": null,
@@ -6976,44 +7015,48 @@
   ]
  },
  "B00PKJ2SVA": {
-  "primary": "Jack Ryan #10",
+  "primary": "Jack Ryan #18",
   "secondary": "A Jack Ryan Novel (publication order) #14",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B011PVT3A0": {
-  "primary": "Jack Ryan #11",
+  "primary": "Jack Ryan #20",
   "secondary": "A Jack Ryan Novel (publication order) #15",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B01JKG9FMS": {
-  "primary": "Jack Ryan #12",
+  "primary": "Jack Ryan #22",
   "secondary": "A Jack Ryan Novel (publication order) #16",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B00LADIYBI": {
-  "primary": "Jack Ryan, Jr. #6",
-  "secondary": null,
+  "primary": "Jack Ryan #17",
+  "secondary": "Jack Ryan, Jr. #6",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B09S24TQMJ": {
   "primary": "The Bloodsworn Saga #2",
@@ -8735,34 +8778,37 @@
   ]
  },
  "B00J8VK1WY": {
-  "primary": "Holly Gibney #0.1",
-  "secondary": "Bill Hodges #1",
+  "primary": "Bill Hodges #1",
+  "secondary": null,
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B00U7T90L4": {
-  "primary": "Holly Gibney #0.2",
-  "secondary": "Bill Hodges #2",
+  "primary": "Bill Hodges #2",
+  "secondary": null,
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B018RDY61A": {
-  "primary": "Holly Gibney #0.3",
-  "secondary": "Bill Hodges #3",
+  "primary": "Bill Hodges #3",
+  "secondary": null,
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "hardcover-edition-28476957": {
   "primary": null,
@@ -10173,34 +10219,37 @@
   ]
  },
  "0593216229": {
-  "primary": "Jack Ryan, Jr. #13",
-  "secondary": null,
+  "primary": "Jack Ryan #29",
+  "secondary": "Jack Ryan, Jr. #13",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B06XP12NZC": {
-  "primary": "Jack Ryan, Jr. #10",
-  "secondary": null,
+  "primary": "Jack Ryan #23",
+  "secondary": "A Jack Ryan Jr. Novel #4",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B07B3QDGFS": {
-  "primary": "Jack Ryan, Jr. #11",
-  "secondary": null,
+  "primary": "Jack Ryan #25",
+  "secondary": "A Jack Ryan Jr. Novel #5",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B08TYX8JQ2": {
   "primary": null,
@@ -12158,14 +12207,15 @@
   ]
  },
  "B002V0JZOO": {
-  "primary": "Camp Half-Blood Chronicles #1",
-  "secondary": "Percy Jackson and the Olympians #1",
+  "primary": "Percy Jackson and the Olympians #1",
+  "secondary": null,
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "hardcover-edition-32770706": {
   "primary": "Discworld #31",
@@ -12188,14 +12238,15 @@
   ]
  },
  "B002V8L8KU": {
-  "primary": "Camp Half-Blood Chronicles #4",
-  "secondary": "Percy Jackson and the Olympians #4",
+  "primary": "Percy Jackson and the Olympians #4",
+  "secondary": null,
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B0029TCG0C": {
   "primary": "Pendergast #9",
@@ -12368,14 +12419,15 @@
   ]
  },
  "apple-audiobook-1726570647": {
-  "primary": "Camp Half-Blood Chronicles #12",
-  "secondary": "Percy Jackson and the Olympians #7",
+  "primary": "Percy Jackson and the Olympians #7",
+  "secondary": null,
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B0C6RCB8K2": {
   "primary": "The Lost Edge #1",
@@ -12428,14 +12480,15 @@
   ]
  },
  "B000GB8WGM": {
-  "primary": "Camp Half-Blood Chronicles #2",
-  "secondary": null,
+  "primary": "Percy Jackson and the Olympians #2",
+  "secondary": "Camp Half-Blood Chronicles #2",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B0D1CTCS5D": {
   "primary": "Harry Potter (Narrated by Stephen Fry) #2",
@@ -12588,24 +12641,26 @@
   ]
  },
  "B000PSJBBG": {
-  "primary": "Camp Half-Blood Chronicles #3",
-  "secondary": null,
+  "primary": "Percy Jackson and the Olympians #3",
+  "secondary": "Camp Half-Blood Chronicles #3",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B0028TY17O": {
-  "primary": "Camp Half-Blood Chronicles #5",
-  "secondary": null,
+  "primary": "Percy Jackson and the Olympians #5",
+  "secondary": "Camp Half-Blood Chronicles #5",
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B0009AVQ9U": {
   "primary": "Gilead #1",
@@ -12766,24 +12821,26 @@
   ]
  },
  "B00HFW9SUE": {
-  "primary": "Legend of Drizzt #12",
+  "primary": "The Legend of Drizzt #12",
   "secondary": null,
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B00HNF85YI": {
-  "primary": "Legend of Drizzt #13",
+  "primary": "The Legend of Drizzt #13",
   "secondary": null,
   "firstSeen": "2026-07-30",
-  "reviewedAt": "2026-07-30",
+  "reviewedAt": "2026-07-31",
   "boxes": [
    "test",
    "prod"
-  ]
+  ],
+  "available": true
  },
  "B00JANBXLS": {
   "primary": "Legend of Drizzt #17",
@@ -15989,6 +16046,50 @@
   "firstSeen": "2026-07-30",
   "reviewedAt": "2026-07-30",
   "boxes": [
+   "prod"
+  ]
+ },
+ "B074WHC7C3": {
+  "primary": "Victor the Assassin #7",
+  "secondary": null,
+  "available": true,
+  "firstSeen": "2026-07-31",
+  "reviewedAt": "2026-07-31",
+  "boxes": [
+   "test",
+   "prod"
+  ]
+ },
+ "B09Z3D5DRF": {
+  "primary": "Victor the Assassin #10",
+  "secondary": null,
+  "available": true,
+  "firstSeen": "2026-07-31",
+  "reviewedAt": "2026-07-31",
+  "boxes": [
+   "test",
+   "prod"
+  ]
+ },
+ "B0D2Q2QL5P": {
+  "primary": "Victor the Assassin #12",
+  "secondary": null,
+  "available": true,
+  "firstSeen": "2026-07-31",
+  "reviewedAt": "2026-07-31",
+  "boxes": [
+   "test",
+   "prod"
+  ]
+ },
+ "B0GP9N1QRN": {
+  "primary": "Victor the Assassin #11",
+  "secondary": null,
+  "available": true,
+  "firstSeen": "2026-07-31",
+  "reviewedAt": "2026-07-31",
+  "boxes": [
+   "test",
    "prod"
   ]
  }
