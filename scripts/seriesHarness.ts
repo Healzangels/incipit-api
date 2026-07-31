@@ -233,7 +233,19 @@ async function evaluate(row: CorpusRow): Promise<RowResult> {
 		classification,
 		required: requiredStr,
 		got: gotStr,
-		excluded: inputsPartial && classification !== 'MATCH',
+		// UNCONDITIONAL on the outcome. This used to be
+		// `inputsPartial && classification !== 'MATCH'`, which let a row whose
+		// inputs cannot be rebuilt count as GREEN when it happened to match and
+		// be silently dropped when it failed. That is a one-way ratchet: it can
+		// only ever flatter the gate. It is also why "497 MATCH / 0 standing
+		// reds" was reported on 2026-07-31 while 8 rows were in fact failing,
+		// two of them live R2 violations (The Sunlit Man on The Cosmere #32).
+		//
+		// A row whose providerSeries input is the literal "UNKNOWN-not-rebuildable"
+		// is fed a book with NO provider series — not the real input — so its
+		// result is not evidence in EITHER direction. Not assertable is not the
+		// same as passing.
+		excluded: inputsPartial,
 		reason: inputsPartial ? 'inputs partial (provider unknown)' : undefined
 	}
 }
@@ -278,7 +290,27 @@ async function main(): Promise<void> {
 	console.log('\n== classification counts ==')
 	for (const [k, v] of [...counts.entries()].sort((a, b) => b[1] - a[1]))
 		console.log(`  ${k.padEnd(18)} ${v}`)
-	console.log(`  excluded-from-gate  ${excluded.length}`)
+
+	// State the gate's real reach on EVERY run. A count of assertable rows that
+	// nobody prints is how 10.7% of the corpus became structurally unfalsifiable
+	// without anyone noticing.
+	const assertable = results.length - excluded.length
+	const pct = ((excluded.length / Math.max(1, results.length)) * 100).toFixed(1)
+	console.log(
+		`\n== gate reach ==  ${assertable}/${results.length} rows assertable; ` +
+			`${excluded.length} (${pct}%) NOT assertable and cannot fail`
+	)
+	if (excluded.length) {
+		const byReason = new Map<string, number>()
+		for (const e of excluded)
+			byReason.set(e.reason ?? 'unknown', (byReason.get(e.reason ?? 'unknown') ?? 0) + 1)
+		for (const [reason, n] of byReason) console.log(`     ${n} — ${reason}`)
+		// Name them. A row that cannot fail is technical debt with a name, not a
+		// statistic: rebuilding its inputs is what makes the gate cover it again.
+		for (const e of excluded.slice(0, 12))
+			console.log(`       rk${e.ratingKey} ${e.album.slice(0, 40)} (${e.classification})`)
+		if (excluded.length > 12) console.log(`       ... and ${excluded.length - 12} more`)
+	}
 
 	console.log('\n== failures (gate-relevant) ==')
 	for (const f of fails.sort((a, b) => a.classification.localeCompare(b.classification)))
@@ -311,10 +343,30 @@ async function main(): Promise<void> {
 		}
 	}
 
+	// --baseline RECORDS; it must not also stand in for gating. It used to
+	// `return` here, so `--gate --baseline` wrote the baseline, printed success
+	// and exited 0 having asserted nothing — the two flags silently cancelled.
 	if (flag('--baseline')) {
+		if (flag('--gate')) {
+			console.error(
+				'refusing --gate with --baseline: recording the current state and gating against it ' +
+					'in one run always passes. Run --baseline, review it, then --gate separately.'
+			)
+			process.exit(2)
+		}
 		writeFileSync(
 			BASELINE_PATH,
-			JSON.stringify({ writtenAt: new Date().toISOString(), rowCount: rows.length, fails }, null, 1)
+			JSON.stringify(
+				{
+					writtenAt: new Date().toISOString(),
+					rowCount: rows.length,
+					assertableCount: assertable,
+					excludedCount: excluded.length,
+					fails
+				},
+				null,
+				1
+			)
 		)
 		console.log(`\nbaseline written: ${fails.length} standing failures -> ${BASELINE_PATH}`)
 		return
@@ -349,7 +401,17 @@ async function main(): Promise<void> {
 		return
 	}
 
-	if (reconcileFailed) process.exit(1)
+	// A plain run is the DOCUMENTED invocation, and it used to print its failures
+	// and exit 0 — so any caller that checked the exit code (a hook, a pipeline,
+	// a `&&` chain) read a red corpus as success. Failing rows are a failure.
+	if (reconcileFailed || fails.length) {
+		if (fails.length)
+			console.error(
+				`\n${fails.length} gate-relevant failure(s). Use --gate to compare against the ` +
+					`reviewed baseline instead of failing on standing reds.`
+			)
+		process.exit(1)
+	}
 }
 
 await main()
