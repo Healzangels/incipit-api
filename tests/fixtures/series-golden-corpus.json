@@ -191,6 +191,13 @@
     "rows": [
      "155245"
     ]
+   },
+   {
+    "date": "2026-07-31",
+    "what": "Jack Ryan family unified onto 171704 publication order (option 1): 31 updated, 1 added",
+    "rows": [
+     "family"
+    ]
    }
   ]
  },
@@ -5824,8 +5831,9 @@
    "required": {
     "outcome": "SERIES",
     "series": "Jack Ryan",
-    "position": "17",
-    "expectedSortPrefix": "Jack Ryan, Book 17 - "
+    "position": "30",
+    "expectedSortPrefix": "Jack Ryan, Book 30 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R3",
@@ -5833,8 +5841,8 @@
     "C5"
    ],
    "pinType": "operator-stated",
-   "sourceOfTruth": "v5 bump-cost: cold moves this to \"A Jack Ryan Novel (chronological order) #21\" - scored a REGRESSION (fragments a coherent Jack Ryan shelf). Required = keep Jack Ryan #17.",
-   "group": "named-clancy",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
    "note": "One of the 3 Tom Clancy v5 regression rows; C5 ratchet case (recompute must not fragment).",
    "mintPin": true
   },
@@ -5878,9 +5886,10 @@
    },
    "required": {
     "outcome": "SERIES",
-    "series": "Jack Ryan, Jr.",
-    "position": "11",
-    "expectedSortPrefix": "Jack Ryan, Jr., Book 11 - "
+    "series": "Jack Ryan",
+    "position": "25",
+    "expectedSortPrefix": "Jack Ryan, Book 25 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R5",
@@ -5888,8 +5897,8 @@
     "C5"
    ],
    "pinType": "operator-stated",
-   "sourceOfTruth": "v5: cold gives \"A Jack Ryan Jr. Novel #5\" (publisher listing name + different taxonomy) - scored a REGRESSION. Required = keep Jack Ryan, Jr. #11 (GR taxonomy consistent with the other 9 Jr rows).",
-   "group": "named-clancy",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
    "mintPin": true
   },
   {
@@ -5932,9 +5941,10 @@
    },
    "required": {
     "outcome": "SERIES",
-    "series": "Jack Ryan, Jr.",
-    "position": "10",
-    "expectedSortPrefix": "Jack Ryan, Jr., Book 10 - "
+    "series": "Jack Ryan",
+    "position": "23",
+    "expectedSortPrefix": "Jack Ryan, Book 23 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R5",
@@ -5942,8 +5952,8 @@
     "C5"
    ],
    "pinType": "operator-stated",
-   "sourceOfTruth": "v5: cold gives \"A Jack Ryan Jr. Novel #4\" - scored a REGRESSION. Required = keep Jack Ryan, Jr. #10.",
-   "group": "named-clancy",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
    "mintPin": true
   },
   {
@@ -5999,17 +6009,18 @@
    },
    "required": {
     "outcome": "SERIES",
-    "series": "Jack Ryan, Jr.",
-    "position": "4",
-    "expectedSortPrefix": "Jack Ryan, Jr., Book 4 - "
+    "series": "Jack Ryan",
+    "position": "15",
+    "expectedSortPrefix": "Jack Ryan, Book 15 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R3",
     "R5"
    ],
-   "pinType": "measured-hard",
-   "sourceOfTruth": "Served TODAY as the chronological ordering #13 (census-reported defect class). Mirror 2026-07-30 work 21739837: Jack Ryan, Jr. #4 + Jack Ryan Universe #16 + Publication Order #15. R3 excludes the orderings, R2 the Universe umbrella; the one clean listing left is Jack Ryan, Jr. #4 (consistent with Dead or Alive #2, Locked On #3).",
-   "group": "named-clancy",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
    "knownDefectNow": true,
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
@@ -6058,16 +6069,17 @@
    },
    "required": {
     "outcome": "SERIES",
-    "series": "Jack Ryan, Jr.",
-    "position": "13",
-    "expectedSortPrefix": "Jack Ryan, Jr., Book 13 - "
+    "series": "Jack Ryan",
+    "position": "29",
+    "expectedSortPrefix": "Jack Ryan, Book 29 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R5"
    ],
-   "pinType": "measured-hard",
-   "sourceOfTruth": "Firing Point is a Jr.-led book served on the Jack Ryan (Sr) shelf at #16. Mirror work 74099812 lists BOTH Jack Ryan, Jr. #13 and Jack Ryan #16; its nine Jr siblings all shelve as Jack Ryan, Jr. (R5: Jack Ryan != Jack Ryan, Jr.). Family consistency + R5 pick Jr #13.",
-   "group": "named-clancy",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
    "knownDefectNow": true,
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
@@ -6126,25 +6138,23 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "Q1",
-     "ifQ1_nameBeatsNone": "A Jack Ryan Novel (chronological order) #19 may shelve (current state stands)",
-     "ifQ1_orderingsNeverShelve": "NONE (tags only); NOTE the human-obvious \"Jack Ryan #14/#13/#16\" answers exist in no source - R4 forbids synthesizing them"
-    }
+    "outcome": "SERIES",
+    "series": "Jack Ryan",
+    "position": "26",
+    "expectedSortPrefix": "Jack Ryan, Book 26 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R3",
     "Q1"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "Census-reported defect shape: served/provider/cold all = \"A Jack Ryan Novel (chronological order) #19\". Mirror 2026-07-30 (works 61023955/55991519/89384552): the ONLY listings are Jack Ryan Universe (umbrella) and its Publication Order - no clean Jack Ryan series exists upstream for these works. After R3+R2 exclusions nothing remains: this is exactly open question Q1.",
-   "group": "named-clancy",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
-   ]
+   ],
+   "mintPin": true
   },
   {
    "recordId": "B074HGCJZ8",
@@ -6198,25 +6208,23 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "Q1",
-     "ifQ1_nameBeatsNone": "A Jack Ryan Novel (chronological order) #18 may shelve (current state stands)",
-     "ifQ1_orderingsNeverShelve": "NONE (tags only); NOTE the human-obvious \"Jack Ryan #14/#13/#16\" answers exist in no source - R4 forbids synthesizing them"
-    }
+    "outcome": "SERIES",
+    "series": "Jack Ryan",
+    "position": "24",
+    "expectedSortPrefix": "Jack Ryan, Book 24 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R3",
     "Q1"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "Census-reported defect shape: served/provider/cold all = \"A Jack Ryan Novel (chronological order) #18\". Mirror 2026-07-30 (works 61023955/55991519/89384552): the ONLY listings are Jack Ryan Universe (umbrella) and its Publication Order - no clean Jack Ryan series exists upstream for these works. After R3+R2 exclusions nothing remains: this is exactly open question Q1.",
-   "group": "named-clancy",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
-   ]
+   ],
+   "mintPin": true
   },
   {
    "recordId": "0593453255",
@@ -6270,25 +6278,23 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "Q1",
-     "ifQ1_nameBeatsNone": "A Jack Ryan Novel (chronological order) #22 may shelve (current state stands)",
-     "ifQ1_orderingsNeverShelve": "NONE (tags only); NOTE the human-obvious \"Jack Ryan #14/#13/#16\" answers exist in no source - R4 forbids synthesizing them"
-    }
+    "outcome": "SERIES",
+    "series": "Jack Ryan",
+    "position": "32",
+    "expectedSortPrefix": "Jack Ryan, Book 32 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R3",
     "Q1"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "Census-reported defect shape: served/provider/cold all = \"A Jack Ryan Novel (chronological order) #22\". Mirror 2026-07-30 (works 61023955/55991519/89384552): the ONLY listings are Jack Ryan Universe (umbrella) and its Publication Order - no clean Jack Ryan series exists upstream for these works. After R3+R2 exclusions nothing remains: this is exactly open question Q1.",
-   "group": "named-clancy",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
-   ]
+   ],
+   "mintPin": true
   },
   {
    "recordId": "B002UZKKOO",
@@ -6329,17 +6335,19 @@
    },
    "required": {
     "outcome": "SERIES",
-    "series": "Jack Ryan, Jr.",
-    "position": "1",
-    "expectedSortPrefix": "Jack Ryan, Jr., Book 1 - "
+    "series": "Jack Ryan",
+    "position": "12",
+    "expectedSortPrefix": "Jack Ryan, Book 12 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R5",
     "R3"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Jr family row: Goodreads Jack Ryan, Jr. taxonomy replaces the provider's ordering/publisher-listing name.",
-   "group": "named-clancy"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "B004AY444A",
@@ -6392,17 +6400,19 @@
    },
    "required": {
     "outcome": "SERIES",
-    "series": "Jack Ryan, Jr.",
-    "position": "2",
-    "expectedSortPrefix": "Jack Ryan, Jr., Book 2 - "
+    "series": "Jack Ryan",
+    "position": "13",
+    "expectedSortPrefix": "Jack Ryan, Book 13 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R5",
     "R3"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Jr family row: Goodreads Jack Ryan, Jr. taxonomy replaces the provider's ordering/publisher-listing name.",
-   "group": "named-clancy"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "B006FX933G",
@@ -6455,17 +6465,19 @@
    },
    "required": {
     "outcome": "SERIES",
-    "series": "Jack Ryan, Jr.",
-    "position": "3",
-    "expectedSortPrefix": "Jack Ryan, Jr., Book 3 - "
+    "series": "Jack Ryan",
+    "position": "14",
+    "expectedSortPrefix": "Jack Ryan, Book 14 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R5",
     "R3"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Jr family row: Goodreads Jack Ryan, Jr. taxonomy replaces the provider's ordering/publisher-listing name.",
-   "group": "named-clancy"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "B00LADIYBI",
@@ -6506,17 +6518,19 @@
    },
    "required": {
     "outcome": "SERIES",
-    "series": "Jack Ryan, Jr.",
-    "position": "6",
-    "expectedSortPrefix": "Jack Ryan, Jr., Book 6 - "
+    "series": "Jack Ryan",
+    "position": "17",
+    "expectedSortPrefix": "Jack Ryan, Book 17 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R5",
     "R3"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Jr family row: Goodreads Jack Ryan, Jr. taxonomy replaces the provider's ordering/publisher-listing name.",
-   "group": "named-clancy"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "B00XV1C5EO",
@@ -6557,17 +6571,19 @@
    },
    "required": {
     "outcome": "SERIES",
-    "series": "Jack Ryan, Jr.",
-    "position": "8",
-    "expectedSortPrefix": "Jack Ryan, Jr., Book 8 - "
+    "series": "Jack Ryan",
+    "position": "19",
+    "expectedSortPrefix": "Jack Ryan, Book 19 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R5",
     "R3"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Jr family row: Goodreads Jack Ryan, Jr. taxonomy replaces the provider's ordering/publisher-listing name.",
-   "group": "named-clancy"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "B01CUP1FPQ",
@@ -6608,17 +6624,19 @@
    },
    "required": {
     "outcome": "SERIES",
-    "series": "Jack Ryan, Jr.",
-    "position": "9",
-    "expectedSortPrefix": "Jack Ryan, Jr., Book 9 - "
+    "series": "Jack Ryan",
+    "position": "21",
+    "expectedSortPrefix": "Jack Ryan, Book 21 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R5",
     "R3"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Jr family row: Goodreads Jack Ryan, Jr. taxonomy replaces the provider's ordering/publisher-listing name.",
-   "group": "named-clancy"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "1984887904",
@@ -6659,17 +6677,19 @@
    },
    "required": {
     "outcome": "SERIES",
-    "series": "Jack Ryan, Jr.",
-    "position": "12",
-    "expectedSortPrefix": "Jack Ryan, Jr., Book 12 - "
+    "series": "Jack Ryan",
+    "position": "27",
+    "expectedSortPrefix": "Jack Ryan, Book 27 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R5",
     "R3"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Jr family row: Goodreads Jack Ryan, Jr. taxonomy replaces the provider's ordering/publisher-listing name.",
-   "group": "named-clancy"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "B004KAPD4Y",
@@ -6723,16 +6743,18 @@
    "required": {
     "outcome": "SERIES",
     "series": "Jack Ryan",
-    "position": "1",
-    "expectedSortPrefix": "Jack Ryan, Book 1 - "
+    "position": "2",
+    "expectedSortPrefix": "Jack Ryan, Book 2 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R3",
     "R1"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Sr family row: served Jack Ryan #N; provider carries the chronological ordering which Goodreads replaced (R3: orderings never shelve; the publication-order listing stays secondary).",
-   "group": "named-clancy"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "B002V0KDY0",
@@ -6786,16 +6808,18 @@
    "required": {
     "outcome": "SERIES",
     "series": "Jack Ryan",
-    "position": "2",
-    "expectedSortPrefix": "Jack Ryan, Book 2 - "
+    "position": "11",
+    "expectedSortPrefix": "Jack Ryan, Book 11 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R3",
     "R1"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Sr family row: served Jack Ryan #N; provider carries the chronological ordering which Goodreads replaced (R3: orderings never shelve; the publication-order listing stays secondary).",
-   "group": "named-clancy"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "B004EBW0K4",
@@ -6849,16 +6873,18 @@
    "required": {
     "outcome": "SERIES",
     "series": "Jack Ryan",
-    "position": "4",
-    "expectedSortPrefix": "Jack Ryan, Book 4 - "
+    "position": "3",
+    "expectedSortPrefix": "Jack Ryan, Book 3 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R3",
     "R1"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Sr family row: served Jack Ryan #N; provider carries the chronological ordering which Goodreads replaced (R3: orderings never shelve; the publication-order listing stays secondary).",
-   "group": "named-clancy"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "B004EBZ2GI",
@@ -6912,16 +6938,18 @@
    "required": {
     "outcome": "SERIES",
     "series": "Jack Ryan",
-    "position": "5",
-    "expectedSortPrefix": "Jack Ryan, Book 5 - "
+    "position": "4",
+    "expectedSortPrefix": "Jack Ryan, Book 4 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R3",
     "R1"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Sr family row: served Jack Ryan #N; provider carries the chronological ordering which Goodreads replaced (R3: orderings never shelve; the publication-order listing stays secondary).",
-   "group": "named-clancy"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "B004XN6PVS",
@@ -6975,16 +7003,18 @@
    "required": {
     "outcome": "SERIES",
     "series": "Jack Ryan",
-    "position": "6",
-    "expectedSortPrefix": "Jack Ryan, Book 6 - "
+    "position": "5",
+    "expectedSortPrefix": "Jack Ryan, Book 5 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R3",
     "R1"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Sr family row: served Jack Ryan #N; provider carries the chronological ordering which Goodreads replaced (R3: orderings never shelve; the publication-order listing stays secondary).",
-   "group": "named-clancy"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "B004JOAIDM",
@@ -7039,15 +7069,17 @@
     "outcome": "SERIES",
     "series": "Jack Ryan",
     "position": "7",
-    "expectedSortPrefix": "Jack Ryan, Book 7 - "
+    "expectedSortPrefix": "Jack Ryan, Book 7 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R3",
     "R1"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Sr family row: served Jack Ryan #N; provider carries the chronological ordering which Goodreads replaced (R3: orderings never shelve; the publication-order listing stays secondary).",
-   "group": "named-clancy"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "B004ESTSSO",
@@ -7102,15 +7134,17 @@
     "outcome": "SERIES",
     "series": "Jack Ryan",
     "position": "8",
-    "expectedSortPrefix": "Jack Ryan, Book 8 - "
+    "expectedSortPrefix": "Jack Ryan, Book 8 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R3",
     "R1"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Sr family row: served Jack Ryan #N; provider carries the chronological ordering which Goodreads replaced (R3: orderings never shelve; the publication-order listing stays secondary).",
-   "group": "named-clancy"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "B00PKJ2SVA",
@@ -7164,16 +7198,18 @@
    "required": {
     "outcome": "SERIES",
     "series": "Jack Ryan",
-    "position": "10",
-    "expectedSortPrefix": "Jack Ryan, Book 10 - "
+    "position": "18",
+    "expectedSortPrefix": "Jack Ryan, Book 18 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R3",
     "R1"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Sr family row: served Jack Ryan #N; provider carries the chronological ordering which Goodreads replaced (R3: orderings never shelve; the publication-order listing stays secondary).",
-   "group": "named-clancy"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "B011PVT3A0",
@@ -7227,16 +7263,18 @@
    "required": {
     "outcome": "SERIES",
     "series": "Jack Ryan",
-    "position": "11",
-    "expectedSortPrefix": "Jack Ryan, Book 11 - "
+    "position": "20",
+    "expectedSortPrefix": "Jack Ryan, Book 20 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R3",
     "R1"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Sr family row: served Jack Ryan #N; provider carries the chronological ordering which Goodreads replaced (R3: orderings never shelve; the publication-order listing stays secondary).",
-   "group": "named-clancy"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "B01JKG9FMS",
@@ -7290,16 +7328,18 @@
    "required": {
     "outcome": "SERIES",
     "series": "Jack Ryan",
-    "position": "12",
-    "expectedSortPrefix": "Jack Ryan, Book 12 - "
+    "position": "22",
+    "expectedSortPrefix": "Jack Ryan, Book 22 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R3",
     "R1"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Sr family row: served Jack Ryan #N; provider carries the chronological ordering which Goodreads replaced (R3: orderings never shelve; the publication-order listing stays secondary).",
-   "group": "named-clancy"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "0593106792",
@@ -7353,16 +7393,18 @@
    "required": {
     "outcome": "SERIES",
     "series": "Jack Ryan",
-    "position": "15",
-    "expectedSortPrefix": "Jack Ryan, Book 15 - "
+    "position": "28",
+    "expectedSortPrefix": "Jack Ryan, Book 28 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R3",
     "R1"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Sr family row: served Jack Ryan #N; provider carries the chronological ordering which Goodreads replaced (R3: orderings never shelve; the publication-order listing stays secondary).",
-   "group": "named-clancy"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "B0BXK4QWDS",
@@ -7416,16 +7458,18 @@
    "required": {
     "outcome": "SERIES",
     "series": "Jack Ryan",
-    "position": "18",
-    "expectedSortPrefix": "Jack Ryan, Book 18 - "
+    "position": "37",
+    "expectedSortPrefix": "Jack Ryan, Book 37 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R3",
     "R1"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Sr family row: served Jack Ryan #N; provider carries the chronological ordering which Goodreads replaced (R3: orderings never shelve; the publication-order listing stays secondary).",
-   "group": "named-clancy"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "B0CGS1GWMT",
@@ -7479,16 +7523,17 @@
    "required": {
     "outcome": "SERIES",
     "series": "Jack Ryan",
-    "position": "19",
-    "expectedSortPrefix": "Jack Ryan, Book 19 - "
+    "position": "38",
+    "expectedSortPrefix": "Jack Ryan, Book 38 - "
    },
    "specRule": [
     "R3",
     "R1"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Sr family row: served Jack Ryan #N; provider carries the chronological ordering which Goodreads replaced (R3: orderings never shelve; the publication-order listing stays secondary).",
-   "group": "named-clancy"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 unified Jack Ryan publication shelf (171704). Andrews & Wilson authorship wrongly tripped the cross-author filter on the first pass.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "B004FHZQEO",
@@ -7523,16 +7568,18 @@
    },
    "required": {
     "outcome": "SERIES",
-    "series": "John Clark",
-    "position": "1",
-    "expectedSortPrefix": "John Clark, Book 1 - "
+    "series": "Jack Ryan",
+    "position": "6",
+    "expectedSortPrefix": "Jack Ryan, Book 6 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R5"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "John Clark character series is its own shelf (narrow identity; not folded into Jack Ryan).",
-   "group": "named-clancy"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "B004FJA3TA",
@@ -7585,16 +7632,18 @@
    },
    "required": {
     "outcome": "SERIES",
-    "series": "John Clark",
-    "position": "3",
-    "expectedSortPrefix": "John Clark, Book 3 - "
+    "series": "Jack Ryan",
+    "position": "10",
+    "expectedSortPrefix": "Jack Ryan, Book 10 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R5"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "John Clark character series is its own shelf (narrow identity; not folded into Jack Ryan).",
-   "group": "named-clancy"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "B002UZL4ZI",
@@ -16877,16 +16926,17 @@
    "required": {
     "outcome": "SERIES",
     "series": "Jack Ryan",
-    "position": "3",
-    "secondaryNote": "current secondary acceptable as tag",
-    "expectedSortPrefix": "Jack Ryan, Book 3 - "
+    "position": "1",
+    "expectedSortPrefix": "Jack Ryan, Book 1 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R1"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Census 2026-07-29 dual-series row, verdict 'dual-ok' (shard 1): the current answer is the required answer (assignment: 82-of-93 parent-primary-correct class).",
-   "group": "census-dual"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "B003XX5CCM",
@@ -18928,16 +18978,17 @@
    "required": {
     "outcome": "SERIES",
     "series": "Jack Ryan",
-    "position": "9",
-    "secondaryNote": "current secondary acceptable as tag",
-    "expectedSortPrefix": "Jack Ryan, Book 9 - "
+    "position": "16",
+    "expectedSortPrefix": "Jack Ryan, Book 16 - ",
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
    },
    "specRule": [
     "R1"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Census 2026-07-29 dual-series row, verdict 'dual-ok' (shard 2): the current answer is the required answer (assignment: 82-of-93 parent-primary-correct class).",
-   "group": "census-dual"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
+   "mintPin": true
   },
   {
    "recordId": "B003UCLS4C",
@@ -27309,6 +27360,40 @@
    "mintPin": true,
    "sourceOfTruth": "v5-turnover review: correct serving 'Space Marine Battles #2' goes NONE cold \u2014 keep-pin (C5 ratchet class)",
    "group": "turnover-review",
+   "knownDefectNow": false
+  },
+  {
+   "recordId": "B004I6ZR78",
+   "ratingKey": "152896",
+   "album": "Rainbow Six",
+   "artist": "(Clancy family)",
+   "inputs": {
+    "title": "Rainbow Six",
+    "subtitle": null,
+    "author": null,
+    "providerSeries": null,
+    "providerSeries2": null,
+    "inputSource": "pub-order mapping 2026-07-31"
+   },
+   "servedNow": {
+    "primary": null,
+    "secondary": null,
+    "plexSortTitleNow": ""
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Jack Ryan",
+    "position": "9",
+    "expectedSortPrefix": "Jack Ryan, Book 9 - "
+   },
+   "specRule": [
+    "R1",
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "mintPin": true,
+   "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
+   "group": "jackryan-pub-order",
    "knownDefectNow": false
   }
  ]
