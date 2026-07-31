@@ -177,6 +177,12 @@ interface RecordedExchange {
 	message?: string
 }
 
+/** Replay matches on PATH+QUERY, not the absolute URL: the whole point of a
+ *  replay arm is running against a DIFFERENT base (a blackhole canary, a moved
+ *  mirror) with identical exchanges — absolute-URL keys made the canary defeat
+ *  itself by missing on every call. */
+const pathKey = (url: string): string => url.replace(/^https?:\/\/[^/]+/, '')
+
 let replayFile: string | null = null
 let replayQueues: Map<string, RecordedExchange[]> | null = null
 const stats = { served: 0, misses: 0 }
@@ -187,9 +193,10 @@ function loadReplay(path: string): Map<string, RecordedExchange[]> {
 	for (const line of readFileSync(path, 'utf8').split('\n')) {
 		if (!line.trim()) continue
 		const e = JSON.parse(line) as RecordedExchange
-		const q = queues.get(e.url) ?? []
+		const k = pathKey(e.url)
+		const q = queues.get(k) ?? []
 		q.push(e)
-		queues.set(e.url, q)
+		queues.set(k, q)
 	}
 	replayFile = path
 	replayQueues = queues
@@ -221,7 +228,7 @@ async function fetchRouted(
 ): Promise<AxiosResponse> {
 	const replayPath = process.env.GOODREADS_REPLAY_PATH
 	if (replayPath) {
-		const q = loadReplay(replayPath).get(url)
+		const q = loadReplay(replayPath).get(pathKey(url))
 		const entry = q?.shift()
 		if (!entry) {
 			stats.misses += 1

@@ -1067,7 +1067,12 @@ function timeBudgetMs(): number {
 function minRequestGapMs(): number {
 	return goodreadsTuning().minGapMs
 }
-const BACKOFF_MS = 60000
+// Overridable for the harness's determinism mode: the backoff window is
+// WALL-CLOCK state, and a replayed 429 arming 60s of skips blankets a replay
+// arm that finishes in under a second — the two arms then skip different
+// rows. GOODREADS_BACKOFF_MS=0 disables it for record/replay runs only; the
+// serving default stays 60s.
+const BACKOFF_MS = Number(process.env.GOODREADS_BACKOFF_MS ?? 60000)
 
 let nextAllowedAt = 0
 let backoffUntil = 0

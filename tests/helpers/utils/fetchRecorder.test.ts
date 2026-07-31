@@ -100,6 +100,19 @@ describe('fetchPlus record/replay', () => {
 		expect(getMock).not.toHaveBeenCalled()
 	})
 
+	test('replay matches by PATH, so a different base (blackhole canary) still hits', () => {
+		const f = join(dir, 'g.jsonl')
+		writeFileSync(
+			f,
+			JSON.stringify({ url: 'http://10.0.1.99:8788/work/7', ok: true, data: { w: 7 } }) + '\n'
+		)
+		process.env.GOODREADS_REPLAY_PATH = f
+		return fetchPlus('http://127.0.0.1:9/work/7').then((r) => {
+			expect(r.data).toEqual({ w: 7 })
+			expect(getMock).not.toHaveBeenCalled()
+		})
+	})
+
 	test('a replay MISS throws loudly, never touches the network, and counts', async () => {
 		const f = join(dir, 'e.jsonl')
 		writeFileSync(f, JSON.stringify({ url: 'http://m/other', ok: true, data: {} }) + '\n')

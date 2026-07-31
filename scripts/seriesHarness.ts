@@ -88,6 +88,12 @@ const recPath = process.argv[process.argv.indexOf('--record') + 1]
 if (process.argv.includes('--record')) process.env.GOODREADS_RECORD_PATH = recPath
 const repPath = process.argv[process.argv.indexOf('--replay') + 1]
 if (process.argv.includes('--replay')) process.env.GOODREADS_REPLAY_PATH = repPath
+// Determinism mode: concurrency races make the two arms fetch shared-memo
+// URLs a different number of times, and the wall-clock backoff skips
+// different rows per arm — one worker + no backoff whenever recording or
+// replaying. Live un-recorded runs keep 4 workers.
+const DETERMINISM = process.argv.includes('--record') || process.argv.includes('--replay')
+if (DETERMINISM) process.env.GOODREADS_BACKOFF_MS = '0'
 
 const args = process.argv.slice(2)
 const flag = (name: string) => args.includes(name)
@@ -250,7 +256,19 @@ async function main(): Promise<void> {
 			if (done % 25 === 0) console.log(`  ...${done}/${rows.length}`)
 		}
 	}
-	await Promise.all(Array.from({ length: 4 }, () => worker()))
+	await Promise.all(Array.from({ length: DETERMINISM ? 1 : 4 }, () => worker()))
+
+	// Replay misses invalidate the ENTIRE run before any verdict is trusted:
+	// a miss may have been swallowed downstream as a degraded fetch, so the
+	// gate's conclusion is built on inputs the recording never contained.
+	if (process.env.GOODREADS_REPLAY_PATH) {
+		const rs = replayStats()
+		console.log(`replay: served ${rs.served}, misses ${rs.misses}`)
+		if (rs.misses > 0) {
+			console.error('REPLAY MISSES — run invalid; re-record the baseline.')
+			process.exit(2)
+		}
+	}
 
 	const fails = results.filter((r) => r.classification !== 'MATCH' && !r.excluded)
 	const excluded = results.filter((r) => r.excluded)
@@ -331,14 +349,6 @@ async function main(): Promise<void> {
 		return
 	}
 
-	if (process.env.GOODREADS_REPLAY_PATH) {
-		const rs = replayStats()
-		console.log(`replay: served ${rs.served}, misses ${rs.misses}`)
-		// A miss may have been swallowed downstream as a degraded fetch — the
-		// stats are the belt to the throw's braces. Never trust a green replay
-		// arm that missed.
-		if (rs.misses > 0) process.exit(2)
-	}
 	if (reconcileFailed) process.exit(1)
 }
 
