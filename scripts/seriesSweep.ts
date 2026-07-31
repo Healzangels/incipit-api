@@ -22,9 +22,15 @@
  *   bun scripts/seriesSweep.ts --init      # first baseline (today's reviewed state)
  *   bun scripts/seriesSweep.ts             # diff; exit 1 when a review is due
  *   bun scripts/seriesSweep.ts --accept    # fold NEW+CHANGED into the ledger
+ *
+ * Run it from a host listed in the api's RATE_LIMIT_ALLOWLIST. Without that the
+ * sweep trips the 100/min bucket and every 429 costs a backoff wait — correct
+ * (nothing is scored as missing) but far slower than it needs to be.
  */
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
+
+import { fetchServedAnswer } from '#helpers/series/sweepFetch'
 
 // Determinism: --record <f> captures every mirror exchange; --replay <f> serves
 // them back with ZERO network and hard-fails on any miss.
@@ -55,9 +61,6 @@ interface LedgerEntry extends Answer {
 	boxes: string[]
 }
 
-const show = (s: { name?: string; position?: string | null } | null | undefined): string | null =>
-	s?.name ? `${s.name} #${s.position ?? '-'}` : null
-
 async function libraryRecords(): Promise<Map<string, Set<string>>> {
 	const ids = new Map<string, Set<string>>()
 	for (const box of BOXES) {
@@ -72,19 +75,10 @@ async function libraryRecords(): Promise<Map<string, Set<string>>> {
 	return ids
 }
 
-async function served(id: string): Promise<Answer & { available: boolean }> {
-	try {
-		const r = await fetch(`${API}/books/${encodeURIComponent(id)}?region=us`)
-		if (!r.ok) return { primary: `UNAVAILABLE(${r.status})`, secondary: null, available: false }
-		const d = (await r.json()) as {
-			seriesPrimary?: { name?: string; position?: string | null }
-			seriesSecondary?: { name?: string; position?: string | null }
-		}
-		return { primary: show(d.seriesPrimary), secondary: show(d.seriesSecondary), available: true }
-	} catch {
-		return { primary: 'UNAVAILABLE(error)', secondary: null, available: false }
-	}
-}
+// Reading one record is a DECISION (429 = slow down, retry; 404 = an answer),
+// so it lives in a tested helper rather than inline here — see sweepFetch.ts
+// for why a stable "unavailable" count is a limiter fingerprint, not data loss.
+const served = (id: string): Promise<Answer & { available: boolean }> => fetchServedAnswer(API, id)
 
 async function main(): Promise<void> {
 	const init = process.argv.includes('--init')
@@ -126,8 +120,10 @@ async function main(): Promise<void> {
 				prior.boxes = [...boxes]
 				const priorUnavailable = Boolean(prior.primary?.startsWith('UNAVAILABLE'))
 				if (!now_.available) {
-					// A transient 404/429 is NOT a reading: never queue a real baseline
-					// against it, never overwrite the ledger with it.
+					// Not a reading: never queue a real baseline against it, never
+					// overwrite the ledger with it. Rate limiting no longer reaches
+					// here (sweepFetch retries a 429), so what lands here is a record
+					// the api genuinely cannot serve — worth watching, not reviewing.
 					if (!priorUnavailable) flaps.push(id)
 				} else if (priorUnavailable) {
 					// The record resolved: heal the baseline silently (informational).
@@ -157,7 +153,9 @@ async function main(): Promise<void> {
 
 	const gone = Object.keys(ledger).filter((id) => !records.has(id))
 	console.log(`\nNEW (auto-baselined): ${fresh.length}`)
-	console.log(`FLAPS (transient unavailability, not queued): ${flaps.length}`)
+	console.log(`UNSERVABLE (api cannot answer; not queued): ${flaps.length}`)
+	for (const id of flaps.slice(0, 20)) console.log(`  ${id}`)
+	if (flaps.length > 20) console.log(`  ... and ${flaps.length - 20} more`)
 	console.log(`RESOLVED (was unavailable, baseline healed): ${resolved.length}`)
 	for (const r of resolved) console.log(`  ${r.id} -> ${r.is.primary ?? 'NONE'}`)
 	console.log(`CHANGED (review queue): ${changed.length}`)
