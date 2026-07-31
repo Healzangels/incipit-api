@@ -34,11 +34,27 @@ const red = new Set(corpus.rows.filter((r) => r.mintPin).map((r) => r.ratingKey)
 const byRk = new Map(corpus.rows.map((r) => [r.ratingKey, r]))
 const pins: Record<string, { series: string; position?: string; source: string }> = {}
 const skipped: string[] = []
+const missing: string[] = []
+const collisions: string[] = []
 for (const rk of red) {
 	const row = byRk.get(rk)
-	if (!row) continue
+	if (!row) {
+		missing.push(`rk${rk}`)
+		continue
+	}
 	if (row.required.outcome !== 'SERIES' || !row.required.series) {
 		skipped.push(`rk${rk} ${row.album} (${row.required.outcome})`)
+		continue
+	}
+	// A recordId already minted means two corpus rows claim the same record with
+	// (potentially) different answers, and the later one silently won. The corpus
+	// carries 5 duplicate recordIds across 4 groups today; none is currently
+	// flagged mintPin, which is the only reason this has not already bitten.
+	if (pins[row.recordId]) {
+		collisions.push(
+			`${row.recordId} (rk${rk} ${row.album}) already minted as ` +
+				`${pins[row.recordId].series} #${pins[row.recordId].position ?? '-'}`
+		)
 		continue
 	}
 	pins[row.recordId] = {
@@ -59,4 +75,24 @@ export const SHELF_PINS: Record<string, ShelfPin> = ${JSON.stringify(pins, null,
 `
 writeFileSync(join(import.meta.dir, '..', 'src', 'helpers', 'series', 'shelfPins.data.ts'), body)
 console.log(`minted ${Object.keys(pins).length} pins`)
-for (const s of skipped) console.log(`  skipped (not SERIES-required): ${s}`)
+
+// A row the operator flagged mintPin that produced NO pin is a silent hole in
+// the operator's own stated answers — exactly what pins exist to prevent. It
+// used to print and exit 0, so a green run could ship with the pin missing.
+let failed = false
+for (const s of skipped) {
+	console.error(`  SKIPPED (mintPin row is not SERIES-required): ${s}`)
+	failed = true
+}
+for (const s of missing) {
+	console.error(`  MISSING (mintPin ratingKey not in the corpus): ${s}`)
+	failed = true
+}
+for (const s of collisions) {
+	console.error(`  COLLISION (two corpus rows claim one recordId): ${s}`)
+	failed = true
+}
+if (failed) {
+	console.error('\nmintPins: refusing to report success — fix the corpus rows above and re-run.')
+	process.exit(1)
+}

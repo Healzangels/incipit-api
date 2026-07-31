@@ -126,15 +126,26 @@ async function main(): Promise<void> {
 					// the api genuinely cannot serve — worth watching, not reviewing.
 					if (!priorUnavailable) flaps.push(id)
 				} else if (priorUnavailable) {
-					// The record resolved: heal the baseline silently (informational).
+					// The record's FIRST real answer. This used to fold straight into the
+					// reviewed baseline, silently: a genuine drift preceded by a single
+					// unavailable sweep was swallowed, and the ledger kept the stale
+					// `available: false` beside a real primary (fingerprints of it are
+					// still in the shipped file). An answer nobody has reviewed is a
+					// review item, so it goes in the queue like any other change.
 					resolved.push({ id, is: now_ })
-					ledger[id] = {
-						...prior,
-						primary: now_.primary,
-						secondary: now_.secondary,
-						reviewedAt: now
+					changed.push({
+						id,
+						was: { primary: prior.primary, secondary: prior.secondary },
+						is: now_
+					})
+					if (accept && (!only || only.has(id))) {
+						ledger[id] = { ...prior, ...now_, reviewedAt: now }
 					}
-				} else if (prior.primary !== now_.primary) {
+				} else if (prior.primary !== now_.primary || prior.secondary !== now_.secondary) {
+					// BOTH slots. Comparing only the primary left the tag slot undiffed
+					// even though the ledger stores it and 337 of 1607 entries carry one
+					// — the exact fb058d2 blind spot the harness was built to close,
+					// re-introduced in the drift tool.
 					changed.push({
 						id,
 						was: { primary: prior.primary, secondary: prior.secondary },
@@ -156,11 +167,16 @@ async function main(): Promise<void> {
 	console.log(`UNSERVABLE (api cannot answer; not queued): ${flaps.length}`)
 	for (const id of flaps.slice(0, 20)) console.log(`  ${id}`)
 	if (flaps.length > 20) console.log(`  ... and ${flaps.length - 20} more`)
-	console.log(`RESOLVED (was unavailable, baseline healed): ${resolved.length}`)
+	console.log(`RESOLVED (was unavailable, now answering — queued for review): ${resolved.length}`)
 	for (const r of resolved) console.log(`  ${r.id} -> ${r.is.primary ?? 'NONE'}`)
 	console.log(`CHANGED (review queue): ${changed.length}`)
-	for (const c of changed)
+	for (const c of changed) {
 		console.log(`  ${c.id}  was ${c.was.primary ?? 'NONE'}  ->  now ${c.is.primary ?? 'NONE'}`)
+		// Say so when the TAG is what moved, or a secondary-only change reads as
+		// a no-op line and gets accepted without anyone seeing what shifted.
+		if (c.was.secondary !== c.is.secondary)
+			console.log(`      tag: ${c.was.secondary ?? 'NONE'}  ->  ${c.is.secondary ?? 'NONE'}`)
+	}
 	console.log(`GONE (in ledger, in no library): ${gone.length}`)
 
 	if (init || accept || fresh.length || resolved.length) {
