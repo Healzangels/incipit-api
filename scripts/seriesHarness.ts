@@ -33,9 +33,9 @@ import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 
 import { foldSeriesName, withGoodreadsSeries } from '#helpers/providers/goodreadsSeries'
-import { replayStats } from '#helpers/utils/fetchPlus'
 import { applyPins } from '#helpers/series/shelfPins'
 import { applyShelfPolicy } from '#helpers/series/shelfPolicy'
+import { replayStats } from '#helpers/utils/fetchPlus'
 
 interface CorpusSeries {
 	name?: string | null
