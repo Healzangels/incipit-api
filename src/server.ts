@@ -7,6 +7,7 @@ import { fastify, FastifyBaseLogger, FastifyError, FastifyReply, FastifyRequest 
 import { MongoClient } from 'mongodb'
 
 import { Context, createDefaultContext } from '#config/context'
+import { CORS_METHODS, corsOrigin } from '#config/corsOptions'
 import {
 	BadRequestError,
 	ContentTypeMismatchError,
@@ -92,10 +93,13 @@ async function registerPlugins() {
 		})
 	}
 
-	// CORS
+	// CORS — deny cross-origin unless CORS_ALLOWED_ORIGINS names an origin.
+	// See config/corsOptions.ts: reflecting any origin lends the operator's
+	// ambient IP authority (the DELETE and metrics allowlists) to any page they
+	// have open. The Plex agent sends no Origin and is unaffected.
 	await server.register(cors, {
-		origin: true,
-		methods: 'GET,HEAD,PUT,PATCH,POST,DELETE'
+		origin: corsOrigin(),
+		methods: CORS_METHODS
 	})
 
 	// Helmet
