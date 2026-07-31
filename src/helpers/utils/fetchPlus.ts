@@ -1,4 +1,5 @@
 import { AxiosError, AxiosResponse } from 'axios'
+import { appendFileSync, readFileSync } from 'fs'
 
 import pooledAxios from '#helpers/utils/connectionPool'
 import sleep from '#helpers/utils/sleep'
@@ -151,4 +152,99 @@ function fetchPlus(
 	})
 }
 
-export default fetchPlus
+/**
+ * Record/replay, ENV-GATED at call time — the determinism layer for gate runs.
+ *
+ *   GOODREADS_RECORD_PATH=<file.jsonl>  pass through to the live pool and
+ *     append every exchange — success AND failure, because degraded paths are
+ *     behavior too — as one JSON line each.
+ *   GOODREADS_REPLAY_PATH=<file.jsonl>  serve exchanges from the recording,
+ *     per-URL FIFO, with ZERO network. A miss (URL never recorded, or its
+ *     queue exhausted) throws a loud REPLAY MISS *and* increments
+ *     replayStats().misses: consumers downstream may swallow the throw as a
+ *     degraded fetch (the exhausted-mock trap at system scale), so runners
+ *     must hard-fail on misses > 0 rather than trust the exit path.
+ *
+ * With neither env set this is a single map lookup per call — the serving
+ * path is untouched.
+ */
+interface RecordedExchange {
+	url: string
+	ok: boolean
+	data?: unknown
+	status?: number
+	code?: string
+	message?: string
+}
+
+let replayFile: string | null = null
+let replayQueues: Map<string, RecordedExchange[]> | null = null
+const stats = { served: 0, misses: 0 }
+
+function loadReplay(path: string): Map<string, RecordedExchange[]> {
+	if (replayQueues && replayFile === path) return replayQueues
+	const queues = new Map<string, RecordedExchange[]>()
+	for (const line of readFileSync(path, 'utf8').split('\n')) {
+		if (!line.trim()) continue
+		const e = JSON.parse(line) as RecordedExchange
+		const q = queues.get(e.url) ?? []
+		q.push(e)
+		queues.set(e.url, q)
+	}
+	replayFile = path
+	replayQueues = queues
+	stats.served = 0
+	stats.misses = 0
+	return queues
+}
+
+export function replayStats(): { served: number; misses: number } {
+	return { ...stats }
+}
+
+/** Test seam: forget the memoized replay file and counters. */
+export function resetRecorderForTests(): void {
+	replayFile = null
+	replayQueues = null
+	stats.served = 0
+	stats.misses = 0
+}
+
+function record(path: string, entry: RecordedExchange): void {
+	appendFileSync(path, JSON.stringify(entry) + '\n')
+}
+
+async function fetchRouted(
+	url: string,
+	options: Record<string, unknown> = {},
+	retries = 0
+): Promise<AxiosResponse> {
+	const replayPath = process.env.GOODREADS_REPLAY_PATH
+	if (replayPath) {
+		const q = loadReplay(replayPath).get(url)
+		const entry = q?.shift()
+		if (!entry) {
+			stats.misses += 1
+			throw new Error(
+				`REPLAY MISS: ${url} — not in the recording (or its queue is exhausted). ` +
+					'A replay arm must never touch the network; re-record the baseline.'
+			)
+		}
+		stats.served += 1
+		if (entry.ok) return { status: 200, data: entry.data } as AxiosResponse
+		throw new FetchError(entry.message ?? 'recorded failure', entry.status, entry.code)
+	}
+	const recordPath = process.env.GOODREADS_RECORD_PATH
+	if (!recordPath) return fetchPlus(url, options, retries)
+	try {
+		const response = await fetchPlus(url, options, retries)
+		record(recordPath, { url, ok: true, data: response.data })
+		return response
+	} catch (err) {
+		const fe = err as FetchError
+		record(recordPath, { url, ok: false, status: fe.status, code: fe.code, message: fe.message })
+		throw err
+	}
+}
+
+export default fetchRouted

@@ -33,6 +33,7 @@ import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 
 import { foldSeriesName, withGoodreadsSeries } from '#helpers/providers/goodreadsSeries'
+import { replayStats } from '#helpers/utils/fetchPlus'
 import { applyPins } from '#helpers/series/shelfPins'
 import { applyShelfPolicy } from '#helpers/series/shelfPolicy'
 
@@ -80,6 +81,13 @@ interface RowResult {
 
 const FIXTURES = join(import.meta.dir, '..', 'tests', 'fixtures')
 const BASELINE_PATH = join(FIXTURES, 'series-harness-baseline.json')
+
+// Determinism: --record <f> captures every mirror exchange; --replay <f> serves
+// them back with ZERO network and hard-fails on any miss.
+const recPath = process.argv[process.argv.indexOf('--record') + 1]
+if (process.argv.includes('--record')) process.env.GOODREADS_RECORD_PATH = recPath
+const repPath = process.argv[process.argv.indexOf('--replay') + 1]
+if (process.argv.includes('--replay')) process.env.GOODREADS_REPLAY_PATH = repPath
 
 const args = process.argv.slice(2)
 const flag = (name: string) => args.includes(name)
@@ -323,6 +331,14 @@ async function main(): Promise<void> {
 		return
 	}
 
+	if (process.env.GOODREADS_REPLAY_PATH) {
+		const rs = replayStats()
+		console.log(`replay: served ${rs.served}, misses ${rs.misses}`)
+		// A miss may have been swallowed downstream as a degraded fetch — the
+		// stats are the belt to the throw's braces. Never trust a green replay
+		// arm that missed.
+		if (rs.misses > 0) process.exit(2)
+	}
 	if (reconcileFailed) process.exit(1)
 }
 

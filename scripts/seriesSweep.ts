@@ -26,6 +26,13 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 
+// Determinism: --record <f> captures every mirror exchange; --replay <f> serves
+// them back with ZERO network and hard-fails on any miss.
+const recPath = process.argv[process.argv.indexOf('--record') + 1]
+if (process.argv.includes('--record')) process.env.GOODREADS_RECORD_PATH = recPath
+const repPath = process.argv[process.argv.indexOf('--replay') + 1]
+if (process.argv.includes('--replay')) process.env.GOODREADS_REPLAY_PATH = repPath
+
 const LEDGER = join(import.meta.dir, '..', 'tests', 'fixtures', 'series-ledger.json')
 const TOKEN = process.env.PLEX_TOKEN
 const API = process.env.INCIPIT_API_URL
