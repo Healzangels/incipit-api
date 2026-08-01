@@ -82,9 +82,15 @@ mock.module('#helpers/routes/BookDataHelper', () => ({
 
 /** What the sibling-marketplace lookup returns, per test. */
 let siblingRecord: Record<string, unknown> | null = null
+/** How many times the sibling-marketplace lookup was actually issued. The
+ *  cost-control test asserts on this; without it the assertion is vacuous. */
+let siblingLookups = 0
 mock.module('#helpers/providers/registry', () => ({
 	default: {
-		fetchBookByAsin: async () => siblingRecord,
+		fetchBookByAsin: async () => {
+			siblingLookups += 1
+			return siblingRecord
+		},
 		searchAll: async () => []
 	}
 }))
@@ -273,6 +279,7 @@ describe('alternate-region cover art', () => {
 		storedRecord = null
 		servedByProvider = null
 		siblingRecord = null
+		siblingLookups = 0
 	})
 
 	test('offers the sibling marketplace cover when the narrators match', async () => {
@@ -292,14 +299,13 @@ describe('alternate-region cover art', () => {
 	test('does not even look when the cover is not an Amazon asset', async () => {
 		// A Hardcover/OpenLibrary match has no sibling-ASIN concept, so the
 		// lookup could only ever miss — this is the per-response cost control.
-		let looked = false
 		siblingRecord = { image: OTHER, narrators: [{ name: 'Ann Dowd' }] }
 		served = bookRecord({
 			image: 'https://images.hardcover.app/x/cover.jpg',
 			narrators: [{ name: 'Ann Dowd' }]
 		})
 		const { body } = await get('B0TESTASIN')
-		expect(looked).toBe(false)
+		expect(siblingLookups).toBe(0)
 		expect(body.imageAlternates).toBeUndefined()
 	})
 })
