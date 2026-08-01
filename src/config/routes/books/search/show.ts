@@ -3,6 +3,7 @@ import { FastifyInstance } from 'fastify'
 import searchRequiresATitle from '#config/routes/books/search/requireQuery'
 import { BookSearchQueryString, BookSearchQueryStringSchema } from '#config/types'
 import { BadRequestError } from '#helpers/errors/ApiErrors'
+import { rememberAlternates } from '#helpers/providers/alternateCoverCache'
 import type ProviderRegistry from '#helpers/providers/ProviderRegistry'
 import ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
 import defaultRegistry from '#helpers/providers/registry'
@@ -56,7 +57,16 @@ export function makeSearchBookRoute(registry: ProviderRegistry = defaultRegistry
 			const cache = new ProviderSearchCache(redis, undefined, request.log, options.refresh === true)
 
 			const helper = new BookSearchHelper(registry, options, request.log, credentials, cache)
-			return helper.search()
+			const results = await helper.search()
+			// Hand the alternates forward. They exist only HERE -- dedupe builds
+			// them from the editions it merged, and the item route never sees a
+			// candidate set. Caching by id is what lets `/books/:asin` answer on a
+			// plain refresh, which is the path Plex uses most and the one the
+			// plugin-side memo could not reach. Best-effort by construction.
+			await Promise.all(
+				results.map((r) => rememberAlternates(redis ?? null, r.id, r.coverAlternates))
+			)
+			return results
 		})
 	}
 }

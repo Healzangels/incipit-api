@@ -80,6 +80,14 @@ mock.module('#helpers/routes/BookDataHelper', () => ({
 	}
 }))
 
+/** What a prior SEARCH recorded for this id, per test. */
+let cachedAlternates: string[] = []
+mock.module('#helpers/providers/alternateCoverCache', () => ({
+	alternateCoverKey: (id: string) => `incipit:altcover:${id}`,
+	rememberAlternates: async () => undefined,
+	recallAlternates: async () => cachedAlternates
+}))
+
 const { default: booksShow } = await import('#config/routes/books/show')
 const { getMatchMetrics, resetMatchMetrics } = await import('#helpers/utils/matchTelemetry')
 const { NotFoundError } = await import('#helpers/errors/ApiErrors')
@@ -246,3 +254,47 @@ describe('upstream says unavailable but we hold a record', () => {
 		expect(body.title).toBeUndefined()
 	})
 })
+
+/**
+ * The cached alternates must reach the RESPONSE.
+ *
+ * alternateCoverCache has its own suite, but those pass whether or not the
+ * route calls it — the same unwired-stage shape that let four mutations
+ * through on 2026-07-31, and that let the first version of this very feature
+ * survive deleting its call site with 1839 tests green.
+ *
+ * This is also the fix for v1.3.183's real defect: the plugin-side memo only
+ * filled during a SEARCH, so a plain refresh never saw alternates. Serving them
+ * from the item route is what makes a refresh work.
+ */
+describe('alternate covers on the item response', () => {
+	beforeEach(() => {
+		handlerThrows = null
+		storedRecord = null
+		servedByProvider = null
+		cachedAlternates = []
+	})
+
+	test('a cached alternate is attached to the served book', async () => {
+		cachedAlternates = ['https://m.media-amazon.com/images/I/99ZZZ.jpg']
+		served = bookRecord()
+		const { body } = await get('B0TESTASIN')
+		expect(body.imageAlternates).toEqual(cachedAlternates)
+	})
+
+	test('nothing cached leaves the field off entirely', async () => {
+		served = bookRecord()
+		const { body } = await get('B0TESTASIN')
+		expect(body.imageAlternates).toBeUndefined()
+	})
+
+	test('the provider-id branch gets them too — it is a SECOND return', async () => {
+		// ~90 albums reach Plex through the hardcover-*/apple-* branch; wiring
+		// only the audnexus path would leave half the library without art.
+		cachedAlternates = ['https://m.media-amazon.com/images/I/77YYY.jpg']
+		servedByProvider = bookRecord({ asin: null })
+		const { body } = await get('hardcover-edition-27515221')
+		expect(body.imageAlternates).toEqual(cachedAlternates)
+	})
+})
+

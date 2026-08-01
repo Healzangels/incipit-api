@@ -84,3 +84,73 @@ describe('GET /books route', () => {
 		expect(body[0].narrators).toEqual(['Traber Burns'])
 	})
 })
+
+/**
+ * THE SEARCH MUST RECORD ITS ALTERNATES, or a refresh gets nothing.
+ *
+ * This is the WRITE half of the alternate-cover hand-off, and it is the half
+ * that makes a plain "Refresh Metadata" work: dedupe builds `coverAlternates`
+ * here and nowhere else, so if this route does not persist them the item
+ * endpoint has nothing to serve and the whole feature is invisible on the path
+ * Plex uses most.
+ *
+ * Pinned at the route because it survived mutation without this: deleting the
+ * `rememberAlternates` call left all 1851 tests green. The cache module's own
+ * suite cannot see the difference — it never asserts that anyone calls it.
+ */
+describe('GET /books records alternate covers', () => {
+	const twoEditions: BookProvider = {
+		name: 'stub',
+		async search() {
+			const base = {
+				provider: 'stub',
+				title: 'Leviathan Wakes',
+				authors: ['James S. A. Corey'],
+				narrators: ['Jefferson Mays'],
+				audioSeconds: 68940
+			}
+			// Same asin + runtime -> dedupe merges them, and the loser's cover
+			// becomes the winner's alternate.
+			return [
+				{ ...base, id: 'B073H9PF2D', asin: 'B073H9PF2D', cover: 'https://example/win.jpg' },
+				{ ...base, id: 'other', asin: 'B073H9PF2D', cover: 'https://example/alt.jpg' }
+			]
+		}
+	}
+
+	test('persists the merged group covers under the winning id', async () => {
+		const writes: Record<string, string> = {}
+		const app = Fastify()
+		app.decorate('redis', {
+			async set(k: string, v: string) {
+				writes[k] = v
+				return 'OK'
+			},
+			async get() {
+				return null
+			}
+		} as never)
+		await app.register(makeSearchBookRoute(new ProviderRegistry([twoEditions])) as never)
+		try {
+			const res = await app.inject({
+				method: 'GET',
+				url: '/books?title=Leviathan%20Wakes&author=James%20S.%20A.%20Corey'
+			})
+			expect(res.statusCode).toBe(200)
+			// ProviderSearchCache writes to the same redis, so filter by OUR
+			// namespace -- grabbing the first key found the search cache instead
+			// and compared against a list of candidate objects.
+			const keys = Object.keys(writes).filter((k) => k.startsWith('incipit:altcover:'))
+			expect(keys).toHaveLength(1)
+			const stored = JSON.parse(writes[keys[0] as string] as string) as string[]
+			// Which of the two wins the merge is dedupe's business; what matters
+			// is that the LOSER's cover is preserved and the winner's is not
+			// duplicated into its own alternates.
+			expect(stored).toHaveLength(1)
+			expect(['https://example/win.jpg', 'https://example/alt.jpg']).toContain(stored[0])
+		} finally {
+			await app.close()
+		}
+	})
+})
+

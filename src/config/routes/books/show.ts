@@ -3,6 +3,7 @@ import { FastifyInstance } from 'fastify'
 import type { ApiBook } from '#config/types'
 import { RequestGeneric } from '#config/typing/requests'
 import { NotFoundError } from '#helpers/errors/ApiErrors'
+import { recallAlternates } from '#helpers/providers/alternateCoverCache'
 import { withGoodreadsSeries } from '#helpers/providers/goodreadsSeries'
 import ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
 import defaultRegistry from '#helpers/providers/registry'
@@ -83,6 +84,14 @@ async function _show(fastify: FastifyInstance) {
 			return square ? { ...book, imageSquare: square } : book
 		}
 
+		// Attach any alternate covers a previous SEARCH recorded for this id. They
+		// cannot be recomputed here -- dedupe needs the whole candidate set -- so
+		// the cache is the only route by which extra art reaches a plain refresh.
+		const withAlternateCovers = async <T extends { asin?: string | null }>(book: T): Promise<T> => {
+			const alternates = await recallAlternates(fastify.redis ?? null, book?.asin ?? asin)
+			return alternates.length ? { ...book, imageAlternates: alternates } : book
+		}
+
 		const finish = async <
 			T extends {
 				title?: string
@@ -100,7 +109,7 @@ async function _show(fastify: FastifyInstance) {
 			applyShelfPolicy(
 				applyPins(
 					await withGoodreadsSeries(
-						await withSquareCover(book),
+						await withAlternateCovers(await withSquareCover(book)),
 						fastify.redis ?? null,
 						request.log
 					),
