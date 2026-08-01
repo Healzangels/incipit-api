@@ -2145,3 +2145,80 @@ describe('a forgiven recovery whose answer GATE 2 rejects must not cache a miss'
 		expect([...redis.store.values()]).toContain('null')
 	})
 })
+
+/**
+ * ORDERING VOCABULARY — measured against the real ledger, 2026-08-01.
+ *
+ * Spec rule R3 says orderings never shelve, and `SERIES_ORDERING_RE` implements
+ * it — but only for the literal phrases "publication order" and "chronological".
+ * Enumerating all 402 distinct series names across the 1,607 ledger rows found
+ * five ordering listings it misses, together carrying 26 rows:
+ *
+ *    14  The Horus Heresy - Black Library recommended reading order
+ *     3  The MaddAddam Trilogy (Published Order)
+ *     3  Shannara - Terry's Suggested Reading Order for Revisiting Readers
+ *     3  Malazan Authors' Suggested Reading Order
+ *     3  The Chronicles of Narnia (Author's Preferred Order)
+ *
+ * The rule is right; its vocabulary is too narrow. Widening it is strictly
+ * safer than adding a THIRD mechanism alongside isUmbrella and
+ * CONTAINER_SHELF_NAMES, which the holistic review already flags as one concept
+ * too many.
+ *
+ * The danger is over-matching on a bare "Order", which is a perfectly ordinary
+ * word in a real series name — "Order of the Centurion" is a genuine Galaxy's
+ * Edge sub-series sitting in the ledger right now. So "order" only counts when
+ * a qualifier precedes it.
+ */
+describe('isSeriesOrdering', () => {
+	const MISSED = [
+		'The Horus Heresy - Black Library recommended reading order',
+		'The MaddAddam Trilogy (Published Order)',
+		"Shannara - Terry's Suggested Reading Order for Revisiting Readers",
+		"Malazan Authors' Suggested Reading Order",
+		"The Chronicles of Narnia (Author's Preferred Order)"
+	]
+	const ALREADY_CAUGHT = [
+		'A Jack Ryan Novel (publication order)',
+		'Redwall (chronological order)',
+		'The Witcher (Publication order)',
+		'Foundation (Chronological Order)',
+		'The Expanse (omnibus)'
+	]
+	// Every one of these is a REAL shelf in the ledger. A false positive here is
+	// worse than the miss: the book keeps the inconsistent provider name and can
+	// never converge.
+	const REAL_SERIES = [
+		'Order of the Centurion',
+		"Galaxy's Edge: Order of the Centurion",
+		"Ender's Saga",
+		"Galaxy's Edge",
+		"Hoid's Travails",
+		'Riftwar Cycle',
+		"Gaunt's Ghosts",
+		"King's Dark Tidings",
+		'The Remembrance of Earth’s Past'
+	]
+
+	test('catches the ordering listings the old vocabulary missed', async () => {
+		const { isSeriesOrdering } = await import('#helpers/providers/goodreadsSeries')
+		for (const name of MISSED) expect(isSeriesOrdering(name)).toBe(true)
+	})
+
+	test('still catches everything it already caught', async () => {
+		const { isSeriesOrdering } = await import('#helpers/providers/goodreadsSeries')
+		for (const name of ALREADY_CAUGHT) expect(isSeriesOrdering(name)).toBe(true)
+	})
+
+	test('never fires on a real series that merely contains "Order"', async () => {
+		const { isSeriesOrdering } = await import('#helpers/providers/goodreadsSeries')
+		for (const name of REAL_SERIES) expect(isSeriesOrdering(name)).toBe(false)
+	})
+
+	test('tolerates a missing name', async () => {
+		const { isSeriesOrdering } = await import('#helpers/providers/goodreadsSeries')
+		expect(isSeriesOrdering(null)).toBe(false)
+		expect(isSeriesOrdering(undefined)).toBe(false)
+		expect(isSeriesOrdering('')).toBe(false)
+	})
+})

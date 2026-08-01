@@ -474,8 +474,25 @@ export function seriesAliasFor(description: string | null, language: string): st
 // Realms - Publication Order" has 301 members spanning dozens of authors. A
 // franchise umbrella IS a real shelf, just a coarser one than the sub-series,
 // so it is the right answer when the sub-series cannot place the book at all.
+// An ORDER is only an ordering when a qualifier says so. Measured over all 402
+// distinct series names in the 1,607-row ledger (2026-08-01): requiring the
+// literal "publication order" missed five real ordering listings carrying 26
+// rows between them --
+//     14  The Horus Heresy - Black Library recommended reading order
+//      3  The MaddAddam Trilogy (Published Order)
+//      3  Shannara - Terry's Suggested Reading Order for Revisiting Readers
+//      3  Malazan Authors' Suggested Reading Order
+//      3  The Chronicles of Narnia (Author's Preferred Order)
+// -- while correctly catching the Jack Ryan, Redwall, Robot, Foundation,
+// Witcher and Narnia (Chronological) listings.
+//
+// The qualifier list is what keeps this safe. A BARE "order" is an ordinary
+// word in real shelf names: "Order of the Centurion" is a genuine Galaxy's Edge
+// sub-series sitting in the ledger right now, and a real shelf misread as an
+// ordering is demoted out of the pool, so the book keeps the inconsistent
+// provider name and can never converge. A false positive is worse than a miss.
 const SERIES_ORDERING_RE =
-	/\b(publication order|chronological|split[\s-]?volume|omnibus|box[\s-]?set|edition)\b/i
+	/\b(?:(?:publication|published|reading|preferred|suggested|recommended|release)\s+order|chronological|split[\s-]?volume|omnibus|box[\s-]?set|edition)\b/i
 const SERIES_UMBRELLA_RE = /\b\w*verse\b/gi
 // A franchise umbrella names itself with a coined "-verse" compound (Universe,
 // Enderverse, the Cosmere Universe). Matching "\w*verse" alone also caught
@@ -487,9 +504,23 @@ const SERIES_UMBRELLA_RE = /\b\w*verse\b/gi
 const SERIES_UMBRELLA_STOPWORDS =
 	/^(?:adverse|averse|converse|diverse|inverse|obverse|perverse|reverse|transverse|traverse|verse)$/i
 
+/**
+ * Whether a series NAME is an edition variant or a franchise ordering.
+ *
+ * Exported so the vocabulary is testable on its own, in the same spirit as
+ * `isShelvablePosition`: the enclosing `isOrdering` takes a WorkSeries, so
+ * every test of the rule would otherwise have to build a provider payload, and
+ * the thing that actually decides — which words count — would stay untested.
+ * @param {string | null | undefined} name the series title
+ * @returns {boolean} true when the name denotes an ordering, not a shelf
+ */
+export function isSeriesOrdering(name: string | null | undefined): boolean {
+	return SERIES_ORDERING_RE.test(name ?? '')
+}
+
 /** An edition variant or franchise ordering: demoted, and never rescued. */
 function isOrdering(series: WorkSeries): boolean {
-	return SERIES_ORDERING_RE.test(series.Title ?? '')
+	return isSeriesOrdering(series.Title)
 }
 
 /** A franchise umbrella: demoted, but eligible to be rescued. */
