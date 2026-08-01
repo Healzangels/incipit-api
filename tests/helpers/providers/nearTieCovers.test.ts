@@ -158,6 +158,91 @@ describe('withNearTieAlternates', () => {
 		expect(out[1].coverAlternates).toBeUndefined()
 	})
 
+	test('the AUTHOR credited as a narrator does not break the match', () => {
+		// The Testaments, measured live 2026-08-01. Margaret Atwood reads part of
+		// it, so two listings name her among the narrators and one does not -- and
+		// the one that does not is the record the book is matched to. Exact-set
+		// equality refused the pair over a single name.
+		const cast = ['Ann Dowd', 'Bryce Dallas Howard', 'Mae Whitman', 'Derek Jacobi']
+		const out = withNearTieAlternates([
+			scored({ id: 'hc', confidence: 1, cover: 'hc.jpg', narrators: cast }),
+			scored({
+				id: 'aud',
+				confidence: 0.99,
+				cover: 'aud.jpg',
+				narrators: [...cast, 'Margaret Atwood']
+			})
+		])
+		expect(out[0].coverAlternates).toEqual(['aud.jpg'])
+		expect(out[1].coverAlternates).toEqual(['hc.jpg'])
+	})
+
+	test('the exception is capped — a THIRD differing name refuses the pair', () => {
+		// The cap is the only defence against a polluted `authors` field. Measured
+		// over 45 library books, the largest `authors` array a provider returned
+		// was 44 names, a full-cast production filing its whole cast as authors.
+		// Uncapped, one such row lends art between different castings.
+		const authors = ['Margaret Atwood', 'Ghost One', 'Ghost Two', 'Ghost Three']
+		const out = withNearTieAlternates([
+			scored({ id: 'a', confidence: 1, cover: 'a.jpg', authors, narrators: ['Ann Dowd'] }),
+			scored({
+				id: 'b',
+				confidence: 0.99,
+				cover: 'b.jpg',
+				authors,
+				narrators: ['Ann Dowd', 'Ghost One', 'Ghost Two', 'Ghost Three']
+			})
+		])
+		expect(out[0].coverAlternates).toBeUndefined()
+		expect(out[1].coverAlternates).toBeUndefined()
+	})
+
+	test('a differing name that is NOT an author still refuses the pair', () => {
+		// The narrowness of the exception. One extra name is admissible only
+		// because it is the author; any other extra name is a different cast.
+		const out = withNearTieAlternates([
+			scored({ id: 'a', confidence: 1, cover: 'a.jpg', narrators: ['Ann Dowd'] }),
+			scored({ id: 'b', confidence: 0.99, cover: 'b.jpg', narrators: ['Ann Dowd', 'Zannie Adams'] })
+		])
+		expect(out[0].coverAlternates).toBeUndefined()
+		expect(out[1].coverAlternates).toBeUndefined()
+	})
+
+	test('the author must be an author on BOTH rows', () => {
+		// Otherwise one catalogue's loose `authors` field decides for both, which
+		// is exactly the 44-name pollution shape at smaller scale.
+		const out = withNearTieAlternates([
+			scored({
+				id: 'a',
+				confidence: 1,
+				cover: 'a.jpg',
+				authors: ['Margaret Atwood', 'Ann Dowd'],
+				narrators: ['Bryce Dallas Howard']
+			}),
+			scored({
+				id: 'b',
+				confidence: 0.99,
+				cover: 'b.jpg',
+				authors: ['Margaret Atwood'],
+				narrators: ['Bryce Dallas Howard', 'Ann Dowd']
+			})
+		])
+		expect(out[0].coverAlternates).toBeUndefined()
+		expect(out[1].coverAlternates).toBeUndefined()
+	})
+
+	test('casts sharing NO narrator never agree, even over one author name', () => {
+		// Two solo readings where each row's single narrator is an author of the
+		// book. Nothing is corroborated -- they have no cast in common at all.
+		const authors = ['Ann Dowd', 'Zannie Adams']
+		const out = withNearTieAlternates([
+			scored({ id: 'a', confidence: 1, cover: 'a.jpg', authors, narrators: ['Ann Dowd'] }),
+			scored({ id: 'b', confidence: 0.99, cover: 'b.jpg', authors, narrators: ['Zannie Adams'] })
+		])
+		expect(out[0].coverAlternates).toBeUndefined()
+		expect(out[1].coverAlternates).toBeUndefined()
+	})
+
 	test('the same asset at a different size is not offered twice', () => {
 		const out = withNearTieAlternates([
 			scored({ id: 'a', confidence: 1, cover: 'https://m.media-amazon.com/images/I/51A._SL500_.jpg' }),
