@@ -4,7 +4,7 @@ import { CORS_METHODS, corsOrigin } from '#config/corsOptions'
 
 /**
  * CORS composes with the IP allowlists, so it is an access-control decision,
- * not cosmetics. Verified live on 2026-07-31 against 10.0.1.99:3737 with the
+ * not cosmetics. Verified live on 2026-07-31 against a deployed instance with the
  * previous `origin: true`:
  *
  *   OPTIONS /books/<asin>  Origin: https://evil.example.com

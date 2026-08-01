@@ -23,7 +23,7 @@ BEHAVIOUR
       files are reported and skipped.
     * Refuses non-.m4b/.m4a paths and missing files loudly.
 
-USAGE (on the box that has the media, e.g. CMacServer)
+USAGE (run on the box that holds the media files)
     python3 retag_author.py --artist "Vince Flynn, Kyle Mills" FILE [FILE...]
     python3 retag_author.py --artist "Vince Flynn, Kyle Mills" --apply FILE...
 

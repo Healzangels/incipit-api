@@ -5,10 +5,10 @@ Before refreshing albums whose shelves a deliberate change will move, capture
 what Plex currently shows; if a landed change is regretted, restore the sort
 titles from the snapshot.
 
-  capture:  python3 scripts/shelfSnapshot.py capture --host 10.0.1.98 \
+  capture:  python3 scripts/shelfSnapshot.py capture --host <plex-host> \
                 --token TOKEN --rks 731384,731376 --out snap.json
             (--from-impact prod_impact.json takes the rk list from an impact file)
-  restore:  python3 scripts/shelfSnapshot.py restore --host 10.0.1.98 \
+  restore:  python3 scripts/shelfSnapshot.py restore --host <plex-host> \
                 --token TOKEN --snap snap.json [--rks only,these]
 
 Restore writes titleSort back WITH the lock flag set, so a later agent refresh

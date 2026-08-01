@@ -7,11 +7,11 @@
    "nightlyHead": "fa34375 (NOT deployed)",
    "bundle": "v1.3.170"
   },
-  "spec": "/Users/connor/incipit-series-authority-spec-2026-07-30.md",
+  "spec": "incipit-series-authority-spec-2026-07-30.md (kept outside the repo)",
   "inputProvenance": [
    "inputs.* = the provider book rebuilt with repo helpers (final2.jsonl sweep 2026-07-30) - exactly what withGoodreadsSeries receives",
    "servedNow.* = live api GET /books/{id} (warm grseries:v4) + Plex sort titles (albums_now.xml / crit_census_out.json, 2026-07-30)",
-   "inputsVerified rows were additionally checked read-only against the live mirror (10.0.1.99:8788) on 2026-07-30"
+   "inputsVerified rows were additionally checked read-only against the live mirror (the self-hosted mirror) on 2026-07-30"
   ],
   "howToRead": {
    "required.outcome": "SERIES (shelf = series+position), NONE (no series at all), CONDITIONAL (depends on the named open question)",

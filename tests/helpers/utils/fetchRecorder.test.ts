@@ -104,7 +104,7 @@ describe('fetchPlus record/replay', () => {
 		const f = join(dir, 'g.jsonl')
 		writeFileSync(
 			f,
-			JSON.stringify({ url: 'http://10.0.1.99:8788/work/7', ok: true, data: { w: 7 } }) + '\n'
+			JSON.stringify({ url: 'http://mirror.test:8788/work/7', ok: true, data: { w: 7 } }) + '\n'
 		)
 		process.env.GOODREADS_REPLAY_PATH = f
 		return fetchPlus('http://127.0.0.1:9/work/7').then((r) => {

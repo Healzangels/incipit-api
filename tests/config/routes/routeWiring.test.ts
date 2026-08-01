@@ -48,7 +48,7 @@ describe('destructive routes must be gated', () => {
 
 /**
  * Route CONTRACTS the bundle depends on. Each was verified live against
- * 10.0.1.99:3737 during the 2026-07-28 review.
+ * the operator's deployed instance during the 2026-07-28 review.
  */
 describe('search route contract', () => {
 	test('accepts the documented keywords alias', async () => {

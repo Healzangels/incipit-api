@@ -46,10 +46,27 @@ if (!TOKEN || !API) {
 	console.error('PLEX_TOKEN and INCIPIT_API_URL must be set.')
 	process.exit(2)
 }
-const BOXES = [
-	{ host: '10.0.1.99', section: '56', name: 'test' },
-	{ host: '10.0.1.98', section: '6', name: 'prod' }
-]
+// The Plex servers to sweep, from the environment — this repo is a public fork
+// and must not carry anyone's topology.
+//   PLEX_BOXES="host:sectionId:label,host:sectionId:label"
+//   e.g. PLEX_BOXES="192.168.1.10:56:test,192.168.1.11:6:prod"
+// The label is only used in output and in the ledger's `boxes` field.
+const BOXES = (process.env.PLEX_BOXES ?? '')
+	.split(',')
+	.map((entry) => entry.trim())
+	.filter(Boolean)
+	.map((entry) => {
+		const [host, section, name] = entry.split(':')
+		return { host, section, name: name || host }
+	})
+	.filter((b) => b.host && b.section)
+if (!BOXES.length) {
+	console.error(
+		'PLEX_BOXES must be set, e.g. PLEX_BOXES="10.0.0.2:56:test,10.0.0.3:6:prod"\n' +
+			'  (host:sectionId:label, comma-separated; the label is cosmetic)'
+	)
+	process.exit(2)
+}
 
 interface Answer {
 	primary: string | null

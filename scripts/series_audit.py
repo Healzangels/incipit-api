@@ -63,7 +63,10 @@ PREFS_CANDIDATES = (
     '/var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Preferences.xml',
 )
 PLEX = os.environ.get('PLEX_URL', 'http://127.0.0.1:32400')
-API = os.environ.get('INCIPIT_API', 'http://10.0.1.99:3737')
+API = os.environ.get('INCIPIT_API')
+if not API:
+    raise SystemExit('INCIPIT_API must be set (e.g. http://10.0.0.2:3737) -- '
+                     'this repo is public and carries no host defaults')
 TIMEOUT = 15
 
 # EXACTLY the agent's update_tools.FOLDER_NUMBER_RE, character for character.

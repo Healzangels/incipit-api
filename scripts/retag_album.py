@@ -37,7 +37,7 @@ BEHAVIOUR
     * Refuses to write an empty album, and refuses non-.m4b/.m4a paths loudly.
     * Directories are walked for m4b/m4a; single files are taken as given.
 
-USAGE (on the box that has the media, e.g. CMacServer)
+USAGE (run on the box that holds the media files)
     SHELF="/mnt/user/data/media/audiobooks/Brandon Sanderson/Alcatraz vs. the Evil Librarians"
 
     # 1. see which album tags are shared by more than one book

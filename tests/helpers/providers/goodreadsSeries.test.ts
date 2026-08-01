@@ -1088,7 +1088,7 @@ describe('volume-prefixed titles: retry with the half after the colon', () => {
 
 describe('a rescued umbrella must not spend the sub-series it stepped over', () => {
 	// THE EMPEROR'S SOUL. Measured live 2026-07-29 against the mirror at
-	// 10.0.1.99:8788 and the API at 10.0.1.99:3737:
+	// a self-hosted rreading-glasses mirror and the API:
 	//
 	//   /work/19161502 Series:
 	//     "Elantris"             id 87970   LinkItems[ours] PositionInSeries ""   SeriesPosition 0

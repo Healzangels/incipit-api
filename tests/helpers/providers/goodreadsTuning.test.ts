@@ -56,7 +56,7 @@ describe('goodreads tuning profile', () => {
 	})
 
 	test('any other host is LOCAL: faster and fresher', () => {
-		process.env.GOODREADS_SERIES_URL = 'http://10.0.1.99:8788'
+		process.env.GOODREADS_SERIES_URL = 'http://mirror.test:8788'
 		const t = goodreadsTuning()
 		expect(t.profile).toBe('local')
 		expect(t.minGapMs).toBe(0)
@@ -80,7 +80,7 @@ describe('goodreads tuning profile', () => {
 	})
 
 	test('an individual knob beats the profile it belongs to', () => {
-		process.env.GOODREADS_SERIES_URL = 'http://10.0.1.99:8788'
+		process.env.GOODREADS_SERIES_URL = 'http://mirror.test:8788'
 		process.env.GOODREADS_MIN_GAP_MS = '250'
 		process.env.GOODREADS_MISS_TTL_SECONDS = '60'
 		const t = goodreadsTuning()
