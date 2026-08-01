@@ -91,3 +91,46 @@ describe('alternateCoverWorthOffering', () => {
 		expect(alternateCoverWorthOffering(rec(), undefined as never)).toBeNull()
 	})
 })
+
+/**
+ * IT MUST BE THE SAME KIND OF ART.
+ *
+ * Caught live on 2026-08-01 minutes after shipping: the sibling-region lookup
+ * goes through the provider registry, and HARDCOVER answers for an Audible
+ * ASIN, so the first deployment offered print jackets as "alternate
+ * marketplace art" —
+ *   Leviathan Wakes  -> assets.hardcover.app/edition/30572103/...jpeg
+ *   Theft of Swords  -> assets.hardcover.app/book/427664/...jpg
+ * The narrator check passed, because Hardcover's record carries the same
+ * narrators. So the guard that makes this safe against the WRONG RECORDING
+ * says nothing about the wrong KIND of image.
+ *
+ * A portrait print jacket is exactly what the whole squareCover machinery
+ * exists to keep out of a square Plex poster slot, so offering one here as a
+ * bonus tile works against the rest of the system.
+ */
+describe('alternateCoverWorthOffering — same kind of art', () => {
+	const AMAZON_A = 'https://m.media-amazon.com/images/I/51AAA._SL500_.jpg'
+	const AMAZON_B = 'https://m.media-amazon.com/images/I/99ZZZ._SL500_.jpg'
+	const HARDCOVER = 'https://assets.hardcover.app/edition/30572103/abc.jpeg'
+	const narrators = [{ name: 'Jefferson Mays' }]
+
+	test('refuses a Hardcover print jacket as an alternate', () => {
+		expect(
+			alternateCoverWorthOffering(
+				{ image: AMAZON_A, narrators },
+				{ image: HARDCOVER, narrators }
+			)
+		).toBeNull()
+	})
+
+	test('still offers a genuine Amazon alternate', () => {
+		expect(
+			alternateCoverWorthOffering(
+				{ image: AMAZON_A, narrators },
+				{ image: AMAZON_B, narrators }
+			)
+		).toBe(AMAZON_B)
+	})
+})
+

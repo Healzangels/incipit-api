@@ -40,6 +40,21 @@ export function siblingRegion(region: string | null | undefined): string | undef
 	return SIBLING[(region ?? '').trim()]
 }
 
+/**
+ * An Audible/Amazon cover host. BOTH sides must be one, because the
+ * sibling-region lookup runs through the provider registry and HARDCOVER
+ * answers for an Audible ASIN: the first deployment (2026-08-01) offered print
+ * jackets as "alternate marketplace art" -- Leviathan Wakes got
+ * `assets.hardcover.app/edition/30572103/...`, Theft of Swords the same shape.
+ *
+ * The narrator check did not catch it and never could: Hardcover's record
+ * carries the same narrators, so it says the RECORDING is right while saying
+ * nothing about the KIND of image. A portrait print jacket is precisely what
+ * the squareCover machinery exists to keep out of a square Plex poster slot, so
+ * offering one as a bonus tile works against the rest of the system.
+ */
+const AMAZON_ASSET_RE = /\/\/m\.media-amazon\.com\/images\//i
+
 /** A record carrying the two fields this decision needs. */
 interface CoverCandidate {
 	image?: string | null
@@ -90,6 +105,8 @@ export function alternateCoverWorthOffering(
 	const here = current.image
 	const there = alternate.image
 	if (!here || !there) return null
+	// Same KIND of art on both sides -- see AMAZON_ASSET_RE.
+	if (!AMAZON_ASSET_RE.test(here) || !AMAZON_ASSET_RE.test(there)) return null
 	const a = narratorKey(current)
 	const b = narratorKey(alternate)
 	if (!a || !b || a !== b) return null
