@@ -108,3 +108,81 @@ describe('wrong-language demotion', () => {
 		expect(m.recent[0].matchedLanguage).toBe('en')
 	})
 })
+
+/**
+ * The TITLE-MARKED foreign edition, at the TIEBREAK rather than the score.
+ *
+ * The demotion above and the ranking's language tiebreak used to read different
+ * evidence: the demotion tests the title marker, the tiebreak tested only
+ * `c.language`. A translated edition whose language field is null — the exact
+ * case the marker exists for — is therefore demoted and then INVISIBLE to the
+ * arm meant to settle the tie it lands in.
+ *
+ * The arithmetic makes that fatal rather than cosmetic: -0.15 for the language
+ * conflict exactly cancels the +0.15 duration corroboration, so the foreign row
+ * ties the correct one at 0.85. The residual gap is ~1e-16, far inside
+ * AUDIO_EDITION_CONFIDENCE_TOLERANCE, so confidence does not decide — and the
+ * next arm that speaks is byAudio, which prefers the foreign row precisely
+ * because it IS the catalogued audio edition while the correct English row is a
+ * runtime-less book record.
+ *
+ * Both Everfound and Babel persisted into the live library this way.
+ */
+describe('a foreign edition detected only by its title marker', () => {
+	beforeEach(() => resetMatchMetrics())
+
+	test('loses the tie to the correct-language row, even as the only audio edition', async () => {
+		const out = await helperFor(
+			[
+				candidate({
+					provider: 'audible',
+					id: 'spanish',
+					asin: 'B0CN3SPD12',
+					title: 'Dune (Spanish Edition)',
+					audioSeconds: 40000,
+					language: null // mislabeled at source: only the title betrays it
+				}),
+				candidate({ provider: 'hardcover', id: 'english', audioSeconds: null, language: 'en' })
+			],
+			{ duration: 40000 * 1000 }
+		).search()
+
+		expect(out[0].id).toBe('english')
+		// Both really are at 0.85 — this is a TIEBREAK fix, not a scoring one. If
+		// the demotion ever stops cancelling the bonus this assertion says so
+		// rather than letting the test pass for a new reason.
+		expect(out[0].confidence).toBeCloseTo(0.85, 5)
+		expect(out[1].confidence).toBeCloseTo(0.85, 5)
+	})
+
+	test('but the marker never counts against a query that ASKED for that edition', async () => {
+		// primaryTitle carries the marker too, so it is not evidence of a mismatch
+		// — otherwise the caller who explicitly wants a translation gets their own
+		// edition pushed below the English one.
+		//
+		// BOTH rows carry the same runtime so both corroborate and land on the same
+		// confidence: that is what forces the tiebreaks to run at all. An earlier
+		// version of this test gave only the Spanish row a runtime, which put the
+		// pair 0.15 apart — byConfidence decided, no tiebreak executed, and the
+		// test passed against a build with the guard REMOVED.
+		const out = await helperFor(
+			[
+				candidate({ provider: 'hardcover', id: 'plain', audioSeconds: 40000 }),
+				candidate({
+					provider: 'audible',
+					id: 'spanish',
+					asin: 'B0CN3SPD12',
+					title: 'Dune (Spanish Edition)',
+					audioSeconds: 40000
+				})
+			],
+			{ title: 'Dune (Spanish Edition)', duration: 40000 * 1000 }
+		).search()
+
+		// Tied on confidence, so byLanguage gets to speak. With the guard it stays
+		// silent and byAudio awards the catalogued audio edition; without it the
+		// requested Spanish row is demoted for being what was asked for.
+		expect(out[0].confidence).toBeCloseTo(out[1].confidence, 5)
+		expect(out[0].id).toBe('spanish')
+	})
+})

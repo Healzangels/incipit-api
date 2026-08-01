@@ -1472,9 +1472,25 @@ export default class BookSearchHelper {
 				// an identity property — the wrong-language book is the wrong BOOK —
 				// while audio-vs-book-level is a richness property, so identity ranks
 				// first.
-				const byLanguage =
-					Number(languageConflict(a.language, wantLanguage)) -
-					Number(languageConflict(b.language, wantLanguage))
+				// Consult the SAME TWO SIGNALS the demotion above does. Reading
+				// `c.language` alone left this arm blind to exactly the rows that
+				// demotion had just penalized: a translated edition whose language
+				// field is null or mislabeled is betrayed only by its title marker,
+				// so `languageConflict` returns false for it and the arm declines to
+				// decide. The -0.15 demotion then cancels its +0.15 duration
+				// corroboration, it ties the correct-language row at 0.85, and
+				// byAudio hands it the match -- because the foreign row IS the audio
+				// edition while the correct English row is a runtime-less book
+				// record. Measured on "Everfound (Spanish Edition)"; Babel persisted
+				// the same way in the live library.
+				//
+				// Per-CANDIDATE, deliberately: a pairwise predicate here would make
+				// the comparator's behaviour depend on which two rows it is handed,
+				// which is how a sort loses transitivity.
+				const wrongLanguage = (c: ScoredCandidate): boolean =>
+					languageConflict(c.language, wantLanguage) ||
+					(FOREIGN_EDITION_RE.test(c.title ?? '') && !FOREIGN_EDITION_RE.test(primaryTitle))
+				const byLanguage = Number(wrongLanguage(a)) - Number(wrongLanguage(b))
 				if (byLanguage !== 0) return byLanguage
 				// The volume the QUERY TITLE itself claims is identity evidence too:
 				// searching "Defiance of the Fall, Book 10" must prefer the sibling
