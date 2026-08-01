@@ -366,3 +366,63 @@ describe('exact-title tiebreak (same recording, different provider titling)', ()
 		expect(out[0]?.id).toBe('long')
 	})
 })
+
+/**
+ * THE HINTED ASIN MUST NOT LOSE A COIN FLIP.
+ *
+ * Measured on a live fresh scan (2026-08-01, .99 rebuild): of 342 books whose
+ * sidecar named a B0 ASIN, 215 — 63% — matched to a DIFFERENT record.
+ *
+ * Why the existing guards all decline. `isPinned()` deliberately returns false
+ * for the row fetched BY the hinted ASIN, so it earns no confidence override
+ * and no pinned-first: a stale sidecar ASIN must not be able to force a wrong
+ * edition, and that is right. It is supposed to win on MERITS instead. But on a
+ * fresh scan nothing is analyzed, every candidate comes back with a null
+ * runtime, so no row corroborates and they all sit on the same confidence
+ * (0.8500000000000001 live). Every evidence arm then declines in turn, and
+ * `providerRank` has no entry for either `pinned` or `overdrive` — both fall to
+ * the `?? 9` default — so the decision reaches `byCandidateIdentity`, which is
+ * documented as deliberately ARBITRARY.
+ *
+ * Arbitrary is fine between rows nothing distinguishes. It is not fine when one
+ * of them is the edition the caller named by identity. This asks only for the
+ * last coin flip to be settled by the hint, which cannot resurrect a candidate
+ * or outrank a single piece of real evidence.
+ */
+describe('a tie that reaches the arbitrary tiebreak', () => {
+	beforeEach(() => resetMatchMetrics())
+
+	test('prefers the edition the caller actually named', async () => {
+		// Both audio, same title, same author, NO runtime anywhere — the live
+		// fresh-scan shape. Distinct asins + providers so dedupe keeps both.
+		const out = await helperFor(
+			[
+				candidate({ provider: 'overdrive', id: 'rival', asin: 'B0OTHER001', audioSeconds: null }),
+				// provider 'pinned' is what withPinnedEdition stamps on the row it
+				// fetched BY the hint — and precisely what makes isPinned() return
+				// false, so this row gets NO confidence override and NO pinned-first.
+				// Giving it a normal provider instead tests the opposite code path:
+				// it scores 1.0 and wins everything, including over real evidence.
+				candidate({ provider: 'pinned', id: 'named', asin: 'B0NAMED001', audioSeconds: null })
+			],
+			{ asin: 'B0NAMED001' }
+		).search()
+
+		expect(out.length).toBeGreaterThan(1)
+		expect(out[0].asin).toBe('B0NAMED001')
+	})
+
+	test('but it never outranks real evidence — a corroborated rival still wins', async () => {
+		// The hint must remain a LAST-RESORT tiebreak. Here the un-hinted row
+		// corroborates on duration; the hinted one does not.
+		const out = await helperFor(
+			[
+				candidate({ provider: 'audible', id: 'corroborated', asin: 'B0OTHER001', audioSeconds: 40000 }),
+				candidate({ provider: 'pinned', id: 'named', asin: 'B0NAMED001', audioSeconds: null })
+			],
+			{ asin: 'B0NAMED001', duration: 40000 * 1000 }
+		).search()
+
+		expect(out[0].asin).toBe('B0OTHER001')
+	})
+})

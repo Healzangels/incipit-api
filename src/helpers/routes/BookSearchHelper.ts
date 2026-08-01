@@ -1667,6 +1667,26 @@ export default class BookSearchHelper {
 				// Genuinely tied: prefer the richer/more-authoritative source.
 				const byProvider = providerRank(a) - providerRank(b)
 				if (byProvider !== 0) return byProvider
+				// Last call before the coin flip: prefer the edition the CALLER
+				// NAMED. Measured on a live fresh scan (2026-08-01): of 342 books
+				// whose sidecar named a B0 ASIN, 215 — 63% — matched to a different
+				// record, and this is where they were lost. Nothing above had
+				// declined for a *reason*: with no analyzed durations every
+				// candidate ties at 0.85, and `providerRank` has no entry for
+				// either `pinned` or `overdrive` so both take the `?? 9` default —
+				// so the decision fell through to an arm documented as arbitrary.
+				//
+				// NOT `isPinned()`, deliberately: that returns false for the row
+				// fetched BY this asin, which is the very row being seated here.
+				// This is also why the arm sits at the BOTTOM rather than beside
+				// `byPin` — a stale sidecar ASIN must still lose to any real
+				// evidence, which is the whole reason the pin was denied privilege
+				// upstream. It can only settle a tie that was about to be settled
+				// by nothing at all.
+				const namedByCaller = (c: ScoredCandidate): boolean =>
+					wantAsin != null && c.asin?.toUpperCase() === wantAsin
+				const byNamedAsin = Number(namedByCaller(b)) - Number(namedByCaller(a))
+				if (byNamedAsin !== 0) return byNamedAsin
 				// Same provider (or same rank) too: fall to intrinsic identity, so
 				// the sort is a TOTAL order. A stable sort's fallthrough is arrival
 				// order — registry order times each provider's own API order — which
