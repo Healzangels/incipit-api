@@ -325,6 +325,33 @@ export function dedupeCandidates(
 	// the emit order is as arrival-independent as everything above it.
 	const emitted = new Set<number>()
 	const out: ScoredCandidate[] = []
+	// EVERY audiobook cover in each settled group, for the alternate-art list.
+	// Built in its own pass because `find` only stabilises once all unions are
+	// done -- collecting inside the union loop would file candidates under roots
+	// that later change. Junk is excluded on the same principle that bars it
+	// from donating an asin or narrators: art from a demoted candidate is no
+	// more trustworthy than its metadata. Print covers are excluded because a
+	// portrait jacket in a square Plex poster slot is what squareCover exists to
+	// prevent.
+	//
+	// The art test here is STRICTER than hasAudiobookCover, deliberately. That
+	// helper accepts a bare `asin` as proof of audiobook art, and a HARDCOVER
+	// PRINT edition carries an asin purely so dedupe can match it -- so the
+	// looser test admitted exactly the portrait jackets this list must exclude.
+	// For an alternate we require the provider to be an audio catalogue, or the
+	// record to state a runtime: either is positive evidence of an audio
+	// edition, where a bare asin is not.
+	const isAudioArt = (c: ScoredCandidate): boolean =>
+		AUDIOBOOK_COVER_PROVIDERS.has(c.provider) || c.audioSeconds != null
+	const groupCovers = new Map<number, string[]>()
+	ordered.forEach((c, i) => {
+		if (isJunk(c) || !c.cover || !isAudioArt(c)) return
+		const root = find(i)
+		const seen = groupCovers.get(root) ?? []
+		if (!seen.includes(c.cover)) seen.push(c.cover)
+		groupCovers.set(root, seen)
+	})
+
 	ordered.forEach((_, i) => {
 		const root = find(i)
 		if (!emitted.has(root)) {
@@ -343,12 +370,16 @@ export function dedupeCandidates(
 					? null
 					: (audioCoverDonor ?? null)
 				: (audioCoverDonor ?? bestWithCover.get(root))
-			if (asinDonor || narrDonor || coverDonor) {
+			const finalCover = coverDonor ? coverDonor.cover : winner.cover
+			// Everything the group offers EXCEPT the picture already showing.
+			const alternates = (groupCovers.get(root) ?? []).filter((u) => u !== finalCover)
+			if (asinDonor || narrDonor || coverDonor || alternates.length) {
 				out.push({
 					...winner,
 					asin: asinDonor ? asinDonor.asin : winner.asin,
 					narrators: narrDonor ? narrDonor.narrators : winner.narrators,
-					cover: coverDonor ? coverDonor.cover : winner.cover
+					cover: finalCover,
+					...(alternates.length ? { coverAlternates: alternates } : {})
 				})
 			} else {
 				out.push(winner)

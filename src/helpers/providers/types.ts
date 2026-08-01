@@ -44,6 +44,13 @@ export interface ProviderCandidate {
 	audioSeconds: number | null
 	cover: string | null
 	/**
+	 * Other covers from the SAME merged group — extra art for the picker, never
+	 * a replacement for `cover`. Populated by dedupeCandidates from the editions
+	 * it collapsed: same book by construction, already fetched, audiobook art
+	 * only. See the alternate-cover block in dedupe.ts.
+	 */
+	coverAlternates?: string[]
+	/**
 	 * Edition language as ISO-639-1 (see helpers/utils/language), or null when the
 	 * provider gives no signal. REQUIRED — not optional — so adding a provider
 	 * forces an explicit decision rather than silently omitting the field.

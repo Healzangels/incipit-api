@@ -562,3 +562,78 @@ describe('determinism: arrival order must never matter', () => {
 		expect(ab[0].id).toBe('OL1W') // lowest identity key, always
 	})
 })
+
+/**
+ * THE MERGED GROUP'S OTHER COVERS ARE FREE ALTERNATE ART.
+ *
+ * dedupe already collapses every edition of one book into a single candidate,
+ * and already picks the best cover from that group (`bestWithCover` /
+ * `bestAudioCover`). Every other cover in the group is then DISCARDED — yet it
+ * is a legitimate alternative picture of the same book, already fetched.
+ *
+ * This is a better source than the cross-region lookup it replaces, on every
+ * axis. Same-book is guaranteed by construction rather than inferred from a
+ * narrator match; the language guard above already refuses to merge a German
+ * narration with the English one, so alternates can never cross editions the
+ * ranker was meant to keep apart; and it costs no extra request, where the
+ * region lookup spent one per book to return a Hardcover print jacket.
+ *
+ * AUDIOBOOK COVERS ONLY. A print jacket is portrait, and a portrait image in a
+ * square Plex poster slot is exactly what the squareCover machinery exists to
+ * prevent — the first cut of the alternate-cover feature shipped print jackets
+ * and had to be fixed live.
+ */
+describe('dedupeCandidates — alternate covers from the merged group', () => {
+	const audio = (over: Partial<ScoredCandidate>) =>
+		scored({ provider: 'audible', audioSeconds: 58200, ...over })
+
+	test('the losers of a merge donate their covers as alternates', () => {
+		const winner = audio({ id: 'w', asin: 'B08G9PRS1K', narrators: ['Ray Porter'], cover: 'win.jpg' })
+		const other = audio({ id: 'o', asin: 'B08G9PRS1K', cover: 'other.jpg' })
+		const out = dedupeCandidates([winner, other])
+		expect(out).toHaveLength(1)
+		expect(out[0].coverAlternates).toEqual(['other.jpg'])
+	})
+
+	test("the winner's own cover is never listed as its alternate", () => {
+		const a = audio({ id: 'a', asin: 'B08G9PRS1K', narrators: ['Ray Porter'], cover: 'same.jpg' })
+		const b = audio({ id: 'b', asin: 'B08G9PRS1K', cover: 'same.jpg' })
+		const out = dedupeCandidates([a, b])
+		expect(out[0].coverAlternates ?? []).toEqual([])
+	})
+
+	test('a PRINT cover is not offered as an alternate', () => {
+		// hardcover with no asin and no audioSeconds is a print record: portrait
+		// art, which must not reach a square poster slot.
+		const winner = audio({ id: 'w', asin: 'B08G9PRS1K', narrators: ['Ray Porter'], cover: 'win.jpg' })
+		const print = scored({
+			provider: 'hardcover',
+			id: 'p',
+			asin: 'B08G9PRS1K',
+			cover: 'print-jacket.jpg'
+		})
+		const out = dedupeCandidates([winner, print])
+		expect(out[0].coverAlternates ?? []).toEqual([])
+	})
+
+	test('a candidate with no group-mates has no alternates', () => {
+		const lone = audio({ id: 'l', asin: 'B0LONELY01', cover: 'only.jpg' })
+		expect(dedupeCandidates([lone])[0].coverAlternates ?? []).toEqual([])
+	})
+
+	test('duplicate cover urls across the group are listed once', () => {
+		const w = audio({ id: 'w', asin: 'B08G9PRS1K', narrators: ['Ray Porter'], cover: 'win.jpg' })
+		const b = audio({ id: 'b', asin: 'B08G9PRS1K', cover: 'alt.jpg' })
+		const c = audio({ id: 'c', asin: 'B08G9PRS1K', cover: 'alt.jpg' })
+		const out = dedupeCandidates([w, b, c])
+		expect(out[0].coverAlternates).toEqual(['alt.jpg'])
+	})
+
+	test('a demoted-junk candidate never donates an alternate', () => {
+		// It already cannot donate asin/narrators; its art is no more trustworthy.
+		const w = audio({ id: 'w', asin: 'B08G9PRS1K', narrators: ['Ray Porter'], cover: 'win.jpg' })
+		const junk = audio({ id: 'junk', asin: 'B08G9PRS1K', cover: 'ai-narrated.jpg' })
+		const out = dedupeCandidates([w, junk], null, new Set(['junk']))
+		expect(out[0].coverAlternates ?? []).toEqual([])
+	})
+})
