@@ -3,12 +3,17 @@ import { FastifyInstance } from 'fastify'
 import type { ApiBook } from '#config/types'
 import { RequestGeneric } from '#config/typing/requests'
 import { NotFoundError } from '#helpers/errors/ApiErrors'
-import { recallAlternates } from '#helpers/providers/alternateCoverCache'
+import {
+	alternateCoverKey,
+	recallAlternates,
+	rememberAlternates
+} from '#helpers/providers/alternateCoverCache'
 import { withGoodreadsSeries } from '#helpers/providers/goodreadsSeries'
 import ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
 import defaultRegistry from '#helpers/providers/registry'
 import { bestSquareCover } from '#helpers/providers/squareCover'
 import BookDataHelper from '#helpers/routes/BookDataHelper'
+import BookSearchHelper from '#helpers/routes/BookSearchHelper'
 import BookShowHelper from '#helpers/routes/BookShowHelper'
 import RouteCommonHelper from '#helpers/routes/RouteCommonHelper'
 import { applyPins } from '#helpers/series/shelfPins'
@@ -84,11 +89,73 @@ async function _show(fastify: FastifyInstance) {
 			return square ? { ...book, imageSquare: square } : book
 		}
 
-		// Attach any alternate covers a previous SEARCH recorded for this id. They
-		// cannot be recomputed here -- dedupe needs the whole candidate set -- so
-		// the cache is the only route by which extra art reaches a plain refresh.
-		const withAlternateCovers = async <T extends { asin?: string | null }>(book: T): Promise<T> => {
-			const alternates = await recallAlternates(fastify.redis ?? null, book?.asin ?? asin)
+		// Attach alternate covers -- the extra art dedupe and near-tie borrowing
+		// find across a whole candidate set.
+		//
+		// They cannot be read off this book alone: both sources compare CANDIDATES,
+		// and a lookup has exactly one. The search route caches them by id, which
+		// covers a fresh match. It does NOT cover a plain "Refresh Metadata", and
+		// that is the path Plex actually uses -- `search()` and `update()` are
+		// separate plugin entry points and a refresh calls only the second. Measured
+		// live: The Testaments, matched to `hardcover-edition-30404079`, served zero
+		// alternates through refresh after refresh because nothing had searched.
+		//
+		// So on a MISS we run the search ourselves and cache the answer for every
+		// row it returned, warming this book's near-tie siblings at the same time.
+		// The empty result is cached too, or a book with genuinely no alternates
+		// would pay for a search on every refresh forever.
+		//
+		// Cost is one search per book per TTL, and it is spare art: any failure
+		// leaves the book exactly as it would have been.
+		const computeAlternates = async (book: {
+			title?: string
+			authors?: { name?: string }[]
+		}): Promise<string[]> => {
+			if (!book?.title) return []
+			const helper = new BookSearchHelper(
+				defaultRegistry,
+				{
+					title: book.title,
+					author: book.authors?.[0]?.name,
+					region,
+					// This is a background lookup, not an operator action: `manual`
+					// off keeps it on the automatic-match rules, and `refresh` off
+					// lets it reuse the provider cache the real search already filled.
+					manual: false,
+					refresh: false
+				},
+				request.log,
+				credentials,
+				new ProviderSearchCache(fastify.redis ?? null, undefined, request.log)
+			)
+			const results = await helper.search()
+			await Promise.all(
+				results.map((r) => rememberAlternates(fastify.redis ?? null, r.id, r.coverAlternates ?? []))
+			)
+			const want = alternateCoverKey(asin)
+			return results.find((r) => alternateCoverKey(r.id) === want)?.coverAlternates ?? []
+		}
+
+		const withAlternateCovers = async <
+			T extends { asin?: string | null; title?: string; authors?: { name?: string }[] }
+		>(
+			book: T
+		): Promise<T> => {
+			const id = book?.asin ?? asin
+			let alternates = await recallAlternates(fastify.redis ?? null, id)
+			// WITHOUT REDIS THERE IS NO COMPUTE. The whole design rests on paying
+			// for the search once and recording the answer -- including the empty
+			// answer. With nowhere to record it, every book lookup would fan out
+			// across every provider on every request, forever, to attach spare art.
+			// A redis-less instance simply goes without alternates, exactly as it
+			// did before any of this existed.
+			if (alternates === null && !fastify.redis) return book
+			if (alternates === null) {
+				alternates = await computeAlternates(book).catch((err) => {
+					request.log.warn({ err, asin }, 'alternate-cover compute failed; serving without them')
+					return []
+				})
+			}
 			return alternates.length ? { ...book, imageAlternates: alternates } : book
 		}
 

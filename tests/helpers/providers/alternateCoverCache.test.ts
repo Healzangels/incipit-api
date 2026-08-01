@@ -83,23 +83,45 @@ describe('rememberAlternates / recallAlternates', () => {
 		expect(await recallAlternates(redis as never, 'B073H9PF2D_us')).toEqual(['a.jpg'])
 	})
 
-	test('an EMPTY list is never written — no garbage keys for the common case', async () => {
+	test('"HAS NONE" and "NEVER ASKED" are different answers', async () => {
+		// The whole reason the item route can compute on a miss without re-running
+		// a provider search for every alternate-less book on every refresh. Both
+		// directions asserted together, because a cache that collapses them looks
+		// correct from either side alone.
 		const redis = fakeRedis()
 		await rememberAlternates(redis as never, 'B0NONE0001', [])
-		expect(redis.calls.set).toBe(0)
 		expect(await recallAlternates(redis as never, 'B0NONE0001')).toEqual([])
+		expect(await recallAlternates(redis as never, 'B0NEVER0001')).toBeNull()
 	})
 
-	test('a miss recalls an empty list, never null', async () => {
-		expect(await recallAlternates(fakeRedis() as never, 'B0UNKNOWN1')).toEqual([])
+	test('an EMPTY list IS written — it records that we LOOKED', async () => {
+		const redis = fakeRedis()
+		await rememberAlternates(redis as never, 'B0NONE0001', [])
+		expect(redis.calls.set).toBe(1)
+	})
+
+	test('an UNDEFINED list is not written — that is absence of a result', async () => {
+		// `coverAlternates` is optional on a candidate. Undefined means the caller
+		// had nothing to say, which is not the same claim as "I looked and found
+		// none" — only the latter earns a negative entry.
+		const redis = fakeRedis()
+		await rememberAlternates(redis as never, 'B0NONE0002', undefined)
+		expect(redis.calls.set).toBe(0)
+		expect(await recallAlternates(redis as never, 'B0NONE0002')).toBeNull()
+	})
+
+	test('a miss recalls NULL', async () => {
+		expect(await recallAlternates(fakeRedis() as never, 'B0UNKNOWN1')).toBeNull()
 	})
 
 	test('no redis is a silent no-op in both directions', async () => {
 		await rememberAlternates(null, 'B073H9PF2D', ['a.jpg'])
-		expect(await recallAlternates(null, 'B073H9PF2D')).toEqual([])
+		expect(await recallAlternates(null, 'B073H9PF2D')).toBeNull()
 	})
 
-	test('a redis failure never propagates — this is spare art', async () => {
+	test('a redis failure reports UNKNOWN, never throws — this is spare art', async () => {
+		// Null rather than [] on purpose: a broken cache has told us nothing, and
+		// reporting "has none" would suppress the compute that could still succeed.
 		const broken = {
 			async set() {
 				throw new Error('redis down')
@@ -109,18 +131,18 @@ describe('rememberAlternates / recallAlternates', () => {
 			}
 		}
 		await rememberAlternates(broken as never, 'B073H9PF2D', ['a.jpg'])
-		expect(await recallAlternates(broken as never, 'B073H9PF2D')).toEqual([])
+		expect(await recallAlternates(broken as never, 'B073H9PF2D')).toBeNull()
 	})
 
-	test('corrupt cached JSON recalls empty rather than throwing', async () => {
+	test('corrupt cached JSON recalls UNKNOWN rather than throwing', async () => {
 		const redis = fakeRedis()
 		redis.store.set(alternateCoverKey('B073H9PF2D'), '{not json')
-		expect(await recallAlternates(redis as never, 'B073H9PF2D')).toEqual([])
+		expect(await recallAlternates(redis as never, 'B073H9PF2D')).toBeNull()
 	})
 
-	test('a cached NON-array recalls empty', async () => {
+	test('a cached NON-array recalls UNKNOWN', async () => {
 		const redis = fakeRedis()
 		redis.store.set(alternateCoverKey('B073H9PF2D'), '"a.jpg"')
-		expect(await recallAlternates(redis as never, 'B073H9PF2D')).toEqual([])
+		expect(await recallAlternates(redis as never, 'B073H9PF2D')).toBeNull()
 	})
 })

@@ -45,9 +45,12 @@ export function alternateCoverKey(id: string): string {
 /**
  * Record a candidate's alternate covers for later item lookups.
  *
- * An EMPTY list is deliberately not written: most books have no alternates, and
- * writing a key for each would fill redis with entries that say nothing a miss
- * does not already say.
+ * AN EMPTY LIST IS WRITTEN TOO, and that is the point: the entry records that we
+ * LOOKED, not merely what we found. The item route computes alternates on a
+ * miss, so without a negative entry every book that genuinely has none would
+ * re-run a full provider search on every single refresh, forever. "No
+ * alternates" and "never asked" are different facts and the cache has to hold
+ * both.
  * @param {FastifyRedis | null} redis the redis client, or null when unavailable
  * @param {string} id the book id the alternates belong to
  * @param {string[] | undefined} urls the alternate cover urls
@@ -58,7 +61,7 @@ export async function rememberAlternates(
 	id: string,
 	urls: string[] | undefined
 ): Promise<void> {
-	if (!redis || !id || !urls?.length) return
+	if (!redis || !id || !urls) return
 	try {
 		await redis.set(alternateCoverKey(id), JSON.stringify(urls), 'EX', TTL_SECONDS)
 	} catch {
@@ -67,24 +70,33 @@ export async function rememberAlternates(
 }
 
 /**
- * The alternate covers recorded for this id, or an empty list.
+ * The alternate covers recorded for this id, or NULL when none were ever
+ * recorded.
  *
- * Never returns null and never throws: every failure mode — no redis, a miss, a
- * redis error, corrupt JSON, a cached value that is not an array — degrades to
- * "no alternates", which is exactly the behaviour before this cache existed.
+ * The null is load-bearing. Its caller computes on a miss, so it has to tell
+ * "this book has no alternates" (an empty array, already established) from "no
+ * one has looked yet" (null) — collapsing the two would either re-search a book
+ * that has nothing on every refresh, or never search one that does.
+ *
+ * Never throws. Every FAILURE mode — no redis, a redis error, corrupt JSON, a
+ * cached value that is not an array — reports null, i.e. "unknown", which is
+ * honest: a broken cache has told us nothing, and the caller is free to compute.
  * @param {FastifyRedis | null} redis the redis client, or null when unavailable
  * @param {string} id the book id, with or without a region suffix
- * @returns {Promise<string[]>} the cached alternates
+ * @returns {Promise<string[] | null>} the cached alternates, or null if unrecorded
  */
-export async function recallAlternates(redis: FastifyRedis | null, id: string): Promise<string[]> {
-	if (!redis || !id) return []
+export async function recallAlternates(
+	redis: FastifyRedis | null,
+	id: string
+): Promise<string[] | null> {
+	if (!redis || !id) return null
 	try {
 		const raw = await redis.get(alternateCoverKey(id))
-		if (!raw) return []
+		if (!raw) return null
 		const parsed: unknown = JSON.parse(raw)
-		if (!Array.isArray(parsed)) return []
+		if (!Array.isArray(parsed)) return null
 		return parsed.filter((u): u is string => typeof u === 'string' && u.length > 0)
 	} catch {
-		return []
+		return null
 	}
 }

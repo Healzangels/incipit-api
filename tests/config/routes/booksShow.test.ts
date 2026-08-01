@@ -80,21 +80,45 @@ mock.module('#helpers/routes/BookDataHelper', () => ({
 	}
 }))
 
-/** What a prior SEARCH recorded for this id, per test. */
-let cachedAlternates: string[] = []
+/** What a prior SEARCH recorded for this id. NULL = nobody has ever looked. */
+let cachedAlternates: string[] | null = []
+/** Every (id, urls) pair the route wrote back, so the warm can be asserted. */
+let remembered: [string, string[] | undefined][] = []
 mock.module('#helpers/providers/alternateCoverCache', () => ({
-	alternateCoverKey: (id: string) => `incipit:altcover:${id}`,
-	rememberAlternates: async () => undefined,
+	alternateCoverKey: (id: string) => `incipit:altcover:${(id ?? '').split('_')[0].toUpperCase()}`,
+	rememberAlternates: async (_r: unknown, id: string, urls: string[] | undefined) => {
+		remembered.push([id, urls])
+	},
 	recallAlternates: async () => cachedAlternates
 }))
+
+/** Candidates the on-miss compute "finds". Empty = the search returned nothing. */
+let searchResults: Record<string, unknown>[] = []
+/** How many times the route ran a search — the cost this design must bound. */
+let searchCalls = 0
+mock.module('#helpers/routes/BookSearchHelper', () => ({
+	default: class {
+		async search() {
+			searchCalls += 1
+			if (searchThrows) throw searchThrows
+			return searchResults
+		}
+	}
+}))
+/** Set to make the on-miss compute blow up, as a dead upstream would. */
+let searchThrows: Error | null = null
 
 const { default: booksShow } = await import('#config/routes/books/show')
 const { getMatchMetrics, resetMatchMetrics } = await import('#helpers/utils/matchTelemetry')
 const { NotFoundError } = await import('#helpers/errors/ApiErrors')
 
+/** Whether the instance has redis. The compute path requires it -- see below. */
+let hasRedis = true
+
 async function get(asin: string, query = '') {
 	const app = Fastify()
 	try {
+		if (hasRedis) app.decorate('redis', { async get() {}, async set() {} } as never)
 		await app.register(booksShow as never)
 		const res = await app.inject({ method: 'GET', url: `/books/${asin}${query}` })
 		return { status: res.statusCode, body: res.json() as Record<string, unknown> }
@@ -273,6 +297,11 @@ describe('alternate covers on the item response', () => {
 		storedRecord = null
 		servedByProvider = null
 		cachedAlternates = []
+		remembered = []
+		searchResults = []
+		searchCalls = 0
+		searchThrows = null
+		hasRedis = true
 	})
 
 	test('a cached alternate is attached to the served book', async () => {
@@ -285,6 +314,73 @@ describe('alternate covers on the item response', () => {
 	test('nothing cached leaves the field off entirely', async () => {
 		served = bookRecord()
 		const { body } = await get('B0TESTASIN')
+		expect(body.imageAlternates).toBeUndefined()
+	})
+
+	test('a MISS computes them — the path a plain refresh actually takes', async () => {
+		// The defect this fixes, measured live 2026-08-01: The Testaments is
+		// matched to `hardcover-edition-30404079`, and refreshing it served no
+		// alternates however many times it was refreshed, because alternates were
+		// only ever written by a SEARCH and `update()` never searches. A cached
+		// empty list ([]) is a real answer; only NULL means nobody has looked.
+		cachedAlternates = null
+		searchResults = [
+			{ id: 'B0TESTASIN', coverAlternates: ['https://example.invalid/borrowed.jpg'] }
+		]
+		served = bookRecord()
+		const { body } = await get('B0TESTASIN')
+		expect(searchCalls).toBe(1)
+		expect(body.imageAlternates).toEqual(['https://example.invalid/borrowed.jpg'])
+	})
+
+	test('a cached EMPTY list does NOT re-search — that is what it is for', async () => {
+		// Without this, every alternate-less book in the library fans out across
+		// every provider on every refresh, forever.
+		cachedAlternates = []
+		served = bookRecord()
+		await get('B0TESTASIN')
+		expect(searchCalls).toBe(0)
+	})
+
+	test('the compute writes back EVERY row, warming the near-tie siblings', async () => {
+		// The siblings are precisely the rows that lent this book its art, so the
+		// next refresh of any of them is already paid for.
+		cachedAlternates = null
+		searchResults = [
+			{ id: 'B0TESTASIN', coverAlternates: ['a.jpg'] },
+			{ id: 'B0SIBLING1', coverAlternates: ['b.jpg'] },
+			{ id: 'B0NOALTS01' }
+		]
+		served = bookRecord()
+		await get('B0TESTASIN')
+		expect(remembered).toEqual([
+			['B0TESTASIN', ['a.jpg']],
+			['B0SIBLING1', ['b.jpg']],
+			['B0NOALTS01', []]
+		])
+	})
+
+	test('NO REDIS means no compute — nowhere to record the answer', async () => {
+		// A redis-less instance must not pay for a provider fan-out on every
+		// single book lookup to attach spare art. It goes without, as before.
+		hasRedis = false
+		cachedAlternates = null
+		searchResults = [{ id: 'B0TESTASIN', coverAlternates: ['nope.jpg'] }]
+		served = bookRecord()
+		const { body } = await get('B0TESTASIN')
+		expect(searchCalls).toBe(0)
+		expect(body.imageAlternates).toBeUndefined()
+	})
+
+	test('a search that THROWS still serves the book', async () => {
+		// Spare art is never worth a 500. Every provider being down must cost the
+		// refresh its alternates and nothing else.
+		cachedAlternates = null
+		searchThrows = new Error('every provider is down')
+		served = bookRecord()
+		const { status, body } = await get('B0TESTASIN')
+		expect(status).toBe(200)
+		expect(body.title).toBe('A Test Book')
 		expect(body.imageAlternates).toBeUndefined()
 	})
 
