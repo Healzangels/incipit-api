@@ -426,3 +426,67 @@ describe('a tie that reaches the arbitrary tiebreak', () => {
 		expect(out[0].asin).toBe('B0OTHER001')
 	})
 })
+
+/**
+ * NEAR-TIE COVER BORROWING MUST ACTUALLY RUN IN search().
+ *
+ * withNearTieAlternates has its own suite, and those pass whether or not the
+ * search pipeline calls it — verified by mutation: removing the call from
+ * BookSearchHelper left all 1863 tests green. That is the unwired-stage shape
+ * this codebase keeps paying for, so the assertion has to come through search().
+ */
+describe('near-tie candidates lend each other cover art', () => {
+	beforeEach(() => resetMatchMetrics())
+
+	test('two same-narrator rows a point apart each offer the other art', async () => {
+		// Distinct asins and runtime buckets so dedupe keeps them SEPARATE —
+		// this source exists precisely for the rows dedupe declines to merge.
+		const out = await helperFor([
+			candidate({
+				provider: 'audible',
+				id: 'tie-in',
+				asin: 'B0TIEIN0001',
+				title: 'Dune (TV Tie-in)',
+				narrators: ['Scott Brick'],
+				audioSeconds: 74000,
+				cover: 'https://m.media-amazon.com/images/I/tiein.jpg'
+			}),
+			candidate({
+				provider: 'audible',
+				id: 'plain',
+				asin: 'B0PLAIN0001',
+				narrators: ['Scott Brick'],
+				audioSeconds: 60000,
+				cover: 'https://m.media-amazon.com/images/I/plain.jpg'
+			})
+		]).search()
+
+		expect(out.length).toBe(2)
+		const covers = out.flatMap((c) => c.coverAlternates ?? [])
+		expect(covers).toContain('https://m.media-amazon.com/images/I/plain.jpg')
+		expect(covers).toContain('https://m.media-amazon.com/images/I/tiein.jpg')
+	})
+
+	test('a DIFFERENT narrator lends nothing through the real pipeline', async () => {
+		const out = await helperFor([
+			candidate({
+				provider: 'audible',
+				id: 'freeman',
+				asin: 'B0FREEMAN01',
+				narrators: ['Martin Freeman'],
+				audioSeconds: 74000,
+				cover: 'https://m.media-amazon.com/images/I/freeman.jpg'
+			}),
+			candidate({
+				provider: 'audible',
+				id: 'adams',
+				asin: 'B0ADAMS0001',
+				narrators: ['Zannie Adams'],
+				audioSeconds: 60000,
+				cover: 'https://m.media-amazon.com/images/I/adams.jpg'
+			})
+		]).search()
+
+		expect(out.flatMap((c) => c.coverAlternates ?? [])).toEqual([])
+	})
+})
