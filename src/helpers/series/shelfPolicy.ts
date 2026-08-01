@@ -73,7 +73,17 @@ export function applyShelfPolicy<T extends ShelfBook>(book: T): T {
 		secondary &&
 		foldSeriesName(String(primary.name)) === foldSeriesName(String(secondary.name))
 
-	if (primary && positioned(primary)) {
+	// A CONTAINER never shelves, even POSITIONED. This guard used to be
+	// `positioned(primary)` alone, and isContainer was consulted only in the
+	// demote-to-tag branch below — so an umbrella arriving with a number
+	// returned from here untouched, and rule 3 in this file's own header was
+	// unenforceable for exactly the case that matters. Live on both boxes
+	// 2026-07-31: The Sunlit Man served `The Cosmere #32` while
+	// `Secret Projects #4` sat in the secondary slot, which is what the golden
+	// corpus requires. A number from an umbrella is a coordinate in a
+	// franchise, not a place on a shelf; falling through lets the positioned
+	// secondary be promoted exactly as it is for a positionless primary.
+	if (primary && positioned(primary) && !isContainer(primary.name)) {
 		if (!duplicate) return book
 		// Same series twice: keep the primary, clear the echo.
 		const out = { ...book }

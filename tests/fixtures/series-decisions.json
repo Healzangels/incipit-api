@@ -34,8 +34,20 @@
  "Q2": {
   "choice": "split (operator-accepted recommendation)",
   "shelfOutcome": "NONE for all Q2 rows (tag-vs-nothing is mood-layer, not shelf)",
-  "tagPolicy": "real sub-series name -> tag only; cross-author franchise container -> nothing; omnibus range -> tag only, never range-start",
-  "verifyCondition": "harness must prove only the 31 Q2 rows change shelf outcome"
+  "tagPolicy": "real sub-series name -> tag only; cross-author franchise container -> NEVER a shelf, but MAY remain a tag (amended 2026-07-31, see containerTagPolicy); omnibus range -> tag only, never range-start",
+  "verifyCondition": "harness must prove only the 31 Q2 rows change shelf outcome",
+  "containerTagPolicy": {
+   "decidedAt": "2026-07-31",
+   "choice": "containers stay as TAGS, never as shelves",
+   "supersedes": "the original Q2 wording \"cross-author franchise container -> nothing\", which read as dropping them from the tag slot too",
+   "why": "the harm Q2 was solving was SHELVING. A franchise tag is genuinely useful for browsing, and dropping it would have removed \"The Cosmere\" from Stormlight Archive and White Sand and \"Warhammer 40,000\" from Gaunt's Ghosts, Ahriman and the Primarchs books -- 39 ledger rows, all positionless, none of them a shelf.",
+   "measuredBlastRadius": {
+    "containerAsShelf": 1,
+    "containerAsShelfRow": "B0D1KTJNBN The Sunlit Man (The Cosmere #32 -> Secret Projects #4)",
+    "containerAsTag": 39,
+    "action": "fix the 1 shelf; leave the 39 tags alone"
+   }
+  }
  },
  "families": "OPERATOR-REVIEW pending (19 rows, 6 families) - excluded from hard gate, listed in burn-down"
 }
