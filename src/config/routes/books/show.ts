@@ -3,10 +3,7 @@ import { FastifyInstance } from 'fastify'
 import type { ApiBook } from '#config/types'
 import { RequestGeneric } from '#config/typing/requests'
 import { NotFoundError } from '#helpers/errors/ApiErrors'
-import {
-	alternateCoverWorthOffering,
-	siblingRegion
-} from '#helpers/providers/alternateCover'
+import { alternateCoverWorthOffering, siblingRegion } from '#helpers/providers/alternateCover'
 import { withGoodreadsSeries } from '#helpers/providers/goodreadsSeries'
 import ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
 import defaultRegistry from '#helpers/providers/registry'
