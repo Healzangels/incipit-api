@@ -3,6 +3,10 @@ import { FastifyInstance } from 'fastify'
 import type { ApiBook } from '#config/types'
 import { RequestGeneric } from '#config/typing/requests'
 import { NotFoundError } from '#helpers/errors/ApiErrors'
+import {
+	alternateCoverWorthOffering,
+	siblingRegion
+} from '#helpers/providers/alternateCover'
 import { withGoodreadsSeries } from '#helpers/providers/goodreadsSeries'
 import ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
 import defaultRegistry from '#helpers/providers/registry'
@@ -46,6 +50,11 @@ function flagLanguageMismatch(
 	}
 }
 
+// An Audible/Amazon cover host. Only such a match can have a sibling-ASIN
+// listing in another marketplace, so this keeps the alternate-cover lookup off
+// every Hardcover and OpenLibrary response.
+const AMAZON_COVER_RE = /\/\/m\.media-amazon\.com\/images\//i
+
 async function _show(fastify: FastifyInstance) {
 	fastify.get<RequestGeneric>('/books/:asin', async (request, reply) => {
 		const asin = request.params.asin
@@ -83,6 +92,37 @@ async function _show(fastify: FastifyInstance) {
 			return square ? { ...book, imageSquare: square } : book
 		}
 
+		// Offer the sibling marketplace's cover as an EXTRA choice. Audible
+		// commissions different art per marketplace for the same recording:
+		// measured over the 16 library ASINs resolving in both us and uk, 7 of 15
+		// pairs carry a genuinely different asset. See alternateCover for why the
+		// narrator sets must match (one ASIN can front DIFFERENT recordings in
+		// different marketplaces) and why runtime cannot stand in.
+		//
+		// COST CONTROL, because this runs on every book response and Plex asks
+		// once per TRACK. Gated on the current cover being an Amazon/Audible
+		// image: a Hardcover or OpenLibrary match has no sibling-ASIN concept, so
+		// the lookup could only ever miss. Best-effort throughout — this is spare
+		// art, never worth failing or delaying a response for.
+		const withAlternateCovers = async <T extends { asin?: string | null; image?: string | null }>(
+			book: T
+		): Promise<T> => {
+			const sibling = siblingRegion(region)
+			if (!sibling || !book?.asin || !AMAZON_COVER_RE.test(book.image ?? '')) return book
+			try {
+				const other = await defaultRegistry.fetchBookByAsin(book.asin, {
+					region: sibling,
+					credentials,
+					logger: request.log
+				})
+				if (!other) return book
+				const extra = alternateCoverWorthOffering(book, other)
+				return extra ? { ...book, imageAlternates: [extra] } : book
+			} catch {
+				return book
+			}
+		}
+
 		// Every book response goes out through here: attach the square cover, then
 		// consult Goodreads for the series. Under authority mode (the default)
 		// that consult happens for EVERY book, not just the series-less ones, so
@@ -98,6 +138,7 @@ async function _show(fastify: FastifyInstance) {
 				title?: string
 				authors?: { name?: string }[]
 				image?: string | null
+				asin?: string | null
 				seriesPrimary?: { name?: string } | null
 				seriesSecondary?: unknown
 			}
@@ -109,7 +150,7 @@ async function _show(fastify: FastifyInstance) {
 			applyShelfPolicy(
 				applyPins(
 					await withGoodreadsSeries(
-						await withSquareCover(book),
+						await withAlternateCovers(await withSquareCover(book)),
 						fastify.redis ?? null,
 						request.log
 					),

@@ -80,6 +80,15 @@ mock.module('#helpers/routes/BookDataHelper', () => ({
 	}
 }))
 
+/** What the sibling-marketplace lookup returns, per test. */
+let siblingRecord: Record<string, unknown> | null = null
+mock.module('#helpers/providers/registry', () => ({
+	default: {
+		fetchBookByAsin: async () => siblingRecord,
+		searchAll: async () => []
+	}
+}))
+
 const { default: booksShow } = await import('#config/routes/books/show')
 const { getMatchMetrics, resetMatchMetrics } = await import('#helpers/utils/matchTelemetry')
 const { NotFoundError } = await import('#helpers/errors/ApiErrors')
@@ -244,5 +253,53 @@ describe('upstream says unavailable but we hold a record', () => {
 		const { status, body } = await get('B0TESTASIN')
 		expect(status).toBe(404)
 		expect(body.title).toBeUndefined()
+	})
+})
+
+/**
+ * The ALTERNATE-REGION cover, wired.
+ *
+ * `alternateCover.ts` has its own unit suite, but those pass whether or not the
+ * route ever calls it — verified by mutation: deleting `withAlternateCovers`
+ * from the pipeline left all 1839 tests green. That is the same unwired-stage
+ * shape this file exists for, so the assertion has to come through the route.
+ */
+describe('alternate-region cover art', () => {
+	const AMAZON = 'https://m.media-amazon.com/images/I/51AAA._SL500_.jpg'
+	const OTHER = 'https://m.media-amazon.com/images/I/99ZZZ._SL500_.jpg'
+
+	beforeEach(() => {
+		handlerThrows = null
+		storedRecord = null
+		servedByProvider = null
+		siblingRecord = null
+	})
+
+	test('offers the sibling marketplace cover when the narrators match', async () => {
+		served = bookRecord({ image: AMAZON, narrators: [{ name: 'Ann Dowd' }] })
+		siblingRecord = { image: OTHER, narrators: [{ name: 'Ann Dowd' }] }
+		const { body } = await get('B0TESTASIN')
+		expect(body.imageAlternates).toEqual([OTHER])
+	})
+
+	test('does NOT offer it when the narrator differs — the Fever Dream case', async () => {
+		served = bookRecord({ image: AMAZON, narrators: [{ name: 'Ann Dowd' }] })
+		siblingRecord = { image: OTHER, narrators: [{ name: 'Someone Else' }] }
+		const { body } = await get('B0TESTASIN')
+		expect(body.imageAlternates).toBeUndefined()
+	})
+
+	test('does not even look when the cover is not an Amazon asset', async () => {
+		// A Hardcover/OpenLibrary match has no sibling-ASIN concept, so the
+		// lookup could only ever miss — this is the per-response cost control.
+		let looked = false
+		siblingRecord = { image: OTHER, narrators: [{ name: 'Ann Dowd' }] }
+		served = bookRecord({
+			image: 'https://images.hardcover.app/x/cover.jpg',
+			narrators: [{ name: 'Ann Dowd' }]
+		})
+		const { body } = await get('B0TESTASIN')
+		expect(looked).toBe(false)
+		expect(body.imageAlternates).toBeUndefined()
 	})
 })

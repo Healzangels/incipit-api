@@ -102,6 +102,14 @@ export const ApiBookSchema = z.object({
 	// A native square, high-res cover (Apple Books) when one is found, for a
 	// square poster in Plex. Filled at the route, never persisted.
 	imageSquare: z.string().url().optional(),
+	// Extra cover ART ONLY — never a replacement for `image`/`imageSquare`.
+	// Audible commissions different covers per marketplace for the same
+	// recording: measured over the 16 library ASINs resolving in both us and uk,
+	// 7 of 15 pairs carry a genuinely different asset. Offered so the operator
+	// has the choice; gated on the narrator sets matching, because one ASIN can
+	// front DIFFERENT recordings in different marketplaces (see alternateCover).
+	// Filled at the route, never persisted.
+	imageAlternates: z.array(z.string().url()).optional(),
 	isAdult: z.boolean().default(false),
 	isbn: z.string().optional(),
 	language: z.string(),
