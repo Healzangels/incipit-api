@@ -36,9 +36,6 @@ import type { ScoredCandidate } from '#helpers/providers/types'
  */
 const CONFIDENCE_BAND = 0.02
 
-/** Hosts whose art is audiobook packaging rather than a print jacket. */
-const AUDIO_PROVIDERS = new Set(['audible', 'apple', 'storytel'])
-
 /**
  * Strip an Amazon size modifier so one picture at two sizes compares equal —
  * otherwise `._SL500_` and `._SX450_` would both be offered.
@@ -64,11 +61,6 @@ function narratorKey(c: ScoredCandidate): string {
 	return [...names].sort().join('|')
 }
 
-/** Audiobook packaging, not a print scan. A runtime is positive evidence too. */
-function isAudioArt(c: ScoredCandidate): boolean {
-	return AUDIO_PROVIDERS.has(c.provider) || c.audioSeconds != null
-}
-
 /**
  * Add each candidate's near-tie siblings' covers to its `coverAlternates`.
  *
@@ -81,14 +73,19 @@ export function withNearTieAlternates(candidates: ScoredCandidate[]): ScoredCand
 	if (!candidates || candidates.length < 2) return candidates ?? []
 	return candidates.map((c) => {
 		const key = narratorKey(c)
-		// No narrators on THIS row means nothing can corroborate a borrow.
-		if (!key || !isAudioArt(c)) return c
+		// An empty key means this row names no narrators, and that single check
+		// does BOTH jobs: nothing can corroborate a borrow, and a print record --
+		// which lists none -- is excluded by the same test. An explicit
+		// `isAudioArt` guard alongside it was an EQUIVALENT MUTANT: replacing its
+		// body with `return true` failed nothing, because the key check had
+		// already rejected every row it would have caught.
+		if (!key) return c
 		const own = new Set(
 			[...(c.coverAlternates ?? []), c.cover].filter(Boolean).map((u) => coverAsset(u as string))
 		)
 		const extra: string[] = []
 		for (const other of candidates) {
-			if (other === c || !other.cover || !isAudioArt(other)) continue
+			if (other === c || !other.cover) continue
 			if (Math.abs((other.confidence ?? 0) - (c.confidence ?? 0)) > CONFIDENCE_BAND) continue
 			if (narratorKey(other) !== key) continue
 			const asset = coverAsset(other.cover)

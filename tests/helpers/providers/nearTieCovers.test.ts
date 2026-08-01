@@ -113,6 +113,33 @@ describe('withNearTieAlternates', () => {
 		expect(out[0].coverAlternates).toEqual(['b.jpg'])
 	})
 
+	test('a Hardcover AUDIO edition participates — narrators prove it is audio', () => {
+		// Measured live: The Testaments matched `hardcover-edition-30404079`,
+		// which lists Ann Dowd and Bryce Dallas Howard but carries NO runtime and
+		// is not an audio-catalogue provider. Requiring provider-or-runtime
+		// excluded the very record the book was matched to, so the feature could
+		// not help the book it was built for.
+		const out = withNearTieAlternates([
+			scored({
+				provider: 'hardcover',
+				id: 'hc',
+				confidence: 1,
+				cover: 'hc.jpg',
+				audioSeconds: null,
+				narrators: ['Ann Dowd', 'Bryce Dallas Howard']
+			}),
+			scored({
+				provider: 'audible',
+				id: 'aud',
+				confidence: 0.99,
+				cover: 'aud.jpg',
+				narrators: ['Ann Dowd', 'Bryce Dallas Howard']
+			})
+		])
+		expect(out[0].coverAlternates).toEqual(['aud.jpg'])
+		expect(out[1].coverAlternates).toEqual(['hc.jpg'])
+	})
+
 	test('a PRINT row neither lends nor borrows', () => {
 		const out = withNearTieAlternates([
 			scored({ id: 'a', confidence: 1, cover: 'audio.jpg' }),
@@ -121,7 +148,10 @@ describe('withNearTieAlternates', () => {
 				provider: 'hardcover',
 				confidence: 0.99,
 				cover: 'jacket.jpg',
-				audioSeconds: null
+				audioSeconds: null,
+				// A print record lists no narrators -- that is what distinguishes
+				// it from a Hardcover AUDIO edition, which does.
+				narrators: []
 			})
 		])
 		expect(out[0].coverAlternates).toBeUndefined()
