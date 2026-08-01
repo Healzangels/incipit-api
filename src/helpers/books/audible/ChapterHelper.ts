@@ -233,4 +233,22 @@ class ChapterHelper {
 	}
 }
 
+/**
+ * Chapter support requires a real Audible account (ADP_TOKEN + PRIVATE_KEY) and
+ * is NOT needed for matching or metadata, so a deployment may deliberately run
+ * without it — this one does.
+ *
+ * Exported as a PREDICATE rather than letting the constructor's throw escape.
+ * That throw surfaced as a 500 echoing the missing variable names, which reads
+ * as "the API is down" to Plex instead of "this book has no chapters", and made
+ * 100% of chapter requests fail. Callers check this first and degrade to 404.
+ *
+ * A predicate, not a catch-by-message: matching on error text is exactly the
+ * kind of coupling that breaks silently when the message is reworded.
+ * @returns {boolean} true when chapter fetching is configured
+ */
+export function chaptersConfigured(): boolean {
+	return Boolean(process.env.ADP_TOKEN && process.env.PRIVATE_KEY)
+}
+
 export default ChapterHelper

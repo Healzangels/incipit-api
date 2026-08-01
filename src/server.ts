@@ -37,6 +37,7 @@ import imagesSimilar from '#config/routes/images'
 import { parseEnvArray, registerMetricsRoute } from '#config/routes/metrics'
 import version from '#config/routes/version'
 import { warnIfDeletesDisabled } from '#config/routes/writeAuth'
+import { chaptersConfigured } from '#helpers/books/audible/ChapterHelper'
 import { goodreadsTuningSummary } from '#helpers/providers/goodreadsSeries'
 import { getAllIps as getCloudflareIps } from '#helpers/utils/cloudflareIps'
 import UpdateScheduler from '#helpers/utils/UpdateScheduler'
@@ -234,6 +235,15 @@ async function registerRoutes() {
 		.register(version)
 
 	warnIfDeletesDisabled(server)
+	// Chapters degrade to 404 without Audible credentials (see
+	// ChapterHelper.chaptersConfigured). Said ONCE at startup so a deployment
+	// that MEANT to serve chapters learns it here, rather than from every
+	// chapter request quietly 404ing forever.
+	if (!chaptersConfigured())
+		server.log.warn(
+			'ADP_TOKEN/PRIVATE_KEY unset: chapter requests will answer 404. ' +
+				'Set both to enable chapters; ignore this if you do not want them.'
+		)
 
 	try {
 		registerPerformanceHooks(server)
