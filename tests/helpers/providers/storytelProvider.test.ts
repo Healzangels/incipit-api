@@ -78,14 +78,31 @@ describe('StorytelProvider', () => {
 		expect(out.map((c) => c.id)).toEqual(['storytel-14117566', 'storytel-555'])
 	})
 
-	test('returns [] on an empty title or a search error', async () => {
+	test('an empty title short-circuits to [] without touching transport', async () => {
+		let called = false
+		const p = new StorytelProvider({
+			searchFetch: async () => {
+				called = true
+				throw new Error('down')
+			}
+		})
+		expect(await p.search({ title: '', region: 'us' })).toEqual([])
+		expect(called).toBe(false)
+	})
+
+	test('PROPAGATES a transport failure, so the circuit breaker can see it', async () => {
+		// SUPERSEDES the `search error -> []` half of the old assertion, which
+		// encoded the swallow with no stated reason. ProviderRegistry records a
+		// RESOLVED thunk as a breaker SUCCESS, so returning [] kept the circuit
+		// closed against an upstream refusing every request — the 942-consecutive
+		// -refusals shape its own comment documents. Safe because the registry
+		// fans out with Promise.allSettled.
 		const p = new StorytelProvider({
 			searchFetch: async () => {
 				throw new Error('down')
 			}
 		})
-		expect(await p.search({ title: '', region: 'us' })).toEqual([])
-		expect(await p.search(q)).toEqual([])
+		await expect(p.search(q)).rejects.toThrow('down')
 	})
 
 	test('fetchBook maps the detail record to a ProviderBook with series position', async () => {

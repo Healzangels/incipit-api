@@ -63,16 +63,26 @@ describe('AppleBooksProvider.search', () => {
 		// "Babel" under the ORIGINAL title, so title+author scoring cannot tell it
 		// from the English one and both sat at 0.850. Descriptions are verbatim
 		// from iTunes (ids 1596509362 and 1729551786).
-		const english = { ...phm, collectionId: 1596509362, collectionName: 'Babel',
-			description: '<b>From award-winning author R. F. Kuang</b> comes Babel, a thematic ' +
+		const english = {
+			...phm,
+			collectionId: 1596509362,
+			collectionName: 'Babel',
+			description:
+				'<b>From award-winning author R. F. Kuang</b> comes Babel, a thematic ' +
 				'response to The Secret History and a tonal retort to Jonathan Strange &amp; Mr. ' +
 				'Norrell that grapples with student revolutions, colonial resistance, and the use ' +
-				'of language and translation as the dominating tool of the British empire.' }
-		const spanish = { ...phm, collectionId: 1729551786, collectionName: 'Babel',
-			description: '1828. El Instituto Real de Traducci\u00f3n de Oxford, tambi\u00e9n conocido como ' +
+				'of language and translation as the dominating tool of the British empire.'
+		}
+		const spanish = {
+			...phm,
+			collectionId: 1729551786,
+			collectionName: 'Babel',
+			description:
+				'1828. El Instituto Real de Traducci\u00f3n de Oxford, tambi\u00e9n conocido como ' +
 				'Babel, es la instituci\u00f3n m\u00e1gica m\u00e1s importante del mundo. La magia con plata ' +
 				'capaz de revelar significados ocultos perdidos en la traducci\u00f3n que all\u00ed se ' +
-				'practica le ha otorgado al Imperio brit\u00e1nico un poder sin parang\u00f3n.' }
+				'practica le ha otorgado al Imperio brit\u00e1nico un poder sin parang\u00f3n.'
+		}
 		const out = await new AppleBooksProvider({
 			searchFetch: async () => [english, spanish]
 		}).search({ title: 'Babel', region: 'us' })
@@ -122,20 +132,34 @@ describe('AppleBooksProvider.search', () => {
 		expect(seenCountry).toBe('GB')
 	})
 
-	test('drops results with no collectionId and returns [] on empty title or error', async () => {
+	test('drops results with no collectionId, and an empty title short-circuits', async () => {
 		const partial = await new AppleBooksProvider({
 			searchFetch: async () => [phm, { collectionName: 'no id' } as AppleResult]
 		}).search(q)
 		expect(partial.map((c) => c.id)).toEqual(['apple-audiobook-1565808256'])
 
 		expect(await new AppleBooksProvider().search({ title: '', region: 'us' })).toEqual([])
+	})
 
-		const errored = await new AppleBooksProvider({
+	test('PROPAGATES a transport failure, so the circuit breaker can see it', async () => {
+		// SUPERSEDES the `errored -> []` assertion that used to live in the test
+		// above, which encoded the swallow with no stated reason.
+		// ProviderRegistry wraps this in breakerFor(name).execute and records a
+		// RESOLVED thunk as a SUCCESS, so returning [] meant a refusal looked
+		// like "answered, with nothing" and the breaker could never open. Its
+		// own comment records the cost, measured on a 1,341-book scan: Apple
+		// refused 942 CONSECUTIVE searches (751x 429, 191x 403), each a doomed
+		// round-trip that also kept Apple unusable for the square-cover lookup
+		// that runs on EVERY book response.
+		//
+		// Safe: the registry fans out with Promise.allSettled; bestSquareCover
+		// catches and returns null; ProviderSearchCache never caches a throw.
+		const p = new AppleBooksProvider({
 			searchFetch: async () => {
 				throw new Error('down')
 			}
-		}).search(q)
-		expect(errored).toEqual([])
+		})
+		await expect(p.search(q)).rejects.toThrow('down')
 	})
 })
 

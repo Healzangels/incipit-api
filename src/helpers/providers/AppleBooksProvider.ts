@@ -222,8 +222,22 @@ export default class AppleBooksProvider implements BookProvider {
 		try {
 			results = await this.searchFetch(term, REGION_COUNTRY[query.region] ?? 'US')
 		} catch (err) {
+			// RETHROW. ProviderRegistry wraps this in breakerFor(name).execute,
+			// and a thunk that RESOLVES is recorded as a SUCCESS -- so returning
+			// [] here made every transport refusal look like "answered, with
+			// nothing" and the circuit breaker could never open. The registry's
+			// own comment records the cost, measured on a 1,341-book scan: Apple
+			// rate-limited us six minutes in and then refused 942 CONSECUTIVE
+			// searches (751x 429, 191x 403), every one a doomed round-trip that
+			// also kept Apple unusable for the square-cover lookup running on
+			// every book response.
+			//
+			// A genuinely EMPTY result still resolves to [] below -- only a
+			// transport failure propagates. Both consumers already handle it:
+			// bestSquareCover catches and returns null, and ProviderSearchCache
+			// never caches a fetch that threw.
 			logger?.error({ err }, 'apple: search failed')
-			return []
+			throw err
 		}
 
 		return results

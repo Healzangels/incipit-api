@@ -109,8 +109,14 @@ export default class StorytelProvider implements BookProvider {
 		try {
 			results = await this.searchFetch(query.title, regionLanguage(query.region) ?? 'en')
 		} catch (err) {
+			// RETHROW, same reason as Apple and OverDrive: the registry records a
+			// RESOLVED thunk as a breaker success, so swallowing a transport
+			// failure into [] keeps the circuit closed against an upstream that
+			// is refusing every request. An empty result still resolves below.
+			// (LibriVox deliberately does NOT do this -- its catch handles a 404
+			// meaning "no such title", a normal miss for that narrow catalogue.)
 			logger?.error({ err }, 'storytel: search failed')
-			return []
+			throw err
 		}
 
 		return (

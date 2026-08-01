@@ -172,8 +172,13 @@ export default class OverDriveProvider implements BookProvider {
 		try {
 			data = await this.fetchThunder(this.searchUrl(query))
 		} catch (err) {
+			// RETHROW, same reason as AppleBooksProvider.search: the registry's
+			// circuit breaker records a RESOLVED thunk as a success, so swallowing
+			// a transport failure into [] means the breaker never opens and a
+			// refusing upstream is retried on every single book. An empty result
+			// still resolves normally below.
 			logger?.debug({ err, title: query.title }, 'overdrive: search failed')
-			return []
+			throw err
 		}
 		const items = (data as { items?: OverDriveMedia[] })?.items ?? []
 		logger?.debug({ count: items.length }, 'overdrive: search returned')

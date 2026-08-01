@@ -79,12 +79,27 @@ describe('OverDriveProvider search', () => {
 		expect(seen).toContain('format=audiobook-overdrive')
 	})
 
-	test('returns [] on a transport failure rather than throwing', async () => {
+	test('PROPAGATES a transport failure, so the circuit breaker can see it', async () => {
+		// SUPERSEDES 'returns [] on a transport failure rather than throwing',
+		// which asserted the swallow with no stated reason. ProviderRegistry
+		// wraps this in breakerFor(name).execute and records a RESOLVED thunk as
+		// a SUCCESS -- so returning [] meant every refusal looked like "answered,
+		// with nothing" and the breaker could never open. Measured on a
+		// 1,341-book scan (see ProviderRegistry): 942 CONSECUTIVE doomed
+		// round-trips after the upstream started refusing.
+		//
+		// Safe: the registry fans out with Promise.allSettled, so one rejecting
+		// provider cannot break the others, and it simply contributes nothing.
 		const p = new OverDriveProvider({
 			fetchThunder: async () => {
 				throw new Error('down')
 			}
 		})
+		await expect(p.search(q)).rejects.toThrow('down')
+	})
+
+	test('an EMPTY result still resolves — that is not a failure', async () => {
+		const p = new OverDriveProvider({ fetchThunder: async () => ({ items: [] }) })
 		expect(await p.search(q)).toEqual([])
 	})
 
