@@ -287,7 +287,9 @@ async function startServer() {
 	// Start main server
 	try {
 		const address = await server.listen({ port, host })
-		await initialize({ client: await ctx.client.connect() })
+		// The REAL logger: an index that fails to build is a silent, permanent
+		// degradation (author search 500s forever), so it must reach the log.
+		await initialize({ client: await ctx.client.connect() }, server.log)
 		server.log.info('Connected to DB')
 		server.mongoClient = ctx.client
 		server.log.info(`Server listening at ${address}`)

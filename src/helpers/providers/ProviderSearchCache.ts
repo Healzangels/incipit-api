@@ -71,6 +71,60 @@ export default class ProviderSearchCache {
 	}
 
 	/**
+	 * The cached candidates for this provider+query, or null when there is none.
+	 *
+	 * Split out of `wrap` so a caller can consult the cache BEFORE deciding to
+	 * spend anything on the live call. ProviderRegistry needs exactly that: with
+	 * the read buried inside the breaker's thunk, an OPEN circuit threw away a
+	 * free Redis hit, and in HALF_OPEN two cache hits "recovered" the circuit
+	 * without ever probing upstream.
+	 *
+	 * Never throws: a Redis error (or the bypassRead escape hatch) is reported as
+	 * "no entry", so the caller degrades to a live fetch.
+	 * @param {string} providerName the provider's name
+	 * @param {BookSearchQuery} query the search query
+	 * @returns {Promise<ProviderCandidate[] | null>} the cached candidates, or null
+	 */
+	async get(providerName: string, query: BookSearchQuery): Promise<ProviderCandidate[] | null> {
+		if (!this.redis || this.bypassRead) return null
+		try {
+			const cached = await this.redis.get(this.key(providerName, query))
+			if (cached) return JSON.parse(cached) as ProviderCandidate[]
+		} catch (error) {
+			this.logger?.warn({ err: getErrorMessage(error) }, 'provider search cache read failed')
+		}
+		return null
+	}
+
+	/**
+	 * Cache a provider's candidates. Never throws.
+	 * @param {string} providerName the provider's name
+	 * @param {BookSearchQuery} query the search query
+	 * @param {ProviderCandidate[]} result the candidates to store
+	 * @returns {Promise<void>}
+	 */
+	async set(
+		providerName: string,
+		query: BookSearchQuery,
+		result: ProviderCandidate[]
+	): Promise<void> {
+		// Never cache an empty result. A provider that returns [] because it was
+		// skipped for a missing credential (e.g. Hardcover with no token) or hit a
+		// transient miss would otherwise poison this shared, credential-independent
+		// key for the whole TTL, silently disabling the provider for every user.
+		if (!this.redis || result.length === 0) return
+		try {
+			// Atomic SET+EX: set-then-expire could leave an eternal key if the
+			// expire half failed, serving a stale candidate list forever.
+			await this.redis.set(this.key(providerName, query), JSON.stringify(result), 'EX', this.ttl)
+		} catch (error) {
+			// warn, not debug: a dying Redis here means every search silently
+			// degrades to live rate-limited provider calls — operator-visible.
+			this.logger?.warn({ err: getErrorMessage(error) }, 'provider search cache write failed')
+		}
+	}
+
+	/**
 	 * Return the cached candidates for this provider+query, or run `fetch`, cache
 	 * its result, and return that. A Redis error at any step falls through to a
 	 * live fetch. A `fetch` that throws is NOT cached (the error propagates so the
@@ -85,37 +139,10 @@ export default class ProviderSearchCache {
 		query: BookSearchQuery,
 		fetch: () => Promise<ProviderCandidate[]>
 	): Promise<ProviderCandidate[]> {
-		if (!this.redis) return fetch()
-
-		const key = this.key(providerName, query)
-
-		if (!this.bypassRead) {
-			try {
-				const cached = await this.redis.get(key)
-				if (cached) return JSON.parse(cached) as ProviderCandidate[]
-			} catch (error) {
-				this.logger?.warn({ err: getErrorMessage(error) }, 'provider search cache read failed')
-			}
-		}
-
+		const cached = await this.get(providerName, query)
+		if (cached) return cached
 		const result = await fetch()
-
-		// Never cache an empty result. A provider that returns [] because it was
-		// skipped for a missing credential (e.g. Hardcover with no token) or hit a
-		// transient miss would otherwise poison this shared, credential-independent
-		// key for the whole TTL, silently disabling the provider for every user.
-		if (result.length > 0) {
-			try {
-				// Atomic SET+EX: set-then-expire could leave an eternal key if the
-				// expire half failed, serving a stale candidate list forever.
-				await this.redis.set(key, JSON.stringify(result), 'EX', this.ttl)
-			} catch (error) {
-				// warn, not debug: a dying Redis here means every search silently
-				// degrades to live rate-limited provider calls — operator-visible.
-				this.logger?.warn({ err: getErrorMessage(error) }, 'provider search cache write failed')
-			}
-		}
-
+		await this.set(providerName, query, result)
 		return result
 	}
 }

@@ -1,6 +1,5 @@
 import type { FastifyBaseLogger } from 'fastify'
 
-import type AppleBooksProvider from '#helpers/providers/AppleBooksProvider'
 import { normalizeTitle, sim, titleSim } from '#helpers/providers/matchScorer'
 import type ProviderRegistry from '#helpers/providers/ProviderRegistry'
 import type ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
@@ -109,8 +108,11 @@ export async function bestSquareCover(
 	// listener expects to see.
 	if (isAudibleSquare(q.currentImage)) return audibleFullRes(q.currentImage as string)
 
-	const apple = registry.get('apple') as AppleBooksProvider | undefined
-	if (!apple || !q.title) return null
+	// Presence check only. The call itself goes through the registry so it is
+	// rationed by Apple's circuit breaker like every other Apple search — calling
+	// `apple.search()` on the object bypassed the breaker in BOTH directions:
+	// these failures never opened it, and an open circuit never stopped them.
+	if (!registry.get('apple') || !q.title) return null
 
 	const query: BookSearchQuery = {
 		title: q.title,
@@ -122,10 +124,13 @@ export async function bestSquareCover(
 	try {
 		// Cache by (apple, region, title, author): the same book resolves to the
 		// same Apple cover regardless of who asked, so one refresh warms the rest.
-		candidates = cache
-			? await cache.wrap('apple', query, () => apple.search(query, q.logger))
-			: await apple.search(query, q.logger)
+		// searchOne reads that cache before it consults the breaker, so a cached
+		// cover is still served while the circuit is open.
+		candidates = await registry.searchOne('apple', query, q.logger, cache)
 	} catch (err) {
+		// Includes "Circuit breaker is OPEN". A square cover is best-effort: an
+		// unavailable Apple degrades to the original cover, never to an error on
+		// the book response this runs inside.
 		q.logger?.debug({ err, title: q.title }, 'square cover: apple lookup failed')
 		return null
 	}

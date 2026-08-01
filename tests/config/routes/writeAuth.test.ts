@@ -44,8 +44,11 @@ describe('isDeleteAllowed (destructive routes default CLOSED)', () => {
 	})
 
 	it('allows a request from an allowlisted IP', () => {
-		process.env.DELETE_ALLOWED_IPS = '10.0.1.0/24'
-		expect(isDeleteAllowed(req({ ip: '10.0.1.50' }))).toBe(true)
+		// A documentation subnet, not anyone's. This repo is a public fork: the
+		// standing invariant is that no operator topology survives in it, and the
+		// test is topology-agnostic — any /24 and a member of it will do.
+		process.env.DELETE_ALLOWED_IPS = '192.168.1.0/24'
+		expect(isDeleteAllowed(req({ ip: '192.168.1.50' }))).toBe(true)
 		expect(isDeleteAllowed(req({ ip: '192.168.0.1' }))).toBe(false)
 	})
 })

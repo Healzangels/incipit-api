@@ -327,3 +327,75 @@ export function languageConflict(a: string | null, b: string | null): boolean {
 	if (left == null || right == null) return false
 	return left !== right
 }
+
+// A translated edition whose language field is NULL or mislabeled dodges the
+// language check entirely -- but says so in its own title: "Everfound (Spanish
+// Edition)" and "Medio rey [Half a King]" both won on the same scan, and
+// Hardcover's French Dungeon Crawler Carl edition is tagged "en" at source.
+// Deliberately narrow: an explicit "<Language> Edition/Version" tail or a
+// native edition word -- not a bare foreign word, which would flag legitimately
+// foreign-titled English books.
+const NAMED_EDITION_RE =
+	/\b(spanish|french|german|italian|portuguese|dutch|polish|russian|japanese|chinese|swedish|norwegian|danish|finnish|czech|turkish|korean)\s+(?:edition|version)\b/i
+// Native-language edition words. Each one NAMES its language, which is what
+// makes the marker usable as evidence rather than as a blanket "foreign" flag.
+const NATIVE_EDITION_MARKERS: readonly [RegExp, string][] = [
+	[/\bedici[oó]n\b/i, 'es'],
+	[/\b[ée]dition\s+fran[cç]aise\b/i, 'fr'],
+	[/\bausgabe\b/i, 'de'],
+	[/\bedizione\b/i, 'it']
+]
+
+/**
+ * The language a foreign-edition marker in a TITLE names, or null when the
+ * title carries no such marker.
+ *
+ * The language matters, not merely the marker's presence: "Ausgabe" is evidence
+ * of a GERMAN edition, which is the WANTED edition for a German-region query.
+ * Treating any marker as "wrong language" made the correct German edition lose
+ * to an untagged English row (`language: null`, so nothing flagged it) — measured
+ * end-to-end, with the marker as the sole differing input.
+ * @param {string | null | undefined} title the candidate title
+ * @returns {string | null} the marker's ISO-639-1 language, or null for no marker
+ */
+export function titleEditionLanguage(title: string | null | undefined): string | null {
+	if (!title) return null
+	const named = NAMED_EDITION_RE.exec(title)
+	if (named) return normalizeLanguage(named[1])
+	for (const [re, code] of NATIVE_EDITION_MARKERS) if (re.test(title)) return code
+	return null
+}
+
+/**
+ * THE wrong-language test, for both the scoring demotion and the ranking
+ * tiebreak.
+ *
+ * One predicate on purpose. The two sites each carried their own copy of
+ * "language field conflicts OR the title carries a foreign-edition marker", and
+ * the copies had already drifted — the tiebreak's had lost the ASIN-pin
+ * exemption. Same rule, one reader.
+ *
+ * Both legs are conditioned on `wantLanguage`, including the marker: the marker
+ * is evidence of which language the edition is IN, not that it is foreign to
+ * whoever asked.
+ * @param {{ language?: string | null; title?: string | null }} candidate the candidate
+ * @param {string | null} wantLanguage the language the request wants
+ * @param {string} primaryTitle the query title (a marker there exempts the marker leg)
+ * @param {boolean} effectivePin true when an ASIN pin names this exact edition
+ * @returns {boolean} true when this candidate is in the wrong language
+ */
+export function isWrongLanguage(
+	candidate: { language?: string | null; title?: string | null },
+	wantLanguage: string | null,
+	primaryTitle: string,
+	effectivePin: boolean
+): boolean {
+	// An exact ASIN is a definitive identity the caller asked for by name, so
+	// honour it even when its language differs.
+	if (effectivePin) return false
+	if (languageConflict(candidate.language ?? null, wantLanguage)) return true
+	// The query itself asked for an edition marker: a candidate carrying one is
+	// not anomalous.
+	if (titleEditionLanguage(primaryTitle) != null) return false
+	return languageConflict(titleEditionLanguage(candidate.title), wantLanguage)
+}

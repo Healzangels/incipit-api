@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { fetchServedAnswer } from '#helpers/series/sweepFetch'
+import { fetchBoxGuids, fetchServedAnswer, parsePlexBoxes } from '#helpers/series/sweepFetch'
 
 // The drift sweep reads every library record through the api. It runs from an
 // operator workstation, which is NOT in RATE_LIMIT_ALLOWLIST, so its own
@@ -125,5 +125,67 @@ describe('fetchServedAnswer', () => {
 		})
 		expect(got.available).toBe(false)
 		expect(got.primary).toBe('UNAVAILABLE(error)')
+	})
+})
+
+/**
+ * THE DRIFT GATE MUST NOT PASS BY AUDITING NOTHING.
+ *
+ * After the privacy scrub, PLEX_BOXES became free-text env input filtered only
+ * for truthiness, and the record fetch was `await (await fetch(url)).text()`
+ * with no status check at all. A wrong section id or an expired token therefore
+ * produced zero guids, every later stage was empty, the `process.exit(1)` review
+ * gate was never reached — and the sweep printed "0 distinct records" and exited
+ * 0. A gate that reports clean because it looked at nothing is worse than one
+ * that fails.
+ */
+describe('parsePlexBoxes', () => {
+	test('parses host:section:label, defaulting the cosmetic label to the host', () => {
+		expect(parsePlexBoxes('10.0.0.2:56:test,10.0.0.3:6')).toEqual([
+			{ host: '10.0.0.2', section: '56', name: 'test' },
+			{ host: '10.0.0.3', section: '6', name: '10.0.0.3' }
+		])
+	})
+
+	test('rejects a non-numeric section instead of sweeping nothing', () => {
+		expect(() => parsePlexBoxes('10.0.0.2:audiobooks:test')).toThrow(/malformed/)
+	})
+
+	test('rejects the scheme mis-split, which is the realistic typo', () => {
+		// "http://10.0.0.2:56:test".split(':') -> ['http', '//10.0.0.2', '56', 'test'],
+		// i.e. host "http", section "//10.0.0.2" — which used to survive as a box
+		// and simply return nothing.
+		expect(() => parsePlexBoxes('http://10.0.0.2:56:test')).toThrow(/malformed/)
+	})
+
+	test('an empty or absent value is an error, not an empty sweep', () => {
+		expect(() => parsePlexBoxes('')).toThrow(/PLEX_BOXES must be set/)
+		expect(() => parsePlexBoxes(undefined)).toThrow(/PLEX_BOXES must be set/)
+		expect(() => parsePlexBoxes('  ,  ')).toThrow(/PLEX_BOXES must be set/)
+	})
+})
+
+describe('fetchBoxGuids', () => {
+	const box = { host: '10.0.0.2', section: '56', name: 'test' }
+	const xml =
+		'<MediaContainer><Directory guid="com.plexapp.agents.incipit://B001_us"/>' +
+		'<Directory guid="com.plexapp.agents.incipit://B002_us"/></MediaContainer>'
+
+	test('returns the record ids', async () => {
+		const got = await fetchBoxGuids(box, 'tok', async () => new Response(xml, { status: 200 }))
+		expect(got).toEqual(['B001', 'B002'])
+	})
+
+	test('a non-OK response throws, naming the box and the status', async () => {
+		await expect(
+			fetchBoxGuids(box, 'tok', async () => new Response('denied', { status: 401 }))
+		).rejects.toThrow(/test .*401/)
+	})
+
+	test('an EMPTY section throws — the silent path that made the gate pass', async () => {
+		// A wrong section id answers 200 with a container holding nothing.
+		await expect(
+			fetchBoxGuids(box, 'tok', async () => new Response('<MediaContainer/>', { status: 200 }))
+		).rejects.toThrow(/ZERO incipit records/)
 	})
 })

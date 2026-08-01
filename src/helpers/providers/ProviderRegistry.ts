@@ -38,6 +38,16 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 // Pass-through used when CIRCUIT_BREAKER_ENABLED is false: same shape, no state.
 const PASSTHROUGH = { execute: <T>(fn: () => Promise<T>) => fn() }
 
+/**
+ * Whether a rejection is the breaker declining to call, rather than a provider
+ * failure. One reader, so the two call sites cannot drift apart.
+ * @param {unknown} reason the rejection reason
+ * @returns {boolean} true when the circuit was open
+ */
+function isCircuitOpen(reason: unknown): boolean {
+	return String((reason as Error)?.message ?? '').includes('Circuit breaker is OPEN')
+}
+
 export default class ProviderRegistry {
 	private providers: BookProvider[]
 	// One breaker per provider: a source that is rate-limiting us must not keep
@@ -138,6 +148,89 @@ export default class ProviderRegistry {
 	}
 
 	/**
+	 * One provider's search: cache FIRST, then the breaker-guarded upstream call.
+	 *
+	 * The ordering is load-bearing. With the cache read inside the breaker's
+	 * thunk, an OPEN circuit threw away a free Redis hit (the entry is already
+	 * paid for and costs the provider nothing), and in HALF_OPEN two cache hits
+	 * counted as two successes and CLOSED the circuit without a single upstream
+	 * probe — the breaker "recovered" a provider it had never re-tested. Only the
+	 * upstream call is the thing the breaker exists to ration.
+	 * @param {BookProvider} provider the provider to search
+	 * @param {BookSearchQuery} query the search query
+	 * @param {FastifyBaseLogger} [logger] optional logger
+	 * @param {ProviderSearchCache} [cache] optional per-provider search cache
+	 * @returns {Promise<ProviderCandidate[]>} the provider's candidates
+	 */
+	private async searchProvider(
+		provider: BookProvider,
+		query: BookSearchQuery,
+		logger?: FastifyBaseLogger,
+		cache?: ProviderSearchCache
+	): Promise<ProviderCandidate[]> {
+		// Still time-boxed: the read used to sit inside withTimeout, and a hung
+		// Redis must not be able to stall a search forever. A read that times out
+		// (or rejects) is simply "no entry" — degrade to the live call.
+		const cached = cache
+			? await withTimeout(
+					cache.get(provider.name, query),
+					PROVIDER_TIMEOUT_MS,
+					`${provider.name} cache`
+				).catch(() => null)
+			: null
+		if (cached) return cached
+
+		const result = await this.breakerFor(provider.name).execute(() =>
+			withTimeout(provider.search(query, logger), PROVIDER_TIMEOUT_MS, provider.name)
+		)
+		if (cache) await cache.set(provider.name, query, result)
+		return result
+	}
+
+	/**
+	 * Search ONE registered provider by name, through its circuit breaker and the
+	 * same cache path the fan-out uses.
+	 *
+	 * Exists because a caller that reaches for `registry.get(name)` and calls
+	 * `provider.search()` itself bypasses the breaker in BOTH directions: its
+	 * failures never open the circuit, and an open circuit does not stop it
+	 * issuing requests. Measured on the square-cover lookup that runs on every
+	 * `GET /books/:asin`: 10 failing lookups left Apple's breaker CLOSED, and with
+	 * the circuit OPEN searchAll issued 0 calls while the direct caller still
+	 * issued one — precisely the doomed round-trips the breaker was added to stop.
+	 *
+	 * Rejects on failure (including an open circuit), so a caller decides for
+	 * itself whether that is fatal or a degradation.
+	 * @param {string} name the registered provider's name
+	 * @param {BookSearchQuery} query the search query
+	 * @param {FastifyBaseLogger} [logger] optional logger
+	 * @param {ProviderSearchCache} [cache] optional per-provider search cache
+	 * @returns {Promise<ProviderCandidate[]>} the provider's candidates, or [] when unregistered
+	 */
+	async searchOne(
+		name: string,
+		query: BookSearchQuery,
+		logger?: FastifyBaseLogger,
+		cache?: ProviderSearchCache
+	): Promise<ProviderCandidate[]> {
+		const provider = this.get(name)
+		if (!provider) return []
+		try {
+			const result = await this.searchProvider(provider, query, logger, cache)
+			recordProviderResult(name, result.length)
+			return result
+		} catch (err) {
+			// Same bookkeeping and same log levels as the fan-out: an open circuit is
+			// a deliberate skip, not a new failure.
+			const open = isCircuitOpen(err)
+			recordProviderFailure(name, open)
+			if (open) logger?.debug({ provider: name, err }, 'provider search skipped: circuit open')
+			else logger?.error({ provider: name, err }, 'provider search failed')
+			throw err
+		}
+	}
+
+	/**
 	 * Search every provider in parallel and return the flattened candidate pool.
 	 * A provider that rejects is logged and contributes nothing. When a cache is
 	 * given, each provider's call goes through it (per-provider, so an error caches
@@ -153,23 +246,13 @@ export default class ProviderRegistry {
 		cache?: ProviderSearchCache
 	): Promise<ProviderCandidate[]> {
 		const settled = await Promise.allSettled(
-			this.providers.map((p) =>
-				// The breaker wraps a THUNK, so an open circuit costs no request at
-				// all. Measured on a 1341-book scan: Apple rate-limited us six
-				// minutes in and then refused 942 consecutive searches (751x 429,
-				// 191x 403) for the rest of the run -- every one of them a doomed
-				// round-trip that also kept Apple unusable for the square-cover
-				// lookups that run on every book response.
-				this.breakerFor(p.name).execute(() =>
-					withTimeout(
-						cache
-							? cache.wrap(p.name, query, () => p.search(query, logger))
-							: p.search(query, logger),
-						PROVIDER_TIMEOUT_MS,
-						p.name
-					)
-				)
-			)
+			// The breaker wraps a THUNK, so an open circuit costs no request at
+			// all. Measured on a 1341-book scan: Apple rate-limited us six
+			// minutes in and then refused 942 consecutive searches (751x 429,
+			// 191x 403) for the rest of the run -- every one of them a doomed
+			// round-trip that also kept Apple unusable for the square-cover
+			// lookups that run on every book response.
+			this.providers.map((p) => this.searchProvider(p, query, logger, cache))
 		)
 
 		const candidates: ProviderCandidate[] = []
@@ -184,9 +267,7 @@ export default class ProviderRegistry {
 				// An open circuit is a deliberate skip, not a new failure: logging it
 				// at error level would bury the ONE real failure under thousands of
 				// "we already know this source is down" lines.
-				const open = String((result.reason as Error)?.message ?? '').includes(
-					'Circuit breaker is OPEN'
-				)
+				const open = isCircuitOpen(result.reason)
 				const line = { provider: this.providers[i].name, err: result.reason }
 				recordProviderFailure(this.providers[i].name, open)
 				if (open) logger?.debug(line, 'book search provider skipped: circuit open')

@@ -96,7 +96,16 @@ export function applyShelfPolicy<T extends ShelfBook>(book: T): T {
 	const out = { ...book }
 	delete (out as ShelfBook).seriesPrimary
 	delete (out as ShelfBook).seriesSecondary
-	if (secondary && positioned(secondary)) {
+	// ...unless that secondary is itself a CONTAINER. The guard on the primary arm
+	// above is meaningless without this one: an umbrella arriving in the SECONDARY
+	// slot with a number was promoted straight into the shelf, which is the exact
+	// state 375355c exists to prevent. Measured:
+	//   {primary: 'Secret Projects', secondary: {'The Cosmere', #32}}
+	//     -> seriesPrimary: {'The Cosmere', #32}
+	// Falling through leaves the container in the tag slot, which is already how
+	// every POSITIONLESS container-as-secondary row is served today — so this
+	// closes the hole without moving a single currently-served row.
+	if (secondary && positioned(secondary) && !isContainer(secondary.name)) {
 		;(out as ShelfBook).seriesPrimary = secondary
 		// The vacated name survives as a tag unless it is a container — or unless
 		// it IS the promoted series, which would just recreate the duplicate.

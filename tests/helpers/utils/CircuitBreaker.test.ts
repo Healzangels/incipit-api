@@ -36,7 +36,6 @@ describe('CircuitBreaker', () => {
 			const breaker = new CircuitBreaker()
 			const fn = mock(() => Promise.resolve('success'))
 
-
 			const result = await breaker.execute(fn)
 
 			expect(result).toBe('success')
@@ -56,7 +55,6 @@ describe('CircuitBreaker', () => {
 			const breaker = new CircuitBreaker()
 			const fn = mock(() => Promise.resolve('success'))
 
-
 			await breaker.execute(fn)
 			await breaker.execute(fn)
 
@@ -67,7 +65,6 @@ describe('CircuitBreaker', () => {
 		it('should track failures', async () => {
 			const breaker = new CircuitBreaker()
 			const fn = mock(() => Promise.reject(new Error('failed')))
-
 
 			await expect(breaker.execute(fn)).rejects.toThrow('failed')
 
@@ -81,7 +78,6 @@ describe('CircuitBreaker', () => {
 			const breaker = new CircuitBreaker({ failureThreshold: 3 })
 			const fn = mock(() => Promise.reject(new Error('failed')))
 
-
 			// Fail 3 times
 			await expect(breaker.execute(fn)).rejects.toThrow()
 			await expect(breaker.execute(fn)).rejects.toThrow()
@@ -89,6 +85,50 @@ describe('CircuitBreaker', () => {
 
 			const stats = breaker.getStats()
 			expect(stats.state).toBe('OPEN')
+		})
+
+		it('counts CONSECUTIVE failures: a success in CLOSED clears the run', async () => {
+			// The threshold used to count LIFETIME failures, because `failures` was
+			// only ever reset by openCircuit() or a HALF_OPEN recovery — never by an
+			// ordinary success. Measured: 5 failures with 4 successes interleaved
+			// tripped the circuit. These breakers live on a module-singleton
+			// registry, so the count accumulated for the whole process lifetime and
+			// a handful of ordinary 25s timeouts spread over hours eventually
+			// disabled a healthy provider. Nothing here is 3 failures in a row, so
+			// nothing here may open the circuit.
+			const breaker = new CircuitBreaker({ failureThreshold: 3 })
+			const failingFn = mock(() => Promise.reject(new Error('failed')))
+			const successFn = mock(() => Promise.resolve('success'))
+
+			for (let round = 0; round < 5; round++) {
+				await expect(breaker.execute(failingFn)).rejects.toThrow('failed')
+				await expect(breaker.execute(failingFn)).rejects.toThrow('failed')
+				// The success must not merely be recorded — it must ERASE the two
+				// failures before it.
+				await expect(breaker.execute(successFn)).resolves.toBe('success')
+				expect(breaker.getStats().failures).toBe(0)
+				expect(breaker.getStats().state).toBe('CLOSED')
+			}
+
+			// 10 lifetime failures against a threshold of 3, still closed.
+			expect(breaker.getStats().state).toBe('CLOSED')
+			expect(successFn).toHaveBeenCalledTimes(5)
+		})
+
+		it('still opens on a genuine consecutive run after successes', async () => {
+			// The other half of the same rule: resetting on success must not make the
+			// breaker unable to trip.
+			const breaker = new CircuitBreaker({ failureThreshold: 3 })
+			const failingFn = mock(() => Promise.reject(new Error('failed')))
+			const successFn = mock(() => Promise.resolve('success'))
+
+			await expect(breaker.execute(failingFn)).rejects.toThrow('failed')
+			await expect(breaker.execute(successFn)).resolves.toBe('success')
+			await expect(breaker.execute(failingFn)).rejects.toThrow('failed')
+			await expect(breaker.execute(failingFn)).rejects.toThrow('failed')
+			expect(breaker.getStats().state).toBe('CLOSED')
+			await expect(breaker.execute(failingFn)).rejects.toThrow('failed')
+			expect(breaker.getStats().state).toBe('OPEN')
 		})
 
 		it('should fail fast when OPEN', async () => {
@@ -99,7 +139,6 @@ describe('CircuitBreaker', () => {
 			const failingFn = mock(() => Promise.reject(new Error('failed')))
 
 			const successFn = mock(() => Promise.resolve('success'))
-
 
 			// Open the circuit
 			await expect(breaker.execute(failingFn)).rejects.toThrow()
@@ -115,7 +154,6 @@ describe('CircuitBreaker', () => {
 				resetTimeoutMs: 10
 			})
 			const fn = mock(() => Promise.reject(new Error('failed')))
-
 
 			// Open the circuit
 			await expect(breaker.execute(fn)).rejects.toThrow()
@@ -137,7 +175,6 @@ describe('CircuitBreaker', () => {
 			const failingFn = mock(() => Promise.reject(new Error('failed')))
 
 			const successFn = mock(() => Promise.resolve('success'))
-
 
 			// Open the circuit
 			await expect(breaker.execute(failingFn)).rejects.toThrow()
@@ -161,7 +198,6 @@ describe('CircuitBreaker', () => {
 			})
 			const failingFn = mock(() => Promise.reject(new Error('failed')))
 
-
 			// Open the circuit
 			await expect(breaker.execute(failingFn)).rejects.toThrow()
 
@@ -184,7 +220,6 @@ describe('CircuitBreaker', () => {
 			const breaker = new CircuitBreaker({ failureThreshold: 1 })
 			const fn = mock(() => Promise.reject(new Error('failed')))
 
-
 			await expect(breaker.execute(fn)).rejects.toThrow()
 
 			expect(breaker.canExecute()).toBe(false)
@@ -197,7 +232,6 @@ describe('CircuitBreaker', () => {
 			})
 			const fn = mock(() => Promise.reject(new Error('failed')))
 
-
 			await expect(breaker.execute(fn)).rejects.toThrow()
 			await new Promise((resolve) => setTimeout(resolve, 20))
 
@@ -209,7 +243,6 @@ describe('CircuitBreaker', () => {
 		it('should reset to CLOSED state', async () => {
 			const breaker = new CircuitBreaker({ failureThreshold: 1 })
 			const fn = mock(() => Promise.reject(new Error('failed')))
-
 
 			await expect(breaker.execute(fn)).rejects.toThrow()
 			expect(breaker.getStats().state).toBe('OPEN')
@@ -233,7 +266,6 @@ describe('CircuitBreaker', () => {
 			const breaker = new CircuitBreaker({ failureThreshold: 1 })
 			const fn = mock(() => Promise.reject(new Error('failed')))
 
-
 			// Fail many times
 			for (let i = 0; i < 10; i++) {
 				await expect(breaker.execute(fn)).rejects.toThrow('failed')
@@ -252,7 +284,6 @@ describe('CircuitBreaker', () => {
 
 			const breaker = new CircuitBreaker({ failureThreshold: 1 })
 			const fn = mock(() => Promise.reject(new Error('failed')))
-
 
 			await expect(breaker.execute(fn)).rejects.toThrow()
 
@@ -282,7 +313,6 @@ describe('CircuitBreaker', () => {
 			const before = Date.now()
 			const breaker = new CircuitBreaker({ failureThreshold: 1 })
 			const fn = mock(() => Promise.reject(new Error('failed')))
-
 
 			await expect(breaker.execute(fn)).rejects.toThrow()
 

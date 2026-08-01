@@ -166,6 +166,14 @@ export class CircuitBreaker {
 				this.successes = 0
 			}
 		} else {
+			// A success ENDS the failure run. Without this the threshold counts
+			// LIFETIME failures, not consecutive ones: 5 failures spread across
+			// hundreds of healthy calls tripped the circuit just as surely as 5 in a
+			// row (measured: 5 failures with 4 successes interleaved -> OPEN). These
+			// breakers live on a module-singleton registry, so the count accumulated
+			// for the whole process lifetime and a handful of ordinary 25s timeouts
+			// eventually disabled a perfectly healthy provider.
+			this.failures = 0
 			// In CLOSED state, just track success with a cap to prevent unbounded growth
 			this.successes = Math.min(this.successes + 1, MAX_SUCCESS_COUNT)
 		}

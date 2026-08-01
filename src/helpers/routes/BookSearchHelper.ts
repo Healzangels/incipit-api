@@ -16,7 +16,7 @@ import type ProviderRegistry from '#helpers/providers/ProviderRegistry'
 import type ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
 import type { BookSearchQuery, ProviderCandidate, ScoredCandidate } from '#helpers/providers/types'
 import { envInt } from '#helpers/utils/env'
-import { languageConflict, regionLanguage } from '#helpers/utils/language'
+import { isWrongLanguage, regionLanguage } from '#helpers/utils/language'
 import { type MatchDecision, recordMatchDecision } from '#helpers/utils/matchTelemetry'
 
 // An album match at or above this makes a second (track-title) provider search
@@ -375,17 +375,10 @@ function numericStem(raw: string | null | undefined): string | null {
 }
 const NUMERIC_TITLE_MISMATCH_PENALTY = 0.2
 
-// A translated edition whose language field is NULL or mislabeled dodges the
-// language demotion entirely -- but says so in its own title: "Everfound
-// (Spanish Edition)" and "Medio rey [Half a King]" both won on the same scan,
-// and Hardcover's French Dungeon Crawler Carl edition is tagged "en" at source.
-// The marker is evidence the language field failed to carry, so treat it as a
-// language conflict and reuse that penalty rather than inventing a second scale.
-// Deliberately narrow: an explicit "<Language> Edition"/"edicion"/"ausgabe" tail,
-// or a bracketed [Original Title] after non-ASCII words -- not a bare foreign
-// word, which would demote legitimately foreign-titled English books.
-const FOREIGN_EDITION_RE =
-	/\b(spanish|french|german|italian|portuguese|dutch|polish|russian|japanese|chinese|swedish|norwegian|danish|finnish|czech|turkish|korean)\s+(edition|version)\b|\bedici[oó]n\b|\b[ée]dition\s+fran[cç]aise\b|\bausgabe\b|\bedizione\b/i
+// The foreign-edition-marker rule now lives beside languageConflict, in
+// helpers/utils/language: it is the SAME rule the ranking tiebreak needs, and
+// keeping a private regex here is what let the two sites drift apart. See
+// isWrongLanguage / titleEditionLanguage.
 
 // A leading article ("The"/"A"/"An") is title noise — libraries even sort past
 // it, and rips routinely drop or add it ("Taggerung" vs "The Taggerung"). The
@@ -535,6 +528,10 @@ export default class BookSearchHelper {
 	// structurally not the single book the caller asked for, so honouring the pin
 	// there is what let a stale sidecar ASIN win outright.
 	private bundleDemotedIds = new Set<string>()
+	// Ids the wrong-language demotion hit, recorded once per candidate during
+	// scoring so the ranking tiebreak reads the SAME answer instead of
+	// recomputing (and, as it turned out, drifting from) the rule.
+	private wrongLanguageIds = new Set<string>()
 	private aiNarratedIds = new Set<string>()
 	// Pinned candidates whose own runtime is clearly wrong for the file while a
 	// different edition corroborates it -- a stale/wrong sidecar ASIN. Stripped of
@@ -1019,6 +1016,7 @@ export default class BookSearchHelper {
 		this.languageDemoted = 0
 		this.bundleDemoted = 0
 		this.bundleDemotedIds.clear()
+		this.wrongLanguageIds.clear()
 		this.aiNarratedIds.clear()
 		this.pinOverriddenIds.clear()
 		this.pinOverriddenAsin = null
@@ -1280,24 +1278,16 @@ export default class BookSearchHelper {
 					best.durationDeltaPct != null && best.durationDeltaPct <= DURATION_TOLERANCE
 				if (!durCorroborated) confidence = Math.min(confidence, TITLE_ONLY_CEILING)
 			}
-			// Wrong-language demotion. Exempt an ASIN pin: an exact ASIN is a
-			// definitive identity the caller asked for by name, so honour it even
-			// when its language differs.
-			if (!effectivePin && languageConflict(c.language, wantLanguage)) {
+			// Wrong-language demotion: the language FIELD conflicts, or the title
+			// carries a foreign-edition marker that names a language the request did
+			// not ask for (evidence the field failed to carry -- null, or mislabeled
+			// at source). One predicate, one charge, and the same answer the ranking
+			// tiebreak below reads from `wrongLanguageIds`; see isWrongLanguage for
+			// why the two must not each carry their own copy of this rule.
+			if (isWrongLanguage(c, wantLanguage, primaryTitle, effectivePin)) {
 				confidence = Math.max(0, confidence - LANGUAGE_CONFLICT_PENALTY)
 				this.languageDemoted += 1
-			}
-			// A foreign-edition marker in the TITLE is evidence the language field
-			// failed to carry (null, or mislabeled at source). Same conflict, same
-			// penalty, same ASIN-pin exemption -- just a second way of detecting it.
-			// Guarded so it cannot double-charge a candidate the field already caught.
-			else if (
-				!effectivePin &&
-				FOREIGN_EDITION_RE.test(c.title ?? '') &&
-				!FOREIGN_EDITION_RE.test(primaryTitle)
-			) {
-				confidence = Math.max(0, confidence - LANGUAGE_CONFLICT_PENALTY)
-				this.languageDemoted += 1
+				this.wrongLanguageIds.add(c.id)
 			}
 			// A bundle carries the queried title as a substring, so it scores like
 			// the single book it contains. Applied even to an ASIN pin: a stale
@@ -1487,10 +1477,14 @@ export default class BookSearchHelper {
 				// Per-CANDIDATE, deliberately: a pairwise predicate here would make
 				// the comparator's behaviour depend on which two rows it is handed,
 				// which is how a sort loses transitivity.
-				const wrongLanguage = (c: ScoredCandidate): boolean =>
-					languageConflict(c.language, wantLanguage) ||
-					(FOREIGN_EDITION_RE.test(c.title ?? '') && !FOREIGN_EDITION_RE.test(primaryTitle))
-				const byLanguage = Number(wrongLanguage(a)) - Number(wrongLanguage(b))
+				//
+				// Read from the set the scoring pass filled, not recomputed here. It
+				// was recomputed per COMPARISON -- O(n log n) regex passes over
+				// primaryTitle for an answer that cannot change during a sort -- and,
+				// worse, it was a SECOND copy of the demotion's rule that had already
+				// drifted from it (this one had lost the ASIN-pin exemption).
+				const byLanguage =
+					Number(this.wrongLanguageIds.has(a.id)) - Number(this.wrongLanguageIds.has(b.id))
 				if (byLanguage !== 0) return byLanguage
 				// The volume the QUERY TITLE itself claims is identity evidence too:
 				// searching "Defiance of the Fall, Book 10" must prefer the sibling

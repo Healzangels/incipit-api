@@ -151,6 +151,36 @@ describe('a POSITIONED container still never shelves', () => {
 		expect(out.seriesSecondary).toBeUndefined()
 	})
 
+	test('...and not from the SECONDARY slot either — the guard was one-sided', () => {
+		// 375355c added `!isContainer` to the primary arm only. The fall-through
+		// promotion arm had none, so the identical situation arriving the other way
+		// round shelved the container anyway. Measured against the shipped code:
+		//   {primary: 'Secret Projects', secondary: {'The Cosmere', #32}}
+		//     -> seriesPrimary: {name: 'The Cosmere', position: '32'}
+		// — the container shelved, the exact state the commit exists to prevent.
+		const out = applyShelfPolicy({
+			title: 'The Sunlit Man',
+			seriesPrimary: { name: 'Secret Projects' },
+			seriesSecondary: { name: 'The Cosmere', position: '32' }
+		})
+		expect(out.seriesPrimary).toBeUndefined()
+		// It stays a TAG, which is exactly how the 39 positionless
+		// container-as-secondary rows are served today — so no currently-served
+		// row moves. Dropping it here would be a different, unmeasured change.
+		expect(out.seriesSecondary).toEqual({ name: 'The Cosmere', position: '32' })
+	})
+
+	test('a positioned NON-container secondary is still promoted', () => {
+		// The guard must stay narrow: promotion is the whole point of the arm.
+		const out = applyShelfPolicy({
+			title: 'Baneblade',
+			seriesPrimary: { name: 'Imperial Armour' },
+			seriesSecondary: { name: 'Warhammer 40,000: Imperial Guard', position: '1' }
+		})
+		expect(out.seriesPrimary).toEqual({ name: 'Warhammer 40,000: Imperial Guard', position: '1' })
+		expect(out.seriesSecondary).toEqual({ name: 'Imperial Armour' })
+	})
+
 	test('a positioned container with NO alternative shelves nothing', () => {
 		const out = applyShelfPolicy({
 			title: 'Some Warhammer Book',

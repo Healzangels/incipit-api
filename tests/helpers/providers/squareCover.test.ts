@@ -111,6 +111,40 @@ describe('bestSquareCover', () => {
 		expect(out).toContain('1400x1400bb')
 	})
 
+	test('a failing lookup opens Apple’s circuit, and an open circuit issues no request', async () => {
+		// This runs on EVERY `GET /books/:asin` response. It used to call
+		// `apple.search()` on the object straight out of the registry, which
+		// bypassed the breaker in both directions: measured, 10 failing lookups
+		// left the breaker CLOSED, and with the circuit OPEN searchAll issued 0
+		// calls while this still issued 1 — the exact doomed round-trip the
+		// breaker exists to stop (Apple refused 942 consecutive searches on one
+		// 1,341-book scan).
+		let calls = 0
+		const registry = new ProviderRegistry([
+			new AppleBooksProvider({
+				searchFetch: async () => {
+					calls += 1
+					throw new Error('429 Too Many Requests')
+				}
+			})
+		])
+		const look = () =>
+			bestSquareCover(registry, {
+				title: 'Dune',
+				currentImage: 'https://covers.openlibrary.org/b/id/123-L.jpg',
+				region: 'us'
+			})
+
+		// Default failureThreshold is 5.
+		for (let i = 0; i < 5; i++) expect(await look()).toBeNull()
+		expect(calls).toBe(5)
+
+		// Circuit open: still degrades to null (never propagates), and spends
+		// nothing doing it.
+		expect(await look()).toBeNull()
+		expect(calls).toBe(5)
+	})
+
 	test('returns null when Apple is not registered or the lookup throws', async () => {
 		expect(
 			await bestSquareCover(new ProviderRegistry([]), { title: 'Dune', region: 'us' })

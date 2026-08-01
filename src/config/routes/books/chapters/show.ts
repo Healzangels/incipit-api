@@ -1,7 +1,6 @@
 import { FastifyInstance } from 'fastify'
 
 import { RequestGeneric } from '#config/typing/requests'
-import { chaptersConfigured } from '#helpers/books/audible/ChapterHelper'
 import ChapterShowHelper from '#helpers/routes/ChapterShowHelper'
 import RouteCommonHelper from '#helpers/routes/RouteCommonHelper'
 import { MessageNoChapters } from '#static/messages'
@@ -17,16 +16,16 @@ async function _show(fastify: FastifyInstance) {
 		// If handler reply code is not 200, return error
 		if (handler.reply.statusCode !== 200) return handler.reply
 
-		// Chapters are OPTIONAL. Without Audible credentials the helper's
-		// constructor throws, and that escaped as a 500 echoing the missing
-		// variable NAMES — so every chapter request failed and Plex read it as
-		// "the API is down" rather than "this book has none". Checked BEFORE
-		// construction so the honest answer is a 404. server.ts warns once at
-		// startup, so a deployment that MEANT to serve chapters still finds out.
-		if (!chaptersConfigured()) {
-			reply.code(404)
-			throw new Error(MessageNoChapters(asin))
-		}
+		// NO credential pre-gate here, deliberately. Chapters are OPTIONAL and a
+		// deployment without ADP_TOKEN/PRIVATE_KEY must answer 404 rather than the
+		// 500 the helper's bare throw used to produce — but that gate belongs to
+		// ChapterHelper, the only layer that needs the credentials. handler()
+		// below serves stored chapters straight from Redis (step 1) and Mongo
+		// (step 2) and never constructs ChapterHelper on those paths, so an
+		// unconditional check here 404s chapters that ARE stored and were being
+		// served fine. ChapterHelper's constructor now throws a NotFoundError,
+		// which the server's setErrorHandler turns into the same honest 404 for
+		// the genuine "we cannot fetch this" case.
 
 		// Setup helper
 		const { redis } = fastify

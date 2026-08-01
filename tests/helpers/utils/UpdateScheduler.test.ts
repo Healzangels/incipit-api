@@ -68,7 +68,7 @@ type MockContext = {
 
 let ctx: MockContext
 let helper: UpdateScheduler
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let mockLogger: any
 const projection = {
 	projection: { asin: 1, region: 1 },
@@ -87,7 +87,6 @@ const createMockContext = (): MockContext => {
 		}
 	}
 }
-
 
 const createBatchSummary = (regions?: Record<string, number>) => ({
 	total: 1,
@@ -134,10 +133,21 @@ const makePerformanceConfig = (useParallel: boolean): PerformanceConfig => ({
 	DEFAULT_REGION: 'us'
 })
 
+// The chapter sweep now declines outright without Audible credentials (see
+// `chaptersConfigured`), so every test that means to exercise the sweep has to
+// say the deployment IS configured. Saved and restored so the flag cannot leak
+// into another file's expectations.
+const CHAPTER_ENV = ['ADP_TOKEN', 'PRIVATE_KEY'] as const
+const savedChapterEnv: Record<string, string | undefined> = {}
+
 beforeEach(() => {
 	ctx = createMockContext()
 	mockLogger = createMockLogger()
 	helper = new UpdateScheduler(1, ctx.client, mockLogger)
+	for (const k of CHAPTER_ENV) {
+		savedChapterEnv[k] = process.env[k]
+		process.env[k] = 'configured-for-test'
+	}
 	resetPerformanceConfig()
 	mockAuthorFind.mockClear()
 	mockBookFind.mockClear()
@@ -150,6 +160,10 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+	for (const k of CHAPTER_ENV) {
+		if (savedChapterEnv[k] === undefined) delete process.env[k]
+		else process.env[k] = savedChapterEnv[k]
+	}
 	resetPerformanceConfig()
 	mock.restore()
 })
@@ -204,6 +218,24 @@ describe('UpdateScheduler should', () => {
 		await expect(helper.updateChapters()).resolves.toEqual(undefined)
 		expect(ChapterModel.find).toHaveBeenCalledWith({}, projection)
 		expect(mockChapterHandler).toHaveBeenCalledWith()
+	})
+
+	test('updateChapters declines outright without Audible credentials', async () => {
+		// Chapters are OPTIONAL, and without ADP_TOKEN/PRIVATE_KEY every row in
+		// the sweep would construct a ChapterHelper, throw, and be logged as an
+		// error — one wasted round of noise per stored chapter record, per pass,
+		// forever. It must not even ASK the database for the row list.
+		for (const k of CHAPTER_ENV) delete process.env[k]
+		mockChapterFind.mockResolvedValue([chaptersWithoutProjection])
+		mockChapterHandler.mockResolvedValue(undefined)
+		setPerformanceConfig(makePerformanceConfig(false))
+
+		await expect(helper.updateChapters()).resolves.toEqual(undefined)
+
+		expect(mockChapterFind).not.toHaveBeenCalled()
+		expect(mockChapterHandler).not.toHaveBeenCalled()
+		// ...and it says so once, at info, so the skip is not itself silent.
+		expect(mockLogger.info).toHaveBeenCalled()
 	})
 
 	test('updateAll', async () => {

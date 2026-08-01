@@ -4,7 +4,7 @@ import type { FastifyBaseLogger } from 'fastify'
 
 import type { AudibleChapter } from '#config/types'
 import ChapterHelper from '#helpers/books/audible/ChapterHelper'
-import { ContentTypeMismatchError } from '#helpers/errors/ApiErrors'
+import { ContentTypeMismatchError, NotFoundError } from '#helpers/errors/ApiErrors'
 import * as fetchPlus from '#helpers/utils/fetchPlus'
 import SharedHelper from '#helpers/utils/shared'
 import { regions } from '#static/regions'
@@ -18,7 +18,9 @@ mock.module('#helpers/utils/fetchPlus', () => {
 mock.module('#helpers/utils/shared', () => {
 	return {
 		default: class SharedHelper {
-			buildUrl() { return '' }
+			buildUrl() {
+				return ''
+			}
 		}
 	}
 })
@@ -38,7 +40,7 @@ beforeEach(() => {
 	url = `https://api.audible.com/1.0/content/${asin}/metadata?response_groups=chapter_info&quality=High`
 	mockResponse = deepCopy(apiChapters)
 	process.env.ADP_TOKEN = 'mock_adp_token'
-// FAKE/MOCK RSA private key for testing only - NOT a real credential
+	// FAKE/MOCK RSA private key for testing only - NOT a real credential
 	process.env.PRIVATE_KEY = `-----BEGIN RSA PRIVATE KEY-----
 MIICXQIBAAKBgQDWGw8THIbueiDYRczKw15iLGhwkOJ5mvO3b12lZJYNyAqmVKqo
 I3So1xJZveKLFkdjK9tIJ9Y2jfsNSpPR0oZTTaGGVs6JejN6sPP8dq+RsNheL+No
@@ -156,14 +158,43 @@ describe('ChapterHelper should throw error when', () => {
 
 	const OLD_ENV = process.env
 
-	test('missing environment vars', () => {
+	test('missing environment vars — a 404, in the BOOK’s terms', () => {
+		// This is THE credential gate: chapters are optional, so a deployment
+		// without an Audible account must answer "this book has no chapters", not
+		// "the server broke". A bare Error escaped as a 500 that echoed the
+		// missing variable NAMES back to the caller (verified live 2026-07-31),
+		// and Plex reads a 500 as "the API is down". A NotFoundError degrades to
+		// 404 through the server's existing setErrorHandler.
 		process.env = { ...OLD_ENV }
-		process.env.ADP_TOKEN = undefined
-		process.env.PRIVATE_KEY = undefined
+		delete process.env.ADP_TOKEN
+		delete process.env.PRIVATE_KEY
 		const bad_helper = function () {
 			new ChapterHelper(asin, region)
 		}
-		expect(bad_helper).toThrow('Missing environment variable(s): ADP_TOKEN or PRIVATE_KEY')
+		expect(bad_helper).toThrow(NotFoundError)
+		expect(bad_helper).toThrow(`${asin} has no chapters`)
+		// The env var names stay OUT of the client-facing message.
+		expect(bad_helper).not.toThrow('ADP_TOKEN')
+		try {
+			new ChapterHelper(asin, region)
+		} catch (err) {
+			expect((err as NotFoundError).statusCode).toBe(404)
+		}
+		process.env = OLD_ENV
+	})
+
+	test('HALF-configured is unconfigured — both variables are required', () => {
+		// One set and not the other is the realistic misconfiguration, and it is
+		// the dangerous shape: a guard that accepts either would sail past here and
+		// then fail signing the request instead.
+		process.env = { ...OLD_ENV }
+		process.env.ADP_TOKEN = 'present'
+		delete process.env.PRIVATE_KEY
+		expect(() => new ChapterHelper(asin, region)).toThrow(NotFoundError)
+
+		process.env.PRIVATE_KEY = 'present'
+		delete process.env.ADP_TOKEN
+		expect(() => new ChapterHelper(asin, region)).toThrow(NotFoundError)
 		process.env = OLD_ENV
 	})
 
@@ -187,7 +218,7 @@ describe('ChapterHelper should throw error when', () => {
 	})
 
 	test('error fetching Chapter data', async () => {
-const mockLogger = createMockLogger()
+		const mockLogger = createMockLogger()
 		spyOn(fetchPlus, 'default').mockImplementation(() =>
 			Promise.reject({
 				status: 403

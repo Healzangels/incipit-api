@@ -30,7 +30,12 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 
-import { fetchServedAnswer } from '#helpers/series/sweepFetch'
+import {
+	fetchBoxGuids,
+	fetchServedAnswer,
+	parsePlexBoxes,
+	type PlexBox
+} from '#helpers/series/sweepFetch'
 
 // Determinism: --record <f> captures every mirror exchange; --replay <f> serves
 // them back with ZERO network and hard-fails on any miss.
@@ -51,20 +56,14 @@ if (!TOKEN || !API) {
 //   PLEX_BOXES="host:sectionId:label,host:sectionId:label"
 //   e.g. PLEX_BOXES="192.168.1.10:56:test,192.168.1.11:6:prod"
 // The label is only used in output and in the ledger's `boxes` field.
-const BOXES = (process.env.PLEX_BOXES ?? '')
-	.split(',')
-	.map((entry) => entry.trim())
-	.filter(Boolean)
-	.map((entry) => {
-		const [host, section, name] = entry.split(':')
-		return { host, section, name: name || host }
-	})
-	.filter((b) => b.host && b.section)
-if (!BOXES.length) {
-	console.error(
-		'PLEX_BOXES must be set, e.g. PLEX_BOXES="10.0.0.2:56:test,10.0.0.3:6:prod"\n' +
-			'  (host:sectionId:label, comma-separated; the label is cosmetic)'
-	)
+// Parsed by a VALIDATING helper: a malformed entry used to be silently dropped
+// (or to survive as a nonsense host), and the sweep then audited nothing while
+// exiting 0. See parsePlexBoxes.
+let BOXES: PlexBox[]
+try {
+	BOXES = parsePlexBoxes(process.env.PLEX_BOXES)
+} catch (err) {
+	console.error(err instanceof Error ? err.message : String(err))
 	process.exit(2)
 }
 
@@ -81,12 +80,13 @@ interface LedgerEntry extends Answer {
 async function libraryRecords(): Promise<Map<string, Set<string>>> {
 	const ids = new Map<string, Set<string>>()
 	for (const box of BOXES) {
-		const url = `http://${box.host}:32400/library/sections/${box.section}/all?type=9&X-Plex-Token=${TOKEN}`
-		const xml = await (await fetch(url)).text()
-		for (const m of xml.matchAll(/guid="com\.plexapp\.agents\.incipit:\/\/([^_"]+)_/g)) {
-			const set = ids.get(m[1]) ?? new Set<string>()
+		// Throws on a non-OK response AND on a section that yields no records:
+		// both used to pass silently, and an empty record set makes every later
+		// stage empty too, so the `process.exit(1)` review gate is never reached.
+		for (const id of await fetchBoxGuids(box, TOKEN as string)) {
+			const set = ids.get(id) ?? new Set<string>()
 			set.add(box.name)
-			ids.set(m[1], set)
+			ids.set(id, set)
 		}
 	}
 	return ids
@@ -203,4 +203,12 @@ async function main(): Promise<void> {
 	if (!init && !accept && changed.length) process.exit(1)
 }
 
-await main()
+// Any failure is a FAILED sweep, never a clean one: exit non-zero and say what
+// happened. This gate's whole value is that a green run means "audited and
+// unchanged" rather than "audited nothing".
+try {
+	await main()
+} catch (err) {
+	console.error(`sweep failed: ${err instanceof Error ? err.message : String(err)}`)
+	process.exit(2)
+}

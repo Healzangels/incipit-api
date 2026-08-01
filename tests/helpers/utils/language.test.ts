@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+	isWrongLanguage,
 	languageConflict,
 	normalizeLanguage,
 	preferLanguage,
-	regionLanguage
+	regionLanguage,
+	titleEditionLanguage
 } from '#helpers/utils/language'
 
 describe('normalizeLanguage', () => {
@@ -161,5 +163,99 @@ describe('languageConflict', () => {
 		expect(normalizeLanguage('Islenska')).toBe('is')
 		expect(normalizeLanguage('Slovencina')).toBe('sk')
 		expect(normalizeLanguage('Slovenscina')).toBe('sl')
+	})
+})
+
+/**
+ * THE wrong-language rule, in one place.
+ *
+ * The scorer's demotion and the ranker's tiebreak each carried their own copy
+ * of "the language field conflicts OR the title carries a foreign-edition
+ * marker", and the copies had drifted: the tiebreak's had lost the ASIN-pin
+ * exemption, and NEITHER conditioned the marker leg on the language actually
+ * wanted. For a German-region query that flagged the CORRECT German edition as
+ * wrong-language while an untagged English row sailed through.
+ */
+describe('titleEditionLanguage', () => {
+	test('reads the language a marker NAMES, in both spellings', () => {
+		expect(titleEditionLanguage('Dune (German Edition)')).toBe('de')
+		expect(titleEditionLanguage('Dune (Spanish Version)')).toBe('es')
+		expect(titleEditionLanguage('Dune: Ungekürzte Ausgabe')).toBe('de')
+		expect(titleEditionLanguage('Duna: edición completa')).toBe('es')
+		expect(titleEditionLanguage('Dune: edizione integrale')).toBe('it')
+		// ASCII "edition française". The accented "édition" spelling is NOT matched
+		// — `\b` is ASCII-only, so it never fires before "é" — an inherited quirk of
+		// the marker pattern, carried over unchanged rather than widened here.
+		expect(titleEditionLanguage('Dune: edition française')).toBe('fr')
+	})
+
+	test('stays narrow: an ordinary title, or a merely foreign-looking one, names nothing', () => {
+		// A bare foreign word must not count, or legitimately foreign-titled
+		// English books get flagged.
+		expect(titleEditionLanguage('Dune')).toBeNull()
+		expect(titleEditionLanguage('Das Boot')).toBeNull()
+		expect(titleEditionLanguage('The Girl with the Dragon Tattoo')).toBeNull()
+		expect(titleEditionLanguage(null)).toBeNull()
+		expect(titleEditionLanguage('')).toBeNull()
+	})
+})
+
+describe('isWrongLanguage', () => {
+	const want = 'en'
+
+	test('a conflicting language FIELD is wrong-language', () => {
+		expect(isWrongLanguage({ language: 'de', title: 'Dune' }, want, 'Dune', false)).toBe(true)
+		expect(isWrongLanguage({ language: 'en', title: 'Dune' }, want, 'Dune', false)).toBe(false)
+		// Unknown is never a conflict — provider language data is patchy.
+		expect(isWrongLanguage({ language: null, title: 'Dune' }, want, 'Dune', false)).toBe(false)
+	})
+
+	test('a title marker naming ANOTHER language is wrong-language', () => {
+		// The case the marker exists for: the field is null or mislabeled and only
+		// the title betrays the translation.
+		expect(
+			isWrongLanguage({ language: null, title: 'Dune (Spanish Edition)' }, want, 'Dune', false)
+		).toBe(true)
+	})
+
+	test('a title marker naming the WANTED language is not', () => {
+		// The defect: for region=de, "Ausgabe"/"German Edition" IS the wanted
+		// edition. Flagging it seated the correct German audio edition last.
+		expect(
+			isWrongLanguage({ language: null, title: 'Dune (German Edition)' }, 'de', 'Dune', false)
+		).toBe(false)
+		expect(
+			isWrongLanguage({ language: null, title: 'Dune: Ungekürzte Ausgabe' }, 'de', 'Dune', false)
+		).toBe(false)
+		// ...and the same row IS wrong for an English-region query.
+		expect(
+			isWrongLanguage({ language: null, title: 'Dune (German Edition)' }, 'en', 'Dune', false)
+		).toBe(true)
+	})
+
+	test('an ASIN pin is exempt from BOTH legs', () => {
+		// The exemption the tiebreak's copy had lost. An exact ASIN is an identity
+		// the caller named, so honour it even when its language differs.
+		expect(isWrongLanguage({ language: 'de', title: 'Dune' }, want, 'Dune', true)).toBe(false)
+		expect(
+			isWrongLanguage({ language: null, title: 'Dune (Spanish Edition)' }, want, 'Dune', true)
+		).toBe(false)
+	})
+
+	test('a query that ASKED for an edition marker is not contradicted by one', () => {
+		expect(
+			isWrongLanguage(
+				{ language: null, title: 'Dune (Spanish Edition)' },
+				want,
+				'Dune (Spanish Edition)',
+				false
+			)
+		).toBe(false)
+	})
+
+	test('no language expectation means nothing to conflict with', () => {
+		expect(
+			isWrongLanguage({ language: 'de', title: 'Dune (German Edition)' }, null, 'Dune', false)
+		).toBe(false)
 	})
 })

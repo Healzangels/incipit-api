@@ -86,3 +86,92 @@ export async function fetchServedAnswer(
 		return { primary: show(d.seriesPrimary), secondary: show(d.seriesSecondary), available: true }
 	}
 }
+
+/**
+ * One Plex server the sweep reads, from PLEX_BOXES.
+ */
+export interface PlexBox {
+	host: string
+	section: string
+	/** Cosmetic: used in output and the ledger's `boxes` field. */
+	name: string
+}
+
+/**
+ * Parse PLEX_BOXES ("host:sectionId:label,...") into boxes, rejecting anything
+ * malformed.
+ *
+ * Validation is the point. After the privacy scrub this became free-text env
+ * input filtered only for truthiness, and a bad entry produced ZERO records
+ * rather than an error — which the drift gate then reports as "0 distinct
+ * records" and exits 0, having audited nothing. A section id is always numeric,
+ * so requiring that also catches the `http://host:6:prod` mis-split, where
+ * splitting on ':' yields host="http", section="//host".
+ * @param {string | undefined} raw the PLEX_BOXES value
+ * @returns {PlexBox[]} the parsed boxes
+ * @throws {Error} when the value is empty or any entry is malformed
+ */
+export function parsePlexBoxes(raw: string | undefined): PlexBox[] {
+	const entries = (raw ?? '')
+		.split(',')
+		.map((e) => e.trim())
+		.filter(Boolean)
+	if (!entries.length) {
+		throw new Error(
+			'PLEX_BOXES must be set, e.g. PLEX_BOXES="10.0.0.2:56:test,10.0.0.3:6:prod"\n' +
+				'  (host:sectionId:label, comma-separated; the label is cosmetic)'
+		)
+	}
+	return entries.map((entry) => {
+		const [host, section, name] = entry.split(':')
+		if (!host || !section || !/^\d+$/.test(section)) {
+			throw new Error(
+				`PLEX_BOXES entry "${entry}" is malformed: expected host:sectionId:label ` +
+					'with a NUMERIC section id (do not include a scheme — "10.0.0.2:56:test", not ' +
+					'"http://10.0.0.2:56:test")'
+			)
+		}
+		return { host, section, name: name || host }
+	})
+}
+
+/** The incipit agent guids a Plex library-section listing carries. */
+export function incipitGuids(xml: string): string[] {
+	return [...xml.matchAll(/guid="com\.plexapp\.agents\.incipit:\/\/([^_"]+)_/g)].map((m) => m[1])
+}
+
+/**
+ * Read one box's incipit record ids.
+ *
+ * Every failure here is LOUD. `await (await fetch(url)).text()` checked no
+ * status at all, so a wrong section id or an expired token yielded an error
+ * page, zero guid matches, and a sweep that printed "0 distinct records" and
+ * exited 0 — a drift gate that passes by auditing nothing is worse than one
+ * that fails.
+ * @param {PlexBox} box the server and section to read
+ * @param {string} token the Plex token
+ * @param {typeof fetch} [fetchImpl] injection point for tests
+ * @returns {Promise<string[]>} the record ids found
+ * @throws {Error} on a non-OK response, or when the section yields no records
+ */
+export async function fetchBoxGuids(
+	box: PlexBox,
+	token: string,
+	fetchImpl?: typeof fetch
+): Promise<string[]> {
+	const doFetch = fetchImpl ?? fetch
+	const where = `${box.name} (${box.host}, section ${box.section})`
+	const url = `http://${box.host}:32400/library/sections/${box.section}/all?type=9&X-Plex-Token=${token}`
+	const response = await doFetch(url)
+	if (!response.ok) {
+		throw new Error(`${where} returned HTTP ${response.status} ${response.statusText}`.trim())
+	}
+	const guids = incipitGuids(await response.text())
+	if (!guids.length) {
+		throw new Error(
+			`${where} returned ZERO incipit records. Check the section id and the token — ` +
+				'a sweep that audits nothing must not report a clean gate.'
+		)
+	}
+	return guids
+}

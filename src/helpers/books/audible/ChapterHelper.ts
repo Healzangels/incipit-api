@@ -19,7 +19,8 @@ import {
 	ErrorMessageMissingEnv,
 	ErrorMessageNoData,
 	ErrorMessageRegion,
-	ErrorMessageRequiredKey
+	ErrorMessageRequiredKey,
+	MessageNoChapters
 } from '#static/messages'
 import { regions } from '#static/regions'
 
@@ -42,13 +43,27 @@ class ChapterHelper {
 		const baseUrl = '1.0/content'
 		const params = 'response_groups=chapter_info&quality=High'
 		this.requestUrl = helper.buildUrl(asin + '/metadata', baseDomain, regionTLD, baseUrl, params)
-		if (process.env.ADP_TOKEN && process.env.PRIVATE_KEY) {
-			this.adpToken = process.env.ADP_TOKEN
-			this.privateKey = process.env.PRIVATE_KEY
-			this.privateKey = this.privateKey.replace(/\\n/g, '\n')
-		} else {
-			throw new Error(ErrorMessageMissingEnv('ADP_TOKEN or PRIVATE_KEY'))
+		// THE credential gate, at the only layer that actually needs credentials.
+		// It used to be a bare Error, which escaped as a 500 echoing the missing
+		// variable NAMES — Plex reads a 500 as "the API is down" rather than "this
+		// book has none". A NotFoundError degrades to 404 through the existing
+		// setErrorHandler instead, and says so in the book's own terms; the
+		// operator-facing reason goes to the log, and server.ts warns once at
+		// startup so a deployment that MEANT to serve chapters still finds out.
+		//
+		// Gating HERE and not in the route is deliberate: the route's handler
+		// serves stored chapters from Redis and Mongo without ever constructing
+		// this class, so a route-level pre-gate 404s chapters that ARE stored.
+		if (!chaptersConfigured()) {
+			this.logger?.debug(
+				{ asin, region },
+				`chapters unavailable: ${ErrorMessageMissingEnv('ADP_TOKEN or PRIVATE_KEY')}`
+			)
+			throw new NotFoundError(MessageNoChapters(asin))
 		}
+		// chaptersConfigured() has just proven both are present.
+		this.adpToken = process.env.ADP_TOKEN as string
+		this.privateKey = (process.env.PRIVATE_KEY as string).replace(/\\n/g, '\n')
 	}
 
 	/**
@@ -238,10 +253,10 @@ class ChapterHelper {
  * is NOT needed for matching or metadata, so a deployment may deliberately run
  * without it — this one does.
  *
- * Exported as a PREDICATE rather than letting the constructor's throw escape.
- * That throw surfaced as a 500 echoing the missing variable names, which reads
- * as "the API is down" to Plex instead of "this book has no chapters", and made
- * 100% of chapter requests fail. Callers check this first and degrade to 404.
+ * THE single source of truth for "can this deployment fetch chapters" — the
+ * constructor's own guard calls it, so the rule is stated once. Exported so a
+ * caller that is about to construct N helpers (the scheduler's chapter sweep)
+ * can decline in one check rather than construct-and-throw once per row.
  *
  * A predicate, not a catch-by-message: matching on error text is exactly the
  * kind of coupling that breaks silently when the message is reworded.

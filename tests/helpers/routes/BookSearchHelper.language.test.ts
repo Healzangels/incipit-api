@@ -155,6 +155,63 @@ describe('a foreign edition detected only by its title marker', () => {
 		expect(out[1].confidence).toBeCloseTo(0.85, 5)
 	})
 
+	test('the marker is REGION-AWARE: a German edition is what a German-region query wants', async () => {
+		// The marker leg used to fire on the marker's PRESENCE alone, with no
+		// reference to wantLanguage — so for region=de the CORRECT German edition
+		// was flagged wrong-language while an untagged English row (language:
+		// null, so nothing flagged it) was not. Measured end-to-end: the marker is
+		// the sole differing input between these two runs, and it flipped the
+		// winner, seating the correct German audio edition LAST.
+		//
+		// Same candidates both times; only the region changes.
+		const rows = () => [
+			candidate({
+				provider: 'audible',
+				id: 'german',
+				asin: 'B0CN3GRD12',
+				title: 'Dune (German Edition)',
+				audioSeconds: 40000,
+				language: null // mislabeled at source: only the title says so
+			}),
+			candidate({ provider: 'hardcover', id: 'english', audioSeconds: null, language: null })
+		]
+
+		const de = await helperFor(rows(), { region: 'de', duration: 40000 * 1000 }).search()
+		expect(de[0].id).toBe('german')
+		// Not merely first — never penalized at all: it corroborates on runtime and
+		// keeps the full bonus.
+		expect(de[0].confidence).toBeCloseTo(1, 5)
+		expect(getMatchMetrics().languageDemotedCandidates).toBe(0)
+
+		// The same marker against an ENGLISH-region query is still evidence of a
+		// mismatch, so the leg has not simply been switched off.
+		resetMatchMetrics()
+		const us = await helperFor(rows(), { region: 'us', duration: 40000 * 1000 }).search()
+		expect(us[0].id).toBe('english')
+		expect(getMatchMetrics().languageDemotedCandidates).toBe(1)
+	})
+
+	test('a native-language marker ("Ausgabe") is read the same way', async () => {
+		// The named-language branch ("German Edition") and the native branch
+		// ("Ausgabe") are two spellings of one fact and must not disagree.
+		const out = await helperFor(
+			[
+				candidate({
+					provider: 'audible',
+					id: 'german',
+					asin: 'B0CN3GRD13',
+					title: 'Dune: Ungekürzte Ausgabe',
+					audioSeconds: 40000,
+					language: null
+				}),
+				candidate({ provider: 'hardcover', id: 'english', audioSeconds: null, language: null })
+			],
+			{ region: 'de', duration: 40000 * 1000 }
+		).search()
+		expect(out[0].id).toBe('german')
+		expect(getMatchMetrics().languageDemotedCandidates).toBe(0)
+	})
+
 	test('but the marker never counts against a query that ASKED for that edition', async () => {
 		// primaryTitle carries the marker too, so it is not evidence of a mismatch
 		// — otherwise the caller who explicitly wants a translation gets their own

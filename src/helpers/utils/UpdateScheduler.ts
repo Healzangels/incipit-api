@@ -6,6 +6,7 @@ import AuthorModel from '#config/models/Author'
 import BookModel from '#config/models/Book'
 import ChapterModel from '#config/models/Chapter'
 import { getPerformanceConfig } from '#config/performance'
+import { chaptersConfigured } from '#helpers/books/audible/ChapterHelper'
 import AuthorShowHelper from '#helpers/routes/AuthorShowHelper'
 import BookShowHelper from '#helpers/routes/BookShowHelper'
 import ChapterShowHelper from '#helpers/routes/ChapterShowHelper'
@@ -186,6 +187,13 @@ class UpdateScheduler {
 	 * Uses parallel processing when USE_PARALLEL_SCHEDULER feature flag is enabled
 	 */
 	async updateChapters(): Promise<void> {
+		// Nothing to sweep without Audible credentials: every row would construct a
+		// ChapterHelper, throw, and be logged as an error — one wasted round of
+		// noise per stored chapter record, per pass, forever. Say it once instead.
+		if (!chaptersConfigured()) {
+			this.logger.info('Skipping scheduled chapter update: ADP_TOKEN/PRIVATE_KEY unset')
+			return
+		}
 		const chapters = await this.getAllChapterAsins()
 		this.logger.debug(NoticeUpdateScheduled('Chapters'))
 		this.logMemoryUsage('chapters:start')

@@ -63,10 +63,11 @@ PREFS_CANDIDATES = (
     '/var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Preferences.xml',
 )
 PLEX = os.environ.get('PLEX_URL', 'http://127.0.0.1:32400')
+# NOT validated at import. A module-level `raise SystemExit` ran before argparse
+# ever saw the command line, so `--help` exited non-zero instead of printing
+# usage, and the module could not be imported at all (FOLDER_POS_RE is worth
+# reading on its own). main() checks it after parsing instead.
 API = os.environ.get('INCIPIT_API')
-if not API:
-    raise SystemExit('INCIPIT_API must be set (e.g. http://10.0.0.2:3737) -- '
-                     'this repo is public and carries no host defaults')
 TIMEOUT = 15
 
 # EXACTLY the agent's update_tools.FOLDER_NUMBER_RE, character for character.
@@ -305,6 +306,11 @@ def main():
     parser.add_argument('--only', help='comma-separated states to print, e.g. FALLBACK,DISAGREE')
     parser.add_argument('--csv', help='also write every row to this file')
     args = parser.parse_args()
+
+    # After parsing, so --help works and the module stays importable.
+    if not API:
+        die('INCIPIT_API must be set (e.g. http://10.0.0.2:3737) -- '
+            'this repo is public and carries no host defaults')
 
     wanted = {s.strip().upper() for s in args.only.split(',')} if args.only else None
     token = plex_token()
