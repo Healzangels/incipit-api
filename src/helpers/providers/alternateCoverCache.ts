@@ -28,6 +28,22 @@ import type { FastifyRedis } from '@fastify/redis'
 const TTL_SECONDS = 2592000
 
 /**
+ * Bumped whenever the RULE that produces alternates changes.
+ *
+ * A cached entry is an answer computed by a particular version of that rule,
+ * including a cached EMPTY answer, which now means "looked, found none" and
+ * suppresses recomputation for the full TTL. When the rule loosens -- as it did
+ * on 2026-08-01, when an author credited as a narrator stopped counting as a
+ * different cast -- every stored answer is stale by definition, and the empty
+ * ones are the worst of them: they pin a book to the old rule's verdict for 30
+ * days. Bumping this retires the whole generation at once, no redis surgery, and
+ * the old keys simply expire.
+ *
+ * v2: the author-credit exception (castsAgree).
+ */
+const KEY_VERSION = 'v2'
+
+/**
  * The cache key for a book id.
  *
  * Case-folded and region-stripped because the two callers do not agree on the
@@ -39,7 +55,7 @@ const TTL_SECONDS = 2592000
  */
 export function alternateCoverKey(id: string): string {
 	const bare = (id ?? '').split('_')[0] ?? ''
-	return `incipit:altcover:${bare.toUpperCase()}`
+	return `incipit:altcover:${KEY_VERSION}:${bare.toUpperCase()}`
 }
 
 /**

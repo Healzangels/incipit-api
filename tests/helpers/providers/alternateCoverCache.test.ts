@@ -26,7 +26,17 @@ import {
  */
 describe('alternateCoverKey', () => {
 	test('namespaces the key so it cannot collide with other caches', () => {
-		expect(alternateCoverKey('B073H9PF2D')).toBe('incipit:altcover:B073H9PF2D')
+		expect(alternateCoverKey('B073H9PF2D')).toMatch(/^incipit:altcover:/)
+	})
+
+	test('carries a RULE VERSION, so loosening the rule retires stale answers', () => {
+		// A cached EMPTY answer means "looked, found none" and suppresses
+		// recomputation for the whole TTL -- so when the rule that produced it
+		// changes, those entries pin books to the old verdict for 30 days. The
+		// version segment is what retires them without touching redis by hand.
+		// Asserting the SHAPE, not the current number: pinning 'v2' would just
+		// mirror the constant and rewrite itself on the next bump.
+		expect(alternateCoverKey('B073H9PF2D')).toMatch(/^incipit:altcover:v\d+:B073H9PF2D$/)
 	})
 
 	test('normalises case, because Plex ids arrive both ways', () => {
