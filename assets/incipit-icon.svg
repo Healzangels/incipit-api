@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Incipit">
+  <title>Incipit</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.45" y2="1">
+      <stop offset="0" stop-color="#2a3765"/>
+      <stop offset="0.55" stop-color="#1a2450"/>
+      <stop offset="1" stop-color="#0d1330"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0.15" y2="1">
+      <stop offset="0" stop-color="#f7e6ae"/>
+      <stop offset="0.45" stop-color="#e3c476"/>
+      <stop offset="1" stop-color="#c08f22"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ground -->
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <!-- inset keyline -->
+  <rect x="47" y="47" width="418" height="418" rx="74"
+        fill="none" stroke="#8a7344" stroke-width="6"/>
+
+  <!-- corner diamonds -->
+  <g fill="#c9a961">
+    <rect x="94"  y="84"  width="26" height="26" rx="3" transform="rotate(45 107 97)"/>
+    <rect x="392" y="84"  width="26" height="26" rx="3" transform="rotate(45 405 97)"/>
+    <rect x="94"  y="402" width="26" height="26" rx="3" transform="rotate(45 107 415)"/>
+    <rect x="392" y="402" width="26" height="26" rx="3" transform="rotate(45 405 415)"/>
+  </g>
+
+  <!-- flanking braces: the "incipit" is what a text BEGINS with, so the mark
+       brackets the letterform rather than decorating it -->
+  <g fill="none" stroke="#a8873f" stroke-width="9" stroke-linecap="round">
+    <path d="M163 172 C137 194, 152 236, 132 256 C152 276, 137 318, 163 340"/>
+    <path d="M349 172 C375 194, 360 236, 380 256 C360 276, 375 318, 349 340"/>
+  </g>
+  <g fill="#c9a961">
+    <circle cx="163" cy="172" r="8"/><circle cx="163" cy="340" r="8"/>
+    <circle cx="349" cy="172" r="8"/><circle cx="349" cy="340" r="8"/>
+  </g>
+
+  <!-- waisted roman I with bracketed serifs -->
+  <path fill="url(#gold)" d="
+    M186 120 L326 120 L326 156 L303 156
+    C288 178, 285 204, 285 256
+    C285 308, 288 334, 303 356
+    L326 356 L326 392 L186 392 L186 356 L209 356
+    C224 334, 227 308, 227 256
+    C227 204, 224 178, 209 156
+    L186 156 Z"/>
+</svg>

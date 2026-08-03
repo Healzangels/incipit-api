@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>incipit-mongo</Name>
+  <Repository>mongo:7</Repository>
+  <Registry>https://hub.docker.com/_/mongo</Registry>
+  <Network>incipit</Network>
+  <MyIP/>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/Healzangels/incipit-api/issues</Support>
+  <Project>https://github.com/Healzangels/incipit-api</Project>
+  <Overview>
+    MongoDB for incipit-api. Backs the inherited audnexus routes - author search,
+    author/book lookup by ASIN, and chapters.
+
+    Deliberately publishes NO port: only incipit-api talks to it, over the
+    user-defined "incipit" network, exactly as the compose stack does. Create that
+    network once before deploying:  docker network create incipit
+
+    Start this BEFORE incipit-api. Unraid templates have no depends_on, and the API
+    exits at boot if MONGODB_URI is unreachable.
+  </Overview>
+  <Category>Tools:Utilities Network:Other</Category>
+  <WebUI/>
+  <TemplateURL/>
+  <Icon>https://raw.githubusercontent.com/Healzangels/incipit-api/nightly/assets/incipit-icon.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>A user-defined docker network named "incipit" (docker network create incipit)</Requires>
+  <Config
+    Name="Database storage"
+    Target="/data/db"
+    Default="/mnt/user/appdata/incipit-mongo"
+    Mode="rw"
+    Description="Mongo data directory. Keep this on the cache/appdata share - it is small but write-heavy."
+    Type="Path"
+    Display="always"
+    Required="true"
+    Mask="false">/mnt/user/appdata/incipit-mongo</Config>
+</Container>

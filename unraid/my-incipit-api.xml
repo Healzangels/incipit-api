@@ -1,0 +1,80 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>incipit-api</Name>
+  <Repository>ghcr.io/healzangels/incipit-api:nightly</Repository>
+  <Registry>https://github.com/Healzangels/incipit-api/pkgs/container/incipit-api</Registry>
+  <Network>incipit</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/Healzangels/incipit-api/issues</Support>
+  <Project>https://github.com/Healzangels/incipit-api</Project>
+  <Overview>
+    Audiobook metadata API for the Incipit Plex agent. Fans out across Audible,
+    Apple Books, Hardcover, OpenLibrary, OverDrive and Storytel, scores candidates
+    on title, author and runtime, and returns them ranked - which is the piece
+    audnexus never had: a way to find a non-Audible book so it can appear in Plex.
+
+    REQUIRES incipit-mongo, and wants incipit-redis. Start those two FIRST: Unraid
+    templates have no depends_on, and the API exits at boot if MONGODB_URI is
+    unreachable.
+
+    TAGS: :nightly tracks the default branch, :release is stable. There is no
+    :latest worth using here - it builds from release only, so pulling it after a
+    nightly change is a silent no-op.
+  </Overview>
+  <Category>Tools:Utilities MediaApp:Books Network:Other</Category>
+  <WebUI>http://[IP]:[PORT:3737]/</WebUI>
+  <TemplateURL/>
+  <Icon>https://raw.githubusercontent.com/Healzangels/incipit-api/nightly/assets/incipit-icon.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>
+    incipit-mongo and incipit-redis running on a user-defined docker network named
+    "incipit" (docker network create incipit)
+  </Requires>
+
+  <Config Name="WebUI / API port" Target="3000" Default="3737" Mode="tcp"
+    Description="Host port the Plex agent connects to. The container always listens on 3000."
+    Type="Port" Display="always" Required="true" Mask="false">3737</Config>
+
+  <Config Name="MONGODB_URI" Target="MONGODB_URI" Default="mongodb://incipit-mongo:27017" Mode=""
+    Description="REQUIRED. Container-name DNS, which is why all three sit on the same user-defined network. The API exits at startup if this is unset."
+    Type="Variable" Display="always" Required="true" Mask="false">mongodb://incipit-mongo:27017</Config>
+
+  <Config Name="REDIS_URL" Target="REDIS_URL" Default="redis://incipit-redis:6379" Mode=""
+    Description="Optional but recommended. Leave blank to run without a cache - provider results stop being cached and alternate-cover lookups disable themselves rather than fan out on every request."
+    Type="Variable" Display="always" Required="false" Mask="false">redis://incipit-redis:6379</Config>
+
+  <Config Name="HARDCOVER_TOKEN" Target="HARDCOVER_TOKEN" Default="" Mode=""
+    Description="Your own Hardcover API token. Optional - blank simply skips that provider. Nothing is bundled."
+    Type="Variable" Display="always" Required="false" Mask="true"/>
+
+  <Config Name="OL_CONTACT" Target="OL_CONTACT" Default="" Mode=""
+    Description="Contact string sent to OpenLibrary as courtesy identification, e.g. an email. Optional."
+    Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="RATE_LIMIT_ALLOWLIST" Target="RATE_LIMIT_ALLOWLIST" Default="" Mode=""
+    Description="CIDR-aware allowlist so a from-scratch Plex scan cannot 429 itself. Use the source IP the API actually SEES - often the docker bridge gateway rather than the Plex host. Check the container log's remoteAddress. Example: 172.17.0.0/16,10.0.0.0/24"
+    Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="DEFAULT_REGION" Target="DEFAULT_REGION" Default="us" Mode=""
+    Description="Audible marketplace to search by default: us, uk, ca, au, de, fr, it, es, in, jp."
+    Type="Variable" Display="advanced" Required="false" Mask="false">us</Config>
+
+  <Config Name="LOG_LEVEL" Target="LOG_LEVEL" Default="info" Mode=""
+    Description="fatal, error, warn, info, debug or trace."
+    Type="Variable" Display="advanced" Required="false" Mask="false">info</Config>
+
+  <Config Name="METRICS_ENABLED" Target="METRICS_ENABLED" Default="false" Mode=""
+    Description="Expose /metrics with match-decision counters. Gate it with METRICS_ALLOWED_IPS - open mode redacts detail, but an allowlisted LAN client sees full recent decisions."
+    Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
+
+  <Config Name="METRICS_ALLOWED_IPS" Target="METRICS_ALLOWED_IPS" Default="" Mode=""
+    Description="CIDR allowlist for /metrics, e.g. 127.0.0.1,10.0.0.0/24,172.16.0.0/12"
+    Type="Variable" Display="advanced" Required="false" Mask="false"/>
+</Container>
