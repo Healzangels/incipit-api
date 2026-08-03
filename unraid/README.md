@@ -4,21 +4,29 @@ Deploy the stack from the Unraid webgui instead of `docker compose`. Three
 containers, same shape as `docker-compose.yml`: **incipit-mongo**, **incipit-redis**
 and **incipit-api**.
 
-## Why a custom network
+## Set the network first — this is the one that bites
 
 The compose stack gets container-name DNS for free (`mongodb://mongo:27017`).
-Unraid's default `bridge` does **not** resolve container names, so the three must
-share a *user-defined* network. Create it once, before deploying anything:
+Unraid's default `bridge` does **not** resolve container names.
 
-```
-docker network create incipit
-```
+So before starting anything, change **Network** on all three containers to a
+*user-defined* network — either one you already run, or a new one
+(`docker network create <name>`). Any user-defined bridge works; they just have to
+be on the **same** one. The templates ship with `bridge` because that is Unraid's
+stock value, not because it works.
 
-Skip this and the API starts, fails to reach Mongo, and exits — with a message
-about `MONGODB_URI` that looks like a config typo rather than a missing network.
+Leave it on `bridge` and the API starts, cannot reach Mongo, and exits — reporting
+`MONGODB_URI`, which reads like a config typo rather than a networking problem.
+That is the whole failure: a correct URI on the wrong network.
 
-The alternative — publishing Mongo and Redis on host ports and pointing the API at
-the Unraid IP — works, but puts an unauthenticated database on your LAN. Don't.
+If your network is **macvlan/ipvlan** (containers hold their own LAN IPs) rather
+than a bridge, container-name DNS is unreliable — put static IPs in `MONGODB_URI`
+and `REDIS_URL` instead of names, and note that Mongo and Redis then answer to your
+whole LAN.
+
+The remaining alternative — publishing Mongo and Redis on host ports and pointing
+the API at the server IP — works, but puts an unauthenticated database on your LAN.
+Don't.
 
 ## Install
 

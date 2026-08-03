@@ -3,19 +3,22 @@
   <Name>incipit-mongo</Name>
   <Repository>mongo:7</Repository>
   <Registry>https://hub.docker.com/_/mongo</Registry>
-  <Network>incipit</Network>
+  <Network>bridge</Network>
   <MyIP/>
   <Shell>bash</Shell>
   <Privileged>false</Privileged>
   <Support>https://github.com/Healzangels/incipit-api/issues</Support>
   <Project>https://github.com/Healzangels/incipit-api</Project>
   <Overview>
+    SET NETWORK FIRST. All three containers must share the SAME user-defined
+    docker network, or container-name DNS does not resolve and the API exits at
+    boot reporting MONGODB_URI. Unraid's default "bridge" does NOT resolve names.
+
     MongoDB for incipit-api. Backs the inherited audnexus routes - author search,
     author/book lookup by ASIN, and chapters.
 
-    Deliberately publishes NO port: only incipit-api talks to it, over the
-    user-defined "incipit" network, exactly as the compose stack does. Create that
-    network once before deploying:  docker network create incipit
+    Deliberately publishes NO port: only incipit-api talks to it, over whichever
+    user-defined network you put all three on. Set Network to your own below.
 
     Start this BEFORE incipit-api. Unraid templates have no depends_on, and the API
     exits at boot if MONGODB_URI is unreachable.
@@ -30,7 +33,7 @@
   <DateInstalled/>
   <DonateText/>
   <DonateLink/>
-  <Requires>A user-defined docker network named "incipit" (docker network create incipit)</Requires>
+  <Requires>All three containers on the SAME user-defined docker network, so container-name DNS resolves. Unraid's default "bridge" does NOT resolve names.</Requires>
   <Config
     Name="Database storage"
     Target="/data/db"

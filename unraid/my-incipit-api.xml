@@ -3,13 +3,17 @@
   <Name>incipit-api</Name>
   <Repository>ghcr.io/healzangels/incipit-api:nightly</Repository>
   <Registry>https://github.com/Healzangels/incipit-api/pkgs/container/incipit-api</Registry>
-  <Network>incipit</Network>
+  <Network>bridge</Network>
   <MyIP/>
   <Shell>sh</Shell>
   <Privileged>false</Privileged>
   <Support>https://github.com/Healzangels/incipit-api/issues</Support>
   <Project>https://github.com/Healzangels/incipit-api</Project>
   <Overview>
+    SET NETWORK FIRST. All three containers must share the SAME user-defined
+    docker network, or container-name DNS does not resolve and the API exits at
+    boot reporting MONGODB_URI. Unraid's default "bridge" does NOT resolve names.
+
     Audiobook metadata API for the Incipit Plex agent. Fans out across Audible,
     Apple Books, Hardcover, OpenLibrary, OverDrive and Storytel, scores candidates
     on title, author and runtime, and returns them ranked - which is the piece
@@ -34,8 +38,8 @@
   <DonateText/>
   <DonateLink/>
   <Requires>
-    incipit-mongo and incipit-redis running on a user-defined docker network named
-    "incipit" (docker network create incipit)
+    incipit-mongo and incipit-redis, on the SAME user-defined docker network as this
+    container. Unraid's default "bridge" does NOT resolve container names.
   </Requires>
 
   <Config Name="WebUI / API port" Target="3000" Default="3737" Mode="tcp"
@@ -43,7 +47,7 @@
     Type="Port" Display="always" Required="true" Mask="false">3737</Config>
 
   <Config Name="MONGODB_URI" Target="MONGODB_URI" Default="mongodb://incipit-mongo:27017" Mode=""
-    Description="REQUIRED. Container-name DNS, which is why all three sit on the same user-defined network. The API exits at startup if this is unset."
+    Description="REQUIRED. Container-name DNS, which is why all three must sit on the SAME user-defined network. The API exits at startup if this is unset."
     Type="Variable" Display="always" Required="true" Mask="false">mongodb://incipit-mongo:27017</Config>
 
   <Config Name="REDIS_URL" Target="REDIS_URL" Default="redis://incipit-redis:6379" Mode=""

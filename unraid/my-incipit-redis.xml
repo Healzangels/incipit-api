@@ -3,13 +3,17 @@
   <Name>incipit-redis</Name>
   <Repository>redis:7-alpine</Repository>
   <Registry>https://hub.docker.com/_/redis</Registry>
-  <Network>incipit</Network>
+  <Network>bridge</Network>
   <MyIP/>
   <Shell>sh</Shell>
   <Privileged>false</Privileged>
   <Support>https://github.com/Healzangels/incipit-api/issues</Support>
   <Project>https://github.com/Healzangels/incipit-api</Project>
   <Overview>
+    SET NETWORK FIRST. All three containers must share the SAME user-defined
+    docker network, or container-name DNS does not resolve and the API exits at
+    boot reporting MONGODB_URI. Unraid's default "bridge" does NOT resolve names.
+
     Redis for incipit-api. Caches provider search results (which is what keeps the
     stack inside Hardcover's 60 req/min limit) and audnexus responses, and it is
     where alternate cover art is stored between a search and a later item lookup.
@@ -18,7 +22,7 @@
     every book lookup that needs alternate covers would re-run a full provider
     search on every request, so that feature disables itself instead.
 
-    Publishes NO port: only incipit-api talks to it over the "incipit" network.
+    Publishes NO port: only incipit-api talks to it over your chosen network.
     Start this BEFORE incipit-api.
   </Overview>
   <Category>Tools:Utilities Network:Other</Category>
@@ -31,7 +35,7 @@
   <DateInstalled/>
   <DonateText/>
   <DonateLink/>
-  <Requires>A user-defined docker network named "incipit" (docker network create incipit)</Requires>
+  <Requires>All three containers on the SAME user-defined docker network, so container-name DNS resolves. Unraid's default "bridge" does NOT resolve names.</Requires>
   <Config
     Name="Cache storage"
     Target="/data"
