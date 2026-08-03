@@ -63,6 +63,23 @@ Mongo and Redis publish nothing on purpose — only the API talks to them.
 `HARDCOVER_TOKEN` is your own; blank simply skips that provider. Nothing is
 bundled.
 
+## Icons
+
+Each container has its own, sharing one ground so they read as a set in the Docker
+tab: the project mark for the API, MongoDB's leaf, Redis's stacked layers.
+
+SVG sources live in `assets/`. Unraid's `<Icon>` field wants a **raster** URL, so
+the templates point at the `.png` beside each `.svg`:
+
+| container | icon |
+|---|---|
+| incipit-api | `assets/incipit-icon.png` |
+| incipit-mongo | `assets/incipit-mongo-icon.png` |
+| incipit-redis | `assets/incipit-redis-icon.png` |
+
+Until those PNGs are committed the containers fall back to Unraid's default icon —
+nothing breaks, it just looks unset.
+
 ## Image tags
 
 `:nightly` tracks the default branch. `:release` is stable.

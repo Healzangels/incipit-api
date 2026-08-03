@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Incipit Redis">
+  <title>Incipit Redis</title>
+  <defs>
+    <!-- identical ground to the project mark, so the three containers read as a set -->
+    <linearGradient id="bg" x1="0" y1="0" x2="0.45" y2="1">
+      <stop offset="0" stop-color="#2a3765"/>
+      <stop offset="0.55" stop-color="#1a2450"/>
+      <stop offset="1" stop-color="#0d1330"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#f7e6ae"/>
+      <stop offset="0.45" stop-color="#e3c476"/>
+      <stop offset="1" stop-color="#c08f22"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <!-- stacked layers, the shape Redis has always used for its own mark.
+       The navy stroke is what separates them: at small sizes the fills merge
+       into one lozenge without it. -->
+  <g fill="url(#gold)" stroke="#111a3d" stroke-width="11" stroke-linejoin="round">
+    <path d="M256 100 L406 156 L256 212 L106 156 Z"/>
+    <path d="M256 202 L406 258 L256 314 L106 258 Z"/>
+    <path d="M256 304 L406 360 L256 416 L106 360 Z"/>
+  </g>
+</svg>

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Incipit MongoDB">
+  <title>Incipit MongoDB</title>
+  <defs>
+    <!-- identical ground to the project mark, so the three containers read as a set -->
+    <linearGradient id="bg" x1="0" y1="0" x2="0.45" y2="1">
+      <stop offset="0" stop-color="#2a3765"/>
+      <stop offset="0.55" stop-color="#1a2450"/>
+      <stop offset="1" stop-color="#0d1330"/>
+    </linearGradient>
+    <linearGradient id="leafLit" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#f7e6ae"/>
+      <stop offset="1" stop-color="#dcb85e"/>
+    </linearGradient>
+    <linearGradient id="leafShade" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#d9b055"/>
+      <stop offset="1" stop-color="#b8860b"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <!-- The leaf is drawn as two halves meeting on the midrib rather than one
+       outline: that seam IS the shading, and it is what reads as a leaf instead
+       of an almond at 32px. -->
+  <path fill="url(#leafLit)"
+        d="M256 80 C202 152, 170 216, 170 270 C170 332, 206 382, 256 404 Z"/>
+  <path fill="url(#leafShade)"
+        d="M256 80 C310 152, 342 216, 342 270 C342 332, 306 382, 256 404 Z"/>
+
+  <!-- stem -->
+  <rect x="247" y="396" width="18" height="52" rx="9" fill="#d9a52e"/>
+</svg>
