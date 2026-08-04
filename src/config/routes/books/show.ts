@@ -133,7 +133,18 @@ async function _show(fastify: FastifyInstance) {
 				results.map((r) => rememberAlternates(fastify.redis ?? null, r.id, r.coverAlternates ?? []))
 			)
 			const want = alternateCoverKey(asin)
-			return results.find((r) => alternateCoverKey(r.id) === want)?.coverAlternates ?? []
+			const mine = results.find((r) => alternateCoverKey(r.id) === want)?.coverAlternates ?? []
+			// RECORD UNDER THE KEY THE READ SIDE WILL USE, unconditionally.
+			//
+			// The loop above only writes keys for ids the SEARCH returned. A book
+			// that does not appear in its own search results -- a delisted ASIN on
+			// the stale-while-error path, or a title the providers answer
+			// differently -- therefore had nothing written for it, so the next
+			// request recalled null and paid for the whole fan-out again, every
+			// time, forever. That is precisely the cost the negative entry exists
+			// to prevent, and the comment above claimed it was prevented.
+			await rememberAlternates(fastify.redis ?? null, asin, mine)
+			return mine
 		}
 
 		const withAlternateCovers = async <
@@ -141,8 +152,13 @@ async function _show(fastify: FastifyInstance) {
 		>(
 			book: T
 		): Promise<T> => {
-			const id = book?.asin ?? asin
-			let alternates = await recallAlternates(fastify.redis ?? null, id)
+			// Key on the REQUESTED id, never on book.asin. The write side keys on
+			// the search row's id, and the bundle asks with the same id it was
+			// matched to -- but a provider record can carry an unrelated `asin`
+			// (Hardcover exposes one for dedup), so `book.asin ?? asin` read a
+			// key nothing ever wrote. Recall missed on every request and the
+			// compute re-ran forever, silently, for exactly those books.
+			let alternates = await recallAlternates(fastify.redis ?? null, asin)
 			// WITHOUT REDIS THERE IS NO COMPUTE. The whole design rests on paying
 			// for the search once and recording the answer -- including the empty
 			// answer. With nowhere to record it, every book lookup would fan out

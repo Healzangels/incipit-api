@@ -89,8 +89,18 @@ mock.module('#helpers/providers/alternateCoverCache', () => ({
 	rememberAlternates: async (_r: unknown, id: string, urls: string[] | undefined) => {
 		remembered.push([id, urls])
 	},
-	recallAlternates: async () => cachedAlternates
+	// KEY-SENSITIVE on purpose. A mock that ignores the id cannot tell which key
+	// the route asked for, so a test asserting "recall uses the requested id"
+	// passes no matter what -- proven: reverting the fix failed nothing until
+	// this recorded the key.
+	recallAlternates: async (_r: unknown, id: string) => {
+		recalledKeys.push(id)
+		return cachedAlternates
+	}
 }))
+
+/** Every id the route handed to recallAlternates, in order. */
+let recalledKeys: string[] = []
 
 /** Candidates the on-miss compute "finds". Empty = the search returned nothing. */
 let searchResults: Record<string, unknown>[] = []
@@ -298,6 +308,7 @@ describe('alternate covers on the item response', () => {
 		servedByProvider = null
 		cachedAlternates = []
 		remembered = []
+		recalledKeys = []
 		searchResults = []
 		searchCalls = 0
 		searchThrows = null
@@ -356,8 +367,37 @@ describe('alternate covers on the item response', () => {
 		expect(remembered).toEqual([
 			['B0TESTASIN', ['a.jpg']],
 			['B0SIBLING1', ['b.jpg']],
-			['B0NOALTS01', []]
+			['B0NOALTS01', []],
+			// ...and the requested id explicitly, which is the key recall reads.
+			['B0TESTASIN', ['a.jpg']]
 		])
+	})
+
+	test('the REQUESTED id is recorded even when absent from its own results', () => {
+		// The gap this closes: the write loop only covers ids the search returned.
+		// A delisted ASIN on the stale-while-error path is never in its own search
+		// results, so nothing was written for it and the next request recalled
+		// null and paid for the entire provider fan-out again -- every request,
+		// forever, for exactly the books least able to afford it.
+		cachedAlternates = null
+		searchResults = [{ id: 'B0SOMEONEELSE', coverAlternates: ['x.jpg'] }]
+		served = bookRecord()
+		return get('B0TESTASIN').then(() => {
+			expect(remembered).toContainEqual(['B0TESTASIN', []])
+		})
+	})
+
+	test('recall keys on the REQUESTED id, not on the record\'s own asin', async () => {
+		// A provider record can carry an unrelated `asin` (Hardcover exposes one
+		// for dedup). Keying recall on it read a key nothing ever wrote.
+		cachedAlternates = ['https://example.invalid/cached.jpg']
+		served = bookRecord({ asin: 'B0DIFFERENT' })
+		const { body } = await get('B0TESTASIN')
+		expect(body.imageAlternates).toEqual(['https://example.invalid/cached.jpg'])
+		expect(searchCalls).toBe(0)
+		// The assertion that actually discriminates.
+		expect(recalledKeys).toEqual(['B0TESTASIN'])
+		expect(recalledKeys).not.toContain('B0DIFFERENT')
 	})
 
 	test('NO REDIS means no compute — nowhere to record the answer', async () => {
