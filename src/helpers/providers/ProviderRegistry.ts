@@ -188,6 +188,53 @@ export default class ProviderRegistry {
 	}
 
 	/**
+	 * Fetch ONE book from ONE registered provider, through its circuit breaker.
+	 *
+	 * The exact mirror of {@link searchOne}, and it exists for the same measured
+	 * reason: a caller that does `registry.get(name)` and calls
+	 * `provider.fetchBook()` itself bypasses the breaker in BOTH directions — its
+	 * failures never open the circuit, and an open circuit does not stop it
+	 * issuing requests. BookDataHelper did exactly that, with no timeout either,
+	 * so `GET /books/<provider-id>` was the one serve path with no protection at
+	 * all.
+	 *
+	 * This got sharper when fetchBook stopped swallowing transport failures: a
+	 * refusing provider now REJECTS rather than returning null, so without a
+	 * breaker every request pays a full timeout on a call that cannot succeed —
+	 * the doomed round-trips the breaker was added to stop, on the branch Plex
+	 * refreshes hit.
+	 *
+	 * Rejects on failure (including an open circuit), so the caller decides
+	 * whether that is fatal or a degradation.
+	 * @param {string} name the registered provider's name
+	 * @param {string} nativeId the provider's own id for the book
+	 * @param {string} kind the provider's record kind
+	 * @param {FetchBookOptions} opts region, credentials and logger
+	 * @returns {Promise<ProviderBook | null>} the book, or null when unregistered
+	 */
+	async fetchOne(
+		name: string,
+		nativeId: string,
+		kind: string,
+		opts: FetchBookOptions
+	): Promise<ProviderBook | null> {
+		const provider = this.get(name)
+		if (!provider?.fetchBook) return null
+		const fetchBook = provider.fetchBook.bind(provider)
+		try {
+			return await this.breakerFor(name).execute(() =>
+				withTimeout(fetchBook(nativeId, kind, opts), PROVIDER_TIMEOUT_MS, name)
+			)
+		} catch (err) {
+			const open = isCircuitOpen(err)
+			recordProviderFailure(name, open)
+			if (open) opts.logger?.debug({ provider: name, err }, 'provider fetch skipped: circuit open')
+			else opts.logger?.error({ provider: name, err }, 'provider fetch failed')
+			throw err
+		}
+	}
+
+	/**
 	 * Search ONE registered provider by name, through its circuit breaker and the
 	 * same cache path the fan-out uses.
 	 *

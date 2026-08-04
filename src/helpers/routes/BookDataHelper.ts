@@ -54,7 +54,12 @@ export default class BookDataHelper {
 			return null
 		}
 
-		return provider.fetchBook(decoded.nativeId, decoded.kind, {
+		// Through the registry's breaker, not straight at the provider. Calling
+		// provider.fetchBook() here bypassed the circuit in both directions --
+		// failures never opened it, and an open circuit never stopped this call --
+		// which is the same defect searchOne was added to fix for search, never
+		// carried across to fetch. It had no timeout either.
+		return this.registry.fetchOne(decoded.provider, decoded.nativeId, decoded.kind, {
 			region: this.region,
 			credentials: this.credentials,
 			logger: this.logger

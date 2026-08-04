@@ -175,3 +175,59 @@ describe('ProviderRegistry circuit breaker', () => {
 		expect(state.calls).toBe(before + 1)
 	})
 })
+
+/**
+ * ...and the same must hold for FETCH, which is where the gap actually was.
+ *
+ * `searchOne` exists because a caller doing `registry.get(name)` then
+ * `provider.search()` bypasses the breaker in both directions. Nobody carried
+ * that across to fetch: `BookDataHelper` called `provider.fetchBook()` straight,
+ * with no breaker AND no timeout, so `GET /books/<provider-id>` — the branch
+ * ~90 albums reach Plex through — was the one serve path with no protection.
+ *
+ * It got sharper when fetchBook stopped swallowing transport failures: a
+ * refusing provider now REJECTS instead of returning null, so with no breaker
+ * every request pays a full timeout on a call that cannot succeed.
+ */
+describe('ProviderRegistry.fetchOne rations upstream calls too', () => {
+	const OPTS = { region: 'us' } as never
+
+	function fetchCounter(name = 'apple') {
+		const state = { calls: 0 }
+		const provider = {
+			name,
+			search: async () => [],
+			fetchBook: async () => {
+				state.calls += 1
+				throw new Error('429 Too Many Requests')
+			}
+		} as unknown as BookProvider
+		return { provider, state }
+	}
+
+	test('failures OPEN the circuit, and an open circuit costs zero requests', async () => {
+		const { provider, state } = fetchCounter()
+		const registry = new ProviderRegistry([provider])
+		// failureThreshold is 5; drive well past it.
+		for (let i = 0; i < 12; i++) {
+			await registry.fetchOne('apple', 'x', 'audiobook', OPTS).catch(() => null)
+		}
+		expect(state.calls).toBeGreaterThan(0)
+		// Without the breaker this is 12 — one doomed round-trip per request.
+		expect(state.calls).toBeLessThanOrEqual(5)
+	})
+
+	test('rejects rather than reporting the book absent', async () => {
+		const { provider } = fetchCounter()
+		const registry = new ProviderRegistry([provider])
+		await expect(registry.fetchOne('apple', 'x', 'audiobook', OPTS)).rejects.toThrow('429')
+	})
+
+	test('returns null when the provider is unregistered or cannot fetch', async () => {
+		const registry = new ProviderRegistry([
+			{ name: 'apple', search: async () => [] } as unknown as BookProvider
+		])
+		expect(await registry.fetchOne('apple', 'x', 'audiobook', OPTS)).toBeNull()
+		expect(await registry.fetchOne('nosuch', 'x', 'audiobook', OPTS)).toBeNull()
+	})
+})
