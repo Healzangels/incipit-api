@@ -37,37 +37,15 @@ import imagesSimilar from '#config/routes/images'
 import { parseEnvArray, registerMetricsRoute } from '#config/routes/metrics'
 import version from '#config/routes/version'
 import { warnIfDeletesDisabled } from '#config/routes/writeAuth'
+import { buildTrustedProxies } from '#config/trustedProxies'
 import { chaptersConfigured } from '#helpers/books/audible/ChapterHelper'
 import { goodreadsTuningSummary } from '#helpers/providers/goodreadsSeries'
-import { getAllIps as getCloudflareIps } from '#helpers/utils/cloudflareIps'
 import UpdateScheduler from '#helpers/utils/UpdateScheduler'
 
 // Heroku or local port
 const host = process.env.HOST || '0.0.0.0'
 const port = Number(process.env.PORT) || 3000
 const logLevel = (process.env.LOG_LEVEL as FastifyBaseLogger['level']) || 'info'
-
-// Parse TRUSTED_PROXIES env var for containerized environments (e.g., Traefik)
-// Supports comma-separated list of IPs and CIDR ranges, defaults to '127.0.0.1' for backward compatibility
-const userTrustedProxies = process.env.TRUSTED_PROXIES
-	? process.env.TRUSTED_PROXIES.split(',').map((s) => s.trim())
-	: ['127.0.0.1']
-
-/**
- * Build the trusted proxies list by merging user-configured IPs with Cloudflare IPs
- * Removes duplicates and returns a deduplicated array
- */
-async function buildTrustedProxies(): Promise<string[]> {
-	try {
-		const cloudflareIps = await getCloudflareIps()
-		// Merge user IPs with Cloudflare IPs, removing duplicates
-		return [...new Set([...userTrustedProxies, ...cloudflareIps])]
-	} catch (error) {
-		// If Cloudflare IP fetch fails, fall back to user-configured IPs only
-		console.warn('Failed to fetch Cloudflare IPs', error)
-		return userTrustedProxies
-	}
-}
 
 let trustedProxies: string[] = []
 let server: ReturnType<typeof fastify>

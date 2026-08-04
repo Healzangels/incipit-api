@@ -73,17 +73,19 @@ export function metricsAuthConfigured(): boolean {
  * Supports single IPs and CIDR ranges (e.g., "192.168.1.0/24")
  */
 export function isIpAllowed(request: FastifyRequest, allowedIps: string[]): boolean {
-	// Extract first IP from x-forwarded-for header (handles string or array)
-	const forwardedFor = request.headers['x-forwarded-for']
-	let firstForwardedIp: string | undefined
-
-	if (Array.isArray(forwardedFor)) {
-		firstForwardedIp = forwardedFor[0]
-	} else if (typeof forwardedFor === 'string') {
-		firstForwardedIp = forwardedFor.split(',')[0]
-	}
-
-	const clientIp = request.ip ?? firstForwardedIp?.trim() ?? 'unknown'
+	// `request.ip` ONLY. It is the value fastify resolved under the configured
+	// `trustProxy`, i.e. the one hop chain we have decided to believe.
+	//
+	// This used to fall back to the raw leftmost X-Forwarded-For when request.ip
+	// was nullish. That header is set by the caller and is not filtered by
+	// trustProxy at all, so the fallback was an unconditional bypass of every
+	// allowlist this function guards -- /metrics, the rate-limit exemption, and
+	// DELETE (writeAuth.ts grants on an IP match alone). It was unreachable in
+	// production because fastify always defines request.ip; only the unit tests,
+	// which construct a mock with `ip: undefined`, ever exercised it. A guard
+	// that exists solely to be exercised by tests asserting the unsafe answer is
+	// worse than no guard.
+	const clientIp = request.ip || 'unknown'
 
 	// Handle 'unknown' IP specially (not a valid IP for ip-range-check)
 	if (clientIp === 'unknown') {

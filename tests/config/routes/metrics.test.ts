@@ -355,93 +355,61 @@ describe('isIpAllowed', () => {
 		return mockReq
 	}
 
-	describe('x-forwarded-for as array', () => {
-		it('returns true when first IP in array is in allowed list', () => {
+	/**
+	 * X-FORWARDED-FOR IS NOT A CREDENTIAL.
+	 *
+	 * These cases used to assert the opposite: with `request.ip` undefined,
+	 * isIpAllowed read the raw leftmost x-forwarded-for and authorised on it.
+	 * That header is set by the caller and is not filtered by `trustProxy`, so
+	 * every allowlist this function guards -- /metrics, the rate-limit exemption,
+	 * and DELETE, which writeAuth.ts grants on an IP match with NO token -- could
+	 * be satisfied by one request header.
+	 *
+	 * Only `request.ip` is consulted now: the value fastify already resolved under
+	 * the trustProxy chain we chose to believe.
+	 */
+	describe('a raw x-forwarded-for never authorises', () => {
+		it('refuses an allowlisted IP supplied only via the XFF array', () => {
 			const mockRequest = createMockRequest(undefined, ['10.0.0.1', '192.168.1.1'])
-
-			const result = isIpAllowed(mockRequest, ['10.0.0.1', '192.168.1.1'])
-			expect(result).toBe(true)
+			expect(isIpAllowed(mockRequest, ['10.0.0.1', '192.168.1.1'])).toBe(false)
 		})
 
-		it('returns false when first IP in array is not in allowed list', () => {
-			const mockRequest = createMockRequest(undefined, ['172.16.0.1', '192.168.1.1'])
-
-			const result = isIpAllowed(mockRequest, ['10.0.0.1', '192.168.1.1'])
-			expect(result).toBe(false)
-		})
-
-		it('uses request.ip when defined, ignoring x-forwarded-for array', () => {
-			const mockRequest = createMockRequest('10.0.0.1', ['172.16.0.1', '192.168.1.1'])
-
-			const result = isIpAllowed(mockRequest, ['10.0.0.1', '192.168.1.1'])
-			expect(result).toBe(true)
-		})
-	})
-
-	describe('x-forwarded-for as comma-separated string', () => {
-		it('returns true when first IP in string is in allowed list', () => {
+		it('refuses an allowlisted IP supplied only via the XFF string', () => {
 			const mockRequest = createMockRequest(undefined, '10.0.0.1, 192.168.1.1')
-
-			const result = isIpAllowed(mockRequest, ['10.0.0.1', '192.168.1.1'])
-			expect(result).toBe(true)
+			expect(isIpAllowed(mockRequest, ['10.0.0.1', '192.168.1.1'])).toBe(false)
 		})
 
-		it('returns false when first IP in string is not in allowed list', () => {
-			const mockRequest = createMockRequest(undefined, '172.16.0.1, 192.168.1.1')
-
-			const result = isIpAllowed(mockRequest, ['10.0.0.1', '192.168.1.1'])
-			expect(result).toBe(false)
-		})
-
-		it('trims whitespace from comma-separated string', () => {
+		it('refuses it however the header is whitespaced', () => {
 			const mockRequest = createMockRequest(undefined, ' 10.0.0.1 , 192.168.1.1 ')
-
-			const result = isIpAllowed(mockRequest, ['10.0.0.1', '192.168.1.1'])
-			expect(result).toBe(true)
+			expect(isIpAllowed(mockRequest, ['10.0.0.1', '192.168.1.1'])).toBe(false)
 		})
 
-		it('uses request.ip when defined, ignoring x-forwarded-for string', () => {
-			const mockRequest = createMockRequest('10.0.0.1', '172.16.0.1, 192.168.1.1')
-
-			const result = isIpAllowed(mockRequest, ['10.0.0.1', '192.168.1.1'])
-			expect(result).toBe(true)
+		it('a spoofed XFF cannot override a real, non-allowlisted request.ip', () => {
+			// The live shape: attacker reaches the port and claims to be localhost.
+			const mockRequest = createMockRequest('203.0.113.9', '127.0.0.1')
+			expect(isIpAllowed(mockRequest, ['127.0.0.1'])).toBe(false)
 		})
 	})
 
-	describe('request.ip is undefined/null', () => {
-		it('falls back to firstForwardedIp from array when request.ip is undefined', () => {
-			const mockRequest = createMockRequest(undefined, ['10.0.0.1', '192.168.1.1'])
-
-			const result = isIpAllowed(mockRequest, ['10.0.0.1'])
-			expect(result).toBe(true)
+	describe('request.ip is what decides', () => {
+		it('allows when request.ip is allowlisted, ignoring a contrary XFF array', () => {
+			const mockRequest = createMockRequest('10.0.0.1', ['172.16.0.1', '192.168.1.1'])
+			expect(isIpAllowed(mockRequest, ['10.0.0.1', '192.168.1.1'])).toBe(true)
 		})
 
-		it('falls back to firstForwardedIp from string when request.ip is undefined', () => {
-			const mockRequest = createMockRequest(undefined, '10.0.0.1, 192.168.1.1')
-
-			const result = isIpAllowed(mockRequest, ['10.0.0.1'])
-			expect(result).toBe(true)
+		it('allows when request.ip is allowlisted, ignoring a contrary XFF string', () => {
+			const mockRequest = createMockRequest('10.0.0.1', '172.16.0.1, 192.168.1.1')
+			expect(isIpAllowed(mockRequest, ['10.0.0.1', '192.168.1.1'])).toBe(true)
 		})
 
-		it('returns false when both request.ip and x-forwarded-for are undefined', () => {
-			const mockRequest = createMockRequest(undefined, undefined)
-
-			const result = isIpAllowed(mockRequest, ['10.0.0.1'])
-			expect(result).toBe(false)
-		})
-
-		it('returns false when x-forwarded-for is empty array', () => {
-			const mockRequest = createMockRequest(undefined, [])
-
-			const result = isIpAllowed(mockRequest, ['10.0.0.1'])
-			expect(result).toBe(false)
-		})
-
-		it('returns false when x-forwarded-for is empty string', () => {
-			const mockRequest = createMockRequest(undefined, '')
-
-			const result = isIpAllowed(mockRequest, ['10.0.0.1'])
-			expect(result).toBe(false)
+		it('refuses when request.ip is absent, whatever the headers say', () => {
+			for (const xff of [undefined, [], '', ['10.0.0.1'], '10.0.0.1'] as (
+				| string
+				| string[]
+				| undefined
+			)[]) {
+				expect(isIpAllowed(createMockRequest(undefined, xff), ['10.0.0.1'])).toBe(false)
+			}
 		})
 	})
 
@@ -476,11 +444,12 @@ describe('isIpAllowed', () => {
 			expect(result).toBe(true)
 		})
 
-		it('uses firstForwardedIp when request.ip is undefined', () => {
+		it('does NOT use firstForwardedIp when request.ip is undefined', () => {
+			// Inverted deliberately. The old assertion pinned the bypass.
 			const mockRequest = createMockRequest(undefined, '10.0.0.1')
 
 			const result = isIpAllowed(mockRequest, ['10.0.0.1'])
-			expect(result).toBe(true)
+			expect(result).toBe(false)
 		})
 
 		it('defaults to unknown when both request.ip and x-forwarded-for are undefined', () => {
