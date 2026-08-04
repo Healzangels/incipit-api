@@ -296,8 +296,18 @@ export default class AppleBooksProvider implements BookProvider {
 		try {
 			base = await this.lookupFetch(nativeId, country)
 		} catch (err) {
+			// RETHROW, for the same reason the search path above does. A caught
+			// transport failure returned null, and books/show.ts turns null into
+			// NotFoundError -> HTTP 404: the API telling Plex the book DOES NOT
+			// EXIST because a provider rate-limited us for a moment. The ASIN
+			// branch already treats "unavailable" as distinct from "absent" and
+			// serves the stored record; the provider-id branch had no such
+			// distinction to make, because the distinction was destroyed here.
+			//
+			// A genuinely absent book still returns null below -- only a
+			// transport failure propagates.
 			opts.logger?.error({ err }, 'apple: lookup failed')
-			return null
+			throw err
 		}
 		if (!base || !base.collectionName) return null
 

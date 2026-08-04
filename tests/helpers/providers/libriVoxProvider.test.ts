@@ -191,13 +191,22 @@ describe('LibriVoxProvider fetchBook', () => {
 		expect(b?.narrators).toEqual([])
 	})
 
-	test('returns null on a transport failure or an unknown id', async () => {
+	/**
+	 * The old test conflated the two, which is exactly the bug: a transport
+	 * failure and an unknown id both returned null, and books/show.ts turns null
+	 * into NotFoundError -> HTTP 404. So a momentary outage made the API report
+	 * that the book does not exist. They must answer differently.
+	 */
+	test('PROPAGATES a transport failure instead of reporting the book absent', async () => {
 		const dead = new LibriVoxProvider({
 			fetchLibriVox: async () => {
 				throw new Error('down')
 			}
 		})
-		expect(await dead.fetchBook('253', 'book', { region: 'us' })).toBeNull()
+		expect(dead.fetchBook('253', 'book', { region: 'us' })).rejects.toThrow('down')
+	})
+
+	test('still returns null for an id the provider ANSWERS about with nothing', async () => {
 		const empty = new LibriVoxProvider({ fetchLibriVox: search([]) })
 		expect(await empty.fetchBook('999999', 'book', { region: 'us' })).toBeNull()
 	})

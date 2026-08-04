@@ -148,12 +148,27 @@ describe('OverDriveProvider fetchBook', () => {
 		expect(b?.seriesPrimary).toEqual({ name: 'Some Series' })
 	})
 
-	test('returns null on a transport failure', async () => {
+	/**
+	 * A TRANSPORT FAILURE IS NOT AN ABSENT BOOK.
+	 *
+	 * fetchBook used to swallow both into null, and books/show.ts turns null into
+	 * NotFoundError -> HTTP 404. So a provider rate-limiting us for a moment made
+	 * the API tell Plex the book does not exist. The search path on this same
+	 * provider already rethrows for the same reason; fetchBook did not.
+	 */
+	test('PROPAGATES a transport failure instead of reporting the book absent', async () => {
 		const p = new OverDriveProvider({
 			fetchThunder: async () => {
 				throw new Error('down')
 			}
 		})
+		expect(p.fetchBook('265555', 'media', { region: 'us' })).rejects.toThrow('down')
+	})
+
+	test('still returns null when the provider ANSWERS with no such book', async () => {
+		// The other direction: absence must stay absence, or a genuinely missing
+		// id would start surfacing as a server error.
+		const p = new OverDriveProvider({ fetchThunder: async () => ({}) })
 		expect(await p.fetchBook('265555', 'media', { region: 'us' })).toBeNull()
 	})
 })

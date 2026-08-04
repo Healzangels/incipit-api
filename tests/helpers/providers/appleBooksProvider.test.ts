@@ -164,6 +164,20 @@ describe('AppleBooksProvider.search', () => {
 })
 
 describe('AppleBooksProvider.fetchBook', () => {
+	/**
+	 * The SEARCH path above has rethrown since the 942-consecutive-refusal
+	 * incident. fetchBook kept swallowing into null, and books/show.ts turns null
+	 * into NotFoundError -> HTTP 404 -- so a rate-limited moment told Plex the
+	 * book does not exist, on the branch ~90 albums reach Plex through.
+	 */
+	test('PROPAGATES a transport failure rather than reporting the book absent', async () => {
+		const lookupFetch = async () => {
+			throw new Error('429 Too Many Requests')
+		}
+		const p = new AppleBooksProvider({ lookupFetch } as never)
+		await expect(p.fetchBook('1479414483', 'audiobook', { region: 'us' })).rejects.toThrow('429')
+	})
+
 	test('enriches with the narrator from the page JSON-LD and strips HTML/copyright', async () => {
 		const lookupFetch: AppleLookupFetch = async () => phm
 		const pageFetch: ApplePageFetch = async () => pageHtml
