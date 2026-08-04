@@ -1249,12 +1249,22 @@ async function getJson<T>(
 			// operator would want to see without raising the log level.
 			logger?.warn({ path, status, backoffMs: ms }, 'goodreads: rate-limited, standing down')
 		}
-		// A 4xx OTHER than 429 is the mirror ANSWERING: 404 means no such work or
-		// author, which is a real miss worth caching. Only transport failures
-		// (429/503, timeouts, refusals -- no status at all) are degradation, or a
-		// missing record would never be cacheable and would be re-queried forever
-		// against the very mirror the pacing protects.
-		const answered = status != null && status >= 400 && status < 500 && status !== 429
+		// Which statuses are the mirror ANSWERING "no such record"?
+		//
+		// Only 404 and 410. Those say the work or author does not exist, which is
+		// a real miss worth caching -- otherwise a missing record is re-queried
+		// forever against the very mirror the pacing protects.
+		//
+		// Every other 4xx was previously counted as an answer too, and that is a
+		// cache-poisoning bug: 401/403/451 are ACCESS DENIAL and 400/422 mean our
+		// own request was malformed. None is evidence the record is absent. A
+		// mirror that starts refusing with 403 would leave `degraded` false, so
+		// the null would be written as a genuine miss (the write is gated on
+		// !degraded) and served for missTtlSeconds -- up to a day -- while no
+		// backoff armed, because only 429/503 arm one. A brief bot-block during a
+		// library refresh would therefore blank series enrichment for the whole
+		// library long after the block lifted.
+		const answered = status === 404 || status === 410
 		if (!answered && state) state.degraded = true
 		// Distinguish the three outcomes that all return null: the mirror answered
 		// "no such record" (cacheable), or the call failed for transport reasons

@@ -131,4 +131,49 @@ describe('bookinfo.pro rate-limit backoff', () => {
 		expect(fetchMock.mock.calls.length).toBeGreaterThan(0)
 		expect(redis.store.size).toBe(0) // nothing written -> it will retry later
 	})
+
+	/**
+	 * WHICH 4xx MEANS "no such record"?
+	 *
+	 * Only 404 and 410. Everything else in that range is either access denial
+	 * (401/403/451) or our own malformed request (400/422) — none of which is
+	 * evidence the record is absent.
+	 *
+	 * The bug this pins: every non-429 4xx counted as "the mirror answered", so a
+	 * 403 left `degraded` false, the null was written as a genuine miss (the write
+	 * is gated on !degraded), and it served for missTtlSeconds — up to a day —
+	 * while no backoff armed, because only 429/503 arm one. A brief bot-block
+	 * during a library refresh would blank series enrichment library-wide long
+	 * after the block lifted.
+	 */
+	describe('4xx classification', () => {
+		for (const status of [401, 403, 451, 400]) {
+			test(`a ${status} is DENIAL, not a miss: nothing is cached`, async () => {
+				rejectWithStatus(status)
+				const redis = fakeRedis()
+				expect(await withGoodreadsAuthorInfo('Jessica Townsend', redis)).toEqual({
+					image: null,
+					bio: null
+				})
+				expect(fetchMock.mock.calls.length).toBeGreaterThan(0)
+				expect(redis.store.size).toBe(0)
+			})
+		}
+
+		for (const status of [404, 410]) {
+			test(`a ${status} IS a real miss and stays cacheable`, async () => {
+				// The other direction: narrowing must not stop a genuine absence
+				// being remembered, or every missing author is re-queried forever
+				// against the mirror the pacing exists to protect.
+				rejectWithStatus(status)
+				const redis = fakeRedis()
+				expect(await withGoodreadsAuthorInfo('Nobody At All', redis)).toEqual({
+					image: null,
+					bio: null
+				})
+				expect(fetchMock.mock.calls.length).toBeGreaterThan(0)
+				expect(redis.store.size).toBeGreaterThan(0)
+			})
+		}
+	})
 })
