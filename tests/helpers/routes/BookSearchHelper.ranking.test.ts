@@ -490,3 +490,66 @@ describe('near-tie candidates lend each other cover art', () => {
 		expect(out.flatMap((c) => c.coverAlternates ?? [])).toEqual([])
 	})
 })
+
+/**
+ * THE RANKING MUST NOT DEPEND ON THE ORDER PROVIDERS HAPPENED TO ANSWER IN.
+ *
+ * The confidence band used to be a PAIRWISE test -- `|a.conf - b.conf| >
+ * TOLERANCE` -- so whether confidence decided depended on which two rows the
+ * sort was handed. Every other arm is per-candidate precisely to avoid that;
+ * this one was the exception, and it made the comparator non-transitive.
+ *
+ * Demonstrated standalone before the fix, with rows at 0.70 / 0.78 / 0.85 whose
+ * identity arms prefer the lower-scored ones: 0.70>0.78 and 0.78>0.85 are both
+ * in band, 0.70 vs 0.85 is not, so 0.85>0.70 -- a cycle. ZERO of the six
+ * orderings satisfied all three pairwise decisions, and Array.sort returned
+ * THREE DIFFERENT winners depending only on input order.
+ *
+ * Asserting the PROPERTY (same winner from every permutation) rather than one
+ * fixed order: the specific order is an implementation detail, the independence
+ * from arrival order is the contract.
+ */
+describe('ranking is independent of provider arrival order', () => {
+	function permutations<T>(xs: T[]): T[][] {
+		if (xs.length <= 1) return [xs]
+		return xs.flatMap((x, i) =>
+			permutations([...xs.slice(0, i), ...xs.slice(i + 1)]).map((rest) => [x, ...rest])
+		)
+	}
+
+	test('every permutation of the same candidates yields the same winner', async () => {
+		// Rows spanning the tolerance so at least one pair sits outside it -- the
+		// exact shape that produced the cycle. Distinct languages and formats give
+		// the identity arms something to disagree with confidence about.
+		const rows = [
+			candidate({ id: 'a', title: 'Dune', audioSeconds: 1000, language: 'english' }),
+			candidate({ id: 'b', title: 'Dune: A Novel', language: 'english' }),
+			candidate({ id: 'c', title: 'Dune (Spanish Edition)', audioSeconds: 1000, language: 'spanish' })
+		]
+		const winners = new Set<string>()
+		const orders = new Set<string>()
+		for (const perm of permutations(rows)) {
+			const out = await helperFor(perm).search()
+			if (out.length) {
+				winners.add(out[0].id)
+				orders.add(out.map((r) => r.id).join(','))
+			}
+		}
+		expect(winners.size).toBe(1)
+		// Stronger: the WHOLE ranking is stable, not just its head.
+		expect(orders.size).toBe(1)
+	})
+
+	test('a clear confidence win still decides, from any arrival order', async () => {
+		// The band must not have swallowed real separation: a row far below the
+		// best cannot win however the providers ordered them.
+		const rows = [
+			candidate({ id: 'strong', title: 'Dune', authors: ['Frank Herbert'], audioSeconds: 1000 }),
+			candidate({ id: 'weak', title: 'Something Else Entirely', authors: ['Other Person'] })
+		]
+		for (const perm of permutations(rows)) {
+			const out = await helperFor(perm).search()
+			if (out.length) expect(out[0].id).toBe('strong')
+		}
+	})
+})
