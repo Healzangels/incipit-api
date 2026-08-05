@@ -13,8 +13,12 @@ import { isIpAllowed, parseEnvArray } from '#config/routes/metrics'
  * results are already Redis-cached, so the limiter is guarding nothing here.
  * Listing that IP (or CIDR) in RATE_LIMIT_ALLOWLIST exempts it.
  *
- * Unconfigured (the default) → returns false → every client is rate-limited,
- * exactly as before. CIDR-aware and matches the DELETE_ALLOWED_IPS convention.
+ * Two ways to be exempt: listed in RATE_LIMIT_ALLOWLIST, or reaching us
+ * DIRECTLY (no x-forwarded-for) from loopback/private space — see
+ * isDirectLocalInfra, which is what makes the container-to-host hop work
+ * without the operator having to know their docker subnet. A remote client
+ * behind a proxy is still judged on the configured list alone.
+ * CIDR-aware and matches the DELETE_ALLOWED_IPS convention.
  * @param {FastifyRequest} request the incoming request
  * @returns {boolean} true if this request should bypass the rate limit
  */
@@ -24,11 +28,53 @@ import { isIpAllowed, parseEnvArray } from '#config/routes/metrics'
 // that set the env per-case working.
 let memoRaw: string | undefined
 let memoList: string[] | undefined
+
+/**
+ * Loopback and the private ranges. A container talking to its host, or a host
+ * talking to itself, can only appear as one of these.
+ */
+const LOCAL_INFRA = [
+	'127.0.0.0/8',
+	'::1/128',
+	'10.0.0.0/8',
+	'172.16.0.0/12',
+	'192.168.0.0/16',
+	'169.254.0.0/16',
+	'fc00::/7'
+]
+
+/**
+ * True when the request reached us DIRECTLY from local infrastructure.
+ *
+ * Measured 2026-08-05, on a from-scratch rebuild of 1,591 albums. The operator
+ * had RATE_LIMIT_ALLOWLIST set to their LAN, and a LAN client was correctly
+ * exempt (no x-ratelimit headers at all). The Plex agent still got 429s --
+ * because the bundle calls the API at the HOST address from INSIDE the Plex
+ * container, so what arrives here is the container's docker-bridge address
+ * (172.x), which the operator's LAN CIDR does not cover. Nothing in the 429
+ * says "your allowlist is missing the docker range", so the failure is
+ * invisible: 34 albums silently kept their raw file-tag titles because
+ * update() could not fetch, and three more went unmatched.
+ *
+ * The `x-forwarded-for` test is what keeps this narrow. A proxied request
+ * carries that header, so it is judged on the configured allowlist against the
+ * real client. Only an UNPROXIED request from a private/loopback source is
+ * treated as our own infrastructure -- which is exactly the container-to-host
+ * hop, and is not something an external client can produce.
+ * @param {FastifyRequest} request the incoming request
+ * @returns {boolean} true when this is a direct call from local infrastructure
+ */
+function isDirectLocalInfra(request: FastifyRequest): boolean {
+	if (request.headers['x-forwarded-for']) return false
+	return isIpAllowed(request, LOCAL_INFRA)
+}
+
 export function rateLimitAllowList(request: FastifyRequest): boolean {
 	const raw = process.env.RATE_LIMIT_ALLOWLIST
 	if (raw !== memoRaw) {
 		memoRaw = raw
 		memoList = parseEnvArray(raw)
 	}
-	return memoList ? isIpAllowed(request, memoList) : false
+	if (memoList && isIpAllowed(request, memoList)) return true
+	return isDirectLocalInfra(request)
 }
