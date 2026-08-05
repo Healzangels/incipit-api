@@ -42,6 +42,17 @@ jobs:
   #
   # Live integration tests are NOT part of this gate on purpose -- they hit real
   # providers and fail for reasons outside the commit.
+  #
+  # Neither is `tests/audible`, which is why this runs `test:gate` and not `test`.
+  # That suite LOOKS like a unit suite but constructs the real helpers against the
+  # live Audible API (e.g. stitch.test.ts drives `new StitchHelper(asin).process()`
+  # with no HTTP mock; every other live-helper test in tests/helpers is mocked).
+  # Measured 2026-08-05 on 9feeb0e: this workflow and Bun CI both started at
+  # 14:53:00 and both called Audible, one got three 500s, and the image was
+  # blocked by Audible's uptime rather than by anything in the commit. A publish
+  # gate that fails for reasons outside the commit teaches people to bypass it.
+  # Bun CI still runs the full `test`, so drift in the Audible contract is still
+  # caught on every push -- it just no longer decides whether an image ships.
   test:
     name: Test before publishing
     runs-on: ubuntu-latest
@@ -59,7 +70,7 @@ jobs:
       - name: Run linter
         run: bun lint
       - name: Run tests
-        run: bun run test
+        run: bun run test:gate
 
   build:
     needs: test
