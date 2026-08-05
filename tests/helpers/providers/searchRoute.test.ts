@@ -152,5 +152,47 @@ describe('GET /books records alternate covers', () => {
 			await app.close()
 		}
 	})
+
+	/**
+	 * "This book has no alternates" must be RECORDED, not left blank.
+	 *
+	 * `recallAlternates` deliberately separates [] ("asked, found none") from
+	 * null ("nobody has looked"), and its caller computes on null. dedupe only
+	 * spreads the key in when the list is non-empty
+	 * (`...(alternates.length ? { coverAlternates: alternates } : {})`), so a
+	 * book with no alternates reaches this route with the field UNDEFINED --
+	 * and `rememberAlternates` early-returns on undefined (`if (!redis || !id
+	 * || !urls) return`). Nothing is written, recall answers null forever, and
+	 * the item route re-computes alternates over the network on EVERY refresh
+	 * of every alternate-less book. The item route already passes `?? []`; this
+	 * route did not, and the two must agree.
+	 */
+	test('records an empty list when a result has no alternates, so recall says "asked" not "unknown"', async () => {
+		const writes: Record<string, string> = {}
+		const app = Fastify()
+		app.decorate('redis', {
+			async set(k: string, v: string) {
+				writes[k] = v
+				return 'OK'
+			},
+			async get() {
+				return null
+			}
+		} as never)
+		// A single candidate -- nothing to merge, so dedupe omits coverAlternates.
+		await app.register(makeSearchBookRoute(new ProviderRegistry([spellProvider])) as never)
+		try {
+			const res = await app.inject({
+				method: 'GET',
+				url: '/books?title=A%20Spell%20for%20Chameleon&author=Piers%20Anthony'
+			})
+			expect(res.statusCode).toBe(200)
+			const keys = Object.keys(writes).filter((k) => k.startsWith('incipit:altcover:'))
+			expect(keys).toHaveLength(1)
+			expect(JSON.parse(writes[keys[0] as string] as string)).toEqual([])
+		} finally {
+			await app.close()
+		}
+	})
 })
 

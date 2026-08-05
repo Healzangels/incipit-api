@@ -64,7 +64,13 @@ export function makeSearchBookRoute(registry: ProviderRegistry = defaultRegistry
 			// plain refresh, which is the path Plex uses most and the one the
 			// plugin-side memo could not reach. Best-effort by construction.
 			await Promise.all(
-				results.map((r) => rememberAlternates(redis ?? null, r.id, r.coverAlternates))
+				// `?? []` is load-bearing, and matches the item route. dedupe omits
+				// coverAlternates entirely when a book has none, and
+				// rememberAlternates early-returns on undefined -- so without this
+				// the "no alternates" answer is never recorded, recall reports
+				// "nobody looked", and the item route recomputes over the network
+				// on every single refresh of every alternate-less book.
+				results.map((r) => rememberAlternates(redis ?? null, r.id, r.coverAlternates ?? []))
 			)
 			return results
 		})
