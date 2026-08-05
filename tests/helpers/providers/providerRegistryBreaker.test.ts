@@ -231,3 +231,56 @@ describe('ProviderRegistry.fetchOne rations upstream calls too', () => {
 		expect(await registry.fetchOne('nosuch', 'x', 'audiobook', OPTS)).toBeNull()
 	})
 })
+
+/**
+ * ...and the two ASIN rescue paths, which were left behind twice.
+ *
+ * `fetchOne` was given a breaker; `fetchBookByAsin` and `fetchCandidateByAsin`
+ * kept only `withTimeout`. They are the delisted-ASIN rescue, so they run at
+ * volume during exactly one event — a from-scratch library scan — which is the
+ * worst possible time for a refusing provider to be asked once per book with no
+ * circuit to stop it.
+ */
+describe('the ASIN rescue paths ration upstream calls', () => {
+	const OPTS = { region: 'us' } as never
+
+	function refusing(name = 'apple') {
+		const state = { book: 0, cand: 0 }
+		const provider = {
+			name,
+			search: async () => [],
+			fetchBookByAsin: async () => {
+				state.book += 1
+				throw new Error('429 Too Many Requests')
+			},
+			fetchCandidateByAsin: async () => {
+				state.cand += 1
+				throw new Error('429 Too Many Requests')
+			}
+		} as unknown as BookProvider
+		return { provider, state }
+	}
+
+	test('fetchBookByAsin stops asking once the circuit opens', async () => {
+		const { provider, state } = refusing()
+		const registry = new ProviderRegistry([provider])
+		for (let i = 0; i < 12; i++) await registry.fetchBookByAsin('B0X', OPTS)
+		expect(state.book).toBeGreaterThan(0)
+		expect(state.book).toBeLessThanOrEqual(5) // failureThreshold; unguarded = 12
+	})
+
+	test('fetchCandidateByAsin stops asking once the circuit opens', async () => {
+		const { provider, state } = refusing()
+		const registry = new ProviderRegistry([provider])
+		for (let i = 0; i < 12; i++) await registry.fetchCandidateByAsin('B0X', OPTS)
+		expect(state.cand).toBeGreaterThan(0)
+		expect(state.cand).toBeLessThanOrEqual(5)
+	})
+
+	test('both still answer null rather than throwing — they are a rescue, not the path', async () => {
+		const { provider } = refusing()
+		const registry = new ProviderRegistry([provider])
+		expect(await registry.fetchBookByAsin('B0X', OPTS)).toBeNull()
+		expect(await registry.fetchCandidateByAsin('B0X', OPTS)).toBeNull()
+	})
+})

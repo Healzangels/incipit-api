@@ -98,10 +98,13 @@ export default class ProviderRegistry {
 		for (const provider of this.providers) {
 			if (!provider.fetchBookByAsin) continue
 			try {
-				const book = await withTimeout(
-					provider.fetchBookByAsin(asin, opts),
-					PROVIDER_TIMEOUT_MS,
-					provider.name
+				// Through the breaker, like every other upstream call. These two
+				// ASIN paths were left on withTimeout alone when fetchOne was
+				// given a breaker, so a provider that is refusing kept getting
+				// asked once per book -- worst during a from-scratch scan, which
+				// is the only time this rescue path runs at volume.
+				const book = await this.breakerFor(provider.name).execute(() =>
+					withTimeout(provider.fetchBookByAsin!(asin, opts), PROVIDER_TIMEOUT_MS, provider.name)
 				)
 				if (book) return book
 			} catch (err) {
@@ -131,10 +134,12 @@ export default class ProviderRegistry {
 		for (const provider of this.providers) {
 			if (!provider.fetchCandidateByAsin) continue
 			try {
-				const candidate = await withTimeout(
-					provider.fetchCandidateByAsin(asin, opts),
-					PROVIDER_TIMEOUT_MS,
-					provider.name
+				const candidate = await this.breakerFor(provider.name).execute(() =>
+					withTimeout(
+						provider.fetchCandidateByAsin!(asin, opts),
+						PROVIDER_TIMEOUT_MS,
+						provider.name
+					)
 				)
 				if (candidate) return candidate
 			} catch (err) {

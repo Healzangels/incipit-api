@@ -40,6 +40,57 @@ describe('fetchPlus should', () => {
 		expect(response).toEqual(mockResponse)
 	})
 
+	/**
+	 * A PERMANENT ANSWER IS NOT WORTH REPEATING.
+	 *
+	 * The retry arm caught every rejection, so a 404 was re-requested three more
+	 * times with no delay whatsoever -- four round-trips for a URL that will
+	 * never exist. On a from-scratch scan of ~1,600 books that multiplies across
+	 * every rotted image and every delisted ASIN, and it feeds the circuit
+	 * breaker three phantom failures per dead URL on top.
+	 *
+	 * 403 deliberately STAYS on the ladder: Audible's edge serves one-off
+	 * bot-check 403s, which is the transient the retries exist for. Same rule the
+	 * bundle's make_request ladder settled on, for the same reason.
+	 */
+	const rejectWith = (status: number) => {
+		mockGet.mockImplementation(() => {
+			const error: Error & { response: { status: number } } = Object.assign(
+				new Error('Request failed'),
+				{ response: { status } }
+			)
+			return Promise.reject(error)
+		})
+	}
+
+	for (const status of [404, 410, 400, 401]) {
+		test(`a ${status} is asked ONCE -- repeating it changes nothing`, async () => {
+			rejectWith(status)
+			await expect(fetchPlus('test.com')).rejects.toMatchObject({ status })
+			expect(pooledAxios.get).toHaveBeenCalledTimes(1)
+		})
+	}
+
+	test('a 403 KEEPS the full ladder (Audible bot-check is transient)', async () => {
+		rejectWith(403)
+		await expect(fetchPlus('test.com')).rejects.toMatchObject({ status: 403 })
+		expect(pooledAxios.get).toHaveBeenCalledTimes(4)
+	})
+
+	test('a 5xx keeps the full ladder', async () => {
+		rejectWith(503)
+		await expect(fetchPlus('test.com')).rejects.toMatchObject({ status: 503 })
+		expect(pooledAxios.get).toHaveBeenCalledTimes(4)
+	})
+
+	test('a transport failure with no response keeps the ladder', async () => {
+		// No `response` at all -- a timeout or DNS failure. It carries no status,
+		// so the permanent check must not accidentally swallow it.
+		mockGet.mockImplementation(() => Promise.reject(new Error('socket hang up')))
+		await expect(fetchPlus('test.com')).rejects.toThrow()
+		expect(pooledAxios.get).toHaveBeenCalledTimes(4)
+	})
+
 	test('return error with default retries', async () => {
 		mockStatus = { status: 500 }
 		mockGet.mockImplementation(() => {

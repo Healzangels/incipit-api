@@ -124,9 +124,22 @@ function fetchPlus(
 				}
 			})
 			.catch(async (reason: AxiosError) => {
-				if (retries < 3) {
+				const status = reason.response?.status
+				// A PERMANENT answer is not worth repeating. The retry arm caught
+				// every rejection, so a 404 was re-requested three more times with
+				// no delay at all -- four round-trips for a URL that will never
+				// exist. On a from-scratch scan of ~1,600 books that multiplies
+				// across every rotted image and every delisted ASIN, and it also
+				// feeds the circuit breaker three phantom failures per dead URL.
+				//
+				// 404/410 mean gone; 400/401 mean the request or the credential is
+				// wrong and repeating it changes neither. 403 deliberately STAYS on
+				// the ladder -- Audible's edge serves one-off bot-check 403s, which
+				// is the transient the retries exist for (the same rule the bundle's
+				// make_request ladder settled on).
+				const permanent = status === 404 || status === 410 || status === 400 || status === 401
+				if (retries < 3 && !permanent) {
 					// Check if this is a 429 (Too Many Requests) response
-					const status = reason.response?.status
 					if (status === 429) {
 						const delay = calculateRetryDelay(retries, reason)
 						if (delay === null) {
