@@ -7,6 +7,7 @@ import {
 } from '#config/performance'
 import {
 	CircuitBreaker,
+	CircuitOpenError,
 	getAudibleCircuitBreaker,
 	resetAudibleCircuitBreaker
 } from '#helpers/utils/CircuitBreaker'
@@ -332,5 +333,46 @@ describe('CircuitBreaker', () => {
 			expect(stats.lastSuccessTime).toBeGreaterThanOrEqual(before)
 			expect(stats.lastSuccessTime).toBeLessThanOrEqual(Date.now())
 		})
+	})
+})
+
+/**
+ * An open circuit is "come back in N seconds", not "something broke".
+ *
+ * It used to throw a bare Error, which the API's error handler turned into a
+ * 500. Measured on the 2026-08-05 library rebuild: five Apple-backed books took
+ * 38 such responses across one scan and every one of them ended with no
+ * metadata at all. A 500 tells the Plex agent nothing about WHEN to come back,
+ * and its retry ladder (1/2/4s) cannot outlast a 60s breaker window by
+ * guessing. The agent honours Retry-After as of bundle v1.3.187, so stating the
+ * wait turns a dead end into a successful retry.
+ */
+describe('CircuitOpenError carries a 503 and a stated wait', () => {
+	it('is thrown when the circuit is open, with a positive retryAfter', async () => {
+		const breaker = new CircuitBreaker({ failureThreshold: 1, resetTimeoutMs: 30000 })
+		await breaker.execute(() => Promise.reject(new Error('boom'))).catch(() => {})
+		let caught: unknown
+		await breaker.execute(() => Promise.resolve('never')).catch((e) => {
+			caught = e
+		})
+		expect(caught).toBeInstanceOf(CircuitOpenError)
+		const err = caught as CircuitOpenError
+		expect(err.statusCode).toBe(503)
+		expect(err.retryAfter).toBeGreaterThan(0)
+		expect(err.retryAfter).toBeLessThanOrEqual(30)
+	})
+
+	it('KEEPS the "Circuit breaker is OPEN" message', () => {
+		// ProviderRegistry.isCircuitOpen classifies rejections by matching this
+		// exact substring, and that is what separates "the breaker declined" from
+		// "the provider failed" in the metrics. Changing the wording silently
+		// reclassifies every skip as a failure.
+		const err = new CircuitOpenError(31)
+		expect(err.message).toContain('Circuit breaker is OPEN')
+		expect(err.message).toContain('31')
+	})
+
+	it('is still an Error, so existing catch/rethrow paths are unaffected', () => {
+		expect(new CircuitOpenError(5)).toBeInstanceOf(Error)
 	})
 })

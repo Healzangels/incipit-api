@@ -14,6 +14,7 @@ import {
 	NotFoundError,
 	ValidationError
 } from '#helpers/errors/ApiErrors'
+import { CircuitOpenError } from '#helpers/utils/CircuitBreaker'
 
 // Extend FastifyInstance to include mongoClient for health check
 declare module 'fastify' {
@@ -137,6 +138,25 @@ async function registerPlugins() {
 			ValidationError: 'VALIDATION_ERROR',
 			NotFoundError: 'NOT_FOUND',
 			BadRequestError: 'BAD_REQUEST'
+		}
+
+		// An open circuit is "come back in N seconds", not "something broke".
+		// Served as a bare 500 it told the Plex agent nothing actionable, and its
+		// retry ladder cannot outlast a 60s breaker window by guessing -- five
+		// Apple-backed books lost their metadata that way on the 2026-08-05
+		// rebuild. 503 + Retry-After is the honest answer, and the agent obeys it
+		// as of bundle v1.3.187.
+		if (error instanceof CircuitOpenError) {
+			reply.header('Retry-After', String(error.retryAfter))
+			reply.status(503)
+			reply.send({
+				error: {
+					code: 'UPSTREAM_UNAVAILABLE',
+					message: error.message,
+					details: { retryAfter: error.retryAfter }
+				}
+			})
+			return
 		}
 
 		if (

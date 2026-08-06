@@ -2,6 +2,35 @@ import { getPerformanceConfig } from '#config/performance'
 
 export type CircuitState = 'CLOSED' | 'OPEN' | 'HALF_OPEN'
 
+/**
+ * Thrown when the breaker declines to call. Carries a 503 and the exact number
+ * of seconds until it will try again.
+ *
+ * It used to be a bare Error, which reached the client as a 500 — "something
+ * broke here", when the truth is "come back in 31 seconds". Measured on the
+ * 2026-08-05 rebuild: five Apple-backed books took 38 such responses across
+ * the scan and all five ended up with no metadata, because a 500 tells the
+ * Plex agent nothing about WHEN to retry and its ladder (1/2/4s) cannot
+ * outlast a 60s breaker window by guessing. The agent honours Retry-After as
+ * of bundle v1.3.187, so stating the wait is now actionable rather than
+ * decorative.
+ *
+ * The MESSAGE is load-bearing and must keep the "Circuit breaker is OPEN"
+ * prefix: ProviderRegistry.isCircuitOpen classifies rejections by matching it,
+ * and that is what separates "the breaker declined" from "the provider failed"
+ * in the metrics.
+ */
+export class CircuitOpenError extends Error {
+	readonly statusCode = 503
+	readonly retryAfter: number
+
+	constructor(retryAfter: number) {
+		super(`Circuit breaker is OPEN. Retry in ${retryAfter}s`)
+		this.name = 'CircuitOpenError'
+		this.retryAfter = retryAfter
+	}
+}
+
 export interface CircuitBreakerOptions {
 	failureThreshold?: number
 	resetTimeoutMs?: number
@@ -123,7 +152,7 @@ export class CircuitBreaker {
 
 		if (this.state === 'OPEN') {
 			const timeUntilRetry = Math.max(1, Math.ceil((this.nextAttempt - Date.now()) / 1000))
-			throw new Error(`Circuit breaker is OPEN. Retry in ${timeUntilRetry}s`)
+			throw new CircuitOpenError(timeUntilRetry)
 		}
 
 		const isHalfOpen = this.state === 'HALF_OPEN'
