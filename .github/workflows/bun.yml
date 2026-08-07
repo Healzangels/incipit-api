@@ -70,3 +70,13 @@ jobs:
         env:
           DB_BACKEND: sqlite
         run: bun run test:integration
+      # Phase 4's migration script, self-tested end to end against the same
+      # disposable mongo: seeds a known corpus (incl. a legacy region-less doc
+      # and dead author ObjectId fields), migrates, and requires the script's
+      # own count/floor/field-diff verification to pass. The script must be
+      # PROVEN here before it ever runs against production data.
+      - name: Migration script smoke (mongo -> sqlite)
+        env:
+          MONGODB_URI: mongodb://localhost:27017/?directConnection=true
+          SQLITE_PATH: /tmp/migrate-smoke.db
+        run: bun scripts/migrateToSqlite.ts --smoke
