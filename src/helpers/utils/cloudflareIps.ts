@@ -2,7 +2,7 @@ import { AxiosResponse } from 'axios'
 
 import fetchPlus from './fetchPlus'
 
-import { errorMessage } from '#helpers/utils/shared'
+import getErrorMessage from '#helpers/utils/getErrorMessage'
 
 const CLOUDFLARE_IPS_API = 'https://api.cloudflare.com/client/v4/ips'
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours in milliseconds
@@ -96,7 +96,7 @@ async function getIps(): Promise<CloudflareIpsResult> {
 			// silently keys on the CF edge IP (one shared bucket, spurious 429s).
 			console.warn(
 				'Failed to fetch Cloudflare IPs; trusted proxies fall back to TRUSTED_PROXIES only:',
-				errorMessage(error)
+				getErrorMessage(error)
 			)
 			// If fetch fails, return cached data if available (even if expired)
 			if (cache.data) {

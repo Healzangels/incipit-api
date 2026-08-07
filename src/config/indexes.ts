@@ -1,6 +1,6 @@
 import type { Db } from 'mongodb'
 
-import { errorMessage } from '#helpers/utils/shared'
+import getErrorMessage from '#helpers/utils/getErrorMessage'
 
 /**
  * The indexes every deployment needs, as DATA so a test can hold them.
@@ -83,7 +83,7 @@ export async function ensureIndexes(
 			} catch (err) {
 				warn(
 					`index build failed for ${spec.collection} ${JSON.stringify(spec.keys)}: ` +
-						`${errorMessage(err)}`
+						`${getErrorMessage(err)}`
 				)
 			}
 		})

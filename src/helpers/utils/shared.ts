@@ -167,17 +167,3 @@ class SharedHelper {
 }
 
 export default SharedHelper
-
-/**
- * The human-readable message of an unknown thrown value.
- *
- * The `err instanceof Error ? err.message : String(err)` dance was
- * re-implemented inline at three call sites (index builds, the Cloudflare IP
- * refresh, the Audible product_state fetch) — one shared spelling means the
- * next site cannot drift into logging `[object Object]`.
- * @param {unknown} err whatever was thrown
- * @returns {string} the message
- */
-export function errorMessage(err: unknown): string {
-	return err instanceof Error ? err.message : String(err)
-}

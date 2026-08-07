@@ -23,7 +23,7 @@ import {
 import { ContentTypeMismatchError, NotFoundError } from '#helpers/errors/ApiErrors'
 import cleanupDescription from '#helpers/utils/cleanupDescription'
 import fetch from '#helpers/utils/fetchPlus'
-import { errorMessage } from '#helpers/utils/shared'
+import getErrorMessage from '#helpers/utils/getErrorMessage'
 import SharedHelper from '#helpers/utils/shared'
 import {
 	ErrorMessageContentTypeMismatch,
@@ -445,7 +445,7 @@ class ApiHelper {
 			})
 			.catch((error) => {
 				this.logger?.error(
-					`[AUDIBLE API] Failed to fetch product_state for ASIN ${this.asin}: ${errorMessage(error)}`
+					`[AUDIBLE API] Failed to fetch product_state for ASIN ${this.asin}: ${getErrorMessage(error)}`
 				)
 				return undefined
 			})
