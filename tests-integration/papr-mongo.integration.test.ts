@@ -156,6 +156,18 @@ suite('papr helpers against a real MongoDB', () => {
 		expect(found.data).not.toBeNull()
 
 		const projected = await helper.findOneWithProjection()
+		if (projected.data === null) {
+			// Diagnostic for the CI-only failure: show exactly what the raw doc
+			// looks like and why the schema rejected it.
+			const raw = await client.db('audnexus').collection('books').findOne({ asin: legacyAsin })
+			const { ApiBookSchema } = await import('#config/types')
+			const attempt = ApiBookSchema.safeParse(raw)
+			console.error('[legacy diagnostic] raw keys:', raw ? Object.keys(raw).join(',') : 'NO DOC')
+			console.error(
+				'[legacy diagnostic] safeParse:',
+				attempt.success ? 'success' : JSON.stringify(attempt.error.issues.slice(0, 5))
+			)
+		}
 		// zod's RegionSchema.default('us') fires on undefined — a store that
 		// materializes region as null instead of absent breaks this (§7.2).
 		expect((projected.data as ApiBook).region).toBe('us')
