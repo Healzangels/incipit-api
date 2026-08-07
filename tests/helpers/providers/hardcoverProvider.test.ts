@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import HardcoverProvider, { type HardcoverGql } from '#helpers/providers/HardcoverProvider'
+import HardcoverProvider, { type HardcoverGql, interpretGqlBody } from '#helpers/providers/HardcoverProvider'
 import type { BookSearchQuery } from '#helpers/providers/types'
 
 // Canned responses mirror the real Hardcover shapes verified live during Gate 0:
@@ -635,5 +635,35 @@ describe('HardcoverProvider generated-avatar detection', () => {
 		)
 		expect(info.image).toBe('https://a/real.jpg')
 		expect(info.imageGenerated).toBe(false)
+	})
+})
+
+/**
+ * A non-GraphQL 200 must FAIL, not read as a clean empty.
+ *
+ * Cloudflare serves challenge pages and maintenance notices as 200-HTML. The
+ * old `body?.errors / body?.data` chains are both undefined on a string, so
+ * that page walked through as "no errors, no data" — a phantom empty that
+ * cached as "Hardcover has nothing for this book" and never tripped the
+ * circuit breaker. An outage must look like an outage.
+ */
+describe('interpretGqlBody', () => {
+	test('returns data from a real GraphQL body', () => {
+		expect(interpretGqlBody<{ ok: boolean }>({ data: { ok: true } })).toEqual({ ok: true })
+	})
+
+	test('throws on a GraphQL error body', () => {
+		expect(() => interpretGqlBody({ errors: [{ message: 'boom' }] })).toThrow('boom')
+	})
+
+	test('throws on an HTML/string body instead of returning undefined', () => {
+		expect(() => interpretGqlBody('<!DOCTYPE html><html>Checking your browser')).toThrow(
+			'non-GraphQL'
+		)
+	})
+
+	test('throws on null and on a data-less object', () => {
+		expect(() => interpretGqlBody(null)).toThrow('non-GraphQL')
+		expect(() => interpretGqlBody({ unexpected: 1 })).toThrow('non-GraphQL')
 	})
 })

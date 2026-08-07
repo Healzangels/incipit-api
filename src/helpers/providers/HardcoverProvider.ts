@@ -207,6 +207,32 @@ export type HardcoverGql = <T>(
 	token: string
 ) => Promise<T>
 
+/**
+ * Interpret a GraphQL response body — exported pure so the guard is testable
+ * without mocking the transport.
+ *
+ * The old inline form was `if (body?.errors) throw; return body?.data as T`,
+ * and both optional chains are undefined on a NON-OBJECT body — so a
+ * Cloudflare challenge page or maintenance notice served as 200-HTML walked
+ * straight through as "no errors, no data" and every caller read it as a
+ * clean empty result. A phantom empty is worse than an error here: it caches
+ * as "Hardcover has nothing for this book" and never trips the circuit
+ * breaker, so a Hardcover outage looked like a metadata gap instead of an
+ * outage. Per the GraphQL spec a response carries `data` and/or `errors`;
+ * anything else is not a GraphQL response and must FAIL, loudly, so the
+ * breaker can count it.
+ */
+export function interpretGqlBody<T>(body: unknown): T {
+	if (typeof body === 'object' && body !== null && 'errors' in body) {
+		throw new Error(JSON.stringify((body as { errors: unknown }).errors))
+	}
+	if (typeof body !== 'object' || body === null || !('data' in body)) {
+		const shape = body === null ? 'null' : typeof body
+		throw new Error(`Hardcover returned a non-GraphQL 200 body (${shape}) — not a real answer`)
+	}
+	return (body as { data: T }).data
+}
+
 /** Default transport: POST to Hardcover via the project's retrying fetch. */
 const defaultGql: HardcoverGql = async <T>(
 	query: string,
@@ -223,9 +249,7 @@ const defaultGql: HardcoverGql = async <T>(
 		},
 		data: { query, variables }
 	})
-	const body = res.data
-	if (body?.errors) throw new Error(JSON.stringify(body.errors))
-	return body?.data as T
+	return interpretGqlBody<T>(res.data)
 }
 
 /** True when a contribution role denotes narration. */
