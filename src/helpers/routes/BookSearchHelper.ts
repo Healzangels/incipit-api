@@ -1462,6 +1462,36 @@ export default class BookSearchHelper {
 		// poster. See nearTieCovers for the narrator rule and why absence cannot
 		// count as a match.
 		const ranked = dedupeCandidates(accepted, wantAsin, this.aiNarratedIds, this.pinOverriddenIds)
+		// Per-candidate sort keys, computed ONCE before the sort. The comparator
+		// runs O(n log n) times and normalizeTitle/volumeNumbers are regex
+		// passes whose answers cannot change mid-sort -- the byLanguage arm
+		// already learned this lesson (wrongLanguageIds, filled by the scoring
+		// pass, after its inline recompute drifted from the demotion rule it
+		// copied). These two follow the same pattern, keyed by c.id like every
+		// other per-candidate set here.
+		const volumeClaimIds = new Set<string>()
+		if (titleWantVolumes.size) {
+			for (const c of ranked) {
+				for (const v of volumeNumbers(c.title)) {
+					if (titleWantVolumes.has(v)) {
+						volumeClaimIds.add(c.id)
+						break
+					}
+				}
+			}
+		}
+		const titleTierById = new Map<string, number>()
+		{
+			const primaryLower = primaryTitle.toLowerCase()
+			const altLower = altTitle != null ? altTitle.toLowerCase() : null
+			for (const c of ranked) {
+				const t = normalizeTitle(c.title).toLowerCase()
+				titleTierById.set(
+					c.id,
+					t === primaryLower ? 2 : altLower !== null && t === altLower ? 1 : 0
+				)
+			}
+		}
 		// The confidence band, as a PER-CANDIDATE key anchored to the best score in
 		// this set -- see the byNearBest arm for why it cannot stay pairwise.
 		const bestConfidence = ranked.reduce((m, c) => Math.max(m, c.confidence), 0)
@@ -1564,11 +1594,9 @@ export default class BookSearchHelper {
 				// volumes ONLY (see titleWantVolumes): a sidecar seriesPosition never
 				// promotes. Per-candidate key, so the sort stays transitive.
 				if (titleWantVolumes.size) {
-					const claimsWantedVolume = (c: ScoredCandidate): boolean => {
-						for (const v of volumeNumbers(c.title)) if (titleWantVolumes.has(v)) return true
-						return false
-					}
-					const byWantedVolume = Number(claimsWantedVolume(b)) - Number(claimsWantedVolume(a))
+					// Precomputed above -- volumeNumbers is a regex walk and this arm
+					// used to run it twice per comparison.
+					const byWantedVolume = Number(volumeClaimIds.has(b.id)) - Number(volumeClaimIds.has(a.id))
 					if (byWantedVolume !== 0) return byWantedVolume
 				}
 				// Still tied (e.g. an unanalyzed file gives no duration signal, so an
@@ -1610,12 +1638,10 @@ export default class BookSearchHelper {
 				// files carry the long form in their track tag while every
 				// sidecar says the short form. Treating the two as equal let one
 				// series rank inconsistently against its own curated titles.
-				const tagTitleTier = (c: ScoredCandidate): number => {
-					const t = normalizeTitle(c.title).toLowerCase()
-					if (t === primaryTitle.toLowerCase()) return 2
-					if (altTitle != null && t === altTitle.toLowerCase()) return 1
-					return 0
-				}
+				// Precomputed above (titleTierById) -- normalizeTitle is a regex pass
+				// and this ran it, plus two toLowerCase()s of the SAME query strings,
+				// on every comparison.
+				const tagTitleTier = (c: ScoredCandidate): number => titleTierById.get(c.id) ?? 0
 				const runtimeCannotSeparate = withinRoundingNoise(a, b)
 				if (trustedNarratorKeys.length) {
 					const byNarrator = Number(narratorMatches(b)) - Number(narratorMatches(a))
