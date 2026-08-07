@@ -58,6 +58,13 @@ if (!URI) {
 }
 
 const REGION = { region: 'us' }
+// The throttle/update branch of createOrUpdate only exists under update='1' --
+// that is how the route drives it (GenericShowHelper guards the create path on
+// its own findOne). Without the flag, createOrUpdate on an EXISTING record
+// falls through to create() and -- the indexes being deliberately non-unique --
+// inserts a duplicate. The first run of this suite proved that against real
+// mongo; the unit suite's mocks could never have.
+const UPDATE_MODE = { region: 'us', update: '1' as const }
 const shared = new SharedHelper()
 let client: MongoClient
 
@@ -91,7 +98,7 @@ suite('papr helpers against a real MongoDB', () => {
 	})
 
 	test('the write-throttle engages on identical data (modified: false)', async () => {
-		const helper = new PaprAudibleBookHelper(parsedBook.asin, REGION)
+		const helper = new PaprAudibleBookHelper(parsedBook.asin, UPDATE_MODE)
 		helper.setData(parsedBook)
 		const second = await helper.createOrUpdate()
 		// Under a store whose reads come back date-stringified, isEqualData is
@@ -101,7 +108,7 @@ suite('papr helpers against a real MongoDB', () => {
 	})
 
 	test('an update preserves createdAt (derived from _id.getTimestamp) and bumps updatedAt', async () => {
-		const helper = new PaprAudibleBookHelper(parsedBook.asin, REGION)
+		const helper = new PaprAudibleBookHelper(parsedBook.asin, UPDATE_MODE)
 		const before = await helper.findOne()
 		expect(before.data).not.toBeNull()
 		const originalCreated = before.data?.createdAt as Date
@@ -130,12 +137,17 @@ suite('papr helpers against a real MongoDB', () => {
 		const now = new Date()
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructuring IS the removal
 		const { region: _dropped, ...withoutRegion } = parsedBook
-		await client.db('audnexus').collection('books').insertOne({
-			...withoutRegion,
-			asin: legacyAsin,
-			createdAt: now,
-			updatedAt: now
-		})
+		// bypassDocumentValidation: papr's updateSchemas installs a $jsonSchema
+		// validator on the collection, and a legacy document BY DEFINITION
+		// predates it -- production's region-less docs were written before the
+		// validator existed and could not be inserted past it today.
+		await client
+			.db('audnexus')
+			.collection('books')
+			.insertOne(
+				{ ...withoutRegion, asin: legacyAsin, createdAt: now, updatedAt: now },
+				{ bypassDocumentValidation: true }
+			)
 
 		const helper = new PaprAudibleBookHelper(legacyAsin, REGION)
 		const found = await helper.findOne()
@@ -174,8 +186,9 @@ suite('papr helpers against a real MongoDB', () => {
 				{ $set: { aliases: ['The Alias The Update Must Not Destroy'] } }
 			)
 
-		helper.setData({ ...parsedAuthor, description: 'changed so the throttle lets it through' })
-		const updated = await helper.createOrUpdate()
+		const updater = new PaprAudibleAuthorHelper(parsedAuthor.asin, UPDATE_MODE)
+		updater.setData({ ...parsedAuthor, description: 'changed so the throttle lets it through' })
+		const updated = await updater.createOrUpdate()
 		expect(updated.modified).toBe(true)
 
 		const raw = await client
