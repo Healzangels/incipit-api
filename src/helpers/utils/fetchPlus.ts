@@ -138,7 +138,17 @@ function fetchPlus(
 				// is the transient the retries exist for (the same rule the bundle's
 				// make_request ladder settled on).
 				const permanent = status === 404 || status === 410 || status === 400 || status === 401
-				if (retries < 3 && !permanent) {
+				// A transport TIMEOUT is permanent for the ladder too, for a
+				// different reason: one timed-out attempt already consumed the
+				// entire transport budget (HTTP_TIMEOUT_MS, 30s), which outlives
+				// every caller's own deadline -- the provider registry races calls
+				// against 25s and abandons the loser. Retrying is guaranteed-
+				// orphaned work: up to 3 more 30s attempts holding pool sockets
+				// for a caller that is already gone. ECONNREFUSED and code-less
+				// socket errors deliberately STAY on the ladder -- those fail
+				// fast, consuming no budget, and are the transients it exists for.
+				const timedOut = reason.code === 'ECONNABORTED' || reason.code === 'ETIMEDOUT'
+				if (retries < 3 && !permanent && !timedOut) {
 					// Check if this is a 429 (Too Many Requests) response
 					if (status === 429) {
 						const delay = calculateRetryDelay(retries, reason)

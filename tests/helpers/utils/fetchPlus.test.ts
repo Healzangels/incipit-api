@@ -84,10 +84,49 @@ describe('fetchPlus should', () => {
 	})
 
 	test('a transport failure with no response keeps the ladder', async () => {
-		// No `response` at all -- a timeout or DNS failure. It carries no status,
-		// so the permanent check must not accidentally swallow it.
+		// No `response` at all -- a DNS failure or socket hang-up. It carries no
+		// status, so the permanent check must not accidentally swallow it. These
+		// are FAST failures, which is exactly what the ladder exists for.
 		mockGet.mockImplementation(() => Promise.reject(new Error('socket hang up')))
 		await expect(fetchPlus('test.com')).rejects.toThrow()
+		expect(pooledAxios.get).toHaveBeenCalledTimes(4)
+	})
+
+	/**
+	 * A TRANSPORT TIMEOUT IS PERMANENT FOR THE LADDER.
+	 *
+	 * One timed-out attempt has already consumed the ENTIRE transport budget
+	 * (HTTP_TIMEOUT_MS, default 30s) -- longer than every caller's own deadline:
+	 * the provider registry races calls against 25s and abandons the loser. So
+	 * retries after a timeout are guaranteed-orphaned work: nobody is waiting,
+	 * yet the ladder used to run up to 3 more 30s attempts, holding pool sockets
+	 * (maxSockets=50) for ~90 extra seconds per sick call. During the 2026-08-05
+	 * rebuild Apple failed 9.1% of calls while its breaker was open -- each of
+	 * those failures kept retrying invisibly after the registry had moved on.
+	 *
+	 * ECONNREFUSED stays on the ladder deliberately: it is a FAST failure (no
+	 * budget consumed) and exactly the transient blip retries exist for. That
+	 * distinction is what the third test pins -- a fix that treats every coded
+	 * error as permanent would kill legitimate retries.
+	 */
+	const rejectWithCode = (code: string) => {
+		mockGet.mockImplementation(() => {
+			const error: Error & { code: string } = Object.assign(new Error(code), { code })
+			return Promise.reject(error)
+		})
+	}
+
+	for (const code of ['ECONNABORTED', 'ETIMEDOUT']) {
+		test(`a ${code} timeout is asked ONCE -- the caller is already gone`, async () => {
+			rejectWithCode(code)
+			await expect(fetchPlus('test.com')).rejects.toMatchObject({ code })
+			expect(pooledAxios.get).toHaveBeenCalledTimes(1)
+		})
+	}
+
+	test('ECONNREFUSED keeps the full ladder (fast transient, no budget consumed)', async () => {
+		rejectWithCode('ECONNREFUSED')
+		await expect(fetchPlus('test.com')).rejects.toMatchObject({ code: 'ECONNREFUSED' })
 		expect(pooledAxios.get).toHaveBeenCalledTimes(4)
 	})
 
