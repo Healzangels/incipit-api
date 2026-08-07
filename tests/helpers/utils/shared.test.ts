@@ -50,6 +50,21 @@ describe('SharedHelper should', () => {
 		expect(helper.isRecentlyUpdated(bookWithoutProjection)).toBe(false)
 	})
 
+	test('a junk UPDATE_THRESHOLD falls back to 7 days instead of marking everything stale', () => {
+		// The old parse was a bare parseInt: 'junk' became NaN, every comparison
+		// against NaN is false, so a typo in the env var silently made EVERY
+		// record "stale" and re-scraped the world on each scheduler sweep.
+		const saved = process.env.UPDATE_THRESHOLD
+		try {
+			process.env.UPDATE_THRESHOLD = 'junk'
+			// Updated now => within any sane default threshold.
+			expect(helper.isRecentlyUpdated(bookWithoutProjectionUpdatedNow)).toBe(true)
+		} finally {
+			if (saved === undefined) delete process.env.UPDATE_THRESHOLD
+			else process.env.UPDATE_THRESHOLD = saved
+		}
+	})
+
 	test('get asin from url', () => {
 		expect(
 			helper.getAsinFromUrl('https://www.audible.com/pd/Galaxys-Edge-Audiobook/B079LRSMNN')

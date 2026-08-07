@@ -4,6 +4,7 @@ import { normalizeTitle, sim } from '#helpers/providers/matchScorer'
 import type { ProviderBookSeries } from '#helpers/providers/types'
 import { isSameAuthor } from '#helpers/utils/authorNameMatch'
 import fetch from '#helpers/utils/fetchPlus'
+import sleep from '#helpers/utils/sleep'
 
 /**
  * Goodreads series lookup, via the public bookinfo.pro mirror.
@@ -1188,8 +1189,6 @@ export function resetGoodreadsThrottle(): void {
 // Serializes the pacing arithmetic: without a shared tail, N concurrent callers
 // each read the same nextAllowedAt and all fire at once.
 let requestChain: Promise<void> = Promise.resolve()
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /** Wait for this caller's turn in the paced queue. */
 function takeSlot(): Promise<void> {

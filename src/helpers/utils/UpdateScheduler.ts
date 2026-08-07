@@ -11,9 +11,9 @@ import AuthorShowHelper from '#helpers/routes/AuthorShowHelper'
 import BookShowHelper from '#helpers/routes/BookShowHelper'
 import ChapterShowHelper from '#helpers/routes/ChapterShowHelper'
 import { type BatchProcessSummary, processBatchByRegion } from '#helpers/utils/batchProcessor'
+import waitFor from '#helpers/utils/sleep'
 import { NoticeUpdateScheduled } from '#static/messages'
 
-const waitFor = (ms: number) => new Promise((r) => setTimeout(r, ms))
 // Wait for between 0 and 5 seconds
 const randomWait = () => waitFor(Math.floor(Math.random() * 5000))
 

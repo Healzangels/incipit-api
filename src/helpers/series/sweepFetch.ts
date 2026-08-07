@@ -11,6 +11,8 @@
  * the fingerprint of a limiter, not of transient loss.
  */
 
+import defaultSleep from '#helpers/utils/sleep'
+
 export interface Answer {
 	primary: string | null
 	secondary: string | null
@@ -35,8 +37,6 @@ export interface FetchServedOptions {
 
 const show = (s: Series | null | undefined): string | null =>
 	s?.name ? `${s.name} #${s.position ?? '-'}` : null
-
-const defaultSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
 /**
  * Read a record's currently-served series answer.

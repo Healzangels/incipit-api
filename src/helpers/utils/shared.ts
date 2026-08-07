@@ -6,6 +6,7 @@ import lodash from 'lodash'
 
 import { ApiGenre, ApiGenreSchema, asin11Regex, baseAsin10Regex } from '#config/types'
 import { PaprDocument } from '#config/typing/papr'
+import { envInt } from '#helpers/utils/env'
 import { NoticeGenreNotAvailable } from '#static/messages'
 
 class SharedHelper {
@@ -99,7 +100,10 @@ class SharedHelper {
 	 */
 	isRecentlyUpdated(obj: PaprDocument): boolean {
 		// Get the environment variable for the number of days to check if it exists
-		const threshold = process.env.UPDATE_THRESHOLD ? parseInt(process.env.UPDATE_THRESHOLD) : 7
+		// envInt, not a bare parseInt: parseInt('junk') is NaN, and every
+		// comparison against NaN is false -- so a junk UPDATE_THRESHOLD silently
+		// marked EVERY record stale and re-scraped the world on each sweep.
+		const threshold = envInt(process.env.UPDATE_THRESHOLD, 7, 0, 3650)
 		const now = new Date()
 		const lastUpdated = new Date(obj.updatedAt)
 		const diff = now.getTime() - lastUpdated.getTime()
@@ -163,3 +167,17 @@ class SharedHelper {
 }
 
 export default SharedHelper
+
+/**
+ * The human-readable message of an unknown thrown value.
+ *
+ * The `err instanceof Error ? err.message : String(err)` dance was
+ * re-implemented inline at three call sites (index builds, the Cloudflare IP
+ * refresh, the Audible product_state fetch) — one shared spelling means the
+ * next site cannot drift into logging `[object Object]`.
+ * @param {unknown} err whatever was thrown
+ * @returns {string} the message
+ */
+export function errorMessage(err: unknown): string {
+	return err instanceof Error ? err.message : String(err)
+}
