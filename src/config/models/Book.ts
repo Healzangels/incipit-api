@@ -1,6 +1,8 @@
 import { schema, types } from 'papr'
 
 import papr from '#config/papr'
+import { ApiBookSchema } from '#config/types'
+import { sqliteModel } from '#helpers/database/sqlite/SqliteModel'
 import { regionRegex, regions } from '#static/regions'
 
 const bookSchema = schema(
@@ -68,5 +70,13 @@ const bookSchema = schema(
 )
 
 export type BookDocument = (typeof bookSchema)[0]
-const Book = papr.model('books', bookSchema)
+// THE BACKEND SEAM (migration Phase 2). This default export is the exact
+// specifier the unit tests mock and the only thing the four consumers import,
+// so the flag lives here and nowhere else (plan #7.2). Default stays mongo;
+// nothing flips until Phase 5 sets DB_BACKEND=sqlite.
+const paprModel = papr.model('books', bookSchema)
+const Book =
+	process.env.DB_BACKEND === 'sqlite'
+		? (sqliteModel('books', { schema: ApiBookSchema }) as unknown as typeof paprModel)
+		: paprModel
 export default Book

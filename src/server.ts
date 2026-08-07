@@ -41,6 +41,7 @@ import { warnIfDeletesDisabled } from '#config/routes/writeAuth'
 import { buildTrustedProxies } from '#config/trustedProxies'
 import { chaptersConfigured } from '#helpers/books/audible/ChapterHelper'
 import { memoryCache } from '#helpers/database/inProcessCache'
+import { closeSqlite, sqliteDb } from '#helpers/database/sqlite/SqliteModel'
 import { goodreadsTuningSummary } from '#helpers/providers/goodreadsSeries'
 import UpdateScheduler from '#helpers/utils/UpdateScheduler'
 
@@ -53,11 +54,16 @@ let trustedProxies: string[] = []
 let server: ReturnType<typeof fastify>
 const updateInterval = Number(process.env.UPDATE_INTERVAL) || 30
 
-// Setup DB context
-if (!process.env.MONGODB_URI) {
+// Setup DB context. Under DB_BACKEND=sqlite there is no mongo at all
+// (migration Phase 2): no URI requirement, no client, no papr initialize —
+// the sqlite backend opens its own file lazily and sets its pragmas there.
+const useSqlite = process.env.DB_BACKEND === 'sqlite'
+if (!useSqlite && !process.env.MONGODB_URI) {
 	throw new Error('No MongoDB URI specified')
 }
-const ctx: Context = createDefaultContext(process.env.MONGODB_URI)
+const ctx: Context | null = useSqlite
+	? null
+	: createDefaultContext(process.env.MONGODB_URI as string)
 
 /**
  * Registers plugins for the server before booting it up
@@ -293,32 +299,59 @@ async function startServer() {
 	// Start main server
 	try {
 		const address = await server.listen({ port, host })
-		// The REAL logger: an index that fails to build is a silent, permanent
-		// degradation (author search 500s forever), so it must reach the log.
-		await initialize({ client: await ctx.client.connect() }, server.log)
-		server.log.info('Connected to DB')
-		server.mongoClient = ctx.client
+		if (ctx) {
+			// The REAL logger: an index that fails to build is a silent, permanent
+			// degradation (author search 500s forever), so it must reach the log.
+			await initialize({ client: await ctx.client.connect() }, server.log)
+			server.log.info('Connected to DB')
+			server.mongoClient = ctx.client
+		} else {
+			// Open (and create) the sqlite file NOW so a bad path fails the boot
+			// loudly — the most likely first-install failure is a bind mount the
+			// container user cannot write (#7.4), and it must not surface later
+			// as a raw bun:sqlite error mid-request.
+			sqliteDb()
+			server.log.info(`Connected to DB (sqlite: ${process.env.SQLITE_PATH || './data/incipit.db'})`)
+			// /health's database check pings whatever sits on server.mongoClient.
+			// This duck-typed stand-in answers that exact call with a sqlite
+			// SELECT 1, so the health CONTRACT (checks.database) keeps meaning
+			// "the storage backend answers" without forking health.ts (#7.4).
+			server.mongoClient = {
+				db: () => ({
+					command: async () => {
+						sqliteDb().prepare('SELECT 1').get()
+						return { ok: 1 }
+					}
+				})
+			} as unknown as MongoClient
+		}
 		server.log.info(`Server listening at ${address}`)
 	} catch (err) {
 		server.log.error(err)
 		process.exit(1)
 	}
 
+	// The scheduler start used to live INSIDE the mongo liveness ping's .then()
+	// — easy to mistake for a deletable check when it was actually the only
+	// entry point (#7.2). Named function, called from whichever backend's
+	// readiness path applies.
+	const startScheduler = () => {
+		server.log.info(`Update interval: ${updateInterval} days`)
+		const updateScheduler = new UpdateScheduler(updateInterval, server.redis, server.log)
+		;(server as unknown as { updateScheduler: UpdateScheduler }).updateScheduler = updateScheduler
+		server.scheduler.addLongIntervalJob(updateScheduler.updateAllJob())
+	}
 	server.ready(() => {
+		if (!ctx) {
+			// sqlite proved itself at boot (the file opened); start directly.
+			startScheduler()
+			return
+		}
 		// test that db is connected
 		ctx.client
 			.db('papr')
 			.command({ ping: 1 })
-			.then(() => {
-				// Schedule update jobs
-				server.log.info(`Update interval: ${updateInterval} days`)
-				const updateScheduler = new UpdateScheduler(updateInterval, server.redis, server.log)
-				;(server as unknown as { updateScheduler: UpdateScheduler }).updateScheduler =
-					updateScheduler
-
-				const updateAllJob = updateScheduler.updateAllJob()
-				server.scheduler.addLongIntervalJob(updateAllJob)
-			})
+			.then(startScheduler)
 			.catch((err) => {
 				server.log.error(err)
 				process.exit(1)
@@ -341,8 +374,11 @@ async function stopServer() {
 	try {
 		await server.close()
 		server.log.info('HTTP server closed')
-		// Close Papr/mongo connection
-		await ctx.client.close()
+		// Close whichever backend is live. sqlite gets a WAL checkpoint on the
+		// way out — with the DB in-process, a lost close means a hot -wal file
+		// on every docker stop (#7.2).
+		if (ctx) await ctx.client.close()
+		else closeSqlite()
 		server.log.info('DB connection closed')
 		process.exit(0)
 	} catch (err) {

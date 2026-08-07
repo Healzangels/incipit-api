@@ -47,14 +47,70 @@ import PaprAudibleBookHelper from '#helpers/database/papr/audible/PaprAudibleBoo
 import PaprAudibleChapterHelper from '#helpers/database/papr/audible/PaprAudibleChapterHelper'
 import SharedHelper from '#helpers/utils/shared'
 
+// TWO BACKENDS, ONE ORACLE. DB_BACKEND=sqlite runs the identical suite
+// through the sqlite adapter (no external service at all); otherwise
+// TEST_MONGODB_URI selects the mongo leg. Two-backend green is the
+// substitution proof the whole migration rests on.
+const BACKEND =
+	process.env.DB_BACKEND === 'sqlite' ? 'sqlite' : process.env.TEST_MONGODB_URI ? 'mongo' : null
 const URI = process.env.TEST_MONGODB_URI
-const suite = URI ? describe : describe.skip
-if (!URI) {
+const suite = BACKEND ? describe : describe.skip
+if (!BACKEND) {
 	console.warn(
-		'[integration] TEST_MONGODB_URI is not set — the persistence oracle is SKIPPED. ' +
-			'It runs in CI against a disposable mongo service; locally: ' +
+		'[integration] neither DB_BACKEND=sqlite nor TEST_MONGODB_URI is set — the persistence ' +
+			'oracle is SKIPPED. sqlite leg: DB_BACKEND=sqlite bun run test:integration ; mongo leg: ' +
 			'TEST_MONGODB_URI="mongodb://localhost:27017/?directConnection=true" bun run test:integration'
 	)
+}
+
+const SQLITE_TEST_PATH = `/tmp/incipit-oracle-${process.pid}.db`
+
+// Raw-storage escape hatches: the three places the suite must write BENEATH
+// the helpers (legacy fixture, alias plant, alias readback), per backend.
+async function rawInsertLegacyBook(doc: Record<string, unknown>) {
+	if (BACKEND === 'mongo') {
+		await client
+			.db('audnexus')
+			.collection('books')
+			.insertOne(doc as never, { bypassDocumentValidation: true })
+		return
+	}
+	const { sqliteDb } = await import('#helpers/database/sqlite/SqliteModel')
+	const id = Math.floor(Date.now() / 1000)
+		.toString(16)
+		.padStart(8, '0')
+		.concat('aaaaaaaaaaaaaaaa')
+	sqliteDb()
+		.prepare(
+			'INSERT INTO books (id, asin, region, created_at, updated_at, doc) VALUES (?,?,?,?,?,?)'
+		)
+		.run(id, String(doc.asin), null, Date.now(), Date.now(), JSON.stringify(doc))
+}
+
+async function rawPlantAuthorAliases(asin: string, aliases: string[]) {
+	if (BACKEND === 'mongo') {
+		await client.db('audnexus').collection('authors').updateOne({ asin }, { $set: { aliases } })
+		return
+	}
+	const { sqliteDb } = await import('#helpers/database/sqlite/SqliteModel')
+	const row = sqliteDb().prepare('SELECT id, doc FROM authors WHERE asin = ?').get(asin) as {
+		id: string
+		doc: string
+	}
+	const doc = JSON.parse(row.doc) as Record<string, unknown>
+	doc.aliases = aliases
+	sqliteDb().prepare('UPDATE authors SET doc = ? WHERE id = ?').run(JSON.stringify(doc), row.id)
+}
+
+async function rawGetAuthor(asin: string): Promise<Record<string, unknown> | null> {
+	if (BACKEND === 'mongo') {
+		return (await client.db('audnexus').collection('authors').findOne({ asin })) as never
+	}
+	const { sqliteDb } = await import('#helpers/database/sqlite/SqliteModel')
+	const row = sqliteDb().prepare('SELECT doc FROM authors WHERE asin = ?').get(asin) as {
+		doc: string
+	} | null
+	return row ? (JSON.parse(row.doc) as Record<string, unknown>) : null
 }
 
 const REGION = { region: 'us' }
@@ -68,8 +124,12 @@ const UPDATE_MODE = { region: 'us', update: '1' as const }
 const shared = new SharedHelper()
 let client: MongoClient
 
-suite('papr helpers against a real MongoDB', () => {
+suite(`papr helpers against a real backend (${BACKEND})`, () => {
 	beforeAll(async () => {
+		if (BACKEND === 'sqlite') {
+			process.env.SQLITE_PATH = SQLITE_TEST_PATH
+			return
+		}
 		client = new MongoClient(URI as string, { serverSelectionTimeoutMS: 10000 })
 		await client.connect()
 		await client.db('audnexus').dropDatabase()
@@ -77,6 +137,19 @@ suite('papr helpers against a real MongoDB', () => {
 	})
 
 	afterAll(async () => {
+		if (BACKEND === 'sqlite') {
+			const { closeSqlite } = await import('#helpers/database/sqlite/SqliteModel')
+			closeSqlite()
+			const { unlinkSync } = await import('fs')
+			for (const suffix of ['', '-wal', '-shm']) {
+				try {
+					unlinkSync(SQLITE_TEST_PATH + suffix)
+				} catch {
+					/* already gone */
+				}
+			}
+			return
+		}
 		await client.db('audnexus').dropDatabase()
 		await client.close()
 	})
@@ -144,13 +217,12 @@ suite('papr helpers against a real MongoDB', () => {
 		// validator on the collection, and a legacy document BY DEFINITION
 		// predates it -- production's region-less docs were written before the
 		// validator existed and could not be inserted past it today.
-		await client
-			.db('audnexus')
-			.collection('books')
-			.insertOne(
-				{ ...withoutRegion, asin: legacyAsin, createdAt: now, updatedAt: now },
-				{ bypassDocumentValidation: true }
-			)
+		await rawInsertLegacyBook({
+			...withoutRegion,
+			asin: legacyAsin,
+			createdAt: now,
+			updatedAt: now
+		})
 
 		const helper = new PaprAudibleBookHelper(legacyAsin, REGION)
 		const found = await helper.findOne()
@@ -193,23 +265,14 @@ suite('papr helpers against a real MongoDB', () => {
 		// Give the stored author fields the update payload does NOT carry —
 		// ApiAuthorProfile has no aliases/birthDate, yet both live in the
 		// document and aliases feeds the text index.
-		await client
-			.db('audnexus')
-			.collection('authors')
-			.updateOne(
-				{ asin: parsedAuthor.asin },
-				{ $set: { aliases: ['The Alias The Update Must Not Destroy'] } }
-			)
+		await rawPlantAuthorAliases(parsedAuthor.asin, ['The Alias The Update Must Not Destroy'])
 
 		const updater = new PaprAudibleAuthorHelper(parsedAuthor.asin, UPDATE_MODE)
 		updater.setData({ ...parsedAuthor, description: 'changed so the throttle lets it through' })
 		const updated = await updater.createOrUpdate()
 		expect(updated.modified).toBe(true)
 
-		const raw = await client
-			.db('audnexus')
-			.collection('authors')
-			.findOne({ asin: parsedAuthor.asin })
+		const raw = await rawGetAuthor(parsedAuthor.asin)
 		// Mongo's $set merges top-level keys; a whole-document write deletes
 		// aliases here — invisibly to Phase 3's golden file, which replays
 		// against freshly-migrated (still intact) data (§7.2).
