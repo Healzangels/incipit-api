@@ -26,7 +26,11 @@ const ROOT = join(import.meta.dir, '..', '..')
 
 /** Directories deliberately outside the default gate, each with its reason. */
 const INTENTIONALLY_UNGATED: Record<string, string> = {
-	'tests/live': 'hits real provider APIs; runs via `bun run test:live`, not the default gate'
+	'tests/live': 'hits real provider APIs; runs via `bun run test:live`, not the default gate',
+	'tests-integration':
+		'the persistence oracle: needs a real database AND must never share a process ' +
+		'with the unit run (its file-scope module mocks leak); runs via `bun run ' +
+		'test:integration` in its own CI job'
 }
 
 function directoriesContainingTests(dir: string, found = new Set<string>()): Set<string> {

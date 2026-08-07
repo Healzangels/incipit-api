@@ -51,8 +51,8 @@
     Type="Variable" Display="always" Required="true" Mask="false">mongodb://incipit-mongo:27017</Config>
 
   <Config Name="REDIS_URL" Target="REDIS_URL" Default="redis://incipit-redis:6379" Mode=""
-    Description="Optional but recommended. Leave blank to run without a cache - provider results stop being cached and alternate-cover lookups disable themselves rather than fan out on every request."
-    Type="Variable" Display="always" Required="false" Mask="false">redis://incipit-redis:6379</Config>
+    Description="Optional. LEAVE BLANK to use the built-in in-process cache (recommended; no redis container needed). Set only to keep an external redis."
+    Type="Variable" Display="always" Required="false" Mask="false"></Config>
 
   <Config Name="HARDCOVER_TOKEN" Target="HARDCOVER_TOKEN" Default="" Mode=""
     Description="Your own Hardcover API token. Optional - blank simply skips that provider. Nothing is bundled."

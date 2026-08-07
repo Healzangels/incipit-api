@@ -40,6 +40,7 @@ import version from '#config/routes/version'
 import { warnIfDeletesDisabled } from '#config/routes/writeAuth'
 import { buildTrustedProxies } from '#config/trustedProxies'
 import { chaptersConfigured } from '#helpers/books/audible/ChapterHelper'
+import { memoryCache } from '#helpers/database/inProcessCache'
 import { goodreadsTuningSummary } from '#helpers/providers/goodreadsSeries'
 import UpdateScheduler from '#helpers/utils/UpdateScheduler'
 
@@ -63,7 +64,11 @@ const ctx: Context = createDefaultContext(process.env.MONGODB_URI)
  * Should be called before registering routes
  */
 async function registerPlugins() {
-	// Register redis if it's present
+	// Register redis if it's present; otherwise decorate the in-process cache
+	// (Phase 1 of the single-container migration). The decorator's TRUTHINESS
+	// is load-bearing -- books/show.ts gates the alternate-cover compute on it,
+	// health pings it, UpdateScheduler receives it -- so the shim registers
+	// under the same name with the same five-method surface (plan #7.3).
 	if (process.env.REDIS_URL) {
 		server.log.info('Using Redis')
 		await server.register(redis, {
@@ -71,6 +76,9 @@ async function registerPlugins() {
 			maxRetriesPerRequest: 1,
 			url: process.env.REDIS_URL
 		})
+	} else {
+		server.log.info('No REDIS_URL: using the in-process cache')
+		server.decorate('redis', memoryCache as never)
 	}
 
 	// CORS — deny cross-origin unless CORS_ALLOWED_ORIGINS names an origin.
