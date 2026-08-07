@@ -32,6 +32,11 @@ ENV BUILD_TIME=$BUILD_TIME
 COPY --from=build /app/dist ./dist
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/package.json .
+# Operational tooling rides in the image: the Phase 4 migration
+# (scripts/migrateToSqlite.ts) runs via `docker exec` INSIDE this container,
+# where MONGODB_URI already carries credentials and the compose network
+# reaches mongo. #helpers imports resolve to dist/ via package.json#imports.
+COPY --from=build /app/scripts ./scripts
 
 USER bun
 
