@@ -49,14 +49,25 @@ mock.module('#helpers/routes/BookShowHelper', () => ({
 // reach the network, and must not be the thing that supplies the series.
 // Spread the real module — shelfPolicy and shelfPins import `foldSeriesName`
 // from it, so replacing the whole namespace breaks the very stages under test.
+// Instrumentation seam for the concurrency pin at the bottom of this file.
+// Default is a no-op so every other test is unaffected; the concurrency test
+// swaps it to record start/end events per enrichment leg.
+let enrichTrace: (leg: string) => Promise<void> = async () => {}
+
 const realGoodreads = await import('#helpers/providers/goodreadsSeries')
 mock.module('#helpers/providers/goodreadsSeries', () => ({
 	...realGoodreads,
-	withGoodreadsSeries: async (book: unknown) => book
+	withGoodreadsSeries: async (book: unknown) => {
+		await enrichTrace('goodreads')
+		return book
+	}
 }))
 
 mock.module('#helpers/providers/squareCover', () => ({
-	bestSquareCover: async () => SQUARE_URL
+	bestSquareCover: async () => {
+		await enrichTrace('square')
+		return SQUARE_URL
+	}
 }))
 
 // The provider-id branch (hardcover-*, openlibrary-*, apple-audiobook-*) is a
@@ -94,6 +105,7 @@ mock.module('#helpers/providers/alternateCoverCache', () => ({
 	// passes no matter what -- proven: reverting the fix failed nothing until
 	// this recorded the key.
 	recallAlternates: async (_r: unknown, id: string) => {
+		await enrichTrace('alternates')
 		recalledKeys.push(id)
 		return cachedAlternates
 	}
@@ -431,6 +443,64 @@ describe('alternate covers on the item response', () => {
 		servedByProvider = bookRecord({ asin: null })
 		const { body } = await get('hardcover-edition-27515221')
 		expect(body.imageAlternates).toEqual(cachedAlternates)
+	})
+})
+
+/**
+ * THE THREE ENRICHMENTS MUST RUN CONCURRENTLY.
+ *
+ * finish() used to await square cover, then alternate covers, then Goodreads
+ * series — three independent network calls whose latency therefore SUMMED.
+ * Measured across the entire 2026-08-05 rebuild: /books/:asin averaged 907 ms
+ * with a 0.8 ms DB path, i.e. the serve chain was essentially all enrichment
+ * wait. They are safe to overlap because their reads and writes are disjoint,
+ * verified leg by leg before this test existed: square reads title/author/image
+ * and writes only imageSquare; alternates reads title/author (computeAlternates)
+ * and writes only imageAlternates; Goodreads reads title/subtitle/author/series
+ * and writes only the series fields. Nothing reads what another writes.
+ *
+ * The pin is ORDER-BASED, not timing-based: each leg records start, yields for
+ * a real timer tick, then records end. Sequential execution interleaves
+ * (start,end,start,end,…) — the first leg's end lands before the last leg's
+ * start — while concurrent execution starts every leg before any can end.
+ * 15 ms dwarfs microtask scheduling, so this cannot flake on a slow runner.
+ */
+describe('finish() enrichment concurrency', () => {
+	test('every leg starts before any leg finishes, and all contributions merge', async () => {
+		const events: string[] = []
+		enrichTrace = async (leg: string) => {
+			events.push(`start:${leg}`)
+			await new Promise((r) => setTimeout(r, 15))
+			events.push(`end:${leg}`)
+		}
+		try {
+			cachedAlternates = ['https://m.media-amazon.com/images/I/88ZZZ.jpg']
+			served = bookRecord()
+			const { status, body } = await get('B0TESTASIN')
+			expect(status).toBe(200)
+
+			// All three legs ran.
+			const starts = events.filter((e) => e.startsWith('start:'))
+			expect(starts.sort()).toEqual(['start:alternates', 'start:goodreads', 'start:square'])
+
+			// Concurrency: the LAST start precedes the FIRST end. Under the old
+			// sequential chain this fails immediately (square ends before
+			// alternates starts).
+			const lastStart = Math.max(...events.map((e, i) => (e.startsWith('start:') ? i : -1)))
+			const firstEnd = Math.min(
+				...events.map((e, i) => (e.startsWith('end:') ? i : Infinity))
+			)
+			expect(lastStart).toBeLessThan(firstEnd)
+
+			// The merge keeps every leg's contribution — parallelizing must not
+			// drop a field the sequential chain used to thread through.
+			expect(body.imageSquare).toBe(SQUARE_URL)
+			expect(body.imageAlternates).toEqual(cachedAlternates)
+			expect(body.title).toBe('A Test Book')
+		} finally {
+			enrichTrace = async () => {}
+			cachedAlternates = []
+		}
 	})
 })
 

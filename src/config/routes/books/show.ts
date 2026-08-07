@@ -186,19 +186,37 @@ async function _show(fastify: FastifyInstance) {
 			}
 		>(
 			book: T
-		): Promise<T> =>
+		): Promise<T> => {
+			// The three enrichments run CONCURRENTLY: latency is their max, not
+			// their sum. They used to be chained, and across the 2026-08-05
+			// rebuild /books/:asin averaged 907 ms against a 0.8 ms DB path —
+			// the route was essentially the sum of these three network waits.
+			//
+			// Safe because their reads and writes are disjoint, verified leg by
+			// leg: square reads title/author/image, writes imageSquare;
+			// alternates reads title/author, writes imageAlternates; Goodreads
+			// reads title/subtitle/author/series, writes the series fields.
+			// Each leg gets the ORIGINAL book, and the merge takes each leg's
+			// own field — conditionally, so a leg that added nothing adds no
+			// key here either (the bundle reads presence, not null).
+			const [squared, withAlts, withSeries] = await Promise.all([
+				withSquareCover(book),
+				withAlternateCovers(book),
+				withGoodreadsSeries(book, fastify.redis ?? null, request.log)
+			])
+			const merged = {
+				...withSeries,
+				...('imageSquare' in squared
+					? { imageSquare: (squared as T & { imageSquare?: string }).imageSquare }
+					: {}),
+				...('imageAlternates' in withAlts
+					? { imageAlternates: (withAlts as T & { imageAlternates?: string[] }).imageAlternates }
+					: {})
+			}
 			// Q2 shelf policy runs LAST and at serve time, so pre-policy answers in
 			// the goodreads cache obey it too — no invalidation rides along (P3).
-			applyShelfPolicy(
-				applyPins(
-					await withGoodreadsSeries(
-						await withAlternateCovers(await withSquareCover(book)),
-						fastify.redis ?? null,
-						request.log
-					),
-					asin
-				)
-			)
+			return applyShelfPolicy(applyPins(merged, asin))
+		}
 
 		const dataHelper = new BookDataHelper(defaultRegistry, asin, region, credentials, request.log)
 		if (dataHelper.isProviderId) {
