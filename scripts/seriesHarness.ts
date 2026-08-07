@@ -94,6 +94,11 @@ if (process.argv.includes('--replay')) process.env.GOODREADS_REPLAY_PATH = repPa
 // replaying. Live un-recorded runs keep 4 workers.
 const DETERMINISM = process.argv.includes('--record') || process.argv.includes('--replay')
 if (DETERMINISM) process.env.GOODREADS_BACKOFF_MS = '0'
+// The per-row degraded stand-down is wall-clock state exactly like the backoff:
+// left armed, a degraded row makes a later same-key row skip its lookup —
+// consuming zero replay entries and nulling the row while the run reports
+// itself faithful. Same remedy, same mode.
+if (DETERMINISM) process.env.GOODREADS_DEGRADED_COOLDOWN_MS = '0'
 
 const args = process.argv.slice(2)
 const flag = (name: string) => args.includes(name)

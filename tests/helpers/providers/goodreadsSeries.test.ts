@@ -2222,3 +2222,140 @@ describe('isSeriesOrdering', () => {
 		expect(isSeriesOrdering('')).toBe(false)
 	})
 })
+
+describe('a persistently failing leg must not re-run the full lookup per serve', () => {
+	/**
+	 * Measured live on B017V4IM1G (2026-08-07): the mirror answers /work/4640799
+	 * with HTTP 500 on EVERY call (it cannot decode that record), the
+	 * author-record recovery is then discarded by the title gate, and the
+	 * degraded lookup is -- correctly -- neither applied nor cached. But "not
+	 * cached" meant every serve of that book re-paid the whole
+	 * search + work + author leg: 1.4-1.6s per request, indefinitely, while
+	 * neighbouring books served from cache in 15ms.
+	 *
+	 * Two escapes, one per flag:
+	 *  - `uncacheable` (answer SOUND, alias cosmetics missing): cache it under a
+	 *    SHORT TTL instead of never. The TTL bounds how long a shelf can stay
+	 *    split across canonical/alias names; per-serve re-asking bounded nothing.
+	 *  - `degraded` (answer untrusted): the null still must NEVER be written to
+	 *    redis, so bound the repeat with a per-row in-process stand-down instead.
+	 */
+	afterEach(() => {
+		fetchMock.mockReset()
+		delete process.env.GOODREADS_DEGRADED_COOLDOWN_MS
+	})
+
+	// Shared-profile default (these tests set no GOODREADS_SERIES_URL).
+	const UNCACHEABLE_TTL = 21600
+
+	const inkheartWork = (seriesId: number) => ({
+		Title: 'Inkheart',
+		Series: [
+			{
+				Title: 'Tintenwelt',
+				ForeignId: seriesId,
+				LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1', SeriesPosition: 1 }]
+			}
+		]
+	})
+
+	test('an uncacheable answer is cached under the SHORT TTL, not left uncached', async () => {
+		const redis = fakeRedis()
+		// Single-series path: the alias /series fetch is the one extra call, and
+		// it fails on transport -> the answer applies but comes back uncacheable.
+		respond([{ workId: 42 }], inkheartWork(96001), null)
+		const out = await withGoodreadsSeries(
+			{ title: 'Inkheart', authors: [{ name: 'Cornelia Funke' }] },
+			redis
+		)
+		expect(out.seriesPrimary).toEqual({ name: 'Tintenwelt', position: '1' })
+		const key = [...redis.store.keys()].find((k) => k.startsWith('grseries:v5:'))
+		expect(key).toBeDefined()
+		expect(JSON.parse(redis.store.get(key as string) as string)).toEqual({
+			primary: { name: 'Tintenwelt', position: '1' }
+		})
+		// The SHORT ttl, not the 30-day hit TTL: the alias must be re-asked soon.
+		expect(redis.expires.get(key as string)).toBe(UNCACHEABLE_TTL)
+	})
+
+	test('a degraded lookup arms a per-row stand-down: the next serve makes no calls', async () => {
+		const redis = fakeRedis()
+		const book = () => ({
+			title: 'The Adversary Row',
+			authors: [{ name: 'Persist Fail' }],
+			seriesPrimary: { name: 'Provider Series', position: '2' }
+		})
+		// /work fails and the author record fails too -> the lookup is degraded.
+		respond([{ workId: 61043, author: { id: 7001 } }], null, null)
+		const first = await withGoodreadsSeries(book(), redis)
+		expect(first.seriesPrimary).toEqual({ name: 'Provider Series', position: '2' })
+		// The degraded null must STAY out of redis -- that guard is not up for
+		// renegotiation; the stand-down below is what bounds the repeat instead.
+		expect(redis.store.size).toBe(0)
+
+		const debugs: string[] = []
+		const logger = {
+			debug: (_o: unknown, msg?: string) => debugs.push(String(msg ?? '')),
+			warn: () => undefined,
+			info: () => undefined,
+			error: () => undefined
+		} as never
+		// A fresh queue that must NOT be consumed: within the stand-down the row
+		// serves as-is without touching the mirror at all. respond() also clears
+		// the mock's call history, so "no calls" below means none SINCE this line.
+		respond(null)
+		const second = await withGoodreadsSeries(book(), redis, logger)
+		expect(second.seriesPrimary).toEqual({ name: 'Provider Series', position: '2' })
+		expect(fetchMock.mock.calls.length).toBe(0)
+		// The skip must SAY so: an invisible stand-down is the diagnosis trap the
+		// module-wide backoff already learned to log its way out of.
+		expect(debugs.some((m) => m.includes('standing down'))).toBe(true)
+		expect(redis.store.size).toBe(0)
+	})
+
+	test('the stand-down is BOUNDED: once expired, the row is re-asked and can heal', async () => {
+		// A zero window expires immediately -- the boundedness is the contract:
+		// when the mirror recovers, the row must converge without a restart.
+		process.env.GOODREADS_DEGRADED_COOLDOWN_MS = '0'
+		const redis = fakeRedis()
+		const book = () => ({
+			title: 'Inkheart',
+			authors: [{ name: 'Bounded Retry' }],
+			seriesPrimary: { name: 'Provider Series', position: '1' }
+		})
+		respond([{ workId: 61044, author: { id: 7002 } }], null, null)
+		await withGoodreadsSeries(book(), redis)
+		expect(redis.store.size).toBe(0)
+
+		// The mirror heals; the very next serve must reach it, apply the answer,
+		// and cache it normally.
+		respond([{ workId: 42 }], inkheartWork(96002), {
+			Title: 'Tintenwelt',
+			Description: 'TODO',
+			LinkItems: [1, 2]
+		})
+		const healed = await withGoodreadsSeries(book(), redis)
+		expect(healed.seriesPrimary).toEqual({ name: 'Tintenwelt', position: '1' })
+		expect(redis.store.size).toBeGreaterThan(0)
+	})
+
+	test('resetGoodreadsThrottle clears the stand-down (one reset restores everything)', async () => {
+		const redis = fakeRedis()
+		const book = () => ({
+			title: 'Inkheart',
+			authors: [{ name: 'Reset Clears' }],
+			seriesPrimary: { name: 'Provider Series', position: '1' }
+		})
+		respond([{ workId: 61045, author: { id: 7003 } }], null, null)
+		await withGoodreadsSeries(book(), redis)
+
+		resetGoodreadsThrottle()
+		respond([{ workId: 42 }], inkheartWork(96003), {
+			Title: 'Tintenwelt',
+			Description: 'TODO',
+			LinkItems: [1, 2]
+		})
+		const out = await withGoodreadsSeries(book(), redis)
+		expect(out.seriesPrimary).toEqual({ name: 'Tintenwelt', position: '1' })
+	})
+})

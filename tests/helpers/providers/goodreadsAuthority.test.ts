@@ -484,13 +484,15 @@ describe('goodreads as series authority', () => {
 		expect(ten.seriesPrimary?.position).toBe('10')
 	})
 
-	test('a degraded alias fetch applies the canonical name but does NOT cache it', async () => {
+	test('a degraded alias fetch applies the canonical name, cached only under the SHORT TTL', async () => {
 		// Single-series path, alias language = default English. The /series call
 		// that carries the alias fails; the identity answer is still sound, so it
-		// applies -- but caching it would pin the canonical (possibly untranslated)
-		// name for the hit TTL while a sibling's healthy lookup gets the alias:
-		// one shelf split across two names BY THE CACHE. The retry must happen on
-		// the next refresh, and get the rename.
+		// applies -- but under the HIT TTL it would pin the canonical (possibly
+		// untranslated) name for a month while a sibling's healthy lookup gets
+		// the alias: one shelf split across two names BY THE CACHE. It used to
+		// not be cached AT ALL, which re-ran the full lookup on every serve when
+		// the alias leg failed persistently -- so the contract is now the
+		// uncacheable TTL: hours, after which the retry gets the rename.
 		const redis = fakeRedis()
 		const single = {
 			Title: 'The Witness for the Dead',
@@ -509,17 +511,34 @@ describe('goodreads as series authority', () => {
 			redis
 		)
 		expect(first.seriesPrimary?.name).toBe('Tintenwelt')
+		const key = [...redis.store.keys()].find((k) => k.startsWith('grseries:'))
+		expect(key).toBeDefined()
+		// The shared-profile uncacheable TTL, NOT the 30-day hit TTL.
+		expect(redis.expires.get(key as string)).toBe(21600)
 
+		// Within the TTL the pinned canonical name serves from cache -- that is
+		// the accepted, bounded cost of not re-running the lookup per serve.
+		respond()
+		const pinned = await withGoodreadsSeries(
+			book({ title: 'The Witness for the Dead', seriesPrimary: null }),
+			redis
+		)
+		expect(pinned.seriesPrimary?.name).toBe('Tintenwelt')
+		expect(fetchMock.mock.calls.length).toBe(0)
+
+		// fakeRedis has no clock: deleting the entry models the TTL expiring.
+		// The re-ask must then still get the rename.
+		redis.store.delete(key as string)
 		respond([{ workId: 42 }], single, {
 			Title: 'Tintenwelt',
 			Description: '<b>Also known as:</b>\n - Inkworld (English)',
 			LinkItems: [1]
 		})
-		const second = await withGoodreadsSeries(
+		const healed = await withGoodreadsSeries(
 			book({ title: 'The Witness for the Dead', seriesPrimary: null }),
 			redis
 		)
-		expect(second.seriesPrimary?.name).toBe('Inkworld')
+		expect(healed.seriesPrimary?.name).toBe('Inkworld')
 	})
 
 	test('a "Series: Title" sequel is not matched to book 1', async () => {

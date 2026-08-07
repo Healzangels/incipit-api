@@ -40,6 +40,7 @@ export interface GoodreadsTuning {
 	minGapMs: number
 	hitTtlSeconds: number
 	missTtlSeconds: number
+	uncacheableTtlSeconds: number
 }
 
 /** A non-negative number from the environment, or null when absent/junk. */
@@ -97,7 +98,15 @@ export function goodreadsTuning(): GoodreadsTuning {
 		hitTtlSeconds: envNonNegative('GOODREADS_HIT_TTL_SECONDS') ?? (shared ? 2592000 : 604800),
 		// A miss is NOT immutable -- the mirror gains records -- so this is the
 		// window in which a newly released book stays series-less.
-		missTtlSeconds: envNonNegative('GOODREADS_MISS_TTL_SECONDS') ?? (shared ? 86400 : 3600)
+		missTtlSeconds: envNonNegative('GOODREADS_MISS_TTL_SECONDS') ?? (shared ? 86400 : 3600),
+		// An UNCACHEABLE answer (sound, but its alias fetch failed -- see
+		// LookupState) used to be cached NEVER, so a row whose alias leg fails
+		// persistently re-paid the whole lookup on every serve, indefinitely.
+		// This TTL bounds both damages at once: it is the longest a shelf can
+		// stay split across canonical/alias names, and the longest the answer is
+		// served without re-asking. Hours, not the 30-day hit TTL.
+		uncacheableTtlSeconds:
+			envNonNegative('GOODREADS_UNCACHEABLE_TTL_SECONDS') ?? (shared ? 21600 : 3600)
 	}
 }
 
@@ -113,7 +122,8 @@ export function goodreadsTuningSummary(): string {
 	const t = goodreadsTuning()
 	return (
 		`Goodreads source: ${BASE} (${t.profile} profile, ` +
-		`pacing ${t.minGapMs}ms, cache hit ${t.hitTtlSeconds}s / miss ${t.missTtlSeconds}s)`
+		`pacing ${t.minGapMs}ms, cache hit ${t.hitTtlSeconds}s / miss ${t.missTtlSeconds}s` +
+		` / uncacheable ${t.uncacheableTtlSeconds}s)`
 	)
 }
 
@@ -569,7 +579,7 @@ async function seriesMemberCount(
  *   degraded fetch degrade the WHOLE lookup (the ranking must -- a wrong count
  *   misranks the pool). The alias rename passes a probe of its own instead and
  *   maps degradation to `uncacheable`: cosmetic loss must not spoil a sound
- *   answer, but it must block the cache write (see LookupState).
+ *   answer, but it caps the cache write at the short TTL (see LookupState).
  * @param {FastifyBaseLogger} logger optional logger
  * @returns {Promise<SeriesRecordInfo>} the record; zeros/nulls when unavailable
  */
@@ -922,6 +932,25 @@ async function seriesEnriched<T extends SeriesEnrichable>(
 	}
 
 	if (result === undefined) {
+		// Standing down after a degraded lookup on THIS row: serve the book as-is
+		// without touching the mirror. A degraded null is rightly never cached, so
+		// a record the mirror persistently fails on (measured: a /work that
+		// answers 500 on every call) would otherwise re-run the whole
+		// search + work + author leg on EVERY serve -- seconds per request,
+		// indefinitely, invisible except as latency. Logged for the same reason
+		// the module-wide backoff logs its skips: an unlogged stand-down is
+		// indistinguishable from "this book has no series".
+		const retryAt = degradedStandDown.get(key)
+		if (retryAt !== undefined) {
+			if (Date.now() < retryAt) {
+				logger?.debug(
+					{ title, standDownMsRemaining: retryAt - Date.now() },
+					'goodreads series: recent lookup degraded, standing down and serving without enrichment'
+				)
+				return book
+			}
+			degradedStandDown.delete(key)
+		}
 		const probe = newLookupState()
 		// Resolved once per lookup rather than per write: the TTLs depend on which
 		// instance we are talking to (see goodreadsTuning).
@@ -944,15 +973,30 @@ async function seriesEnriched<T extends SeriesEnrichable>(
 			// during a full-library refresh would do. A HIT keeps the long TTL; a
 			// MISS gets a much shorter one, because the mirror gaining the record
 			// is exactly what a miss does not rule out. UNCACHEABLE is the alias
-			// middle state (see LookupState): the answer applies but must be
-			// re-asked next refresh.
-			if (redis && !probe.degraded && !probe.uncacheable) {
+			// middle state (see LookupState): the answer applies, but only under
+			// its own SHORT TTL -- "never cache" was the original reading, and it
+			// turned one persistently failing alias leg into a full re-lookup on
+			// every serve of that row, forever (measured 1.4-1.6s per request on
+			// a mirror whose /work record is permanently broken).
+			if (probe.degraded) {
+				// The null in hand says nothing about the data, so redis must
+				// never see it -- but the REPEAT must still be bounded, or a
+				// permanently broken record re-runs this whole leg per serve.
+				// In-process and short: see degradedStandDown. No delete on the
+				// healthy path -- a row only reaches this lookup after the entry
+				// check already removed its expired stand-down.
+				armDegradedStandDown(key)
+			} else if (redis) {
 				try {
 					await redis.set(
 						key,
 						JSON.stringify(fetched),
 						'EX',
-						fetched ? tuning.hitTtlSeconds : tuning.missTtlSeconds
+						probe.uncacheable
+							? tuning.uncacheableTtlSeconds
+							: fetched
+								? tuning.hitTtlSeconds
+								: tuning.missTtlSeconds
 					)
 				} catch {
 					// A cache-write failure is not a request failure.
@@ -1132,6 +1176,39 @@ function backoffMs(): number {
 let nextAllowedAt = 0
 let backoffUntil = 0
 
+// Per-ROW stand-down after a degraded lookup, keyed by the series cache key.
+// Deliberately separate from `backoffUntil`: that one is module-wide and armed
+// only by an explicit 429/503 push-back; this one bounds the row whose OWN
+// records the mirror persistently fails on (a /work answering 500 every call),
+// where nothing may be cached and the full lookup would otherwise re-run per
+// serve. In-process only and short, so a recovered mirror converges without a
+// restart -- and a scan is untouched, because a scan serves each row once.
+const degradedStandDown = new Map<string, number>()
+// A cap, not an LRU: entries are only ever a library's worth of failing rows,
+// so this exists to bound a pathological process's memory, not to manage churn.
+// Insertion order IS expiry order (one fixed window), so evicting the oldest
+// entry evicts the first to expire.
+const DEGRADED_STAND_DOWN_MAX_ROWS = 2048
+
+// READ LAZILY like backoffMs, and disableable the same way (=0): the window is
+// wall-clock state, so a frozen import-time read would blind the harness's
+// determinism mode and any test that needs the window gone.
+function degradedStandDownMs(): number {
+	const raw = Number(process.env.GOODREADS_DEGRADED_COOLDOWN_MS)
+	return Number.isFinite(raw) && raw >= 0 ? raw : 900000
+}
+
+/** Stand this row down for the window; a zero window disables arming outright. */
+function armDegradedStandDown(key: string): void {
+	const ms = degradedStandDownMs()
+	if (ms <= 0) return
+	if (degradedStandDown.size >= DEGRADED_STAND_DOWN_MAX_ROWS) {
+		const oldest = degradedStandDown.keys().next().value
+		if (oldest !== undefined) degradedStandDown.delete(oldest)
+	}
+	degradedStandDown.set(key, Date.now() + ms)
+}
+
 /**
  * Per-lookup degradation flag, threaded through the calls ONE lookup makes.
  *
@@ -1151,9 +1228,12 @@ interface LookupState {
 	degraded: boolean
 	// The middle state between sound and degraded: the ANSWER is sound (apply
 	// it), but something cosmetic it may be missing -- the shelf-language alias
-	// -- failed to fetch, so caching it would pin the un-renamed form for the
-	// hit TTL while a sibling's healthy lookup gets the alias: one shelf split
-	// across two names by the cache. Apply now, re-ask on the next refresh.
+	// -- failed to fetch, so caching it under the HIT TTL would pin the
+	// un-renamed form for a month while a sibling's healthy lookup gets the
+	// alias: one shelf split across two names by the cache. Apply now, cache
+	// under the short uncacheableTtlSeconds instead -- "never cache" was the
+	// original remedy, and against a persistently failing alias leg it meant
+	// re-paying the whole lookup on every serve of the row, forever.
 	uncacheable?: boolean
 	// Set when an answer was ACCEPTED on the strength of the author-record
 	// recovery after a failed /work — the forgiveness is conditioned on that
@@ -1185,6 +1265,7 @@ export function resetGoodreadsThrottle(): void {
 	backoffUntil = 0
 	requestChain = Promise.resolve()
 	seriesRecordMemo.clear()
+	degradedStandDown.clear()
 }
 // Serializes the pacing arithmetic: without a shared tail, N concurrent callers
 // each read the same nextAllowedAt and all fire at once.
@@ -1778,10 +1859,11 @@ async function lookupByTitle(
 		// alias record rides the same memoized /series fetch the ranking uses; on
 		// the single-series path it is the one extra call, paid once per series
 		// per process. A degraded alias fetch must not spoil the sound answer in
-		// hand (it still applies, canonically named) -- but it must not be CACHED
-		// either, or the canonical name is pinned for the hit TTL while a
-		// sibling's healthy lookup gets the alias: a shelf split by the cache.
-		// Hence the middle state, not `degraded`: uncacheable.
+		// hand (it still applies, canonically named) -- but cached under the HIT
+		// TTL it would pin the canonical name for a month while a sibling's
+		// healthy lookup gets the alias: a shelf split by the cache. Hence the
+		// middle state, not `degraded`: uncacheable, cached only under the short
+		// uncacheable TTL.
 		const language = preferredSeriesLanguage()
 		if (language) {
 			const renamed = async (
