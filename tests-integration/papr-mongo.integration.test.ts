@@ -133,7 +133,10 @@ suite('papr helpers against a real MongoDB', () => {
 	test('a LEGACY REGION-LESS document is findable and serves as region "us"', async () => {
 		// Inserted RAW, bypassing papr — papr would apply the region default,
 		// and the point is precisely a document that predates the region field.
-		const legacyAsin = 'B0LEGACY001'
+		// Must satisfy the ASIN format (B + exactly 9 of [0-9A-Z]) — the schema
+		// validates asin shape, and the first CI run of this test failed on a
+		// 10-character fake before it ever tested what it meant to test.
+		const legacyAsin = 'B0LEGACY99'
 		const now = new Date()
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructuring IS the removal
 		const { region: _dropped, ...withoutRegion } = parsedBook
