@@ -159,13 +159,23 @@ function whereFor(table: string, filter: Doc): { sql: string; args: (string | nu
 	)
 }
 
-/** FTS query: each token quoted (hyphens etc. are FTS operators), OR-joined. */
-function ftsQuery(search: string): string {
+/**
+ * FTS query terms: each token quoted (hyphens, parens, dots are FTS syntax).
+ * Two tiers, measured against the Phase 0 golden file (188 real queries):
+ * mongo's $text demonstrably returns ONLY the full-name match for a full-name
+ * query (golden is overwhelmingly single-result), so the AND tier reproduces
+ * it — the first parity run scored 100% top-1 but 48% top-5 SET because an
+ * OR query drags in every shared-token neighbour ("Adrian McKinty" pulled
+ * Adrian Tchaikovsky). OR survives only as the recall FALLBACK when AND finds
+ * nothing: a partial or misspelled query must still produce candidates for
+ * the bundle's author-recovery path, which re-scores by name itself.
+ */
+function ftsTerms(search: string): string[] {
 	return search
 		.split(/\s+/)
 		.filter(Boolean)
 		.map((t) => `"${t.replace(/"/g, '')}"`)
-		.join(' OR ')
+		.filter((t) => t !== '""')
 }
 
 function syncAuthorFts(d: Database, id: string, doc: Doc | null) {
@@ -213,11 +223,14 @@ export function sqliteModel(table: string, opts: SqliteModelOptions) {
 			if (text) {
 				if (!isAuthors) throw new Error(`SqliteModel(${table}): $text only exists for authors`)
 				const limit = options?.limit ?? 25
-				const ids = sqliteDb()
-					.prepare(
-						`SELECT id FROM authors_fts WHERE authors_fts MATCH ? ORDER BY bm25(authors_fts) LIMIT ?`
-					)
-					.all(ftsQuery(text.$search), limit) as { id: string }[]
+				const terms = ftsTerms(text.$search)
+				const q = sqliteDb().prepare(
+					`SELECT id FROM authors_fts WHERE authors_fts MATCH ? ORDER BY bm25(authors_fts) LIMIT ?`
+				)
+				let ids = terms.length ? (q.all(terms.join(' AND '), limit) as { id: string }[]) : []
+				if (!ids.length && terms.length > 1) {
+					ids = q.all(terms.join(' OR '), limit) as { id: string }[]
+				}
 				const get = sqliteDb().prepare(`SELECT id, doc FROM ${table} WHERE id = ?`)
 				return ids
 					.map((r) => get.get(r.id) as { id: string; doc: string } | null)
