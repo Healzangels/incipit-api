@@ -1,0 +1,1883 @@
+{
+ "capturedAt": "2026-08-07T18:20:40.930Z",
+ "api": "http://10.0.1.99:3737",
+ "queryCount": 188,
+ "notes": "Ordered author-search results from the live API. Phase 3 replays these against FTS5: top-1 must match for >=99% of queries, the top-5 SET for >=95%. Recapture with scripts/authorSearchGolden.ts -- do not hand-edit.",
+ "entries": [
+  {
+   "query": "Aaron Dembski-Bowden",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B003E3G0UE",
+     "name": "Aaron Dembski-Bowden"
+    }
+   ]
+  },
+  {
+   "query": "Adrian McKinty",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001IXU26K",
+     "name": "Adrian McKinty"
+    }
+   ]
+  },
+  {
+   "query": "Adrian Tchaikovsky",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B002XLHS8Q",
+     "name": "Adrian Tchaikovsky"
+    }
+   ]
+  },
+  {
+   "query": "Alan Gratz",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001JRTGEY",
+     "name": "Alan Gratz"
+    }
+   ]
+  },
+  {
+   "query": "Aldous Huxley",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APWRRY",
+     "name": "Aldous Huxley"
+    }
+   ]
+  },
+  {
+   "query": "Aleron Kong",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B0176S6G6A",
+     "name": "Aleron Kong"
+    }
+   ]
+  },
+  {
+   "query": "Alice Hoffman",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ05CC",
+     "name": "Alice Hoffman"
+    }
+   ]
+  },
+  {
+   "query": "AlwaysRollsAOne",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B0D2HL5VGZ",
+     "name": "AlwaysRollsAOne"
+    }
+   ]
+  },
+  {
+   "query": "Andrew Karevik",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B07WXLZK7X",
+     "name": "Andrew Karevik"
+    }
+   ]
+  },
+  {
+   "query": "Andrew Rowe",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00TKVOI3A",
+     "name": "Andrew Rowe"
+    }
+   ]
+  },
+  {
+   "query": "Andrzej Sapkowski",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001ICAMAW",
+     "name": "Andrzej Sapkowski"
+    }
+   ]
+  },
+  {
+   "query": "Andy Weir",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00G0WYW92",
+     "name": "Andy Weir"
+    }
+   ]
+  },
+  {
+   "query": "Arthur C. Clarke",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APF21M",
+     "name": "Arthur C. Clarke"
+    }
+   ]
+  },
+  {
+   "query": "Arthur Conan Doyle",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ43GQ",
+     "name": "Arthur Conan Doyle"
+    }
+   ]
+  },
+  {
+   "query": "B. V. Larson",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B003MESPVM",
+     "name": "B. V. Larson"
+    }
+   ]
+  },
+  {
+   "query": "Ben Counter",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B0034Q4MOW",
+     "name": "Ben Counter"
+    }
+   ]
+  },
+  {
+   "query": "Bradley P. Beaulieu",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B004C1TZ04",
+     "name": "Bradley P. Beaulieu"
+    }
+   ]
+  },
+  {
+   "query": "Brandon Sanderson",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001IGFHW6",
+     "name": "Brandon Sanderson"
+    }
+   ]
+  },
+  {
+   "query": "Brent Weeks",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B004N1S4QY",
+     "name": "Brent Weeks"
+    }
+   ]
+  },
+  {
+   "query": "Brian Andrews",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B0064GVLR0",
+     "name": "Brian Andrews"
+    }
+   ]
+  },
+  {
+   "query": "Brian Jacques",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ8SQM",
+     "name": "Brian Jacques"
+    }
+   ]
+  },
+  {
+   "query": "Brian Staveley",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00D0GLPAK",
+     "name": "Brian Staveley"
+    }
+   ]
+  },
+  {
+   "query": "Bryce O'Connor",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B019A75WZG",
+     "name": "Bryce O'Connor"
+    }
+   ]
+  },
+  {
+   "query": "C. S. Friedman",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ1TUO",
+     "name": "C. S. Friedman"
+    }
+   ]
+  },
+  {
+   "query": "C.S. Lewis",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APXBPG",
+     "name": "C.S. Lewis"
+    }
+   ]
+  },
+  {
+   "query": "Callie Hart",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00JEI9IYS",
+     "name": "Callie Hart"
+    }
+   ]
+  },
+  {
+   "query": "Charles Pellegrino",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B0058QNL20",
+     "name": "Charles Pellegrino"
+    }
+   ]
+  },
+  {
+   "query": "Chris Kyle",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B005DONBU4",
+     "name": "Chris Kyle"
+    }
+   ]
+  },
+  {
+   "query": "Chris Voss",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B018Y2I9A8",
+     "name": "Chris Voss"
+    }
+   ]
+  },
+  {
+   "query": "Christopher G. Nuttall",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B008L9Q4ES",
+     "name": "Christopher G. Nuttall"
+    }
+   ]
+  },
+  {
+   "query": "Christopher Paolini",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001IGLLNK",
+     "name": "Christopher Paolini"
+    }
+   ]
+  },
+  {
+   "query": "Christopher Ruocchio",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B07FZX5GSD",
+     "name": "Christopher Ruocchio"
+    }
+   ]
+  },
+  {
+   "query": "Cixin Liu",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B007JP96JU",
+     "name": "Cixin Liu"
+    }
+   ]
+  },
+  {
+   "query": "Cormac McCarthy",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APT0OW",
+     "name": "Cormac McCarthy"
+    }
+   ]
+  },
+  {
+   "query": "Cornelia Funke",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001ILHLGQ",
+     "name": "Cornelia Funke"
+    }
+   ]
+  },
+  {
+   "query": "Craig Alanson",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B01AIAVB0O",
+     "name": "Craig Alanson"
+    }
+   ]
+  },
+  {
+   "query": "Dakota Krout",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B01M2UQD35",
+     "name": "Dakota Krout"
+    }
+   ]
+  },
+  {
+   "query": "Dan Abnett",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001JP7NWS",
+     "name": "Dan Abnett"
+    }
+   ]
+  },
+  {
+   "query": "Dan Brown",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AP9DSU",
+     "name": "Dan Brown"
+    }
+   ]
+  },
+  {
+   "query": "Dan Simmons",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APQZD6",
+     "name": "Dan Simmons"
+    }
+   ]
+  },
+  {
+   "query": "Daniel Rigby",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B0CGVRK5B7",
+     "name": "Daniel Rigby"
+    }
+   ]
+  },
+  {
+   "query": "Daniella Mestyanek Young",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B09YP2MKC3",
+     "name": "Daniella Mestyanek Young"
+    }
+   ]
+  },
+  {
+   "query": "David A. Wells",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B0056UNJCU",
+     "name": "David A. Wells"
+    }
+   ]
+  },
+  {
+   "query": "David Baldacci",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ0STC",
+     "name": "David Baldacci"
+    }
+   ]
+  },
+  {
+   "query": "David Lagercrantz",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00OPLVJ50",
+     "name": "David Lagercrantz"
+    }
+   ]
+  },
+  {
+   "query": "Davis Ashura",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00HTNYM8C",
+     "name": "Davis Ashura"
+    }
+   ]
+  },
+  {
+   "query": "Dennis E. Taylor",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B010ETTBJC",
+     "name": "Dennis E. Taylor"
+    }
+   ]
+  },
+  {
+   "query": "Dmitry Glukhovsky",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B003X0960E",
+     "name": "Dmitry Glukhovsky"
+    }
+   ]
+  },
+  {
+   "query": "Don Winslow",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00455VVTK",
+     "name": "Don Winslow"
+    }
+   ]
+  },
+  {
+   "query": "Donita K. Paul",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001JS1KMY",
+     "name": "Donita K. Paul"
+    }
+   ]
+  },
+  {
+   "query": "Douglas Adams",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ2A84",
+     "name": "Douglas Adams"
+    }
+   ]
+  },
+  {
+   "query": "Douglas Preston",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B0H123WY81",
+     "name": "Douglas Preston"
+    }
+   ]
+  },
+  {
+   "query": "Drew Eric Whitman",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001JP2K4O",
+     "name": "Drew Eric Whitman"
+    }
+   ]
+  },
+  {
+   "query": "Duncan M Hamilton",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00BOUK5ZA",
+     "name": "Duncan M Hamilton"
+    }
+   ]
+  },
+  {
+   "query": "Edward W. Robertson",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B004NW3PYY",
+     "name": "Edward W. Robertson"
+    }
+   ]
+  },
+  {
+   "query": "Elizabeth Bear",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001ILKHRQ",
+     "name": "Elizabeth Bear"
+    }
+   ]
+  },
+  {
+   "query": "Elizabeth Gilbert",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APV4U0",
+     "name": "Elizabeth Gilbert"
+    }
+   ]
+  },
+  {
+   "query": "Emmet Moss",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B07T8Z9WBM",
+     "name": "Emmet Moss"
+    }
+   ]
+  },
+  {
+   "query": "Eoin Colfer",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001JS4V8E",
+     "name": "Eoin Colfer"
+    }
+   ]
+  },
+  {
+   "query": "Erin M. Evans",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B0032OJT1C",
+     "name": "Erin M. Evans"
+    }
+   ]
+  },
+  {
+   "query": "Ernest Cline",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B004XRR8Z6",
+     "name": "Ernest Cline"
+    }
+   ]
+  },
+  {
+   "query": "Frank Herbert",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APO5OM",
+     "name": "Frank Herbert"
+    }
+   ]
+  },
+  {
+   "query": "Gav Thorpe",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B004MLKSYQ",
+     "name": "Gav Thorpe"
+    }
+   ]
+  },
+  {
+   "query": "George Alec Effinger",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ8RSG",
+     "name": "George Alec Effinger"
+    }
+   ]
+  },
+  {
+   "query": "George Orwell",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ0KKY",
+     "name": "George Orwell"
+    }
+   ]
+  },
+  {
+   "query": "George R. R. Martin",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APIGH4",
+     "name": "George R. R. Martin"
+    }
+   ]
+  },
+  {
+   "query": "Glen Cook",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ26ZQ",
+     "name": "Glen Cook"
+    }
+   ]
+  },
+  {
+   "query": "Graham McNeill",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B002LFHNWA",
+     "name": "Graham McNeill"
+    }
+   ]
+  },
+  {
+   "query": "Grant Blackwood",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001HMRS5K",
+     "name": "Grant Blackwood"
+    }
+   ]
+  },
+  {
+   "query": "Greg Bear",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APY7S6",
+     "name": "Greg Bear"
+    }
+   ]
+  },
+  {
+   "query": "Gregg Hurwitz",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001IXPXTG",
+     "name": "Gregg Hurwitz"
+    }
+   ]
+  },
+  {
+   "query": "Guy Haley",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B006E4EB9W",
+     "name": "Guy Haley"
+    }
+   ]
+  },
+  {
+   "query": "Haruki Murakami",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AP7AFI",
+     "name": "Haruki Murakami"
+    }
+   ]
+  },
+  {
+   "query": "Homer",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AP7OK4",
+     "name": "Homer"
+    }
+   ]
+  },
+  {
+   "query": "Hugh Howey",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B002RX4S5Q",
+     "name": "Hugh Howey"
+    }
+   ]
+  },
+  {
+   "query": "Isaac Asimov",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B003RY2ISS",
+     "name": "Isaac Asimov"
+    }
+   ]
+  },
+  {
+   "query": "J. R. R. Tolkien",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000ARC6KA",
+     "name": "J. R. R. Tolkien"
+    }
+   ]
+  },
+  {
+   "query": "J. Zachary Pike",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00K4KWUDG",
+     "name": "J. Zachary Pike"
+    }
+   ]
+  },
+  {
+   "query": "J.K. Rowling",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AP9A6K",
+     "name": "J.K. Rowling"
+    }
+   ]
+  },
+  {
+   "query": "JD Franx",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00OJMNL9C",
+     "name": "JD Franx"
+    }
+   ]
+  },
+  {
+   "query": "Jack Vance",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ71MO",
+     "name": "Jack Vance"
+    }
+   ]
+  },
+  {
+   "query": "Jacob Peppers",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B07664BDWK",
+     "name": "Jacob Peppers"
+    }
+   ]
+  },
+  {
+   "query": "James Ellroy",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ50RC",
+     "name": "James Ellroy"
+    }
+   ]
+  },
+  {
+   "query": "James Islington",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00ME7ACR8",
+     "name": "James Islington"
+    }
+   ]
+  },
+  {
+   "query": "James S. A. Corey",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B004AQ1W8Y",
+     "name": "James S. A. Corey"
+    }
+   ]
+  },
+  {
+   "query": "James Swallow",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B004MO0FB4",
+     "name": "James Swallow"
+    }
+   ]
+  },
+  {
+   "query": "Jason Anspach",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B012DQ3BCM",
+     "name": "Jason Anspach"
+    }
+   ]
+  },
+  {
+   "query": "Jay Lake",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001IQW7TC",
+     "name": "Jay Lake"
+    }
+   ]
+  },
+  {
+   "query": "Jenny Nimmo",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001IGNZSY",
+     "name": "Jenny Nimmo"
+    }
+   ]
+  },
+  {
+   "query": "Jessica Townsend",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B0034P9AUO",
+     "name": "Jessica Townsend"
+    }
+   ]
+  },
+  {
+   "query": "Jim Butcher",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001H6U718",
+     "name": "Jim Butcher"
+    }
+   ]
+  },
+  {
+   "query": "Joe Abercrombie",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001JP7WJC",
+     "name": "Joe Abercrombie"
+    }
+   ]
+  },
+  {
+   "query": "Joe Hill",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001IGSNRW",
+     "name": "Joe Hill"
+    }
+   ]
+  },
+  {
+   "query": "John Bellairs",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APZTO2",
+     "name": "John Bellairs"
+    }
+   ]
+  },
+  {
+   "query": "John French",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00D7448HW",
+     "name": "John French"
+    }
+   ]
+  },
+  {
+   "query": "John Gwynne",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00A7RL2X0",
+     "name": "John Gwynne"
+    }
+   ]
+  },
+  {
+   "query": "John Lescroart",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00455YM5A",
+     "name": "John Lescroart"
+    }
+   ]
+  },
+  {
+   "query": "Jonathan L. Howard",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001JS2W26",
+     "name": "Jonathan L. Howard"
+    }
+   ]
+  },
+  {
+   "query": "Jonathan Stroud",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001H6GD9I",
+     "name": "Jonathan Stroud"
+    }
+   ]
+  },
+  {
+   "query": "Joseph Heller",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APVA6I",
+     "name": "Joseph Heller"
+    }
+   ]
+  },
+  {
+   "query": "Katherine Addison",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00EAD8LO0",
+     "name": "Katherine Addison"
+    }
+   ]
+  },
+  {
+   "query": "Kel Kade",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B019ZTQ5IM",
+     "name": "Kel Kade"
+    }
+   ]
+  },
+  {
+   "query": "Kyle Mills",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APXUH0",
+     "name": "Kyle Mills"
+    }
+   ]
+  },
+  {
+   "query": "Leigh Bardugo",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B005ZZ8XQS",
+     "name": "Leigh Bardugo"
+    }
+   ]
+  },
+  {
+   "query": "Lincoln Child",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APYNUI",
+     "name": "Lincoln Child"
+    }
+   ]
+  },
+  {
+   "query": "Louis Sachar",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ44EM",
+     "name": "Louis Sachar"
+    }
+   ]
+  },
+  {
+   "query": "M. R. Carey",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00NGCIG46",
+     "name": "M. R. Carey"
+    }
+   ]
+  },
+  {
+   "query": "Marc Cameron",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B005FB45C8",
+     "name": "Marc Cameron"
+    }
+   ]
+  },
+  {
+   "query": "Marcus Aurelius",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AR7YUW",
+     "name": "Marcus Aurelius"
+    }
+   ]
+  },
+  {
+   "query": "Margaret Atwood",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQTHI0",
+     "name": "Margaret Atwood"
+    }
+   ]
+  },
+  {
+   "query": "Marilynne Robinson",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ76O2",
+     "name": "Marilynne Robinson"
+    }
+   ]
+  },
+  {
+   "query": "Mario Puzo",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APW2HY",
+     "name": "Mario Puzo"
+    }
+   ]
+  },
+  {
+   "query": "Mark Greaney",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B002KGVOMU",
+     "name": "Mark Greaney"
+    }
+   ]
+  },
+  {
+   "query": "Martha Wells",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APZA1O",
+     "name": "Martha Wells"
+    }
+   ]
+  },
+  {
+   "query": "Martin Gurri",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B07JM4T6G2",
+     "name": "Martin Gurri"
+    }
+   ]
+  },
+  {
+   "query": "Matt Dinniman",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B002BLP1QY",
+     "name": "Matt Dinniman"
+    }
+   ]
+  },
+  {
+   "query": "Melissa McPhail",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00479YNYE",
+     "name": "Melissa McPhail"
+    }
+   ]
+  },
+  {
+   "query": "Michael J. Sullivan",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B002BOJ41O",
+     "name": "Michael J. Sullivan"
+    }
+   ]
+  },
+  {
+   "query": "Michael Port",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001IGFKL4",
+     "name": "Michael Port"
+    }
+   ]
+  },
+  {
+   "query": "Michael R. Miller",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B0181MCCFO",
+     "name": "Michael R. Miller"
+    }
+   ]
+  },
+  {
+   "query": "Michael Scott",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APRZLC",
+     "name": "Michael Scott"
+    }
+   ]
+  },
+  {
+   "query": "Michael Wisehart",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B01M7PIBHE",
+     "name": "Michael Wisehart"
+    }
+   ]
+  },
+  {
+   "query": "Mike Maden",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00EABOULU",
+     "name": "Mike Maden"
+    }
+   ]
+  },
+  {
+   "query": "Mitchel Scanlon",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B0034OO0J6",
+     "name": "Mitchel Scanlon"
+    }
+   ]
+  },
+  {
+   "query": "N. K. Jemisin",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B0028OIVC0",
+     "name": "N. K. Jemisin"
+    }
+   ]
+  },
+  {
+   "query": "Naomi Kuttner",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B01N5OW5PW",
+     "name": "Naomi Kuttner"
+    }
+   ]
+  },
+  {
+   "query": "Naomi Novik",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001IGNGVK",
+     "name": "Naomi Novik"
+    }
+   ]
+  },
+  {
+   "query": "Nate Crowley",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B075SDM7FM",
+     "name": "Nate Crowley"
+    }
+   ]
+  },
+  {
+   "query": "Nate Kenyon",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001K8ER5A",
+     "name": "Nate Kenyon"
+    }
+   ]
+  },
+  {
+   "query": "Neal Shusterman",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APTN0I",
+     "name": "Neal Shusterman"
+    }
+   ]
+  },
+  {
+   "query": "Neal Stephenson",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APS8L8",
+     "name": "Neal Stephenson"
+    }
+   ]
+  },
+  {
+   "query": "Nick Jones",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00KH5G6M4",
+     "name": "Nick Jones"
+    }
+   ]
+  },
+  {
+   "query": "Nick Kyme",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B002GWM1N4",
+     "name": "Nick Kyme"
+    }
+   ]
+  },
+  {
+   "query": "Octavia E. Butler",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ1SQE",
+     "name": "Octavia E. Butler"
+    }
+   ]
+  },
+  {
+   "query": "Orson Scott Card",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ3SS0",
+     "name": "Orson Scott Card"
+    }
+   ]
+  },
+  {
+   "query": "Patrick Rothfuss",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001DAHXZQ",
+     "name": "Patrick Rothfuss"
+    }
+   ]
+  },
+  {
+   "query": "Peng Shepherd",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B0755NH654",
+     "name": "Peng Shepherd"
+    }
+   ]
+  },
+  {
+   "query": "Peter F. Hamilton",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00N4XXNU4",
+     "name": "Peter F. Hamilton"
+    }
+   ]
+  },
+  {
+   "query": "Philip K. Dick",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00BRTKOEA",
+     "name": "Philip K. Dick"
+    }
+   ]
+  },
+  {
+   "query": "Philip Pullman",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ74C6",
+     "name": "Philip Pullman"
+    }
+   ]
+  },
+  {
+   "query": "Pierce Brown",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00EDBZVNI",
+     "name": "Pierce Brown"
+    }
+   ]
+  },
+  {
+   "query": "Piers Anthony",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APX5IE",
+     "name": "Piers Anthony"
+    }
+   ]
+  },
+  {
+   "query": "R. A. Salvatore",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ3YFC",
+     "name": "R. A. Salvatore"
+    }
+   ]
+  },
+  {
+   "query": "R. F. Kuang",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B0788VXRHP",
+     "name": "R. F. Kuang"
+    }
+   ]
+  },
+  {
+   "query": "Ray Bradbury",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ1HW4",
+     "name": "Ray Bradbury"
+    }
+   ]
+  },
+  {
+   "query": "Raymond E. Feist",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQU2EI",
+     "name": "Raymond E. Feist"
+    }
+   ]
+  },
+  {
+   "query": "Rebecca Godfrey",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001ILHKEY",
+     "name": "Rebecca Godfrey"
+    }
+   ]
+  },
+  {
+   "query": "Rebecca Yarros",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00HYKBU1W",
+     "name": "Rebecca Yarros"
+    }
+   ]
+  },
+  {
+   "query": "Richard A. Knaak",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AP5ZFA",
+     "name": "Richard A. Knaak"
+    }
+   ]
+  },
+  {
+   "query": "Richard Matheson",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ285E",
+     "name": "Richard Matheson"
+    }
+   ]
+  },
+  {
+   "query": "Rick Riordan",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B0C7WDNTN3",
+     "name": "Rick Riordan"
+    }
+   ]
+  },
+  {
+   "query": "Robert Harris",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APBPA4",
+     "name": "Robert Harris"
+    }
+   ]
+  },
+  {
+   "query": "Robert Heinlein",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B005GDIOHM",
+     "name": "Robert Heinlein"
+    }
+   ]
+  },
+  {
+   "query": "Robert Jordan",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ19X6",
+     "name": "Robert Jordan"
+    }
+   ]
+  },
+  {
+   "query": "Roger Zelazny",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APXZHK",
+     "name": "Roger Zelazny"
+    }
+   ]
+  },
+  {
+   "query": "Ryan Cahill",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B08ZDTC4CW",
+     "name": "Ryan Cahill"
+    }
+   ]
+  },
+  {
+   "query": "Ryan Cahill (Bound and the Broken)",
+   "status": 200,
+   "results": []
+  },
+  {
+   "query": "Sarah J. Maas",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B0070291GK",
+     "name": "Sarah J. Maas"
+    }
+   ]
+  },
+  {
+   "query": "Scott Lynch",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001DABSBQ",
+     "name": "Scott Lynch"
+    }
+   ]
+  },
+  {
+   "query": "Seth Ring",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B07M96FBQQ",
+     "name": "Seth Ring"
+    }
+   ]
+  },
+  {
+   "query": "Sheldon Siegel",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APIXDQ",
+     "name": "Sheldon Siegel"
+    }
+   ]
+  },
+  {
+   "query": "Shirtaloon",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B08VWFRTMS",
+     "name": "Shirtaloon"
+    }
+   ]
+  },
+  {
+   "query": "Stephen Fry",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APAGVS",
+     "name": "Stephen Fry"
+    }
+   ]
+  },
+  {
+   "query": "Stephen King",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ0842",
+     "name": "Stephen King"
+    }
+   ]
+  },
+  {
+   "query": "Stephen R. Donaldson",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00MD94HOG",
+     "name": "Stephen R. Donaldson"
+    }
+   ]
+  },
+  {
+   "query": "Stephen R. Lawhead",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ4NUC",
+     "name": "Stephen R. Lawhead"
+    }
+   ]
+  },
+  {
+   "query": "Steven Erikson",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APIXTU",
+     "name": "Steven Erikson"
+    }
+   ]
+  },
+  {
+   "query": "Stewart O'Nan",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ4I20",
+     "name": "Stewart O'Nan"
+    }
+   ]
+  },
+  {
+   "query": "Stieg Larsson",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001J95ACO",
+     "name": "Stieg Larsson"
+    }
+   ]
+  },
+  {
+   "query": "Susanna Clarke",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001JP2KUS",
+     "name": "Susanna Clarke"
+    }
+   ]
+  },
+  {
+   "query": "Suzanne Collins",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001H6V7I0",
+     "name": "Suzanne Collins"
+    }
+   ]
+  },
+  {
+   "query": "T E Kinsey",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00O6Z2M4W",
+     "name": "T E Kinsey"
+    }
+   ]
+  },
+  {
+   "query": "T.C. Edge",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00F0GRA70",
+     "name": "T.C. Edge"
+    }
+   ]
+  },
+  {
+   "query": "Tad Williams",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ3HBI",
+     "name": "Tad Williams"
+    }
+   ]
+  },
+  {
+   "query": "Terry Brooks",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APZAHI",
+     "name": "Terry Brooks"
+    }
+   ]
+  },
+  {
+   "query": "Terry Mancour",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B004QTNFOO",
+     "name": "Terry Mancour"
+    }
+   ]
+  },
+  {
+   "query": "Terry Pratchett",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ0NN8",
+     "name": "Terry Pratchett"
+    }
+   ]
+  },
+  {
+   "query": "TheFirstDefier",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B096G8Z644",
+     "name": "TheFirstDefier"
+    }
+   ]
+  },
+  {
+   "query": "Thomas Harris",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AQ28TK",
+     "name": "Thomas Harris"
+    }
+   ]
+  },
+  {
+   "query": "Tim Ferriss",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001ILKBW2",
+     "name": "Tim Ferriss"
+    }
+   ]
+  },
+  {
+   "query": "Tobias S. Buckell",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B001HCX2U0",
+     "name": "Tobias S. Buckell"
+    }
+   ]
+  },
+  {
+   "query": "Tom Clancy",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APF4T2",
+     "name": "Tom Clancy"
+    }
+   ]
+  },
+  {
+   "query": "Tom Wood",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B002RFD2P6",
+     "name": "Tom Wood"
+    }
+   ]
+  },
+  {
+   "query": "Trevanian",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APLKQS",
+     "name": "Trevanian"
+    }
+   ]
+  },
+  {
+   "query": "Vince Flynn",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000APHM1K",
+     "name": "Vince Flynn"
+    }
+   ]
+  },
+  {
+   "query": "Will Wight",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B00D9S1IMO",
+     "name": "Will Wight"
+    }
+   ]
+  },
+  {
+   "query": "William Gibson",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B000AP5DM0",
+     "name": "William Gibson"
+    }
+   ]
+  },
+  {
+   "query": "pirate aba",
+   "status": 200,
+   "results": [
+    {
+     "asin": "B07XCYVYMW",
+     "name": "pirate aba"
+    }
+   ]
+  }
+ ]
+}
