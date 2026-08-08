@@ -123,6 +123,13 @@ describe('a stored BOOK COVER does not count as a portrait', () => {
 				'https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/nophoto/user/u_200x266.png'
 			)
 		).toBe(true)
+		// The aggregator's literal "null" string — persisted into real records
+		// before pickPhoto learned to refuse it; the restore rung then brought
+		// it back every pass. Any non-http value is furniture.
+		expect(isNonPortraitImage('null')).toBe(true)
+		expect(isNonPortraitImage('undefined')).toBe(true)
+		expect(isNonPortraitImage(null)).toBe(false)
+		expect(isNonPortraitImage('')).toBe(false)
 		expect(
 			isNonPortraitImage(
 				'https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/authors/1721927489i/38550.jpg'

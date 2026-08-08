@@ -79,6 +79,14 @@ export function isNonPortraitImage(
 	generatedAvatar: string | null = null
 ): boolean {
 	return (
+		// A non-empty value that is not an http(s) URL is never a portrait —
+		// the aggregator's literal string "null" reached STORED records before
+		// pickPhoto learned to refuse it, and the keep-what-we-had restore then
+		// faithfully restored the poison on every later pass (measured live:
+		// Rigby and AlwaysRollsAOne stayed on "null" while Scanlon healed).
+		// One scheme rule here retires the class at the rulebook level:
+		// clearing, restore and every fill all consult this same function.
+		Boolean(url && !/^https?:\/\//i.test(url)) ||
 		isStaticAvatar(url) ||
 		isGoodreadsNoPhoto(url) ||
 		isBookAssetUrl(url) ||
