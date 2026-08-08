@@ -293,7 +293,37 @@ export function sqliteModel(table: string, opts: SqliteModelOptions) {
 				updatedAt: setUpdated,
 				...payload
 			} = (update.$set ?? {}) as Doc
-			const cleanPayload = opts.schema.parse(payload) as Doc
+			// VALIDATE THE PAYLOAD AS A $set, WHICH IS PARTIAL BY DEFINITION.
+			//
+			// This line parsed the payload through the FULL Api schema, so any
+			// update not carrying a complete record threw. Two divergences from
+			// mongo followed, and the second one was live:
+			//
+			//  - A $currentDate-only touch (touchUpdatedAt marks an author whose
+			//    re-scrape was byte-identical as freshly checked) has NO $set at
+			//    all, so an empty object hit a schema requiring asin+name and
+			//    threw. The caller swallows the throw, so updatedAt never
+			//    advanced and the scheduler re-fetched every unchanged author on
+			//    every sweep forever — hammering the ToS-sensitive Goodreads
+			//    mirror, one error line per author per cycle.
+			//  - A partial $set ({ description }) threw for the same reason.
+			//    Every caller today spreads a whole record so nothing hit it yet,
+			//    but mongo accepts partials, and "works on the mongo CI leg,
+			//    throws on the sqlite prod backend" is precisely the trap the
+			//    touch bug already sprang.
+			//
+			// `.partial()` matches $set's own semantics: present fields are still
+			// type-checked (a `name: 42` payload is still refused), absent ones
+			// are simply not this update's business. The guard is RELAXED to the
+			// right shape, never removed — and the merged doc is still never
+			// parsed, which is what protects the model-shape aliases.
+			const partialSchema =
+				typeof (opts.schema as { partial?: unknown }).partial === 'function'
+					? (
+							opts.schema as unknown as { partial: () => { parse: (v: unknown) => unknown } }
+						).partial()
+					: opts.schema
+			const cleanPayload = (Object.keys(payload).length ? partialSchema.parse(payload) : {}) as Doc
 			// TOP-LEVEL MERGE — fields absent from $set survive. This is the
 			// §7.2 high-severity pin: authorData carries no aliases, and a doc
 			// replace here would silently destroy half the author text index.
