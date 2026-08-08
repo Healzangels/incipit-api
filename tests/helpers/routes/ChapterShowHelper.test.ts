@@ -56,6 +56,11 @@ mock.module('#helpers/books/audible/ChapterHelper', () => ({
 	}
 }))
 
+const mockChaptarrChapters = mock()
+mock.module('#helpers/providers/chaptarrChapters', () => ({
+	chaptarrChapters: mockChaptarrChapters
+}))
+
 mock.module('@fastify/redis', () => ({}))
 
 import type { FastifyRedis } from '@fastify/redis'
@@ -66,6 +71,7 @@ import {
 	setPerformanceConfig
 } from '#config/performance'
 import { ApiChapter } from '#config/types'
+import { NotFoundError } from '#helpers/errors/ApiErrors'
 import ChapterShowHelper from '#helpers/routes/ChapterShowHelper'
 import {
 	chaptersWithoutProjection,
@@ -109,6 +115,7 @@ const createTestConfig = (overrides: Partial<PerformanceConfig>): PerformanceCon
 })
 
 beforeEach(() => {
+	mockChaptarrChapters.mockResolvedValue(null)
 	mock.clearAllMocks()
 	asin = 'B079LRSMNN'
 	helper = new ChapterShowHelper(asin, { region: 'us', update: undefined }, null)
@@ -202,6 +209,55 @@ describe('ChapterShowHelper should', () => {
 		mockPaprFindOne.mockResolvedValue({ data: null, modified: false })
 		mockChapterHelperProcess.mockResolvedValue(undefined)
 		await expect(helper.handler()).resolves.toBeUndefined()
+	})
+})
+
+describe('the CHAPTARR chapter fallback', () => {
+	// Audible first, Chaptarr second, and only for the no-answer shapes —
+	// pinned here because every enrichment rung's wiring bug has been
+	// invisible to unit tests of the rung itself (the unwired-stage class).
+	const CHAPTARR_ANSWER = { asin: 'B079LRSMNN', chapters: [{ title: 'From Chaptarr' }] }
+
+	test('an Audible answer never consults Chaptarr', async () => {
+		await helper.getNewData()
+		expect(mockChaptarrChapters).not.toHaveBeenCalled()
+	})
+
+	test('Audible undefined -> Chaptarr fills, keyed by asin and region', async () => {
+		mockChapterHelperProcess.mockResolvedValue(undefined)
+		mockChaptarrChapters.mockResolvedValue(CHAPTARR_ANSWER)
+		const out = await helper.getNewData()
+		expect(out).toBe(CHAPTARR_ANSWER as never)
+		expect(mockChaptarrChapters.mock.calls[0]?.[0]).toBe(asin)
+		expect(mockChaptarrChapters.mock.calls[0]?.[1]).toBe('us')
+	})
+
+	test('a NotFoundError (no ADP creds / delisted) -> Chaptarr fills', async () => {
+		mockChapterHelperProcess.mockRejectedValue(new NotFoundError('no creds'))
+		mockChaptarrChapters.mockResolvedValue(CHAPTARR_ANSWER)
+		expect(await helper.getNewData()).toBe(CHAPTARR_ANSWER as never)
+	})
+
+	test('both blind: the ORIGINAL NotFoundError propagates', async () => {
+		const original = new NotFoundError('no creds')
+		mockChapterHelperProcess.mockRejectedValue(original)
+		mockChaptarrChapters.mockResolvedValue(null)
+		await expect(helper.getNewData()).rejects.toBe(original)
+	})
+
+	test('both blind without an error stays undefined', async () => {
+		mockChapterHelperProcess.mockResolvedValue(undefined)
+		mockChaptarrChapters.mockResolvedValue(null)
+		expect(await helper.getNewData()).toBeUndefined()
+	})
+
+	test('a NON-NotFound failure rethrows WITHOUT consulting the fallback', async () => {
+		// An outage or a bug is not a gap to paper over — papering over it
+		// would persist a Chaptarr record that masks the real failure.
+		mockChapterHelperProcess.mockRejectedValue(new Error('audible exploded'))
+		mockChaptarrChapters.mockResolvedValue(CHAPTARR_ANSWER)
+		await expect(helper.getNewData()).rejects.toThrow('audible exploded')
+		expect(mockChaptarrChapters).not.toHaveBeenCalled()
 	})
 })
 

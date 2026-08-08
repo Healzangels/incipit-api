@@ -30,6 +30,46 @@ let redisData: unknown = null
 /** What the Mongo layer holds for this request, if anything. */
 let paprData: unknown = null
 
+/**
+ * The Chaptarr fallback is stubbed at its TRANSPORT, not at its module.
+ *
+ * bun's module registry is process-wide and every test file is evaluated
+ * before any test runs, so a `mock.module('…/chaptarrChapters')` here
+ * replaced the function inside chaptarrChapters' OWN unit tests — proven:
+ * running that file after this one turned 5 green into 2 red, and an
+ * afterAll restore is too late to help. The full gate hid it only because
+ * tests/config runs last, which is exactly how an order-dependent test
+ * survives review.
+ *
+ * Overriding just `fetchChaptarrWork` (real module spread around it) leaves
+ * every other consumer honest, and has the bonus of running the REAL mapper
+ * through the route: what this file pins is the wiring plus the mapping.
+ */
+const realChaptarrProvider = await import('#helpers/providers/ChaptarrProvider')
+/** The work the aggregator "holds" for this request; null = it has nothing. */
+let chaptarrWork: unknown = null
+mock.module('#helpers/providers/ChaptarrProvider', () => ({
+	...realChaptarrProvider,
+	fetchChaptarrWork: async () => chaptarrWork
+}))
+
+/** A work whose audiobook edition carries chapters for the asin under test. */
+const workWithChapters = (asin: string) => ({
+	work: { title: 'A Test Book' },
+	authors: [{ name: 'A Test Author' }],
+	editions: [
+		{
+			asin,
+			formatType: 'audiobook',
+			durationSeconds: 3600,
+			chapters: [
+				{ title: 'Opening Credits', startOffsetMs: 0, startOffsetSec: 0, lengthMs: 13432 },
+				{ title: '1: Initiation', startOffsetMs: 13432, startOffsetSec: 13, lengthMs: 600000 }
+			]
+		}
+	]
+})
+
 mock.module('#helpers/database/redis/RedisHelper', () => ({
 	default: class {
 		async findOne() {
@@ -41,17 +81,23 @@ mock.module('#helpers/database/redis/RedisHelper', () => ({
 	}
 }))
 
+/** What setData handed the storage layer this request — the real layer
+ * persists it and hands it back, and the fallback-200 pin needs that
+ * round-trip to be faithful. */
+let paprStored: unknown = null
 mock.module('#helpers/database/papr/audible/PaprAudibleChapterHelper', () => ({
 	default: class {
 		async findOne() {
 			return { data: paprData, modified: false }
 		}
 		async findOneWithProjection() {
-			return { data: paprData, modified: false }
+			return { data: paprStored ?? paprData, modified: false }
 		}
-		setData() {}
+		setData(data: unknown) {
+			paprStored = data
+		}
 		async createOrUpdate() {
-			return { data: paprData, modified: false }
+			return { data: paprStored ?? paprData, modified: true }
 		}
 	}
 }))
@@ -66,6 +112,7 @@ function unconfigure() {
 }
 
 beforeEach(() => {
+	paprStored = null
 	redisData = null
 	paprData = null
 	for (const k of ENV) saved[k] = process.env[k]
@@ -90,6 +137,26 @@ async function get(url: string) {
 }
 
 describe('GET /books/:asin/chapters without Audible credentials', () => {
+	beforeEach(() => {
+		chaptarrWork = null
+	})
+
+	test('no credentials but CHAPTARR answers: served 200 — the fallback is the feature', async () => {
+		// The shared-instance shape chapters were simply OFF for: no ADP creds,
+		// nothing stored, but the aggregation server has the chapter list. The
+		// real mapper runs here, so this pins the wiring AND the mapping.
+		unconfigure()
+		chaptarrWork = workWithChapters('B079LRSMNN')
+		const { status, body } = await get('/books/B079LRSMNN/chapters')
+		expect(status).toBe(200)
+		const served = JSON.parse(body)
+		expect(served.asin).toBe('B079LRSMNN')
+		expect(served.chapters.length).toBe(2)
+		expect(served.chapters[0].title).toBe('Opening Credits')
+		// Never claimed as Audible-blessed.
+		expect(served.isAccurate).toBe(false)
+	})
+
 	test('STORED chapters are still served 200 — the credentials are only needed to FETCH', async () => {
 		// The regression the route-level pre-gate caused: these rows exist, the
 		// deployment has been serving them for months, and no Audible call is
