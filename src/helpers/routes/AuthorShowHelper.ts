@@ -80,9 +80,22 @@ export function isNonPortraitImage(
 ): boolean {
 	return (
 		isStaticAvatar(url) ||
+		isGoodreadsNoPhoto(url) ||
 		isBookAssetUrl(url) ||
 		(generatedAvatar != null && url === generatedAvatar)
 	)
+}
+
+/**
+ * Goodreads' own "no photo" placeholder (a grey silhouette). Slipped through
+ * on the Chaptarr author rung's first live run (2026-08-08): all three
+ * avatar-only authors "gained" a photo whose URL contained /nophoto/ — worse
+ * than our deliberate avatar, and read as a REAL portrait, which freezes
+ * every downstream gap check for those authors. Same trap class as the
+ * static avatars; same rulebook.
+ */
+export function isGoodreadsNoPhoto(url: string | null | undefined): boolean {
+	return Boolean(url && /goodreads\.com\/.*nophoto/i.test(url))
 }
 
 export default class AuthorShowHelper extends GenericShowHelper {
@@ -261,7 +274,7 @@ export default class AuthorShowHelper extends GenericShowHelper {
 				this.logger,
 				{ retryCachedMiss: this.options.force === '1' }
 			)
-			if (grImage && !author.image?.trim()) {
+			if (grImage && !isPlaceholder(grImage) && !author.image?.trim()) {
 				this.logger?.info({ author: author.name }, 'author image: filled from Goodreads')
 				author.image = grImage
 			}

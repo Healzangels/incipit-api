@@ -81,7 +81,10 @@ export function pickPhoto(photos: ChaptarrPhoto[] | undefined): string | null {
 		const tier = provider === 'goodreads' ? 0 : provider === 'hardcover' ? 1 : 2
 		return tier * 2 + (p.isPrimary ? 0 : 1)
 	}
-	const usable = photos.filter((p) => !!p.url)
+	// Goodreads' nophoto placeholder is not a photo: skipping it HERE keeps
+	// the tier fallthrough alive, so an author with a real hardcover or
+	// audnexus portrait still gets it instead of the grey silhouette.
+	const usable = photos.filter((p) => !!p.url && !/goodreads\.com\/.*nophoto/i.test(p.url ?? ''))
 	if (!usable.length) return null
 	usable.sort((a, b) => rank(a) - rank(b))
 	return usable[0].url ?? null

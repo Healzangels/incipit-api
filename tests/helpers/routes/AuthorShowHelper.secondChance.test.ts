@@ -118,6 +118,16 @@ describe('a stored BOOK COVER does not count as a portrait', () => {
 		const { isNonPortraitImage } = await import('#helpers/routes/AuthorShowHelper')
 		expect(isNonPortraitImage(BOOK_COVER)).toBe(true)
 		// ...and the other two furniture kinds still qualify.
+		expect(
+			isNonPortraitImage(
+				'https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/nophoto/user/u_200x266.png'
+			)
+		).toBe(true)
+		expect(
+			isNonPortraitImage(
+				'https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/authors/1721927489i/38550.jpg'
+			)
+		).toBe(false)
 		expect(isNonPortraitImage('https://assets.hardcover.app/static/avatars/profile4.png')).toBe(
 			true
 		)

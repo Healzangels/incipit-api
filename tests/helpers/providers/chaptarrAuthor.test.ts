@@ -26,6 +26,23 @@ describe('pickPhoto', () => {
 		expect(pickPhoto([PHOTOS[2]])).toBe('https://m.media-amazon.com/z.jpg')
 	})
 
+	test("Goodreads' nophoto placeholder is SKIPPED, tiers fall through", () => {
+		// The first live run served /nophoto/ silhouettes to all three
+		// avatar-only authors — worse than our own avatar, and frozen as a
+		// "real" photo. With a real hardcover photo present it must win.
+		const withNophoto = [
+			{
+				isPrimary: false,
+				provider: 'goodreads',
+				url: 'https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/nophoto/user/u_200x266.png'
+			},
+			{ isPrimary: true, provider: 'hardcover', url: 'https://assets.hardcover.app/x.jpg' }
+		]
+		expect(pickPhoto(withNophoto)).toBe('https://assets.hardcover.app/x.jpg')
+		// Only nophoto available -> null, so the caller's avatar rung runs.
+		expect(pickPhoto([withNophoto[0]])).toBeNull()
+	})
+
 	test('urlless entries and empty lists return null', () => {
 		expect(pickPhoto([{ provider: 'goodreads' }])).toBeNull()
 		expect(pickPhoto([])).toBeNull()
