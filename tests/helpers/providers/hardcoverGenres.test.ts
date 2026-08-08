@@ -72,6 +72,32 @@ describe('genresFromCachedTags', () => {
 		expect(genresFromCachedTags({ Genre: [{ notTag: 1 }, null, 7] })).toEqual([])
 	})
 
+	test('emoji are stripped, and the CLEANED name is what dedupes', () => {
+		// "🐙 Weird Fiction" is a real Hardcover tag, served live on Absolution
+		// (B0D33SC327) by the v1 mapper on 2026-08-08. It must arrive as plain
+		// "Weird Fiction" — and collapse with a plain sibling, as on
+		// Annihilation where "Weird fiction" also appears.
+		const out = genresFromCachedTags({
+			Genre: [{ tag: 'Weird fiction' }, { tag: '🐙 Weird Fiction' }]
+		})
+		expect(out.map((g) => g.name)).toEqual(['Weird fiction'])
+		const alone = genresFromCachedTags({ Genre: [{ tag: '🐙 Weird Fiction' }] })
+		expect(alone.map((g) => g.name)).toEqual(['Weird Fiction'])
+		// A tag that is ONLY emoji has nothing left and is dropped.
+		expect(genresFromCachedTags({ Genre: [{ tag: '🐙✨' }] })).toEqual([])
+	})
+
+	test('"Sci-fi" folds into Science Fiction — the live duplicate pair', () => {
+		// Annihilation's v1 serve carried BOTH "Science Fiction" and "Sci-fi".
+		const out = genresFromCachedTags({
+			Genre: [{ tag: 'Science Fiction' }, { tag: 'Sci-fi' }, { tag: 'scifi' }]
+		})
+		expect(out.map((g) => g.name)).toEqual(['Science Fiction'])
+		// The fold also applies when the alias arrives alone.
+		const alone = genresFromCachedTags({ Genre: [{ tag: 'Sci-fi' }] })
+		expect(alone.map((g) => g.name)).toEqual(['Science Fiction'])
+	})
+
 	test('synthetic asins are stable and always exactly 10 digits', () => {
 		expect(syntheticGenreAsin('Horror')).toBe(syntheticGenreAsin('horror'))
 		for (const name of ['a', 'Science Fiction', '日本語', 'x'.repeat(500)]) {
@@ -115,7 +141,12 @@ describe('backfillHardcoverGenres', () => {
 
 	test('a MISS queries Hardcover by asin and caches the mapped answer', async () => {
 		const { gql, calls } = fakeGql(EDITION_ENVELOPE)
-		const out = await backfillHardcoverGenres({ id: 'B00HYGYN5Q', redis: redis as never, token: 't', gql })
+		const out = await backfillHardcoverGenres({
+			id: 'B00HYGYN5Q',
+			redis: redis as never,
+			token: 't',
+			gql
+		})
 		expect(out.map((g) => g.name)).toEqual([
 			'Fiction',
 			'Horror',
@@ -139,20 +170,35 @@ describe('backfillHardcoverGenres', () => {
 			1
 		)
 		const { gql, calls } = fakeGql(EDITION_ENVELOPE)
-		const out = await backfillHardcoverGenres({ id: 'B00HYGYN5Q', redis: redis as never, token: 't', gql })
+		const out = await backfillHardcoverGenres({
+			id: 'B00HYGYN5Q',
+			redis: redis as never,
+			token: 't',
+			gql
+		})
 		expect(out.map((g) => g.name)).toEqual(['Horror'])
 		expect(calls.length).toBe(0)
 	})
 
 	test('an EMPTY answer is cached too — "looked, found none" suppresses re-asks', async () => {
 		const { gql, calls } = fakeGql({ editions: [] })
-		const first = await backfillHardcoverGenres({ id: 'B0NOGENRES', redis: redis as never, token: 't', gql })
+		const first = await backfillHardcoverGenres({
+			id: 'B0NOGENRES',
+			redis: redis as never,
+			token: 't',
+			gql
+		})
 		expect(first).toEqual([])
 		// Shorter TTL than a hit: Hardcover tags grow, "none yet" gets re-asked sooner.
 		expect(redis.writes).toEqual([
 			expect.objectContaining({ key: hardcoverGenreKey('B0NOGENRES'), ttl: 604800 })
 		])
-		const second = await backfillHardcoverGenres({ id: 'B0NOGENRES', redis: redis as never, token: 't', gql })
+		const second = await backfillHardcoverGenres({
+			id: 'B0NOGENRES',
+			redis: redis as never,
+			token: 't',
+			gql
+		})
 		expect(second).toEqual([])
 		expect(calls.length).toBe(1)
 	})
@@ -224,19 +270,55 @@ describe('backfillHardcoverGenres', () => {
 
 	test('an upstream failure serves [] and is NOT cached — transient outages must not pin "no genres"', async () => {
 		const { gql } = fakeGql(new Error('hardcover is down'))
-		const out = await backfillHardcoverGenres({ id: 'B00HYGYN5Q', redis: redis as never, token: 't', gql })
+		const out = await backfillHardcoverGenres({
+			id: 'B00HYGYN5Q',
+			redis: redis as never,
+			token: 't',
+			gql
+		})
 		expect(out).toEqual([])
 		expect(redis.writes.length).toBe(0)
 		// The next call is free to try again.
 		const { gql: okGql, calls } = fakeGql(EDITION_ENVELOPE)
-		await backfillHardcoverGenres({ id: 'B00HYGYN5Q', redis: redis as never, token: 't', gql: okGql })
+		await backfillHardcoverGenres({
+			id: 'B00HYGYN5Q',
+			redis: redis as never,
+			token: 't',
+			gql: okGql
+		})
 		expect(calls.length).toBe(1)
+	})
+
+	test('an entry cached by the RETIRED v1 mapper generation is never served', async () => {
+		// The invariant (not a literal-version mirror): whatever the current
+		// KEY_VERSION is, it must not read the v1 generation's keys — v1
+		// answers were computed before the emoji/alias rules and really did
+		// serve "🐙 Weird Fiction" live. This stays true through every future
+		// bump; only reverting to v1 itself fails it.
+		redis.store.set(
+			'incipit:hcgenres:v1:B00HYGYN5Q',
+			JSON.stringify([{ asin: '1000000009', name: '🐙 Weird Fiction', type: 'genre' }])
+		)
+		const { gql, calls } = fakeGql(EDITION_ENVELOPE)
+		const out = await backfillHardcoverGenres({
+			id: 'B00HYGYN5Q',
+			redis: redis as never,
+			token: 't',
+			gql
+		})
+		expect(calls.length).toBe(1)
+		expect(out.map((g) => g.name)).not.toContain('🐙 Weird Fiction')
 	})
 
 	test('a corrupt cache entry is ignored and recomputed', async () => {
 		await redis.set(hardcoverGenreKey('B00HYGYN5Q'), 'not json{', 'EX', 1)
 		const { gql, calls } = fakeGql(EDITION_ENVELOPE)
-		const out = await backfillHardcoverGenres({ id: 'B00HYGYN5Q', redis: redis as never, token: 't', gql })
+		const out = await backfillHardcoverGenres({
+			id: 'B00HYGYN5Q',
+			redis: redis as never,
+			token: 't',
+			gql
+		})
 		expect(out.length).toBe(5)
 		expect(calls.length).toBe(1)
 	})

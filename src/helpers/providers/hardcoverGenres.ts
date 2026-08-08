@@ -38,8 +38,12 @@ const HIT_TTL_SECONDS = 2592000
 const MISS_TTL_SECONDS = 604800
 
 /** Bumped whenever the mapping rule below changes, so cached answers computed
- * by the old rule retire wholesale instead of serving stale for a month. */
-const KEY_VERSION = 'v1'
+ * by the old rule retire wholesale instead of serving stale for a month.
+ *
+ * v2: name cleaning + the sci-fi alias fold. The first live serve (2026-08-08)
+ * put "🐙 Weird Fiction" and a "Science Fiction"/"Sci-fi" duplicate pair on
+ * real books — community tags carry emoji and synonyms the raw mapper kept. */
+const KEY_VERSION = 'v2'
 
 /** Most genres a backfill will attach. Hardcover lists by tag frequency, so
  * the head of the list is the community's actual verdict and the tail is
@@ -87,15 +91,41 @@ export function syntheticGenreAsin(name: string): string {
 	return String((h % 1_000_000_000) + 1_000_000_000)
 }
 
+/** Synonym fold, applied after cleaning. The first live serve had "Science
+ * Fiction" and "Sci-fi" side by side on one book; folding the well-known
+ * alias lets the dedupe below collapse them. Keys are lowercased clean names. */
+const GENRE_ALIASES: Record<string, string> = {
+	'sci-fi': 'Science Fiction',
+	scifi: 'Science Fiction'
+}
+
+/**
+ * A community tag name reduced to a plain genre name, or '' when nothing
+ * survives. Strips emoji/pictographs and their joiners (measured live:
+ * "🐙 Weird Fiction"), then collapses whitespace. Deliberately nothing more —
+ * only what a real serve has produced gets a rule.
+ * @param {string} name the raw tag name
+ * @returns {string} the cleaned name, possibly empty
+ */
+export function cleanGenreName(name: string): string {
+	return name
+		.replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, '')
+		.replace(/\s+/g, ' ')
+		.trim()
+}
+
 /**
  * Map Hardcover's cached_tags to ApiGenre[].
  *
  * Only the `Genre` bucket — Moods ("mysterious") and Tags ("Unloveable
  * Characters") are review-vocabulary, not shelf genres. "General" is BISAC
- * filler ("FICTION / General"), not a genre, and is dropped.
+ * filler ("FICTION / General"), not a genre, and is dropped. Names are
+ * cleaned and alias-folded first, and the dedupe runs on the RESULT, so
+ * "🐙 Weird Fiction" collapses into "Weird Fiction" and "Sci-fi" into an
+ * existing "Science Fiction" instead of arriving as siblings.
  * @param {unknown} raw the cached_tags value (object over the wire; a string
  *   is tolerated defensively since it is jsonb upstream)
- * @returns {ApiGenre[]} deduped, capped, schema-valid genres
+ * @returns {ApiGenre[]} cleaned, deduped, capped, schema-valid genres
  */
 export function genresFromCachedTags(raw: unknown): ApiGenre[] {
 	let tags = raw
@@ -115,8 +145,9 @@ export function genresFromCachedTags(raw: unknown): ApiGenre[] {
 		const name =
 			typeof entry === 'string' ? entry : ((entry as { tag?: unknown } | null)?.tag ?? null)
 		if (typeof name !== 'string') continue
-		const clean = name.trim()
-		if (!clean || /^general$/i.test(clean)) continue
+		const cleaned = cleanGenreName(name)
+		if (!cleaned || /^general$/i.test(cleaned)) continue
+		const clean = GENRE_ALIASES[cleaned.toLowerCase()] ?? cleaned
 		const key = clean.toLowerCase()
 		if (seen.has(key)) continue
 		seen.add(key)
