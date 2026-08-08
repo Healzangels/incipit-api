@@ -70,6 +70,21 @@ mock.module('#helpers/providers/squareCover', () => ({
 	}
 }))
 
+/** What the Hardcover genre backfill "finds". Its own suite covers the cache
+ * and query mechanics; here the subject is the WIRING — that a genre-less
+ * record gets the backfill, a genre-carrying record does not, and the answer
+ * reaches the response. Key-sensitivity is asserted via backfilledIds, the
+ * same lesson as recalledKeys below. */
+let backfillGenres: { asin: string; name: string; type: string }[] = []
+let backfilledIds: string[] = []
+mock.module('#helpers/providers/hardcoverGenres', () => ({
+	backfillHardcoverGenres: async ({ id }: { id: string }) => {
+		await enrichTrace('genres')
+		backfilledIds.push(id)
+		return backfillGenres
+	}
+}))
+
 // The provider-id branch (hardcover-*, openlibrary-*, apple-audiobook-*) is a
 // SECOND, earlier return inside the same handler — ~90 albums in the library
 // reach Plex through it — so it needs its own coverage or half the route is
@@ -244,6 +259,92 @@ describe('GET /books/:asin runs the whole serve pipeline', () => {
 		const before = getMatchMetrics().languageMismatchedLookups
 		await get('B0TESTASIN', '?region=us')
 		expect(getMatchMetrics().languageMismatchedLookups).toBe(before)
+	})
+})
+
+/**
+ * The Hardcover genre backfill must reach the RESPONSE, and only for records
+ * that carry no genres of their own.
+ *
+ * The class this serves, measured 2026-08-07: Audible has no category data
+ * for some listings (Annihilation B00HYGYN5Q), so their records are honestly
+ * genre-less, the bundle's clear-and-replace never fires, and comma-joined
+ * file-tag junk ("Literary Fiction, Dystopian, Post-Apocalyptic, Horror" as
+ * ONE genre) rolls up into artist-page mega-tags. Serving real genres is the
+ * whole fix — the bundle already replaces when genres are present.
+ */
+describe('genre backfill on the item response', () => {
+	const HC_GENRES = [
+		{ asin: '1000000001', name: 'Horror', type: 'genre' },
+		{ asin: '1000000002', name: 'Science Fiction', type: 'genre' }
+	]
+
+	beforeEach(() => {
+		served = bookRecord()
+		handlerThrows = null
+		storedRecord = null
+		servedByProvider = null
+		backfillGenres = []
+		backfilledIds = []
+	})
+
+	test('a genre-less record gets Hardcover genres attached', async () => {
+		backfillGenres = HC_GENRES
+		const { body } = await get('B0TESTASIN')
+		expect(body.genres).toEqual(HC_GENRES)
+		// ...asked for under the REQUESTED id, the key the cache is written by.
+		expect(backfilledIds).toEqual(['B0TESTASIN'])
+	})
+
+	test('a record WITH genres is never overridden — Audible data wins', async () => {
+		const audible = [{ asin: '18574597011', name: 'Science Fiction & Fantasy', type: 'genre' }]
+		served = bookRecord({ genres: audible })
+		backfillGenres = HC_GENRES
+		const { body } = await get('B0TESTASIN')
+		expect(body.genres).toEqual(audible)
+	})
+
+	test('no genres anywhere leaves the field OFF — the bundle reads presence', async () => {
+		// NOTE: a mutation that attaches the key unconditionally survives this
+		// through app.inject — `genres: undefined` disappears in JSON
+		// serialization — so the conditional merge is wire-equivalent hygiene
+		// matching the sibling legs' idiom, not separately testable here.
+		backfillGenres = []
+		const { body } = await get('B0TESTASIN')
+		expect(body.genres).toBeUndefined()
+	})
+
+	test('the backfill keys on the REQUESTED id, not the record\'s own asin', async () => {
+		// The same trap recallAlternates hit: a record can carry an unrelated
+		// asin (Hardcover exposes one for dedup), and the cache is written under
+		// the id the route was ASKED for. Keying on book.asin reads and writes
+		// keys nothing else uses. A `book.asin ?? asin` mutant survives the
+		// provider-branch test above because that record's asin is null — this
+		// record's DIFFERS, which is what discriminates.
+		served = bookRecord({ asin: 'B0DIFFERENT' })
+		backfillGenres = HC_GENRES
+		await get('B0TESTASIN')
+		expect(backfilledIds).toEqual(['B0TESTASIN'])
+	})
+
+	test('the provider-id branch gets the backfill too — it is a SECOND return', async () => {
+		servedByProvider = bookRecord({ asin: null })
+		backfillGenres = HC_GENRES
+		const { body } = await get('hardcover-edition-27515221')
+		expect(body.genres).toEqual(HC_GENRES)
+		expect(backfilledIds).toEqual(['hardcover-edition-27515221'])
+	})
+
+	test('the stale-while-error path serves genres on the stored record', async () => {
+		handlerThrows = new NotFoundError('delisted', {
+			asin: 'B0TESTASIN',
+			code: 'PRODUCT_DELISTED'
+		})
+		storedRecord = bookRecord()
+		backfillGenres = HC_GENRES
+		const { status, body } = await get('B0TESTASIN')
+		expect(status).toBe(200)
+		expect(body.genres).toEqual(HC_GENRES)
 	})
 })
 
@@ -447,10 +548,10 @@ describe('alternate covers on the item response', () => {
 })
 
 /**
- * THE THREE ENRICHMENTS MUST RUN CONCURRENTLY.
+ * THE FOUR ENRICHMENTS MUST RUN CONCURRENTLY.
  *
  * finish() used to await square cover, then alternate covers, then Goodreads
- * series — three independent network calls whose latency therefore SUMMED.
+ * series — independent network calls whose latency therefore SUMMED.
  * Measured across the entire 2026-08-05 rebuild: /books/:asin averaged 907 ms
  * with a 0.8 ms DB path, i.e. the serve chain was essentially all enrichment
  * wait. They are safe to overlap because their reads and writes are disjoint,
@@ -479,9 +580,14 @@ describe('finish() enrichment concurrency', () => {
 			const { status, body } = await get('B0TESTASIN')
 			expect(status).toBe(200)
 
-			// All three legs ran.
+			// All four legs ran.
 			const starts = events.filter((e) => e.startsWith('start:'))
-			expect(starts.sort()).toEqual(['start:alternates', 'start:goodreads', 'start:square'])
+			expect(starts.sort()).toEqual([
+				'start:alternates',
+				'start:genres',
+				'start:goodreads',
+				'start:square'
+			])
 
 			// Concurrency: the LAST start precedes the FIRST end. Under the old
 			// sequential chain this fails immediately (square ends before

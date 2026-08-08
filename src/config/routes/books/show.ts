@@ -9,6 +9,7 @@ import {
 	rememberAlternates
 } from '#helpers/providers/alternateCoverCache'
 import { withGoodreadsSeries } from '#helpers/providers/goodreadsSeries'
+import { backfillHardcoverGenres } from '#helpers/providers/hardcoverGenres'
 import ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
 import defaultRegistry from '#helpers/providers/registry'
 import { bestSquareCover } from '#helpers/providers/squareCover'
@@ -175,6 +176,26 @@ async function _show(fastify: FastifyInstance) {
 			return alternates.length ? { ...book, imageAlternates: alternates } : book
 		}
 
+		// Genre backfill for a record that carries NONE. Audible's catalog API has
+		// an empty category_ladders for some listings (Annihilation B00HYGYN5Q,
+		// measured 2026-08-07), so those records are honestly genre-less — and the
+		// bundle's add_genres only clears an album's existing genres when the
+		// served record HAS replacements, so the comma-joined junk in the files'
+		// ©gen tags survived as one mega-genre and rolled up to the artist page.
+		// Hardcover's community genres answer by the same asin; serving them lets
+		// the bundle's existing clear-and-replace fix the album, no plugin change.
+		// The gate is the record's own genres: Audible data is never overridden.
+		const withGenres = async <T extends { genres?: unknown }>(book: T): Promise<T> => {
+			if (Array.isArray(book?.genres) && book.genres.length) return book
+			const genres = await backfillHardcoverGenres({
+				id: asin,
+				redis: fastify.redis ?? null,
+				token: credentials.hardcover ?? process.env.HARDCOVER_TOKEN,
+				logger: request.log
+			})
+			return genres.length ? { ...book, genres } : book
+		}
+
 		const finish = async <
 			T extends {
 				title?: string
@@ -183,26 +204,29 @@ async function _show(fastify: FastifyInstance) {
 				asin?: string | null
 				seriesPrimary?: { name?: string } | null
 				seriesSecondary?: unknown
+				genres?: unknown
 			}
 		>(
 			book: T
 		): Promise<T> => {
-			// The three enrichments run CONCURRENTLY: latency is their max, not
+			// The four enrichments run CONCURRENTLY: latency is their max, not
 			// their sum. They used to be chained, and across the 2026-08-05
 			// rebuild /books/:asin averaged 907 ms against a 0.8 ms DB path —
-			// the route was essentially the sum of these three network waits.
+			// the route was essentially the sum of these network waits.
 			//
 			// Safe because their reads and writes are disjoint, verified leg by
 			// leg: square reads title/author/image, writes imageSquare;
 			// alternates reads title/author, writes imageAlternates; Goodreads
-			// reads title/subtitle/author/series, writes the series fields.
-			// Each leg gets the ORIGINAL book, and the merge takes each leg's
-			// own field — conditionally, so a leg that added nothing adds no
-			// key here either (the bundle reads presence, not null).
-			const [squared, withAlts, withSeries] = await Promise.all([
+			// reads title/subtitle/author/series, writes the series fields;
+			// genres reads only the field it writes (genres), which no other
+			// leg touches. Each leg gets the ORIGINAL book, and the merge takes
+			// each leg's own field — conditionally, so a leg that added nothing
+			// adds no key here either (the bundle reads presence, not null).
+			const [squared, withAlts, withSeries, genred] = await Promise.all([
 				withSquareCover(book),
 				withAlternateCovers(book),
-				withGoodreadsSeries(book, fastify.redis ?? null, request.log)
+				withGoodreadsSeries(book, fastify.redis ?? null, request.log),
+				withGenres(book)
 			])
 			const merged = {
 				...withSeries,
@@ -211,7 +235,8 @@ async function _show(fastify: FastifyInstance) {
 					: {}),
 				...('imageAlternates' in withAlts
 					? { imageAlternates: (withAlts as T & { imageAlternates?: string[] }).imageAlternates }
-					: {})
+					: {}),
+				...(Array.isArray(genred.genres) && genred.genres.length ? { genres: genred.genres } : {})
 			}
 			// Q2 shelf policy runs LAST and at serve time, so pre-policy answers in
 			// the goodreads cache obey it too — no invalidation rides along (P3).

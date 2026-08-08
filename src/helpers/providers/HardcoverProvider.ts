@@ -233,8 +233,10 @@ export function interpretGqlBody<T>(body: unknown): T {
 	return (body as { data: T }).data
 }
 
-/** Default transport: POST to Hardcover via the project's retrying fetch. */
-const defaultGql: HardcoverGql = async <T>(
+/** Default transport: POST to Hardcover via the project's retrying fetch.
+ * Exported so hardcoverGenres.ts shares the one transport (and its
+ * "Bearer Bearer" strip) instead of growing a second, subtly different one. */
+export const defaultGql: HardcoverGql = async <T>(
 	query: string,
 	variables: Record<string, unknown>,
 	token: string
