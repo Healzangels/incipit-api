@@ -38,6 +38,10 @@ mock.module('#helpers/authors/audible/ScrapeHelper', () => ({
 }))
 
 const mockFetchGoodreadsAuthorInfo = mock()
+const mockChaptarrAuthorInfo = mock()
+mock.module('#helpers/providers/chaptarrAuthor', () => ({
+	chaptarrAuthorInfo: mockChaptarrAuthorInfo
+}))
 mock.module('#helpers/providers/goodreadsSeries', () => ({
 	// The helper calls the CACHED wrapper; mock it explicitly rather than relying
 	// on a missing export resolving to the real (network-touching) module.
@@ -130,6 +134,7 @@ beforeEach(() => {
 	mockPaprFindOne.mockResolvedValue({ data: authorWithoutProjection, modified: false })
 	mockScrapeProcess.mockResolvedValue(parsedAuthor)
 	mockFetchGoodreadsAuthorInfo.mockResolvedValue({ image: null, bio: null })
+	mockChaptarrAuthorInfo.mockResolvedValue({ image: null, bio: null })
 	mockRedisFindOrCreate.mockResolvedValue(parsedAuthor)
 	mockPaprFindOneWithProjection.mockResolvedValue({ data: parsedAuthor, modified: false })
 	spyOn(helper.sharedHelper, 'sortObjectByKeys').mockReturnValue(parsedAuthor)
@@ -180,6 +185,92 @@ describe('AuthorShowHelper should', () => {
 		expect(out.image).toBe('https://gr/mcneill.jpg')
 		expect(out.description).toBe('A Warhammer author.')
 		expect(mockFetchGoodreadsAuthorInfo.mock.calls[0]?.[0]).toBe('Graham McNeill')
+		getSpy.mockRestore()
+	})
+
+	test('CHAPTARR is the last fill rung: answers when even Goodreads is blind', async () => {
+		// The recorded failure mode of both name-keyed rungs: a spelling variant
+		// misses entirely. Chaptarr keys by the same author asin the route was
+		// asked for, so it answers when Hardcover AND Goodreads return nothing.
+		mockScrapeProcess.mockRejectedValue(
+			new NotFoundError('gone', { asin, code: 'REGION_UNAVAILABLE' })
+		)
+		const getSpy = spyOn(defaultRegistry, 'get').mockReturnValue({
+			fetchAuthorInfo: mock().mockResolvedValue({ image: null, bio: null })
+		} as unknown as ReturnType<typeof defaultRegistry.get>)
+		mockFetchGoodreadsAuthorInfo.mockResolvedValue({ image: null, bio: null })
+		mockChaptarrAuthorInfo.mockResolvedValue({
+			image: 'https://i.gr-assets.com/tolkien.jpg',
+			bio: 'An Oxford philologist.'
+		})
+		helper = new AuthorShowHelper(
+			asin,
+			{ region: 'us', name: 'J. R. R. Tolkien', update: '1' } as never,
+			null
+		)
+		const out = (await helper.getNewData()) as ApiAuthorProfile
+		expect(out.image).toBe('https://i.gr-assets.com/tolkien.jpg')
+		expect(out.description).toBe('An Oxford philologist.')
+		// Keyed by ASIN, not name — the whole point of the rung.
+		expect(mockChaptarrAuthorInfo.mock.calls[0]?.[0]).toBe(asin)
+		getSpy.mockRestore()
+	})
+
+	test('CHAPTARR never overrides an earlier source and is skipped when whole', async () => {
+		mockScrapeProcess.mockRejectedValue(
+			new NotFoundError('gone', { asin, code: 'REGION_UNAVAILABLE' })
+		)
+		const getSpy = spyOn(defaultRegistry, 'get').mockReturnValue({
+			fetchAuthorInfo: mock().mockResolvedValue({ image: null, bio: null })
+		} as unknown as ReturnType<typeof defaultRegistry.get>)
+		mockFetchGoodreadsAuthorInfo.mockResolvedValue({
+			image: 'https://gr/real.jpg',
+			bio: 'A real bio.'
+		})
+		mockChaptarrAuthorInfo.mockResolvedValue({
+			image: 'https://ct/should-not-appear.jpg',
+			bio: 'Should not appear.'
+		})
+		helper = new AuthorShowHelper(
+			asin,
+			{ region: 'us', name: 'Graham McNeill', update: '1' } as never,
+			null
+		)
+		const out = (await helper.getNewData()) as ApiAuthorProfile
+		expect(out.image).toBe('https://gr/real.jpg')
+		expect(out.description).toBe('A real bio.')
+		// The profile was already whole, so the rung was never even consulted.
+		expect(mockChaptarrAuthorInfo).not.toHaveBeenCalled()
+		getSpy.mockRestore()
+	})
+
+	test('CHAPTARR fills only the missing HALF of a partial profile', async () => {
+		// The discriminating shape for the override mutation: Goodreads filled
+		// the IMAGE but not the bio, so the rung runs (bio gap) while holding
+		// an image it must not touch. A mutant that overrides instead of fills
+		// replaces the Goodreads portrait here and nowhere else.
+		mockScrapeProcess.mockRejectedValue(
+			new NotFoundError('gone', { asin, code: 'REGION_UNAVAILABLE' })
+		)
+		const getSpy = spyOn(defaultRegistry, 'get').mockReturnValue({
+			fetchAuthorInfo: mock().mockResolvedValue({ image: null, bio: null })
+		} as unknown as ReturnType<typeof defaultRegistry.get>)
+		mockFetchGoodreadsAuthorInfo.mockResolvedValue({
+			image: 'https://gr/real.jpg',
+			bio: null
+		})
+		mockChaptarrAuthorInfo.mockResolvedValue({
+			image: 'https://ct/should-not-replace.jpg',
+			bio: 'Filled by Chaptarr.'
+		})
+		helper = new AuthorShowHelper(
+			asin,
+			{ region: 'us', name: 'Graham McNeill', update: '1' } as never,
+			null
+		)
+		const out = (await helper.getNewData()) as ApiAuthorProfile
+		expect(out.image).toBe('https://gr/real.jpg')
+		expect(out.description).toBe('Filled by Chaptarr.')
 		getSpy.mockRestore()
 	})
 
@@ -533,11 +624,9 @@ describe('a persisted placeholder avatar never sticks', () => {
 		'https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/authors/1492336018i/16727429._UY200_.jpg'
 
 	const noHardcover = () =>
-		spyOn(defaultRegistry, 'get').mockReturnValue(
-			{
-				fetchAuthorInfo: mock().mockResolvedValue({ image: null, bio: null, imageGenerated: false })
-			} as unknown as ReturnType<typeof defaultRegistry.get>
-		)
+		spyOn(defaultRegistry, 'get').mockReturnValue({
+			fetchAuthorInfo: mock().mockResolvedValue({ image: null, bio: null, imageGenerated: false })
+		} as unknown as ReturnType<typeof defaultRegistry.get>)
 
 	test('a seeded static avatar does not block the Goodreads backstop', async () => {
 		// The Audible-unavailable path seeds the STORED image -- which is the
@@ -558,7 +647,11 @@ describe('a persisted placeholder avatar never sticks', () => {
 
 	test('a persisted GENERATED avatar (re-identified this pass) yields to Goodreads too', async () => {
 		const fakeHc = {
-			fetchAuthorInfo: mock().mockResolvedValue({ image: GENERATED, bio: null, imageGenerated: true })
+			fetchAuthorInfo: mock().mockResolvedValue({
+				image: GENERATED,
+				bio: null,
+				imageGenerated: true
+			})
 		}
 		const getSpy = spyOn(defaultRegistry, 'get').mockReturnValue(
 			fakeHc as unknown as ReturnType<typeof defaultRegistry.get>

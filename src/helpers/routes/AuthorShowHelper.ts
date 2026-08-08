@@ -11,6 +11,7 @@ import {
 } from '#helpers/authors/audible/AudibleAuthorSearch'
 import PaprAudibleAuthorHelper from '#helpers/database/papr/audible/PaprAudibleAuthorHelper'
 import { NotFoundError } from '#helpers/errors/ApiErrors'
+import { chaptarrAuthorInfo } from '#helpers/providers/chaptarrAuthor'
 import { withGoodreadsAuthorInfo } from '#helpers/providers/goodreadsSeries'
 import type HardcoverProvider from '#helpers/providers/HardcoverProvider'
 import { isBookAssetUrl } from '#helpers/providers/HardcoverProvider'
@@ -267,6 +268,29 @@ export default class AuthorShowHelper extends GenericShowHelper {
 			if (grBio && !author.description?.trim()) {
 				this.logger?.info({ author: author.name }, 'author description: filled from Goodreads')
 				author.description = grBio
+			}
+		}
+
+		// 3. Chaptarr — the ASIN-KEYED backstop. Both rungs above search by NAME
+		// with exact-ish semantics, and the recorded failure mode is a spelling
+		// variant going blind ("J.R.R. Tolkien" vs "J. R. R. Tolkien"); the
+		// aggregation server keys authors by the same Audible asin this route
+		// was asked for, so it answers exactly where they cannot. Fill-only,
+		// like every rung: it never overrides a value an earlier source set,
+		// and its photo still passes the placeholder guard.
+		if (!author.image?.trim() || !author.description?.trim()) {
+			const { image: ctImage, bio: ctBio } = await chaptarrAuthorInfo(
+				this.asin,
+				this.redisClient,
+				this.logger
+			)
+			if (ctImage && !isPlaceholder(ctImage) && !author.image?.trim()) {
+				this.logger?.info({ author: author.name }, 'author image: filled from Chaptarr')
+				author.image = ctImage
+			}
+			if (ctBio && !author.description?.trim()) {
+				this.logger?.info({ author: author.name }, 'author description: filled from Chaptarr')
+				author.description = ctBio
 			}
 		}
 
