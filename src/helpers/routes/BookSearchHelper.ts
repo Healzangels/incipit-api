@@ -1480,6 +1480,17 @@ export default class BookSearchHelper {
 				}
 			}
 		}
+		// Decoration weight per candidate: how many characters the raw title
+		// loses to normalizeTitle. "Xanth 19 - Roc and a Hard Place" and
+		// "Roc and a Hard Place" NORMALIZE IDENTICALLY, so no title arm can
+		// separate them -- the last cosmetic arm below prefers the raw form
+		// closest to its own normalized name. Per-candidate, precomputed,
+		// transitive by construction.
+		const decorationById = new Map<string, number>()
+		for (const c of ranked) {
+			const raw = c.title ?? ''
+			decorationById.set(c.id, raw.length - normalizeTitle(raw).length)
+		}
 		const titleTierById = new Map<string, number>()
 		{
 			const primaryLower = primaryTitle.toLowerCase()
@@ -1757,6 +1768,20 @@ export default class BookSearchHelper {
 				// tell apart.
 				const byExactTitle = tagTitleTier(b) - tagTitleTier(a)
 				if (byExactTitle !== 0) return byExactTitle
+				// Same normalized name, different DECORATION: prefer the title
+				// closest to its own normalized form. Measured live 2026-08-07:
+				// Hardcover community data held "Xanth 19 - Roc and a Hard Place"
+				// and "Roc and a Hard Place" as sibling editions, tied at 0.850
+				// with no asin/narrator/duration on either side; every arm above
+				// declined, and the FINAL deterministic id key handed the win to
+				// the folder-form junk -- which the operator then saw beat the
+				// clean edition 85-84 in Fix Match (the bundle's score is
+				// confidence-minus-index). Cosmetic-only by construction: it
+				// runs after every identity arm has already declined, and it
+				// deliberately does NOT merge the rows -- the operator rule
+				// keeps edition variants pickable.
+				const byDecoration = (decorationById.get(a.id) ?? 0) - (decorationById.get(b.id) ?? 0)
+				if (byDecoration !== 0) return byDecoration
 				// Genuinely tied: prefer the richer/more-authoritative source.
 				const byProvider = providerRank(a) - providerRank(b)
 				if (byProvider !== 0) return byProvider
