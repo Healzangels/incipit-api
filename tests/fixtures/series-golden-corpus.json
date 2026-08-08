@@ -213,6 +213,17 @@
      "families"
     ]
    }
+  ],
+  "decisions": [
+   {
+    "date": "2026-08-07",
+    "what": "Trilogy-name split unified via pins: Southern Reach (2 rows -> 'Southern Reach'), Dragon King (1 row -> 'The Dragon King Trilogy'). General Trilogy fold REJECTED by offline A/B (16 names, 12 canonical).",
+    "rows": [
+     "B00J8KWFOM",
+     "B00MX3Q2BS",
+     "overdrive-565194"
+    ]
+   }
   ]
  },
  "rows": [
@@ -27349,6 +27360,131 @@
    "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
    "group": "jackryan-pub-order",
    "knownDefectNow": false
+  },
+  {
+   "recordId": "B00J8KWFOM",
+   "ratingKey": "175286",
+   "album": "Authority",
+   "artist": "Jeff VanderMeer",
+   "inputs": {
+    "title": "Authority",
+    "subtitle": "Southern Reach Trilogy, Book 2",
+    "author": "Jeff VanderMeer",
+    "providerSeries": {
+     "asin": "B00HZ3TT3Y",
+     "name": "The Southern Reach Trilogy",
+     "position": "2"
+    },
+    "providerSeries2": null,
+    "publicationName": "The Southern Reach Trilogy",
+    "audibleSeriesRaw": [
+     {
+      "title": "The Southern Reach Trilogy",
+      "sequence": "2"
+     }
+    ],
+    "inputSource": "live record read 2026-08-07 (post-sqlite-flip; operator raised the Trilogy split)"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "The Southern Reach Trilogy",
+     "position": "2"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Southern Reach Trilogy, Book 2 - Authority",
+    "sweepDegraded": false
+   },
+   "mintPin": true,
+   "pinType": "operator-stated",
+   "required": {
+    "outcome": "SERIES",
+    "series": "Southern Reach",
+    "position": "2",
+    "note": "Audible split the SAME series across two names: 'The Southern Reach Trilogy' on books 2-3, 'Southern Reach' on 1 and 4 (a Trilogy grew a Book 4, Audible renamed, middle books kept the old name). Operator 2026-08-07: the Trilogy name is factually wrong now; unify on 'Southern Reach'."
+   }
+  },
+  {
+   "recordId": "B00MX3Q2BS",
+   "ratingKey": "175284",
+   "album": "Acceptance",
+   "artist": "Jeff VanderMeer",
+   "inputs": {
+    "title": "Acceptance",
+    "subtitle": "The Southern Reach Trilogy, Book 3",
+    "author": "Jeff VanderMeer",
+    "providerSeries": {
+     "asin": "B00HZ3TT3Y",
+     "name": "The Southern Reach Trilogy",
+     "position": "3"
+    },
+    "providerSeries2": null,
+    "publicationName": "The Southern Reach Trilogy",
+    "audibleSeriesRaw": [
+     {
+      "title": "The Southern Reach Trilogy",
+      "sequence": "3"
+     }
+    ],
+    "inputSource": "live record read 2026-08-07 (post-sqlite-flip; operator raised the Trilogy split)"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "The Southern Reach Trilogy",
+     "position": "3"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Southern Reach Trilogy, Book 3 - Acceptance",
+    "sweepDegraded": false
+   },
+   "mintPin": true,
+   "pinType": "operator-stated",
+   "required": {
+    "outcome": "SERIES",
+    "series": "Southern Reach",
+    "position": "3",
+    "note": "Audible split the SAME series across two names: 'The Southern Reach Trilogy' on books 2-3, 'Southern Reach' on 1 and 4 (a Trilogy grew a Book 4, Audible renamed, middle books kept the old name). Operator 2026-08-07: the Trilogy name is factually wrong now; unify on 'Southern Reach'."
+   }
+  },
+  {
+   "recordId": "overdrive-565194",
+   "ratingKey": "172966",
+   "album": "In the Hall of the Dragon King",
+   "artist": "Stephen R. Lawhead",
+   "inputs": {
+    "title": "In the Hall of the Dragon King",
+    "subtitle": null,
+    "author": "Stephen R. Lawhead",
+    "providerSeries": {
+     "name": "The Dragon King",
+     "position": "1"
+    },
+    "providerSeries2": null,
+    "publicationName": "The Dragon King",
+    "audibleSeriesRaw": [
+     {
+      "title": "The Dragon King",
+      "sequence": "1"
+     }
+    ],
+    "inputSource": "live record read 2026-08-07 (post-sqlite-flip; operator raised the Trilogy split)"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "The Dragon King",
+     "position": "1"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "The Dragon King, Book 1 - In the Hall of the Dragon King",
+    "sweepDegraded": false
+   },
+   "mintPin": true,
+   "pinType": "operator-stated",
+   "required": {
+    "outcome": "SERIES",
+    "series": "The Dragon King Trilogy",
+    "position": "1",
+    "note": "Same split class, opposite direction: Lawhead's trilogy IS three books, 2 of 3 records already say 'The Dragon King Trilogy'; this OverDrive record alone says 'The Dragon King'. Unify on the majority/canonical Trilogy name. The 2026-08-07 offline A/B rejected a GENERAL Trilogy fold (12 of 16 affected names were canonical, e.g. Void/Kharkanas Trilogy) - pins are the sanctioned per-book tool."
+   }
   }
  ]
 }
