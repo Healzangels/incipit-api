@@ -103,6 +103,13 @@ export function normalizeTitle(raw: string | null | undefined): string {
 	for (const pat of NOISE_PATTERNS) t = t.replace(pat, ' ')
 
 	t = t.replace(/[_.]+/g, ' ')
+	// "&" and "and" are the SAME title. Hardcover community data titles one
+	// edition "Faun & Games" while its sibling says "Faun and Games" -- without
+	// this fold they normalize differently, the exact-title arm sides with
+	// whichever spelling the album tag uses, and the decoration arm (which
+	// exists to demote the folder-form junk) never gets reached. Caught by the
+	// operator in Fix Match, 2026-08-07, one deploy after the decoration fix.
+	t = t.replace(/\s*&\s*/g, ' and ')
 	t = t.replace(/\s{2,}/g, ' ')
 	return t.replace(/^[\s\-–—:,]+|[\s\-–—:,]+$/g, '')
 }

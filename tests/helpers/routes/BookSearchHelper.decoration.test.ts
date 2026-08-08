@@ -62,6 +62,34 @@ function helperFor(candidates: ProviderCandidate[], queryTitle: string) {
 const decorated = () => candidate({ id: 'a-decorated', title: 'Xanth 19 - Roc and a Hard Place' })
 const clean = () => candidate({ id: 'z-clean', title: 'Roc and a Hard Place' })
 
+/**
+ * THE AMPERSAND ESCAPE — the case the first decoration fix missed, caught by
+ * the operator in Fix Match one deploy later: the clean edition is titled
+ * "Faun & Games" while the junk sibling says "Xanth 21 - Faun and Games".
+ * normalizeTitle folded dots, dashes and underscores but never "&", so the
+ * two titles no longer normalized identically — the trust-the-tags exact
+ * arm fired BEFORE the decoration arm and legitimately preferred the junk
+ * (its raw title equals the album tag). Folding "&" to "and" restores the
+ * dead tie, and the decoration arm then does its job.
+ */
+describe('ampersand variants are the same title', () => {
+	const decoratedAnd = () =>
+		candidate({ id: 'a-decorated', title: 'Xanth 21 - Faun and Games' })
+	const cleanAmp = () => candidate({ id: 'z-clean', title: 'Faun & Games' })
+
+	for (const [label, order] of [
+		['decorated listed first', [decoratedAnd(), cleanAmp()]],
+		['clean listed first', [cleanAmp(), decoratedAnd()]]
+	] as const) {
+		test(`tag query, ${label}: the "&"-titled clean edition ranks first`, async () => {
+			const out = await helperFor([...order], 'Xanth 21 - Faun and Games')
+			const results = await out.search()
+			expect(results.length).toBe(2)
+			expect(results[0].id).toBe('z-clean')
+		})
+	}
+})
+
 describe('folder-form decoration loses dead ties', () => {
 	for (const queryTitle of ['Xanth 19 - Roc and a Hard Place', 'Roc and a Hard Place']) {
 		for (const [label, order] of [
