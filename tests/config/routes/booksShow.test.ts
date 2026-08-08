@@ -77,11 +77,23 @@ mock.module('#helpers/providers/squareCover', () => ({
  * same lesson as recalledKeys below. */
 let backfillGenres: { asin: string; name: string; type: string }[] = []
 let backfilledIds: string[] = []
+const realHardcoverGenres = await import('#helpers/providers/hardcoverGenres')
 mock.module('#helpers/providers/hardcoverGenres', () => ({
+	...realHardcoverGenres,
 	backfillHardcoverGenres: async ({ id }: { id: string }) => {
 		await enrichTrace('genres')
 		backfilledIds.push(id)
 		return backfillGenres
+	}
+}))
+
+/** The SECOND genre source: consulted only when Hardcover answered empty. */
+let chaptarrGenres: { asin: string; name: string; type: string }[] = []
+let chaptarrAskedIds: string[] = []
+mock.module('#helpers/providers/chaptarrGenres', () => ({
+	backfillChaptarrGenres: async ({ id }: { id: string }) => {
+		chaptarrAskedIds.push(id)
+		return chaptarrGenres
 	}
 }))
 
@@ -286,6 +298,24 @@ describe('genre backfill on the item response', () => {
 		servedByProvider = null
 		backfillGenres = []
 		backfilledIds = []
+		chaptarrGenres = []
+		chaptarrAskedIds = []
+	})
+
+	test('Hardcover empty -> the CHAPTARR fallback answers', async () => {
+		backfillGenres = []
+		chaptarrGenres = [{ asin: '1000000009', name: 'Dystopia', type: 'genre' }]
+		const { body } = await get('B0TESTASIN')
+		expect(body.genres).toEqual(chaptarrGenres)
+		expect(chaptarrAskedIds).toEqual(['B0TESTASIN'])
+	})
+
+	test('a Hardcover HIT never pays for the Chaptarr call', async () => {
+		backfillGenres = HC_GENRES
+		chaptarrGenres = [{ asin: '1000000009', name: 'ShouldNotAppear', type: 'genre' }]
+		const { body } = await get('B0TESTASIN')
+		expect(body.genres).toEqual(HC_GENRES)
+		expect(chaptarrAskedIds).toEqual([])
 	})
 
 	test('a genre-less record gets Hardcover genres attached', async () => {

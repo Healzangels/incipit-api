@@ -1,0 +1,113 @@
+{
+ "work": {
+  "id": "hc:192491",
+  "title": "Annihilation",
+  "originalTitle": "Annihilation",
+  "coverUrl": "https://m.media-amazon.com/images/I/51g7Q1eJzCL._SL500_.jpg",
+  "genres": [
+   "Adventure",
+   "Audiobook",
+   "Book Club",
+   "Dystopia",
+   "Fantasy",
+   "Fiction",
+   "General",
+   "Horror",
+   "Literary Fiction",
+   "Literature & Fiction",
+   "Mystery",
+   "Science fiction",
+   "Science Fiction & Fantasy",
+   "Sci-fi",
+   "Suspense",
+   "Thriller",
+   "Weird fiction"
+  ],
+  "seriesName": "Southern Reach",
+  "seriesPosition": "1",
+  "description": "\"Nature has reclaimed the last vestiges of human civilization. The first expedition returned with reports of a pristine, Edenic landscape; the second "
+ },
+ "authors": [
+  {
+   "name": "Jeff VanderMeer"
+  }
+ ],
+ "editions": [
+  {
+   "asin": "B00HYGYN5Q",
+   "title": "Annihilation",
+   "subtitle": "Southern Reach Trilogy, Book 1",
+   "description": "Area X has been cut off from the rest of the continent for decades. Nature has reclaimed the last vestiges of human civilization....",
+   "narratorNames": [
+    "Carolyn McCormick"
+   ],
+   "durationSeconds": 22260,
+   "coverUrl": "https://m.media-amazon.com/images/I/51g7Q1eJzCL._SL500_.jpg",
+   "language": "eng",
+   "publisher": "Blackstone Audio, Inc.",
+   "publicationDate": "2014-02-04",
+   "formatType": "audiobook",
+   "readingFormatId": 2,
+   "hasChapters": true,
+   "providerIdsAll": {
+    "az": [
+     "az:B00HYG9KMC",
+     "az:B00HYGYN5Q"
+    ]
+   },
+   "chapters": [
+    {
+     "title": "Opening Credits",
+     "startOffsetMs": 0,
+     "startOffsetSec": 0,
+     "lengthMs": 13432
+    },
+    {
+     "title": "Introduction",
+     "startOffsetMs": 13432,
+     "startOffsetSec": 13,
+     "lengthMs": 676664
+    },
+    {
+     "title": "1: Initiation",
+     "startOffsetMs": 690096,
+     "startOffsetSec": 690,
+     "lengthMs": 3801013
+    }
+   ]
+  },
+  {
+   "title": "Vernietiging",
+   "subtitle": "A Novel: Movie Tie-In Edition",
+   "description": "\"Nature has reclaimed the last vestiges of human civilization. The first expedition returned with reports of a pristine, Edenic landscape; the second expedition ended in mass suici",
+   "coverUrl": "https://assets.hardcover.app/edition/31436055/1bc8f0d4208c0433a8fd592865cbfcd78475ffea.jpeg",
+   "language": "nld",
+   "publisher": "Bezige Bij",
+   "publicationDate": "2014-02-04",
+   "formatType": "physical",
+   "readingFormatId": 1,
+   "hasChapters": false,
+   "providerIdsAll": {
+    "az": []
+   }
+  },
+  {
+   "asin": "B09LVB8T3V",
+   "title": "Ausl\u00f6schung: Buch 1 der Southern Reach Trilogie",
+   "subtitle": "Buch 1 der Southern Reach Trilogie",
+   "description": "Seit ein myster\u00f6ses 'Ereignis' vor mehr als drei\u00dfig Jahren das Gebiet ersch\u00fctterte, ist Area X von einer unsichtbaren Grenze umgeben. Niemand wei\u00df genau, was dahinter geschieht, ab",
+   "coverUrl": "https://m.media-amazon.com/images/I/91P5L-ho7XL._SL1500_.jpg",
+   "language": "deu",
+   "publisher": "Verlag Antje Kunstmann",
+   "publicationDate": "2014-09-10",
+   "formatType": "ebook",
+   "readingFormatId": 3,
+   "hasChapters": false,
+   "providerIdsAll": {
+    "az": [
+     "az:B09LVB8T3V"
+    ]
+   }
+  }
+ ]
+}

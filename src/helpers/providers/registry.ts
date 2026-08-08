@@ -1,5 +1,6 @@
 import AppleBooksProvider from '#helpers/providers/AppleBooksProvider'
 import AudibleProvider from '#helpers/providers/AudibleProvider'
+import ChaptarrProvider from '#helpers/providers/ChaptarrProvider'
 import HardcoverProvider from '#helpers/providers/HardcoverProvider'
 import LibriVoxProvider from '#helpers/providers/LibriVoxProvider'
 import OpenLibraryProvider from '#helpers/providers/OpenLibraryProvider'
@@ -23,6 +24,13 @@ const providers: BookProvider[] = [
 	new AudibleProvider(),
 	new HardcoverProvider({ token: process.env.HARDCOVER_TOKEN })
 ]
+
+// Chaptarr's metadata aggregation server (opened 2026-08-08). Keyless; one call
+// carries narrator + durationSeconds + chapters + cross-provider ids, so it
+// corroborates where Audible is thin and rescues delisted ASINs natively. A
+// SUPPLEMENT like OverDrive, never primary — it is another project's free
+// infrastructure, so it sits behind its own breaker and a kill-switch.
+if (process.env.CHAPTARR_ENABLED !== 'false') providers.push(new ChaptarrProvider())
 
 // Storytel is keyless and real (narrator + runtime), but a live check showed its
 // English catalog is thin for indie US SF / LitRPG and its search is a loose

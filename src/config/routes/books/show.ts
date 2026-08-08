@@ -8,6 +8,7 @@ import {
 	recallAlternates,
 	rememberAlternates
 } from '#helpers/providers/alternateCoverCache'
+import { backfillChaptarrGenres } from '#helpers/providers/chaptarrGenres'
 import { withGoodreadsSeries } from '#helpers/providers/goodreadsSeries'
 import { backfillHardcoverGenres } from '#helpers/providers/hardcoverGenres'
 import ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
@@ -187,12 +188,23 @@ async function _show(fastify: FastifyInstance) {
 		// The gate is the record's own genres: Audible data is never overridden.
 		const withGenres = async <T extends { genres?: unknown }>(book: T): Promise<T> => {
 			if (Array.isArray(book?.genres) && book.genres.length) return book
-			const genres = await backfillHardcoverGenres({
+			// Hardcover first (curated bucket), Chaptarr second (broader
+			// Goodreads-shelf aggregate, shelf noise filtered) — sequential on
+			// purpose: the second source is only paid for when the first has
+			// nothing, and both cache their empties so the chain stays cheap.
+			let genres = await backfillHardcoverGenres({
 				id: asin,
 				redis: fastify.redis ?? null,
 				token: credentials.hardcover ?? process.env.HARDCOVER_TOKEN,
 				logger: request.log
 			})
+			if (!genres.length) {
+				genres = await backfillChaptarrGenres({
+					id: asin,
+					redis: fastify.redis ?? null,
+					logger: request.log
+				})
+			}
 			return genres.length ? { ...book, genres } : book
 		}
 

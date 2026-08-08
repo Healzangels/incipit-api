@@ -139,12 +139,28 @@ export function genresFromCachedTags(raw: unknown): ApiGenre[] {
 	if (!tags || typeof tags !== 'object') return []
 	const bucket = (tags as Record<string, unknown>)['Genre']
 	if (!Array.isArray(bucket)) return []
-	const seen = new Set<string>()
-	const out: ApiGenre[] = []
+	const names: string[] = []
 	for (const entry of bucket) {
 		const name =
 			typeof entry === 'string' ? entry : ((entry as { tag?: unknown } | null)?.tag ?? null)
-		if (typeof name !== 'string') continue
+		if (typeof name === 'string') names.push(name)
+	}
+	return namesToGenres(names)
+}
+
+/**
+ * Raw genre NAMES to schema-valid ApiGenre[] — the one mapping rule, shared by
+ * every community-genre source (Hardcover cached_tags, Chaptarr work genres),
+ * so a new source cannot drift from the cleaning/alias/dedupe discipline:
+ * cleanGenreName, the alias fold, the "General" drop, case-insensitive dedupe,
+ * and the cap, in that order.
+ * @param {string[]} names raw names in source order
+ * @returns {ApiGenre[]} cleaned, deduped, capped genres
+ */
+export function namesToGenres(names: string[]): ApiGenre[] {
+	const seen = new Set<string>()
+	const out: ApiGenre[] = []
+	for (const name of names) {
 		const cleaned = cleanGenreName(name)
 		if (!cleaned || /^general$/i.test(cleaned)) continue
 		const clean = GENRE_ALIASES[cleaned.toLowerCase()] ?? cleaned
