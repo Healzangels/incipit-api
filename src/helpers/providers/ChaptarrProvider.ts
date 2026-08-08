@@ -89,7 +89,11 @@ export interface ChaptarrWorkResponse {
 	editions?: ChaptarrEdition[]
 }
 
-export type ChaptarrMatchFetch = (q: string, logger?: FastifyBaseLogger) => Promise<ChaptarrMatch[]>
+export type ChaptarrMatchFetch = (
+	q: string,
+	tags: { artist?: string; album?: string },
+	logger?: FastifyBaseLogger
+) => Promise<ChaptarrMatch[]>
 export type ChaptarrWorkFetch = (
 	id: string,
 	logger?: FastifyBaseLogger
@@ -102,10 +106,14 @@ function nullOn404(err: unknown): null {
 	throw err
 }
 
-const defaultMatchFetch: ChaptarrMatchFetch = async (q) => {
+const defaultMatchFetch: ChaptarrMatchFetch = async (q, tags) => {
+	// `tags` is LOAD-BEARING, not optional garnish: the server answers a bare
+	// {q, media_type} body with {} — no error, no matches. Measured live
+	// 2026-08-08, and it cost this provider its first deploy (1 call, 0
+	// candidates): the Chaptarr source's own contract is {q, tags, media_type}.
 	const res = await fetch(`${BASE}/api/v5/match`, {
 		method: 'POST',
-		data: { q, media_type: 'audiobook' },
+		data: { q, media_type: 'audiobook', tags },
 		headers: { 'Content-Type': 'application/json' }
 	})
 	const matches = (res.data as { matches?: ChaptarrMatch[] })?.matches
@@ -114,9 +122,23 @@ const defaultMatchFetch: ChaptarrMatchFetch = async (q) => {
 
 /** The default work transport, exported so enrichment legs (genres, author
  * art) share one implementation and its 404 discipline. */
+/**
+ * TWO routes, and the id type picks one: /api/v5/book/ resolves EDITION-level
+ * ids (az:ASIN), /api/v5/work/ resolves WORK ids (hc:/gr:). Asking /book/ for
+ * a work id 404s — measured live 2026-08-08, the second of the two bugs that
+ * cost the first deploy its candidates (the match endpoint hands back hc:
+ * WORK ids). Both answer the same {work, authors, editions} shape.
+ * @param {string} id a prefixed provider id
+ * @returns {'book' | 'work'} the v5 route segment that resolves it
+ */
+export function workRouteFor(id: string): 'book' | 'work' {
+	return id.toLowerCase().startsWith('az:') ? 'book' : 'work'
+}
+
 export const fetchChaptarrWork: ChaptarrWorkFetch = async (id) => {
+	const route = workRouteFor(id)
 	try {
-		const res = await fetch(`${BASE}/api/v5/book/${encodeURIComponent(id)}`, {
+		const res = await fetch(`${BASE}/api/v5/${route}/${encodeURIComponent(id)}`, {
 			headers: { Accept: 'application/json' }
 		})
 		return (res.data as ChaptarrWorkResponse) ?? null
@@ -218,7 +240,10 @@ export default class ChaptarrProvider implements BookProvider {
 	async search(query: BookSearchQuery, logger?: FastifyBaseLogger): Promise<ProviderCandidate[]> {
 		const q = [query.title, query.author].filter(Boolean).join(' ').trim()
 		if (!q) return []
-		const matches = await this.matchFetch(q, logger)
+		const tags: { artist?: string; album?: string } = {}
+		if (query.author) tags.artist = query.author
+		if (query.title) tags.album = query.title
+		const matches = await this.matchFetch(q, tags, logger)
 		const workIds: string[] = []
 		for (const m of matches) {
 			if (m.work_id && !workIds.includes(m.work_id)) workIds.push(m.work_id)

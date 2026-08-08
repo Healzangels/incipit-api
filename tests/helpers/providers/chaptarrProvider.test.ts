@@ -2,7 +2,8 @@ import { describe, expect, test } from 'bun:test'
 
 import ChaptarrProvider, {
 	type ChaptarrWorkResponse,
-	editionForAsin
+	editionForAsin,
+	workRouteFor
 } from '#helpers/providers/ChaptarrProvider'
 import type { FetchBookOptions } from '#helpers/providers/types'
 import fixture from '#tests/fixtures/chaptarr-work-annihilation.json'
@@ -25,11 +26,13 @@ function provider(over: {
 	matches?: { work_id?: string; author?: string }[]
 	works?: Record<string, ChaptarrWorkResponse | null>
 	matchCalls?: string[]
+	matchTags?: { artist?: string; album?: string }[]
 	workCalls?: string[]
 }) {
 	return new ChaptarrProvider({
-		matchFetch: async (q) => {
+		matchFetch: async (q, tags) => {
 			over.matchCalls?.push(q)
+			over.matchTags?.push(tags)
 			return over.matches ?? []
 		},
 		workFetch: async (id) => {
@@ -64,17 +67,21 @@ describe('search', () => {
 	test('consults at most two works and dedupes work ids', async () => {
 		const workCalls: string[] = []
 		const p = provider({
-			matches: [
-				{ work_id: 'hc:1' },
-				{ work_id: 'hc:1' },
-				{ work_id: 'hc:2' },
-				{ work_id: 'hc:3' }
-			],
+			matches: [{ work_id: 'hc:1' }, { work_id: 'hc:1' }, { work_id: 'hc:2' }, { work_id: 'hc:3' }],
 			works: { 'hc:1': work, 'hc:2': work, 'hc:3': work },
 			workCalls
 		})
 		await p.search({ title: 'Annihilation', region: 'us' })
 		expect(workCalls).toEqual(['hc:1', 'hc:2'])
+	})
+
+	test('the match call carries the TAGS the server requires', async () => {
+		// A bare {q, media_type} body gets {} back — no error, no matches
+		// (measured live 2026-08-08; it cost the first deploy its candidates).
+		const matchTags: { artist?: string; album?: string }[] = []
+		const p = provider({ matches: [], matchTags })
+		await p.search({ title: 'Annihilation', author: 'Jeff VanderMeer', region: 'us' })
+		expect(matchTags).toEqual([{ artist: 'Jeff VanderMeer', album: 'Annihilation' }])
 	})
 
 	test('an empty query asks nothing', async () => {
@@ -124,6 +131,18 @@ describe('fetchBookByAsin (the rescue path)', () => {
 		]
 		expect(editionForAsin(editions, 'b00hyg9kmc')?.asin).toBe('B00HYGYN5Q')
 		expect(editionForAsin(editions, 'B0ABSENT99')).toBeNull()
+	})
+})
+
+describe('workRouteFor', () => {
+	test('edition-level az ids take /book/, work ids take /work/', () => {
+		// /book/hc:192491 404s live while /work/hc:192491 answers — and the
+		// match endpoint hands back hc: WORK ids, so getting this wrong turns
+		// every search into zero candidates with zero errors.
+		expect(workRouteFor('az:B00HYGYN5Q')).toBe('book')
+		expect(workRouteFor('AZ:B00HYGYN5Q')).toBe('book')
+		expect(workRouteFor('hc:192491')).toBe('work')
+		expect(workRouteFor('gr:241505514')).toBe('work')
 	})
 })
 
