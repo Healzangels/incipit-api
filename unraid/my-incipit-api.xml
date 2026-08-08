@@ -10,22 +10,26 @@
   <Support>https://github.com/Healzangels/incipit-api/issues</Support>
   <Project>https://github.com/Healzangels/incipit-api</Project>
   <Overview>
-    SET NETWORK FIRST. All three containers must share the SAME user-defined
-    docker network, or container-name DNS does not resolve and the API exits at
-    boot reporting MONGODB_URI. Unraid's default "bridge" does NOT resolve names.
+    Audiobook metadata API for the Incipit Plex agent - a SINGLE container.
+    Storage is a built-in SQLite file and caching is in-process, so there is no
+    mongo, no redis, no inter-container networking and nothing else to start
+    first. Backup = one file (or `docker exec incipit-api bun run backup`).
 
-    Audiobook metadata API for the Incipit Plex agent. Fans out across Audible,
-    Apple Books, Hardcover, OpenLibrary, OverDrive and Storytel, scores candidates
-    on title, author and runtime, and returns them ranked - which is the piece
-    audnexus never had: a way to find a non-Audible book so it can appear in Plex.
+    Fans out across Audible, Apple Books, Hardcover, OpenLibrary, OverDrive and
+    Storytel, scores candidates on title, author and runtime, and returns them
+    ranked - which is the piece audnexus never had: a way to find a non-Audible
+    book so it can appear in Plex.
 
-    REQUIRES incipit-mongo, and wants incipit-redis. Start those two FIRST: Unraid
-    templates have no depends_on, and the API exits at boot if MONGODB_URI is
-    unreachable.
+    THE DATA PATH MATTERS. Point /data at a CACHE-POOL path
+    (/mnt/cache/appdata/...), never the /mnt/user FUSE view - SQLite file
+    locking over FUSE is a corruption vector (Plex's own appdata follows the
+    same rule). The container runs as uid 1000 and must own the directory:
+    chown 1000:1000 the host path once before first start, or boot fails with
+    "cannot open database".
 
     TAGS: :nightly tracks the default branch, :release is stable. There is no
-    :latest worth using here - it builds from release only, so pulling it after a
-    nightly change is a silent no-op.
+    :latest worth using here - it builds from release only, so pulling it after
+    a nightly change is a silent no-op.
   </Overview>
   <Category>Tools:Utilities MediaApp:Books Network:Other</Category>
   <WebUI>http://[IP]:[PORT:3737]/</WebUI>
@@ -37,22 +41,31 @@
   <DateInstalled/>
   <DonateText/>
   <DonateLink/>
-  <Requires>
-    incipit-mongo and incipit-redis, on the SAME user-defined docker network as this
-    container. Unraid's default "bridge" does NOT resolve container names.
-  </Requires>
+  <Requires/>
 
   <Config Name="WebUI / API port" Target="3000" Default="3737" Mode="tcp"
     Description="Host port the Plex agent connects to. The container always listens on 3000."
     Type="Port" Display="always" Required="true" Mask="false">3737</Config>
 
-  <Config Name="MONGODB_URI" Target="MONGODB_URI" Default="mongodb://incipit-mongo:27017" Mode=""
-    Description="REQUIRED. Container-name DNS, which is why all three must sit on the SAME user-defined network. The API exits at startup if this is unset."
-    Type="Variable" Display="always" Required="true" Mask="false">mongodb://incipit-mongo:27017</Config>
+  <Config Name="Database path (/data)" Target="/data" Default="/mnt/cache/appdata/incipit-api" Mode="rw"
+    Description="Where the SQLite database lives. USE A CACHE-POOL PATH (/mnt/cache/appdata/...), never /mnt/user - SQLite over the FUSE view is a corruption vector. chown 1000:1000 this directory once before first start (the container runs as uid 1000 and creates incipit.db, -wal and -shm here)."
+    Type="Path" Display="always" Required="true" Mask="false">/mnt/cache/appdata/incipit-api</Config>
 
-  <Config Name="REDIS_URL" Target="REDIS_URL" Default="redis://incipit-redis:6379" Mode=""
+  <Config Name="DB_BACKEND" Target="DB_BACKEND" Default="sqlite" Mode=""
+    Description="Storage backend. 'sqlite' (recommended, self-contained) or 'mongo' (legacy; needs MONGODB_URI and an external mongo)."
+    Type="Variable" Display="advanced" Required="true" Mask="false">sqlite</Config>
+
+  <Config Name="SQLITE_PATH" Target="SQLITE_PATH" Default="/data/incipit.db" Mode=""
+    Description="Database file inside the container. Leave as /data/incipit.db unless you know why."
+    Type="Variable" Display="advanced" Required="true" Mask="false">/data/incipit.db</Config>
+
+  <Config Name="MONGODB_URI" Target="MONGODB_URI" Default="" Mode=""
+    Description="LEGACY, mongo backend only. Leave blank under sqlite. If set with DB_BACKEND=mongo, the mongo container must share a user-defined docker network with this one (bridge does not resolve container names)."
+    Type="Variable" Display="advanced" Required="false" Mask="false"/>
+
+  <Config Name="REDIS_URL" Target="REDIS_URL" Default="" Mode=""
     Description="Optional. LEAVE BLANK to use the built-in in-process cache (recommended; no redis container needed). Set only to keep an external redis."
-    Type="Variable" Display="always" Required="false" Mask="false"></Config>
+    Type="Variable" Display="advanced" Required="false" Mask="false"/>
 
   <Config Name="HARDCOVER_TOKEN" Target="HARDCOVER_TOKEN" Default="" Mode=""
     Description="Your own Hardcover API token. Optional - blank simply skips that provider. Nothing is bundled."
@@ -62,9 +75,13 @@
     Description="Contact string sent to OpenLibrary as courtesy identification, e.g. an email. Optional."
     Type="Variable" Display="always" Required="false" Mask="false"/>
 
-  <Config Name="RATE_LIMIT_ALLOWLIST" Target="RATE_LIMIT_ALLOWLIST" Default="" Mode=""
-    Description="CIDR-aware allowlist so a from-scratch Plex scan cannot 429 itself. Use the source IP the API actually SEES - often the docker bridge gateway rather than the Plex host. Check the container log's remoteAddress. Example: 172.17.0.0/16,10.0.0.0/24"
+  <Config Name="GOODREADS_SERIES_URL" Target="GOODREADS_SERIES_URL" Default="" Mode=""
+    Description="Optional rreading-glasses instance for Goodreads series data (e.g. http://10.0.1.99:8788). Blank uses the public api.bookinfo.pro mirror, which rate-limits shared traffic."
     Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="RATE_LIMIT_ALLOWLIST" Target="RATE_LIMIT_ALLOWLIST" Default="" Mode=""
+    Description="CIDR-aware allowlist. Direct requests from private/loopback space (the Plex agent's docker-bridge hop) are exempt automatically; set this only for proxied clients that need exemption. Example: 10.0.0.0/24"
+    Type="Variable" Display="advanced" Required="false" Mask="false"/>
 
   <Config Name="DEFAULT_REGION" Target="DEFAULT_REGION" Default="us" Mode=""
     Description="Audible marketplace to search by default: us, uk, ca, au, de, fr, it, es, in, jp."

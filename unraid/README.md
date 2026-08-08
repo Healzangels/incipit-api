@@ -1,84 +1,72 @@
-# Unraid templates
+# Unraid template
 
-Deploy the stack from the Unraid webgui instead of `docker compose`. Three
-containers, same shape as `docker-compose.yml`: **incipit-mongo**, **incipit-redis**
-and **incipit-api**.
+Deploy from the Unraid webgui instead of `docker compose`. **One container**:
+`incipit-api`, with a built-in SQLite database and an in-process cache. There is
+no mongo, no redis, no inter-container networking, and no start order — the
+whole class of "correct URI on the wrong network" failures this README used to
+document is gone with the containers that caused it.
 
-## Set the network first — this is the one that bites
+## The data path — this is the one that bites now
 
-The compose stack gets container-name DNS for free (`mongodb://mongo:27017`).
-Unraid's default `bridge` does **not** resolve container names.
+The template maps `/data` to a host path where the SQLite database lives. Two
+rules, both learned the hard way:
 
-So before starting anything, change **Network** on all three containers to a
-*user-defined* network — either one you already run, or a new one
-(`docker network create <name>`). Any user-defined bridge works; they just have to
-be on the **same** one. The templates ship with `bridge` because that is Unraid's
-stock value, not because it works.
+1. **Use a cache-pool path** (`/mnt/cache/appdata/incipit-api`), never the
+   `/mnt/user/...` FUSE view. SQLite file locking over FUSE is a corruption
+   vector — Plex's own appdata follows the same rule on this platform.
+2. **`chown 1000:1000` the directory once before first start.** The container
+   runs as uid 1000 (not Unraid's `nobody`), and this is its first-ever disk
+   write: it must create `incipit.db`, `-wal` and `-shm` there. Skipping this
+   fails the boot loudly with "cannot open database".
 
-Leave it on `bridge` and the API starts, cannot reach Mongo, and exits — reporting
-`MONGODB_URI`, which reads like a config typo rather than a networking problem.
-That is the whole failure: a correct URI on the wrong network.
-
-If your network is **macvlan/ipvlan** (containers hold their own LAN IPs) rather
-than a bridge, container-name DNS is unreliable — put static IPs in `MONGODB_URI`
-and `REDIS_URL` instead of names, and note that Mongo and Redis then answer to your
-whole LAN.
-
-The remaining alternative — publishing Mongo and Redis on host ports and pointing
-the API at the server IP — works, but puts an unauthenticated database on your LAN.
-Don't.
+```
+mkdir -p /mnt/cache/appdata/incipit-api && chown 1000:1000 /mnt/cache/appdata/incipit-api
+```
 
 ## Install
 
-Copy the three XML files to your Unraid server:
+Copy `my-incipit-api.xml` to your Unraid server:
 
 ```
 /boot/config/plugins/dockerMan/templates-user/
 ```
 
-They then appear under **Docker → Add Container → Template**, in the user
-templates section.
+It appears under **Docker → Add Container → Template**, in the user templates
+section. The stock `bridge` network is fine — nothing needs container-name DNS
+any more.
 
-## Order matters
-
-Unraid templates have no `depends_on`. Start them in this order:
-
-1. `incipit-mongo`
-2. `incipit-redis`
-3. `incipit-api`
-
-The API exits at boot if Mongo is unreachable, so starting it first just means
-restarting it afterwards.
-
-## What each one needs
+## What it needs
 
 | container | published port | storage | required config |
 |---|---|---|---|
-| incipit-mongo | none | `/mnt/user/appdata/incipit-mongo` | — |
-| incipit-redis | none | `/mnt/user/appdata/incipit-redis` | — |
-| incipit-api | `3737 → 3000` | none | `MONGODB_URI` |
-
-Mongo and Redis publish nothing on purpose — only the API talks to them.
+| incipit-api | `3737 → 3000` | `/data` → `/mnt/cache/appdata/incipit-api` | the path mapping above |
 
 `HARDCOVER_TOKEN` is your own; blank simply skips that provider. Nothing is
-bundled.
+bundled. `GOODREADS_SERIES_URL` optionally points at your own rreading-glasses
+instance; blank uses the shared public mirror, which rate-limits.
+
+**Legacy backends:** `DB_BACKEND=mongo` + `MONGODB_URI` and an external
+`REDIS_URL` still work for existing deployments, but new installs should not
+use them — they resurrect the multi-container networking rules this template
+retired. If you do, the mongo container must share a *user-defined* docker
+network with the API (`bridge` does not resolve container names).
+
+## Backup
+
+One consistent snapshot, safe while serving:
+
+```
+docker exec incipit-api bun run backup
+```
+
+Writes `incipit-backup-YYYYMMDD.db` next to the live file. A plain `cp` of a
+live database can catch it mid-checkpoint — use the command.
 
 ## Icons
 
-Each container has its own, sharing one ground so they read as a set in the Docker
-tab: the project mark for the API, MongoDB's leaf, Redis's stacked layers.
-
-SVG sources live in `assets/`. Unraid's `<Icon>` field wants a **raster** URL, so
-the templates point at the `.png` beside each `.svg`:
-
-| container | icon |
-|---|---|
-| incipit-api | `assets/incipit-icon.png` |
-| incipit-mongo | `assets/incipit-mongo-icon.png` |
-| incipit-redis | `assets/incipit-redis-icon.png` |
-
-Until those PNGs are committed the containers fall back to Unraid's default icon —
-nothing breaks, it just looks unset.
+The API icon lives in `assets/` (SVG source + the raster PNG Unraid's `<Icon>`
+field needs). Until the PNG is committed the container falls back to Unraid's
+default icon — nothing breaks, it just looks unset.
 
 ## Image tags
 
@@ -94,7 +82,8 @@ docker inspect incipit-api -f '{{.Config.Image}}'
 
 ## Rate limiting during a first scan
 
-A from-scratch Plex library scan can rate-limit itself. Set
-`RATE_LIMIT_ALLOWLIST` to the source IP **the API actually sees** — which is
-usually the docker bridge gateway, not the Plex host. Read it off the container
-log's `remoteAddress` field rather than guessing.
+Direct requests from private/loopback space — including the Plex agent's
+docker-bridge hop — are exempt from the rate limit automatically, so a
+from-scratch scan no longer 429s itself. `RATE_LIMIT_ALLOWLIST` remains for
+proxied clients that need exemption; the exemption never applies to requests
+arriving through a proxy.
