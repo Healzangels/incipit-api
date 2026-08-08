@@ -81,10 +81,14 @@ export function pickPhoto(photos: ChaptarrPhoto[] | undefined): string | null {
 		const tier = provider === 'goodreads' ? 0 : provider === 'hardcover' ? 1 : 2
 		return tier * 2 + (p.isPrimary ? 0 : 1)
 	}
-	// Goodreads' nophoto placeholder is not a photo: skipping it HERE keeps
-	// the tier fallthrough alive, so an author with a real hardcover or
-	// audnexus portrait still gets it instead of the grey silhouette.
-	const usable = photos.filter((p) => !!p.url && !/goodreads\.com\/.*nophoto/i.test(p.url ?? ''))
+	// Two upstream quirks, both measured live on one record (Mitchel Scanlon,
+	// 2026-08-08): a missing photo arrives as the literal STRING "null", and
+	// Goodreads' grey /nophoto/ silhouette arrives as a real-looking URL.
+	// Neither is a photo; skipping them HERE keeps the tier fallthrough
+	// alive, so the real Amazon portrait in the audnexus tier still wins.
+	const usable = photos.filter(
+		(p) => !!p.url && /^https?:\/\//i.test(p.url) && !/goodreads\.com\/.*nophoto/i.test(p.url)
+	)
 	if (!usable.length) return null
 	usable.sort((a, b) => rank(a) - rank(b))
 	return usable[0].url ?? null

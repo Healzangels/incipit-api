@@ -43,6 +43,27 @@ describe('pickPhoto', () => {
 		expect(pickPhoto([withNophoto[0]])).toBeNull()
 	})
 
+	test('the EXACT live Scanlon shape: string-"null" and nophoto lose to the real Amazon photo', () => {
+		// Verbatim from api2.chaptarr.com/api/v5/author?id=az:B0034OO0J6 —
+		// the record that shipped a literal "null" string as an author image.
+		const scanlon = [
+			{ isPrimary: true, provider: 'hardcover', url: 'null' },
+			{
+				isPrimary: false,
+				provider: 'goodreads',
+				url: 'https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/nophoto/user/u_700x933.png'
+			},
+			{
+				isPrimary: false,
+				provider: 'audnexus',
+				url: 'https://images-na.ssl-images-amazon.com/images/S/amzn-author-media-prod/ng4nm2ho00g5qc309303log0eb.jpg'
+			}
+		]
+		expect(pickPhoto(scanlon)).toBe(
+			'https://images-na.ssl-images-amazon.com/images/S/amzn-author-media-prod/ng4nm2ho00g5qc309303log0eb.jpg'
+		)
+	})
+
 	test('urlless entries and empty lists return null', () => {
 		expect(pickPhoto([{ provider: 'goodreads' }])).toBeNull()
 		expect(pickPhoto([])).toBeNull()
