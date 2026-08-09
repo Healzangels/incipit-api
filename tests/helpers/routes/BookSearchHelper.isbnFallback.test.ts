@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
+import { CONFIDENCE_FLOOR } from '#helpers/providers/matchScorer'
 import type ProviderRegistry from '#helpers/providers/ProviderRegistry'
 import type { ProviderCandidate } from '#helpers/providers/types'
 import BookSearchHelper, { audibleIdFromIsbn } from '#helpers/routes/BookSearchHelper'
@@ -266,7 +267,22 @@ describe('ISBN fallback for a dead pinned ASIN', () => {
 		// sidecar named is adopted as the pin identity and STAYS OFFERED --
 		// floor-held, never silently deleted -- while its rank is earned, not
 		// granted (no minted 1.0).
-		const fromTrackFanOut = candidate({ id: ISBN10, asin: ISBN10 })
+		//
+		// The row carries the REAL edition's full title, and that is what makes
+		// this test bite. The rewrite to the merits contract had left the fixture
+		// with a bare title, which scores 0.85 on ordinary merits and survives
+		// whether or not the promotion re-runs -- so the test asserted presence
+		// and confidence!==1 against a row that satisfied both anyway, and
+		// deleting the merged-pool re-run left it green. Measured on the real
+		// title: 0.65 (the floor-hold) with the promotion, and ABSENT without it,
+		// because a provider title this much longer than the query scores under
+		// CONFIDENCE_FLOOR and is filtered out. Presence IS the assertion now.
+		const fromTrackFanOut = candidate({
+			id: ISBN10,
+			asin: ISBN10,
+			title: 'The Secrets of the Immortal Nicholas Flamel: The Lost Stories Collection',
+			narrators: ['Alan Kelly']
+		})
 		const registry = {
 			searchAll: async (query: { title: string }) =>
 				query.title.toLowerCase().includes('lost stories collection') &&
@@ -285,8 +301,14 @@ describe('ISBN fallback for a dead pinned ASIN', () => {
 		} as never)
 		const ranked = await helper.search()
 		const isbnRow = ranked.find((c) => c.asin === ISBN10)
+		// Present ONLY because the merged-pool re-run adopted it as the pin
+		// identity and floor-held it. Without that it scores under the floor and
+		// is dropped before it is ever offered.
 		expect(isbnRow).toBeDefined()
+		expect(isbnRow?.confidence).toBe(CONFIDENCE_FLOOR)
+		// ...held at the floor, not crowned: offered, never granted.
 		expect(isbnRow?.confidence).not.toBe(1)
+		expect(ranked[0]?.id).toBe('overdrive-1')
 	})
 
 	test('the ISBN-injected row is not self-confirming', async () => {
