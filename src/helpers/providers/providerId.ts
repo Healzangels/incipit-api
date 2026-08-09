@@ -67,10 +67,20 @@ export function decodeProviderId(id: string): DecodedProviderId | null {
 	const hc = id.match(/^hardcover-(edition|book)-(\d+)$/)
 	if (hc) return { provider: 'hardcover', kind: hc[1] as 'edition' | 'book', nativeId: hc[2] }
 
-	const ol = id.match(/^openlibrary-works-(.+)$/)
+	// SHAPE-CONSTRAINED, not `(.+)`. The decoded nativeId is interpolated
+	// UNENCODED into an outbound URL (`${OL_BASE}${nativeId}.json`), and this
+	// route is reachable by anyone who can reach the port — so `.+` accepted
+	// `../`, a query string, or a whole second URL and turned the id decoder
+	// into a path-injection and outbound-request amplifier. A real OpenLibrary
+	// id is OL<digits><type-letter> (OL80870W works, OL…M editions, OL…A
+	// authors); anything else is not an id we minted and falls through to the
+	// ASIN rule, which refuses it with a 400.
+	const ol = id.match(/^openlibrary-works-(OL\d+[A-Z])$/)
 	if (ol) return { provider: 'openlibrary', kind: 'works', nativeId: `/works/${ol[1]}` }
 
-	const st = id.match(/^storytel-(.+)$/)
+	// Same rule, same reason: Storytel consumable ids are opaque but never
+	// carry a path separator, a dot or a query.
+	const st = id.match(/^storytel-([A-Za-z0-9_-]+)$/)
 	if (st) return { provider: 'storytel', kind: 'book', nativeId: st[1] }
 
 	const ap = id.match(/^apple-audiobook-(\d+)$/)
