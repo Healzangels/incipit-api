@@ -27,6 +27,29 @@ import sleep from '#helpers/utils/sleep'
 const BASE = (process.env.GOODREADS_SERIES_URL || 'https://api.bookinfo.pro').replace(/\/+$/, '')
 const TIMEOUT_MS = 8000
 
+/**
+ * A short, stable identity for a mirror URL, for the cache keys.
+ *
+ * The HOST is what selects the backend; scheme and trailing path are noise
+ * (http vs https to the same box is the same data). Lowercased so a casing
+ * difference cannot split one mirror's cache in two, and non-key characters
+ * are folded out so the key stays greppable in redis.
+ * @param {string} base the mirror base URL
+ * @returns {string} a short key fragment identifying the mirror
+ */
+export function mirrorKeyFor(base: string): string {
+	let host: string
+	try {
+		host = new URL(base).host
+	} catch {
+		// Not a parseable URL (an empty env var, a bare host, a typo): fall
+		// back to the leading authority so a malformed value still yields a
+		// stable key rather than collapsing every mirror into one.
+		host = base.replace(/^https?:\/\//i, '').split('/')[0] ?? base
+	}
+	return host.toLowerCase().replace(/[^a-z0-9.:-]/g, '') || 'unknown'
+}
+
 // The PUBLIC rreading-glasses instances. api.bookinfo.pro is not "the Goodreads
 // API" -- it is one person's server running github.com/blampe/rreading-glasses,
 // whose README reports ~12k daily users. Every defensive measure in this module
@@ -754,7 +777,16 @@ const AUTHOR_MISS_TTL_SECONDS = 3600
 // file's convention for "cached answers are wrong at rest"; the v4 entries
 // orphan and every row recomputes cold on next request, with the drift
 // ledger's review queue as the designed landing net for the turnover.
-const CACHE_PREFIX = 'grseries:v5:'
+// ...and the MIRROR ITSELF is an input to the answer. Neither prefix carried
+// it, so pointing GOODREADS_SERIES_URL at a different backend kept serving
+// the old one's answers for up to the hit TTL (a week local, a month shared)
+// — and this deployment has performed exactly that switch, from the shared
+// bookinfo.pro to a self-hosted instance, precisely because the two return
+// different data. Folding the mirror's identity in makes a switch behave
+// like every other answer-changing input the v4/v5 bumps handled: old rows
+// orphan and expire, every row recomputes cold against the new backend.
+const MIRROR_KEY = mirrorKeyFor(BASE)
+const CACHE_PREFIX = `grseries:v5:${MIRROR_KEY}:`
 
 /**
  * Whether a Goodreads position can be used as a shelf key.
@@ -1452,11 +1484,65 @@ export async function fetchGoodreadsSeries(
 	// TITLE we search for, not which volume the book is, so the veto must still
 	// hold the stem pass to our own volume number.
 	const stem = await lookupByTitle(base, author, logger, state, true, subtitle)
-	if (stem) return stem
+	if (stem) {
+		markZeroInformationStemMatch(base, title, subtitle, stem, state, logger)
+		return stem
+	}
 	// LAST resort, and only for the volume-prefix shape (see
 	// titleAfterVolumePrefix). Reached only when both passes above found nothing,
 	// which is what keeps it off every book that resolves today.
 	return volumePrefixRetry(title, author, logger, state, subtitle, providerSeries)
+}
+
+/**
+ * Cap the cache TTL on a stem match that proved nothing but its own name.
+ *
+ * THE SHAPE: a "Series: Distinct Title" book whose stem IS the series name.
+ * Search the stem and the mirror answers with book 1 — whose title equals the
+ * series — at position 1, scoring 1.0 through the strict gate. With no volume
+ * marker in either half the veto is dark, so the answer looks confident while
+ * carrying no evidence at all beyond "a series by this name exists". Measured
+ * live 2026-08-08 with a fabricated volume the mirror does not hold: the
+ * lookup returned {He Who Fights with Monsters, #1} for a book that is not #1.
+ *
+ * DELIBERATELY NOT A REFUSAL. For an actual book 1 with a marketing subtitle
+ * ("He Who Fights with Monsters: A LitRPG Adventure") this answer is exactly
+ * right, and refusing would break the common case to fix the rare one. The
+ * honest distinction is not correctness but CONFIDENCE — so the answer is
+ * applied and the cache write is capped at the short TTL instead of a week
+ * (local) or a month (shared). A mirror that later gains the real work then
+ * corrects the row on its next serve rather than holding a wrong #1 on the
+ * shelf until the TTL lapses.
+ * @param {string} base the stem that was searched
+ * @param {string} title the original title
+ * @param {string | undefined} subtitle the original subtitle
+ * @param {GoodreadsSeriesResult} result the accepted stem answer
+ * @param {LookupState | undefined} state the shared lookup state
+ * @param {FastifyBaseLogger} [logger] optional logger
+ * @returns {void}
+ */
+function markZeroInformationStemMatch(
+	base: string,
+	title: string,
+	subtitle: string | null | undefined,
+	result: GoodreadsSeriesResult,
+	state: LookupState | undefined,
+	logger?: FastifyBaseLogger
+): void {
+	if (!state) return
+	// A volume marker in either half means the veto was live and did its job —
+	// the answer survived a real test, so it keeps the full TTL.
+	const hasVolumeHint = Boolean(
+		VOLUME_HINT_RE.exec(title)?.[1] ?? (subtitle ? VOLUME_HINT_RE.exec(subtitle)?.[1] : undefined)
+	)
+	if (hasVolumeHint) return
+	const seriesName = result.primary?.name
+	if (!seriesName || foldSeriesName(seriesName) !== foldSeriesName(base)) return
+	state.uncacheable = true
+	logger?.debug(
+		{ title, base, series: seriesName },
+		'goodreads series: stem match proves only its own name -- applying it, but capping the cache TTL'
+	)
 }
 
 /**
@@ -1928,7 +2014,7 @@ async function lookupByTitle(
 const AUTHOR_SEARCH_DEPTH = 2
 
 /** Cached author lookups live under their own prefix, same TTL as series. */
-const AUTHOR_CACHE_PREFIX = 'grauthor:v1:'
+const AUTHOR_CACHE_PREFIX = `grauthor:v1:${MIRROR_KEY}:`
 
 // Goodreads' placeholder for an author with no photo — a real URL, so it must be
 // rejected explicitly or it would count as a "found" portrait.

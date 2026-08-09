@@ -9,8 +9,18 @@ process.env.GOODREADS_MIN_GAP_MS = '0'
 const fetchMock = mock()
 mock.module('#helpers/utils/fetchPlus', () => ({ default: fetchMock }))
 
-const { fetchGoodreadsSeries, withGoodreadsSeries, seriesAliasFor, resetGoodreadsThrottle } =
-	await import('#helpers/providers/goodreadsSeries')
+const {
+	fetchGoodreadsSeries,
+	withGoodreadsSeries,
+	seriesAliasFor,
+	resetGoodreadsThrottle,
+	mirrorKeyFor
+} = await import('#helpers/providers/goodreadsSeries')
+
+// The cache key carries the MIRROR's identity (a switch must not serve the
+// previous backend's answers), so tests that address an exact key derive the
+// fragment from the same helper the module uses rather than hardcoding it.
+const SERIES_PREFIX = `grseries:v5:${mirrorKeyFor(process.env.GOODREADS_SERIES_URL || 'https://api.bookinfo.pro')}:`
 
 // Pristine module state for EVERY test. The series-record memo lives for the
 // process, so without this, whichever test touches a series id first pins its
@@ -463,6 +473,92 @@ describe('series language preference', () => {
 		expect((state as { uncacheable?: boolean }).uncacheable).toBe(true)
 	})
 
+	test('a stem match that proves only its own NAME is applied but capped', async () => {
+		// THE SHAPE (measured live 2026-08-08 with a volume the mirror does not
+		// hold): "Series: Distinct Title" where the stem IS the series name.
+		// Pass 1 on the full title finds nothing; the stem pass searches
+		// "He Who Fights with Monsters", the mirror answers with BOOK 1 — whose
+		// title equals the series — at position 1, and with no volume marker in
+		// either half the veto is dark. The answer looks confident and carries
+		// no evidence beyond "a series by that name exists".
+		//
+		// It is APPLIED (for a real book 1 with a marketing subtitle it is
+		// exactly right, and refusing would break the common case to fix the
+		// rare one) but must not be pinned for a week: uncacheable caps the
+		// write so a mirror that later gains the real work corrects the row.
+		const state = { degraded: false }
+		respond(
+			[], // pass 1: full title -> no hits
+			[{ workId: 42 }], // stem pass: a hit
+			{
+				Title: 'He Who Fights with Monsters',
+				Series: [
+					{
+						Title: 'He Who Fights with Monsters',
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1', SeriesPosition: 1 }]
+					}
+				]
+			}
+		)
+		const out = await fetchGoodreadsSeries(
+			'He Who Fights with Monsters: A Fabricated Subtitle',
+			'Shirtaloon',
+			undefined,
+			state
+		)
+		expect(out?.primary?.name).toBe('He Who Fights with Monsters')
+		expect(state.degraded).toBe(false)
+		expect((state as { uncacheable?: boolean }).uncacheable).toBe(true)
+	})
+
+	test('a stem match whose series DIFFERS keeps the full TTL', async () => {
+		// The pass's motivating case, untouched: "Esrever Doom" resolves to a
+		// work whose series is "Xanth" — a name the query never mentioned, so
+		// the answer carries real information and earns the long cache.
+		const state = { degraded: false }
+		respond([], [{ workId: 42 }], {
+			Title: 'Esrever Doom',
+			Series: [
+				{
+					Title: 'Xanth',
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '37', SeriesPosition: 37 }]
+				}
+			]
+		})
+		const out = await fetchGoodreadsSeries(
+			'Esrever Doom: A Xanth Novel',
+			'Piers Anthony',
+			undefined,
+			state
+		)
+		expect(out?.primary).toEqual({ name: 'Xanth', position: '37' })
+		expect((state as { uncacheable?: boolean }).uncacheable).toBeUndefined()
+	})
+
+	test('a VOLUME MARKER means the veto was live, so the answer keeps its TTL', async () => {
+		// With "Book 11" in the subtitle the volume veto is armed and the answer
+		// survived a real test — capping it would punish the well-evidenced case.
+		const state = { degraded: false }
+		respond([], [{ workId: 42 }], {
+			Title: 'He Who Fights with Monsters',
+			Series: [
+				{
+					Title: 'He Who Fights with Monsters',
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '11', SeriesPosition: 11 }]
+				}
+			]
+		})
+		const out = await fetchGoodreadsSeries(
+			'He Who Fights with Monsters: A LitRPG Adventure',
+			'Shirtaloon',
+			undefined,
+			state,
+			'He Who Fights with Monsters, Book 11'
+		)
+		expect(out?.primary?.position).toBe('11')
+		expect((state as { uncacheable?: boolean }).uncacheable).toBeUndefined()
+	})
+
 	test('a sound alias fetch leaves the answer fully cacheable', async () => {
 		const state = { degraded: false }
 		respond([{ workId: 42 }], germanCanonical(90007), {
@@ -630,7 +726,7 @@ describe('series name hygiene', () => {
 		// answers converge -- not only inside the lookup.
 		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
 		fetchMock.mockReset()
-		const redis = fakeRedisFor('grseries:v5:crooked kingdom|leigh bardugo|||English', {
+		const redis = fakeRedisFor(`${SERIES_PREFIX}crooked kingdom|leigh bardugo|||English`, {
 			primary: { name: 'Six of Crows ', position: '2' }
 		})
 		const book = { title: 'Crooked Kingdom', authors: [{ name: 'Leigh Bardugo' }] }

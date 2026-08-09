@@ -9,8 +9,10 @@ process.env.GOODREADS_MIN_GAP_MS = '0'
 const fetchMock = mock()
 mock.module('#helpers/utils/fetchPlus', () => ({ default: fetchMock }))
 
-const { fetchGoodreadsAuthorInfo, withGoodreadsAuthorInfo } =
+const { fetchGoodreadsAuthorInfo, withGoodreadsAuthorInfo, mirrorKeyFor } =
 	await import('#helpers/providers/goodreadsSeries')
+
+const AUTHOR_PREFIX = `grauthor:v1:${mirrorKeyFor(process.env.GOODREADS_SERIES_URL || 'https://api.bookinfo.pro')}:`
 
 /** Queue responses in call order; a `null` entry makes that call reject. */
 function respond(...bodies: Array<unknown | null>) {
@@ -209,7 +211,7 @@ describe('withGoodreadsAuthorInfo miss handling', () => {
 		const redis = fakeRedis()
 		respond([{ author: { id: 1 } }], { ForeignId: 1, Name: 'Somebody Else' })
 		await withGoodreadsAuthorInfo('Roger Zelazny', redis)
-		expect(redis.expires.get('grauthor:v1:roger zelazny')).toBe(3600)
+		expect(redis.expires.get(`${AUTHOR_PREFIX}roger zelazny`)).toBe(3600)
 
 		respond([{ author: { id: 7328 } }], {
 			ForeignId: 7328,
@@ -218,12 +220,12 @@ describe('withGoodreadsAuthorInfo miss handling', () => {
 			ImageUrl: PHOTO
 		})
 		await withGoodreadsAuthorInfo('Ursula K. Le Guin', redis)
-		expect(redis.expires.get('grauthor:v1:ursula k. le guin')).toBe(86400)
+		expect(redis.expires.get(`${AUTHOR_PREFIX}ursula k. le guin`)).toBe(86400)
 	})
 
 	test('retryCachedMiss ignores a stale cached miss and overwrites it', async () => {
 		const redis = fakeRedis()
-		redis.store.set('grauthor:v1:roger zelazny', JSON.stringify({ image: null, bio: null }))
+		redis.store.set(`${AUTHOR_PREFIX}roger zelazny`, JSON.stringify({ image: null, bio: null }))
 		respond([{ author: { id: 3619 } }], {
 			ForeignId: 3619,
 			Name: 'Roger Zelazny',
@@ -234,7 +236,7 @@ describe('withGoodreadsAuthorInfo miss handling', () => {
 			retryCachedMiss: true
 		})
 		expect(out.bio).toBe('An American fantasy and science fiction writer.')
-		expect(JSON.parse(redis.store.get('grauthor:v1:roger zelazny') ?? '{}').bio).toBe(
+		expect(JSON.parse(redis.store.get(`${AUTHOR_PREFIX}roger zelazny`) ?? '{}').bio).toBe(
 			'An American fantasy and science fiction writer.'
 		)
 	})
@@ -245,7 +247,7 @@ describe('withGoodreadsAuthorInfo miss handling', () => {
 		// for every author that already has an answer.
 		const redis = fakeRedis()
 		redis.store.set(
-			'grauthor:v1:roger zelazny',
+			`${AUTHOR_PREFIX}roger zelazny`,
 			JSON.stringify({ image: PHOTO, bio: 'cached bio' })
 		)
 		fetchMock.mockReset()
@@ -267,7 +269,7 @@ describe('withGoodreadsAuthorInfo miss handling', () => {
 			Description: 'An American fantasy and science fiction writer.'
 		})
 		await withGoodreadsAuthorInfo('Roger Zelazny', redis)
-		expect(redis.expires.get('grauthor:v1:roger zelazny')).toBe(3600)
+		expect(redis.expires.get(`${AUTHOR_PREFIX}roger zelazny`)).toBe(3600)
 	})
 
 	test('retryCachedMiss re-asks for a PARTIAL cached answer and fills the gap', async () => {
@@ -275,7 +277,10 @@ describe('withGoodreadsAuthorInfo miss handling', () => {
 		// full miss would: isMiss required BOTH halves absent, so the cached
 		// partial was a force-proof HIT for a day.
 		const redis = fakeRedis()
-		redis.store.set('grauthor:v1:roger zelazny', JSON.stringify({ image: null, bio: 'old bio' }))
+		redis.store.set(
+			`${AUTHOR_PREFIX}roger zelazny`,
+			JSON.stringify({ image: null, bio: 'old bio' })
+		)
 		respond([{ author: { id: 3619 } }], {
 			ForeignId: 3619,
 			Name: 'Roger Zelazny',
@@ -294,7 +299,10 @@ describe('withGoodreadsAuthorInfo miss handling', () => {
 		// hand the caller LESS than the cache already knew -- merge instead: fresh
 		// fields win, cached fields fill.
 		const redis = fakeRedis()
-		redis.store.set('grauthor:v1:roger zelazny', JSON.stringify({ image: null, bio: 'old bio' }))
+		redis.store.set(
+			`${AUTHOR_PREFIX}roger zelazny`,
+			JSON.stringify({ image: null, bio: 'old bio' })
+		)
 		respond(null)
 		const out = await withGoodreadsAuthorInfo('Roger Zelazny', redis, undefined, {
 			retryCachedMiss: true
@@ -305,7 +313,7 @@ describe('withGoodreadsAuthorInfo miss handling', () => {
 	test('without the flag, the cached answer still wins (mirror protection intact)', async () => {
 		const redis = fakeRedis()
 		redis.store.set(
-			'grauthor:v1:roger zelazny',
+			`${AUTHOR_PREFIX}roger zelazny`,
 			JSON.stringify({ image: PHOTO, bio: 'cached bio' })
 		)
 		fetchMock.mockReset()
