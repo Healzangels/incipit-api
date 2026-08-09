@@ -143,10 +143,18 @@ describe('volume/part disambiguation', () => {
 		// Only the tag punctuation decided whether the bug was fixed.
 		const out = await helperFor(
 			[
-				candidate({ provider: 'audible', id: 'v1', title: 'Defiance of the Fall 1',
-					authors: ['TheFirstDefier'] }),
-				candidate({ provider: 'hardcover', id: 'v10', title: 'Defiance of the Fall 10',
-					authors: ['TheFirstDefier'] })
+				candidate({
+					provider: 'audible',
+					id: 'v1',
+					title: 'Defiance of the Fall 1',
+					authors: ['TheFirstDefier']
+				}),
+				candidate({
+					provider: 'hardcover',
+					id: 'v10',
+					title: 'Defiance of the Fall 10',
+					authors: ['TheFirstDefier']
+				})
 			],
 			{
 				title: 'Defiance of the Fall 10',
@@ -167,10 +175,18 @@ describe('volume/part disambiguation', () => {
 		// pass exists to rescue.
 		const out = await helperFor(
 			[
-				candidate({ provider: 'audible', id: 'v1', title: 'Defiance of the Fall 1',
-					authors: ['TheFirstDefier'] }),
-				candidate({ provider: 'hardcover', id: 'v10', title: 'Defiance of the Fall 10',
-					authors: ['TheFirstDefier'] })
+				candidate({
+					provider: 'audible',
+					id: 'v1',
+					title: 'Defiance of the Fall 1',
+					authors: ['TheFirstDefier']
+				}),
+				candidate({
+					provider: 'hardcover',
+					id: 'v10',
+					title: 'Defiance of the Fall 10',
+					authors: ['TheFirstDefier']
+				})
 			],
 			{ title: '', author: 'TheFirstDefier', trackTitle: 'Defiance of the Fall, Book 10' }
 		).search()
@@ -195,14 +211,11 @@ describe('volume/part disambiguation', () => {
 	test('the stem check keeps an unrelated numbered title out', async () => {
 		// Pins the titleSim(...) < 0.9 guard, which deleting previously left the
 		// suite green. "Dune 2" is not a sibling of "Defiance of the Fall".
-		await helperFor(
-			[candidate({ id: 'dune', title: 'Dune 2', authors: ['TheFirstDefier'] })],
-			{
-				title: 'Defiance of the Fall',
-				author: 'TheFirstDefier',
-				trackTitle: 'Defiance of the Fall, Book 10'
-			}
-		).search()
+		await helperFor([candidate({ id: 'dune', title: 'Dune 2', authors: ['TheFirstDefier'] })], {
+			title: 'Defiance of the Fall',
+			author: 'TheFirstDefier',
+			trackTitle: 'Defiance of the Fall, Book 10'
+		}).search()
 
 		expect(getMatchMetrics().recent[0].volumeDemoted).toBe(0)
 	})
@@ -222,6 +235,42 @@ describe('volume/part disambiguation', () => {
 
 		expect(out[0].id).toBe('f451')
 		expect(getMatchMetrics().recent[0].volumeDemoted).toBe(0)
+	})
+
+	test('a DISC suffix is a media part, so Book 1 keeps the agreeing-volume tiebreak', async () => {
+		// A Book-1 rip split across discs tags "The Wandering Inn - Disc 2".
+		// Neither VOLUME_MARKER_RE nor PART_MARKER_RE covers "disc", so the
+		// bare-trailing fallback read the 2 as a WANTED volume — which does not
+		// demote anything (Book 1 states no volume, so nothing conflicts) but
+		// hands "Book 2" the agreeing-volume tiebreak and the win.
+		//
+		// A/B measured against the unpatched code: the two candidates tie at
+		// 0.850 either way and volumeDemoted is 0 either way; the ONE
+		// observable difference is which of them comes first, and it flipped.
+		// That ordering is what the bundle takes, so it is the whole bug.
+		const out = await helperFor(
+			[
+				candidate({ id: 'book1', title: 'The Wandering Inn', authors: ['Pirateaba'] }),
+				candidate({ id: 'book2', title: 'The Wandering Inn, Book 2', authors: ['Pirateaba'] })
+			],
+			{ title: 'The Wandering Inn - Disc 2', author: 'Pirateaba' }
+		).search()
+
+		expect(out[0].id).toBe('book1')
+		expect(getMatchMetrics().recent[0].volumeDemoted).toBe(0)
+	})
+
+	test('a REAL bare trailing volume still counts', async () => {
+		// The fallback must keep working for the shape it exists for — the
+		// stem check may only remove media-part suffixes.
+		const out = await helperFor(
+			[
+				candidate({ id: 'v1', title: 'Dungeon Crawler Carl', authors: ['Matt Dinniman'] }),
+				candidate({ id: 'v3', title: 'Dungeon Crawler Carl 3', authors: ['Matt Dinniman'] })
+			],
+			{ title: 'Dungeon Crawler Carl 3', author: 'Matt Dinniman' }
+		).search()
+		expect(out[0].id).toBe('v3')
 	})
 
 	test('an unrelated title ending in a number is never a sibling', async () => {

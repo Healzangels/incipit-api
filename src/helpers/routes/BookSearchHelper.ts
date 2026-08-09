@@ -1106,7 +1106,13 @@ export default class BookSearchHelper {
 		if (wantVolumes.size === 0) {
 			for (const raw of [this.rawTitle, this.options.trackTitle]) {
 				const m = raw ? BARE_TRAILING_VOLUME_RE.exec(raw.trim()) : null
-				if (m) wantVolumes.add(Number(m[2]))
+				// SAME STEM CHECK THE CANDIDATE SIDE APPLIES (line ~296). A rip
+				// split across discs tags "The Wandering Inn - Disc 2", and
+				// neither VOLUME_MARKER_RE nor PART_MARKER_RE covers "disc" —
+				// so this fallback read the 2 as a wanted VOLUME and demoted
+				// the correct Book 1 in favour of Book 2. A media-part suffix
+				// says which piece of the file this is, never which book.
+				if (m && !PART_MARKER_STEM_RE.test(m[1])) wantVolumes.add(Number(m[2]))
 			}
 		}
 		// Snapshot of the volumes the TITLE ITSELF claims, for the ranker's
