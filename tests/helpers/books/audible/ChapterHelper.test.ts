@@ -92,6 +92,28 @@ describe('ChapterHelper should', () => {
 		expect(helper.chapterTitleCleanup('Chapter_1')).toBe('Chapter 1')
 	})
 
+	test('an underscore in a REAL title is left alone', () => {
+		// The branch exists for the "Chapter_7" spelling, but it fired for ANY
+		// underscore and rebuilt the whole title from the second segment, so a
+		// chapter genuinely called "The_Big_Sleep" was served as "Chapter Big"
+		// — a real title replaced by a fabricated one. Only a numeric second
+		// segment can mean the Chapter_N shape.
+		expect(helper.chapterTitleCleanup('The_Big_Sleep')).toBe('The_Big_Sleep')
+		// EXACTLY TWO segments with a non-numeric second half — the case a
+		// segment-count check alone would still mangle into "Chapter Note".
+		// (Found by mutation: dropping the numeric test passed until this.)
+		expect(helper.chapterTitleCleanup('Author_Note')).toBe('Author_Note')
+		expect(helper.chapterTitleCleanup('The_End')).toBe('The_End')
+		expect(helper.chapterTitleCleanup('Prologue_and_Epilogue')).toBe('Prologue_and_Epilogue')
+		// A trailing underscore has no second segment at all.
+		expect(helper.chapterTitleCleanup('Chapter_')).toBe('Chapter_')
+	})
+
+	test('the Chapter_N shape still normalizes, including padded numbers', () => {
+		expect(helper.chapterTitleCleanup('Chapter_07')).toBe('Chapter 07')
+		expect(helper.chapterTitleCleanup('Kapitel_3')).toBe('Chapter 3')
+	})
+
 	test('sign request', () => {
 		expect(helper.signRequest(helper.adpToken, helper.privateKey)).toBeDefined()
 	})

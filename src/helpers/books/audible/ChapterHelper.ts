@@ -80,8 +80,18 @@ class ChapterHelper {
 		let chapterTitle = strippedTitle
 		// Check if title is just numbers
 		const isNotNumber = isNaN(Number(strippedTitle))
-		// Check if title has an underscore between Chapter and number
-		const hasUnderscore = strippedTitle.includes('_')
+		// Check for the "Chapter_7" shape: a word, ONE underscore, and a number.
+		//
+		// This used to be a bare `.includes('_')`, which fired for any
+		// underscore at all and then rebuilt the whole title from the second
+		// segment — so a chapter genuinely titled "The_Big_Sleep" was served as
+		// "Chapter Big", a real title replaced by a fabricated one. The number
+		// is what makes the shape recognizable, so require it.
+		const underscoreParts = strippedTitle.split('_')
+		const hasUnderscore =
+			underscoreParts.length === 2 &&
+			underscoreParts[1].length > 0 &&
+			!isNaN(Number(underscoreParts[1]))
 		if (!isNotNumber && strippedTitle.length <= 3) {
 			// Remove trailing period in some cases
 			const stripPeriod: string = strippedTitle
