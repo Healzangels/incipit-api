@@ -77,10 +77,16 @@ const defaultFetch: OverDriveFetch = async (url) =>
 	(await fetch(url, { headers: { Accept: 'application/json' } })).data
 
 /** "HH:MM:SS" (or "MM:SS") -> seconds, or null. */
-function parseDuration(d?: string): number | null {
+export function parseDuration(d?: string): number | null {
 	if (!d) return null
-	const parts = d.split(':').map((p) => Number(p))
-	if (!parts.length || parts.some((n) => !Number.isFinite(n))) return null
+	const raw = d.split(':')
+	// EMPTY SEGMENTS ARE NOT ZEROES. Number('') is 0 and sails straight past
+	// isFinite, so ':', '12:' and '::30' all parsed as a real runtime — and a
+	// FABRICATED runtime is worse than none here: it feeds the duration veto
+	// and the closest-runtime ranking as if it were evidence.
+	if (raw.some((p) => p.trim() === '')) return null
+	const parts = raw.map((p) => Number(p))
+	if (!parts.length || parts.some((n) => !Number.isFinite(n) || n < 0)) return null
 	// left-to-right accumulate so 2- and 3-field forms both work.
 	const seconds = parts.reduce((acc, p) => acc * 60 + p, 0)
 	return seconds > 0 ? seconds : null

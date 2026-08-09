@@ -12,6 +12,8 @@
  * with BACKUP_PATH). Keeps whatever retention you enforce externally — this
  * script deliberately never deletes anything.
  */
+import { renameSync, unlinkSync } from 'node:fs'
+
 import { sqliteDb } from '#helpers/database/sqlite/SqliteModel'
 
 if (!process.env.SQLITE_PATH) {
@@ -23,8 +25,17 @@ const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
 const dir = process.env.SQLITE_PATH.replace(/\/[^/]+$/, '')
 const out = process.env.BACKUP_PATH || `${dir}/incipit-backup-${stamp}.db`
 
+// VACUUM INTO REFUSES an existing target ("output file already exists"), so a
+// second backup on the same day — or any retry after a partial/failed run, or
+// a fixed BACKUP_PATH — died with a raw SQLiteError and no backup taken. Hit
+// live 2026-08-08. Write to a temp sibling and rename into place: the rename
+// is atomic, so a reader never sees a half-written file and the previous
+// backup survives until the new one is complete.
+const tmp = `${out}.tmp`
+if (await Bun.file(tmp).exists()) unlinkSync(tmp)
 const db = sqliteDb()
-db.exec(`VACUUM INTO '${out.replace(/'/g, "''")}'`)
+db.exec(`VACUUM INTO '${tmp.replace(/'/g, "''")}'`)
+renameSync(tmp, out)
 const size = (await Bun.file(out).exists()) ? Bun.file(out).size : 0
 if (!size) {
 	console.error(`backup FAILED — ${out} missing or empty`)

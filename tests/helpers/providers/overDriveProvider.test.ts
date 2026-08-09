@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 
-import OverDriveProvider, { type OverDriveFetch } from '#helpers/providers/OverDriveProvider'
+import OverDriveProvider, {
+	type OverDriveFetch,
+	parseDuration} from '#helpers/providers/OverDriveProvider'
 import { decodeProviderId, encodeOverdrive } from '#helpers/providers/providerId'
 
 // A Thunder search item, shaped as the live API returns it (verified against
@@ -170,5 +172,29 @@ describe('OverDriveProvider fetchBook', () => {
 		// id would start surfacing as a server error.
 		const p = new OverDriveProvider({ fetchThunder: async () => ({}) })
 		expect(await p.fetchBook('265555', 'media', { region: 'us' })).toBeNull()
+	})
+})
+
+describe('parseDuration', () => {
+	test('parses the real 2- and 3-field forms', () => {
+		expect(parseDuration('11:09:00')).toBe(11 * 3600 + 9 * 60)
+		expect(parseDuration('45:30')).toBe(45 * 60 + 30)
+	})
+
+	test('an EMPTY segment is not a zero — a fabricated runtime is worse than none', () => {
+		// Number('') is 0 and sailed past the isFinite guard, so these all
+		// parsed as a real runtime — which then fed the duration VETO and the
+		// closest-runtime ranking as if it were evidence.
+		expect(parseDuration(':')).toBeNull()
+		expect(parseDuration('12:')).toBeNull()
+		expect(parseDuration('::30')).toBeNull()
+		expect(parseDuration(' : ')).toBeNull()
+	})
+
+	test('still refuses junk, negatives and nothing', () => {
+		expect(parseDuration('abc')).toBeNull()
+		expect(parseDuration('-5:00')).toBeNull()
+		expect(parseDuration('0:00')).toBeNull()
+		expect(parseDuration(undefined)).toBeNull()
 	})
 })

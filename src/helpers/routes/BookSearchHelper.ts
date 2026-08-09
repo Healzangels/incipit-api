@@ -1256,13 +1256,21 @@ export default class BookSearchHelper {
 		// no runtime of its own inherits it. Best, not worst, so a single bad
 		// listing among good ones cannot manufacture a veto. Same shape as
 		// pinIsStale above, generalized beyond the pinned ASIN.
+		//
+		// KEYED UPPERCASE, like every other cross-row ASIN identity in this file
+		// (the pin arms at 642/873/879/908 all fold case). This map alone used
+		// the raw value on BOTH sides, so a provider spelling an ASIN in a
+		// different case produced a SEPARATE entry — and the runtime-less twin
+		// then inherited nothing and laundered the veto away at 0.850, which is
+		// the exact laundering the map exists to stop.
 		const editionDelta = new Map<string, number>()
 		for (const c of candidates) {
 			if (!c.asin) continue
 			const d = durationDelta(c)
 			if (d == null) continue
-			const prior = editionDelta.get(c.asin)
-			if (prior == null || d < prior) editionDelta.set(c.asin, d)
+			const key = c.asin.toUpperCase()
+			const prior = editionDelta.get(key)
+			if (prior == null || d < prior) editionDelta.set(key, d)
 		}
 		const scored: ScoredCandidate[] = candidates.map((c) => {
 			// Score against the album title and (when present) the track title,
@@ -1397,7 +1405,7 @@ export default class BookSearchHelper {
 			// (see editionDelta): otherwise the runtime-less twin of a vetoed
 			// edition launders the veto away and wins at 0.850.
 			const inherited =
-				best.durationDeltaPct == null && c.asin ? editionDelta.get(c.asin) : undefined
+				best.durationDeltaPct == null && c.asin ? editionDelta.get(c.asin.toUpperCase()) : undefined
 			if (!effectivePin && inherited != null && inherited > DURATION_VETO_THRESHOLD) {
 				// Past the veto threshold the scorer would have applied its own
 				// veto had this row reported the runtime; match that magnitude.

@@ -130,3 +130,52 @@ describe('graded duration dead zone', () => {
 		expect(out).toHaveLength(0)
 	})
 })
+
+describe('the edition-delta map is ASIN-case blind', () => {
+	beforeEach(() => resetMatchMetrics())
+
+	// A row with no runtime of its own answers to its EDITION's evidence, so a
+	// runtime-less twin of a vetoed edition cannot launder the veto away. That
+	// map was keyed and looked up by the RAW asin while every other cross-row
+	// ASIN identity in this file folds case — so a provider spelling the same
+	// ASIN differently inherited NOTHING.
+	//
+	// dedupeCandidates runs AFTER scoring, so both twins are scored and the
+	// laundered one then WINS the merge: measured against the pre-fix code,
+	// the runtime-less twin of a 40%-wrong edition shipped at a clean 0.850.
+	test('a differently-cased twin cannot launder a vetoed edition to 0.850', async () => {
+		const out = await helperFor(
+			[
+				candidate({
+					provider: 'audible',
+					id: 'with-runtime',
+					asin: 'B00CASETEST',
+					audioSeconds: Math.round(BASE * 1.4)
+				}),
+				candidate({ id: 'no-runtime', asin: 'b00casetest', audioSeconds: null })
+			],
+			{ duration: BASE * 1000 }
+		).search()
+		// Nothing may come back at the clean 0.850 — the twin inherits the veto,
+		// and with both rows penalised the pair is refused outright.
+		expect(out.every((r) => r.confidence < 0.85)).toBe(true)
+		expect(getMatchMetrics().durationDeadzonedSearches).toBeGreaterThan(0)
+	})
+
+	test('an unrelated ASIN inherits nothing — the fold must not over-merge', async () => {
+		const out = await helperFor(
+			[
+				candidate({
+					provider: 'audible',
+					id: 'with-runtime',
+					asin: 'B00CASETEST',
+					audioSeconds: Math.round(BASE * 1.4)
+				}),
+				candidate({ id: 'other-edition', asin: 'B00DIFFEREN', audioSeconds: null })
+			],
+			{ duration: BASE * 1000 }
+		).search()
+		const other = out.find((r) => r.id === 'other-edition')
+		expect(other!.confidence).toBeCloseTo(0.85, 5)
+	})
+})
