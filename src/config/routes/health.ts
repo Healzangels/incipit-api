@@ -33,6 +33,21 @@ export interface HealthCheckResponse {
 		database: boolean
 		redis: boolean | null
 	}
+	/**
+	 * WHAT this container is actually running, not just whether it answers.
+	 *
+	 * Two database backends now sit behind DB_BACKEND and two cache modes behind
+	 * REDIS_URL, and until this was added nothing reported which pair was live —
+	 * `database: true` reads identically whether it pinged Mongo or ran SELECT 1
+	 * against SQLite. Diagnosing a deployment meant shelling into the host, which
+	 * is precisely the reaching-in this project is trying to stop needing.
+	 */
+	runtime: {
+		/** 'sqlite' | 'mongo' — which adapter the models are bound to. */
+		backend: string
+		/** 'redis' | 'memory' — a real Redis, or the bounded in-process LRU. */
+		cache: string
+	}
 }
 
 /**
@@ -92,6 +107,13 @@ async function health(app: FastifyInstance) {
 		const response: HealthCheckResponse = {
 			status: isHealthy ? 'healthy' : 'unhealthy',
 			timestamp: new Date().toISOString(),
+			// Read from the SAME env the wiring reads, not from a separate copy:
+			// a second source of truth here would eventually disagree with the
+			// code and report a backend the container is not using.
+			runtime: {
+				backend: process.env.DB_BACKEND === 'sqlite' ? 'sqlite' : 'mongo',
+				cache: process.env.REDIS_URL ? 'redis' : 'memory'
+			},
 			checks
 		}
 

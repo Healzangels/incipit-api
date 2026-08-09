@@ -87,6 +87,54 @@ describe('health route should', () => {
 		return app.get.mock.calls[0][1]
 	}
 
+	describe('runtime disclosure', () => {
+		// Two backends behind DB_BACKEND and two cache modes behind REDIS_URL,
+		// and `database: true` reads identically whether it pinged Mongo or ran
+		// SELECT 1 against SQLite. Without this, identifying what a container
+		// actually runs means shelling into the host.
+		const saved = { db: process.env.DB_BACKEND, redis: process.env.REDIS_URL }
+		afterEach(() => {
+			if (saved.db === undefined) delete process.env.DB_BACKEND
+			else process.env.DB_BACKEND = saved.db
+			if (saved.redis === undefined) delete process.env.REDIS_URL
+			else process.env.REDIS_URL = saved.redis
+		})
+
+		const runtimeOf = async () => {
+			mockMongoCommand.mockResolvedValue({ ok: 1 })
+			app.mongoClient = mockMongoClient
+			app.redis = { ping: mock().mockResolvedValue('PONG') }
+			await health(app)
+			// The handler answers through reply.send(), so capture it there —
+			// the same way every other test in this file reads the body.
+			let seen: HealthCheckResponse | undefined
+			const reply = createMockReply((data) => {
+				seen = data
+			})
+			await getRouteHandler()(createMockRequest(), reply)
+			return seen?.runtime
+		}
+
+		test('reports sqlite + memory when that is what is configured', async () => {
+			process.env.DB_BACKEND = 'sqlite'
+			delete process.env.REDIS_URL
+			expect(await runtimeOf()).toEqual({ backend: 'sqlite', cache: 'memory' })
+		})
+
+		test('reports mongo + redis when that is what is configured', async () => {
+			delete process.env.DB_BACKEND
+			process.env.REDIS_URL = 'redis://localhost:6379'
+			expect(await runtimeOf()).toEqual({ backend: 'mongo', cache: 'redis' })
+		})
+
+		test('an unrecognised DB_BACKEND reads as mongo, matching the wiring', async () => {
+			// server.ts gates on `=== 'sqlite'`, so anything else IS mongo.
+			// Echoing the raw value would claim a backend nothing is running.
+			process.env.DB_BACKEND = 'postgres'
+			expect((await runtimeOf()).backend).toBe('mongo')
+		})
+	})
+
 	test('return 200 and healthy status when all services are up', async () => {
 
 		mockMongoCommand.mockResolvedValue({ ok: 1 })
