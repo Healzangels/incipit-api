@@ -236,16 +236,8 @@ function titleAfterVolumePrefix(
 	if (post.length < 4 || !/[a-z]/i.test(post)) return null
 	// Fold articles and the descriptor nouns providers bolt on, so "Sons of Valor"
 	// matches "The Sons of Valor Series".
-	const flat = (s: string) =>
-		s
-			.replace(/[‘’]/g, "'")
-			.replace(/^\s*(?:the|a|an)\s+/i, '')
-			.replace(/\b(series|thrillers?|novels?|saga|sequence|trilogy|chronicles?)\b/gi, '')
-			.replace(/\s+/g, ' ')
-			.trim()
-			.toLowerCase()
-	const a = flat(prefix)
-	const b = flat(providerSeries)
+	const a = foldSeriesTitle(prefix)
+	const b = foldSeriesTitle(providerSeries)
 	if (!a || !b) return null
 	if (a !== b && !b.includes(a) && !a.includes(b)) return null
 	return post
@@ -704,6 +696,36 @@ export const foldSeriesName = (value: string): string =>
 		.replace(/\s+/g, ' ')
 		.trim()
 		.toLowerCase()
+
+/**
+ * The descriptor nouns providers bolt onto a series name. One list, because it
+ * was two: the volume-prefix gates each carried their own copy, so widening it
+ * in one place silently left the other narrower.
+ */
+const SERIES_DESCRIPTORS = /\b(series|thrillers?|novels?|saga|sequence|trilogy|chronicles?)\b/gi
+
+/**
+ * Series-name identity for the volume-prefix gates: `foldSeriesName` plus the
+ * descriptor strip, so "Sons of Valor" matches "The Sons of Valor Series".
+ *
+ * Built ON foldSeriesName rather than beside it. Two byte-identical local
+ * copies of this used to exist (one spelling the apostrophes as literals, one
+ * as escapes, which is how they read as different code), and they had ALREADY
+ * drifted from it: both folded two apostrophe characters and neither
+ * normalized, while foldSeriesName folds five and applies NFC. So a provider
+ * spelling with U+02BC — or any NFD-composed accent — was the same series to
+ * the rescue refusal and a DIFFERENT series to these two gates. The NFC bug in
+ * particular is one this module already found and fixed once; it simply never
+ * reached the copies.
+ *
+ * Unlike foldSeriesName, callers of this compare with `includes`, which is
+ * right for matching a title against a provider's wordier spelling of the same
+ * series and wrong for the refusal — see foldSeriesName's note.
+ * @param {string} value the raw series or title fragment
+ * @returns {string} the folded, descriptor-free form
+ */
+export const foldSeriesTitle = (value: string): string =>
+	foldSeriesName(value).replace(SERIES_DESCRIPTORS, '').replace(/\s+/g, ' ').trim()
 
 /**
  * True when applying this answer would replace a provider series with the very
@@ -1572,16 +1594,8 @@ async function volumePrefixRetry(
 	)
 	const found = await lookupByTitle(post, author, logger, state, true, subtitle)
 	if (!found?.primary?.name) return null
-	const flat = (v: string) =>
-		v
-			.replace(/[\u2018\u2019]/g, "'")
-			.replace(/^\s*(?:the|a|an)\s+/i, '')
-			.replace(/\b(series|thrillers?|novels?|saga|sequence|trilogy|chronicles?)\b/gi, '')
-			.replace(/\s+/g, ' ')
-			.trim()
-			.toLowerCase()
-	const got = flat(found.primary.name)
-	const want = flat(providerSeries ?? '')
+	const got = foldSeriesTitle(found.primary.name)
+	const want = foldSeriesTitle(providerSeries ?? '')
 	if (!got || !want || (got !== want && !want.includes(got) && !got.includes(want))) {
 		logger?.debug(
 			{ title, post, found: found.primary.name, providerSeries },
