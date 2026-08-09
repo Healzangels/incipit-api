@@ -4,6 +4,7 @@ import ChapterModel, { ChapterDocument } from '#config/models/Chapter'
 import { ApiChapter, ApiChapterSchema, ApiQueryString } from '#config/types'
 import { isChapterDocument } from '#config/typing/checkers'
 import { PaprChapterDocumentReturn, PaprChapterReturn, PaprDeleteReturn } from '#config/typing/papr'
+import touchUpdatedAt from '#helpers/database/papr/touchUpdatedAt'
 import getErrorMessage from '#helpers/utils/getErrorMessage'
 import SharedHelper from '#helpers/utils/shared'
 import {
@@ -134,11 +135,17 @@ export default class PaprAudibleChapterHelper {
 			// If the objects are the exact same return right away
 			const isEqual = this.sharedHelper.isEqualData(data, this.chapterData)
 			if (isEqual) {
+				// Unchanged, but we DID re-fetch: advance updatedAt so the staleness
+				// throttle re-engages, exactly as the author helper does.
+				await this.touchUpdatedAt()
 				return {
 					data: data,
 					modified: false
 				}
 			}
+			// Unlike the book's old genres gate, this one is a real presence signal:
+			// a chapters record with no chapters carries no information, so an empty
+			// list IS the degraded fetch rather than a legitimate value.
 			if (this.chapterData.chapters.length) {
 				this.logger?.info(NoticeUpdateAsin(this.asin, 'chapters'))
 				// Update
@@ -150,6 +157,18 @@ export default class PaprAudibleChapterHelper {
 
 		// Create
 		return this.create()
+	}
+
+	/**
+	 * Advance only updatedAt, leaving the data untouched. Called when a re-fetch
+	 * returned IDENTICAL data so the throttle re-engages (see createOrUpdate).
+	 */
+	private async touchUpdatedAt(): Promise<void> {
+		await touchUpdatedAt(
+			ChapterModel,
+			{ asin: this.asin, $or: [{ region: { $exists: false } }, { region: this.options.region }] },
+			this.logger
+		)
 	}
 
 	/**

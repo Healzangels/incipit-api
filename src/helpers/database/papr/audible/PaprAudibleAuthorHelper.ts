@@ -9,6 +9,7 @@ import {
 	PaprAuthorSearch,
 	PaprDeleteReturn
 } from '#config/typing/papr'
+import touchUpdatedAt from '#helpers/database/papr/touchUpdatedAt'
 import { BadRequestError } from '#helpers/errors/ApiErrors'
 import getErrorMessage from '#helpers/utils/getErrorMessage'
 import SharedHelper from '#helpers/utils/shared'
@@ -209,17 +210,13 @@ export default class PaprAudibleAuthorHelper {
 	/**
 	 * Advance only updatedAt, leaving the data untouched. Called when a re-fetch
 	 * returned IDENTICAL data so the throttle re-engages (see createOrUpdate).
-	 * Best-effort: a failure just leaves the pre-existing every-cycle behaviour.
 	 */
 	private async touchUpdatedAt(): Promise<void> {
-		try {
-			await AuthorModel.updateOne(
-				{ asin: this.asin, $or: [{ region: { $exists: false } }, { region: this.options.region }] },
-				{ $currentDate: { updatedAt: true } }
-			)
-		} catch (error) {
-			this.logger?.error(getErrorMessage(error))
-		}
+		await touchUpdatedAt(
+			AuthorModel,
+			{ asin: this.asin, $or: [{ region: { $exists: false } }, { region: this.options.region }] },
+			this.logger
+		)
 	}
 
 	/**

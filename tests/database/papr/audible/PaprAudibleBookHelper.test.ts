@@ -171,25 +171,80 @@ describe('PaprAudibleBookHelper should', () => {
 		helper.setData(parsedBook)
 		await expect(helper.createOrUpdate()).resolves.toEqual(obj)
 	})
-	test('createOrUpdate genres on old, but not on new', async () => {
-		const obj = { data: parsedBook, modified: false }
+	test('createOrUpdate genres on old, but not on new: updates, KEEPING the stored genres', async () => {
+		// A fetch that lost its genres (the scrape leg failed) must not erase the
+		// ones we hold — but it must not block the update either. The protection
+		// is now scoped to the genres field, so every other corrected field lands.
 		mockIsEqualData.mockReturnValue(false)
 		mockFindOne
 			.mockResolvedValueOnce(parsedBook as unknown as BookDocument)
 			.mockResolvedValueOnce(bookWithoutProjection)
 			.mockResolvedValue(parsedBook as unknown as BookDocument)
 		helper.setData(parsedBookWithoutGenres)
-		await expect(helper.createOrUpdate()).resolves.toEqual(obj)
+
+		await expect(helper.createOrUpdate()).resolves.toEqual({ data: parsedBook, modified: true })
+
+		const written = mockUpdateOne.mock.calls.at(-1)?.[1] as { $set: { genres?: unknown } }
+		expect(written.$set.genres).toEqual(parsedBook.genres)
 	})
-	test('createOrUpdate no genres on new or old', async () => {
-		const obj = { data: parsedBookWithoutGenres, modified: false }
+	test('createOrUpdate no genres on new or old: still updates', async () => {
+		// The frozen-record case. Genres reach a book from the API's
+		// category_ladders or, only when those are empty, the HTML scrape — so a
+		// book with neither has [] as its CORRECT value. Under the old
+		// genres-length gate such a book could never receive a corrected title,
+		// narrator list or release date for the life of the deployment.
 		mockIsEqualData.mockReturnValue(false)
 		mockFindOne
 			.mockResolvedValueOnce(parsedBookWithoutGenres as unknown as BookDocument)
 			.mockResolvedValueOnce(bookWithoutGenresWithoutProjection)
 			.mockResolvedValue(parsedBookWithoutGenres as unknown as BookDocument)
 		helper.setData(parsedBookWithoutGenres)
-		await expect(helper.createOrUpdate()).resolves.toEqual(obj)
+
+		await expect(helper.createOrUpdate()).resolves.toEqual({
+			data: parsedBookWithoutGenres,
+			modified: true
+		})
+		expect(mockUpdateOne).toHaveBeenCalled()
+	})
+	test('createOrUpdate refuses a TITLE-LESS fetch — the nuked-data guard', async () => {
+		// `title` is the presence signal (ApiBookSchema requires it), so a record
+		// arriving without one did not come through the parse. Replacing the old
+		// genres gate must not mean accepting anything at all.
+		mockIsEqualData.mockReturnValue(false)
+		mockFindOne
+			.mockResolvedValueOnce(parsedBook as unknown as BookDocument)
+			.mockResolvedValueOnce(bookWithoutProjection)
+			.mockResolvedValue(parsedBook as unknown as BookDocument)
+		helper.setData({ ...parsedBook, title: '' })
+
+		await expect(helper.createOrUpdate()).resolves.toEqual({ data: parsedBook, modified: false })
+		expect(mockUpdateOne).not.toHaveBeenCalled()
+	})
+	test('createOrUpdate touches updatedAt on identical data so the sweep throttle re-engages', async () => {
+		// isRecentlyUpdated is consulted BEFORE the fetch, so a record that never
+		// advances updatedAt is stale on every pass forever and the scheduler
+		// re-scrapes it every sweep. The author helper had this; books did not.
+		mockFindOne.mockResolvedValue(parsedBook as unknown as BookDocument)
+		mockIsEqualData.mockReturnValue(true)
+		helper.setData(parsedBook)
+
+		await expect(helper.createOrUpdate()).resolves.toEqual({ data: parsedBook, modified: false })
+
+		expect(mockUpdateOne).toHaveBeenCalledWith(
+			{ asin: asin, $or: [{ region: { $exists: false } }, { region: options.region }] },
+			{ $currentDate: { updatedAt: true } }
+		)
+	})
+	test('a failed touch still returns the unchanged record', async () => {
+		// Best-effort by construction: the request has already succeeded, so a
+		// write failure here degrades to the old every-cycle behaviour rather
+		// than failing the response.
+		mockFindOne.mockResolvedValue(parsedBook as unknown as BookDocument)
+		mockIsEqualData.mockReturnValue(true)
+		mockUpdateOne.mockRejectedValue(new Error('mongo is down'))
+		helper.setData(parsedBook)
+
+		await expect(helper.createOrUpdate()).resolves.toEqual({ data: parsedBook, modified: false })
 	})
 	test('update', async () => {
 		const obj = { data: parsedBook, modified: true }

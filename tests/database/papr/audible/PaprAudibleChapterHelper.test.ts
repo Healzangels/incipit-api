@@ -158,6 +158,21 @@ describe('PaprAudibleChapterHelper should', () => {
 		helper.setData(parsedChapters)
 		await expect(helper.createOrUpdate()).resolves.toEqual(obj)
 	})
+	test('createOrUpdate touches updatedAt on identical data so the sweep throttle re-engages', async () => {
+		// Same mirror-drift as books: isRecentlyUpdated is consulted BEFORE the
+		// fetch, so a chapters record that never advances updatedAt is stale on
+		// every pass and re-fetched on every scheduler sweep, forever.
+		mockFindOne.mockResolvedValue(parsedChapters as unknown as ChapterDocument)
+		mockIsEqualData.mockReturnValue(true)
+		helper.setData(parsedChapters)
+
+		await helper.createOrUpdate()
+
+		expect(mockUpdateOne).toHaveBeenCalledWith(
+			{ asin: asin, $or: [{ region: { $exists: false } }, { region: options.region }] },
+			{ $currentDate: { updatedAt: true } }
+		)
+	})
 	test('createOrUpdate needs to create', async () => {
 		const obj = { data: parsedChapters, modified: true }
 		mockFindOne.mockResolvedValueOnce(null)
