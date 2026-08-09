@@ -67,7 +67,59 @@ export function genresFromWork(names: unknown): ApiGenre[] {
 	const kept = names.filter(
 		(n): n is string => typeof n === 'string' && !SHELF_NOISE.has(cleanGenreName(n).toLowerCase())
 	)
-	return namesToGenres(kept)
+	return namesToGenres(demoteGenericShelves(kept))
+}
+
+/**
+ * Umbrella shelves that describe almost every book and so distinguish none.
+ *
+ * Not noise — "Fiction" is a true statement and worth keeping if there is room.
+ * It simply must not outrank a genre that actually says something.
+ */
+const GENERIC_SHELVES = new Set([
+	'fiction',
+	'nonfiction',
+	'non fiction',
+	'literature & fiction',
+	'literature and fiction',
+	'general',
+	'books',
+	'novel',
+	'novels',
+	'adult',
+	'adult fiction'
+])
+
+/**
+ * Push umbrella shelves behind specific ones, preserving order within each group.
+ *
+ * CHAPTARR ONLY, and the asymmetry is the point. Hardcover returns genres in
+ * FREQUENCY order, so its sequence is evidence and reordering it would throw
+ * information away. Chaptarr returns Goodreads shelves ALPHABETICALLY, so its
+ * sequence carries nothing at all — and `namesToGenres` caps at MAX_GENRES,
+ * which turned that non-signal into the selection rule.
+ *
+ * Measured on Annihilation (17 shelves, the fixture in this repo). Before:
+ *   Adventure | Dystopia | Fantasy | Fiction | Horror | Literary Fiction |
+ *   Literature & Fiction | Mystery
+ * Three of eight slots spent on near-synonymous umbrellas while "Science
+ * fiction", "Weird fiction", "Thriller" and "Suspense" — the genres that
+ * actually describe the book — were cut at the alphabetical boundary.
+ *
+ * A stable partition, not a sort: within each group the provider's order is
+ * left alone, so this only ever moves umbrellas later and never reshuffles the
+ * specific genres against each other.
+ * @param {string[]} names shelf names, already noise-filtered
+ * @returns {string[]} the same names, specific ones first
+ */
+export function demoteGenericShelves(names: string[]): string[] {
+	const specific: string[] = []
+	const generic: string[] = []
+	for (const n of names) {
+		if (GENERIC_SHELVES.has(cleanGenreName(n).toLowerCase())) generic.push(n)
+		else specific.push(n)
+	}
+	return [...specific, ...generic]
 }
 
 /** The Chaptarr work id for a requested book id, or null when it cannot be

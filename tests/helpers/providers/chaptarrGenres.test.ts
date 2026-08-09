@@ -5,8 +5,8 @@ import {
 	backfillChaptarrGenres,
 	chaptarrGenreKey,
 	chaptarrWorkIdFor,
-	genresFromWork
-} from '#helpers/providers/chaptarrGenres'
+	demoteGenericShelves,
+	genresFromWork} from '#helpers/providers/chaptarrGenres'
 
 /**
  * Chaptarr genre backfill — the second source in the genre leg.
@@ -194,5 +194,58 @@ describe('backfillChaptarrGenres', () => {
 			if (previous === undefined) delete process.env.CHAPTARR_ENABLED
 			else process.env.CHAPTARR_ENABLED = previous
 		}
+	})
+})
+
+describe('demoteGenericShelves', () => {
+	// Chaptarr returns Goodreads shelves ALPHABETICALLY, and namesToGenres caps
+	// at MAX_GENRES — which quietly made alphabetical order the selection rule.
+	const ANNIHILATION = [
+		'Adventure', 'Audiobook', 'Book Club', 'Dystopia', 'Fantasy', 'Fiction',
+		'General', 'Horror', 'Literary Fiction', 'Literature & Fiction', 'Mystery',
+		'Science fiction', 'Science Fiction & Fantasy', 'Sci-fi', 'Suspense',
+		'Thriller', 'Weird fiction'
+	]
+
+	test('the defining genre survives the cap — the regression this fixes', () => {
+		// Measured before the fix: "Fiction" and "Literature & Fiction" took two
+		// of the eight slots and "Science fiction" was cut at the alphabetical
+		// boundary, on a book that is literary science fiction.
+		const names = genresFromWork(ANNIHILATION).map((g) => g.name.toLowerCase())
+		expect(names.some((n) => n.includes('science fiction'))).toBe(true)
+		expect(names).not.toContain('fiction')
+		expect(names).not.toContain('literature & fiction')
+	})
+
+	test('umbrellas go last but are NOT dropped', () => {
+		// "Fiction" is true and worth keeping when there is room; it just must
+		// not outrank a genre that says something.
+		expect(demoteGenericShelves(['Fiction', 'Dystopia', 'General', 'Horror'])).toEqual([
+			'Dystopia',
+			'Horror',
+			'Fiction',
+			'General'
+		])
+	})
+
+	test('order WITHIN each group is left alone', () => {
+		// A stable partition, not a sort: reordering the specific genres against
+		// each other would invent a ranking this provider never supplied.
+		expect(demoteGenericShelves(['Zebra', 'Apple', 'Fiction', 'Mango'])).toEqual([
+			'Zebra',
+			'Apple',
+			'Mango',
+			'Fiction'
+		])
+	})
+
+	test('matching is post-clean and case-insensitive, like SHELF_NOISE', () => {
+		const out = demoteGenericShelves(['  FICTION  ', 'Dystopia', 'Literature and Fiction'])
+		expect(out[0]).toBe('Dystopia')
+		expect(out).toHaveLength(3)
+	})
+
+	test('an all-generic list is untouched rather than emptied', () => {
+		expect(demoteGenericShelves(['Fiction', 'General'])).toEqual(['Fiction', 'General'])
 	})
 })
