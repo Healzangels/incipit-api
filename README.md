@@ -277,6 +277,11 @@ Audnexus can be deployed to Coolify, a self-hosted open-source alternative to Ve
    - `CIRCUIT_BREAKER_ENABLED`: Enable circuit breaker pattern for external API calls (default: `true`)
    - `METRICS_ENABLED`: Enable performance metrics collection and /metrics endpoint (default: `true`)
 
+   **SQLite backup (DB_BACKEND=sqlite only):**
+   - `SQLITE_BACKUP_INTERVAL_HOURS`: How often the container snapshots its own database (default: `24`; `0` disables). Uses `VACUUM INTO`, which is safe while serving. Under SQLite the entire datastore is one file on one volume, so this runs unattended rather than relying on anyone remembering.
+   - `SQLITE_BACKUP_KEEP`: How many dated snapshots to retain (default: `7`). Only files matching `incipit-backup-YYYYMMDD.db` are ever removed — the live database and any hand-named copy are left alone.
+   - `BACKUP_MIN_FRACTION`: Size floor for a snapshot, as a fraction of the largest of (live db, existing backup) (default: `0.5`). Refuses to overwrite a good backup with a suspiciously small one. Lower it for a one-off after a genuine bulk delete.
+
    **Provider Toggles:**
    - `CHAPTARR_ENABLED`: Query the Chaptarr metadata service (default: `true`; set `false` to disable). Keyless. Supplements Audible with narrator, duration, chapters and cross-provider ids, and resolves ASINs Audible has delisted — an Audible "husk" (a product id it still acknowledges but serves no title for) falls through to Chaptarr instead of losing the operator's pin. It is another project's free infrastructure, so it sits behind its own circuit breaker; this flag is the kill switch.
    - `STORYTEL_ENABLED`: Query Storytel (default: `false`). Keyless, real narrator + runtime, but its English catalogue is thin for indie SF/LitRPG — useful mainly for mainstream or European libraries.

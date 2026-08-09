@@ -22,6 +22,8 @@ declare module 'fastify' {
 		mongoClient?: MongoClient
 	}
 }
+import { AsyncTask, SimpleIntervalJob } from 'toad-scheduler'
+
 import { initialize } from '#config/papr'
 import { registerPerformanceHooks } from '#config/performance/hooks'
 import { rateLimitAllowList } from '#config/rateLimitAllowList'
@@ -41,8 +43,10 @@ import { warnIfDeletesDisabled } from '#config/routes/writeAuth'
 import { buildTrustedProxies } from '#config/trustedProxies'
 import { chaptersConfigured } from '#helpers/books/audible/ChapterHelper'
 import { memoryCache } from '#helpers/database/inProcessCache'
+import { backupSqlite, parseMinFraction, pruneBackups } from '#helpers/database/sqlite/backup'
 import { closeSqlite, sqliteDb } from '#helpers/database/sqlite/SqliteModel'
 import { goodreadsTuningSummary } from '#helpers/providers/goodreadsSeries'
+import { envInt } from '#helpers/utils/env'
 import UpdateScheduler from '#helpers/utils/UpdateScheduler'
 
 // Heroku or local port
@@ -340,6 +344,51 @@ async function startServer() {
 		const updateScheduler = new UpdateScheduler(updateInterval, server.redis, server.log)
 		;(server as unknown as { updateScheduler: UpdateScheduler }).updateScheduler = updateScheduler
 		server.scheduler.addLongIntervalJob(updateScheduler.updateAllJob())
+		startBackupJob()
+	}
+
+	/**
+	 * Snapshot the SQLite database on a schedule, from inside the container.
+	 *
+	 * Under DB_BACKEND=sqlite the ENTIRE datastore is one file on one volume.
+	 * `bun run backup` has existed for days and had never run unattended — the
+	 * newest snapshot on the live deployment was a day old and sat in the same
+	 * directory as the database it was protecting. A backup that depends on
+	 * someone remembering is not a backup.
+	 *
+	 * Interval and retention are env-tunable; SQLITE_BACKUP_INTERVAL_HOURS=0
+	 * turns it off for anyone who backs the volume up their own way.
+	 */
+	function startBackupJob() {
+		if (process.env.DB_BACKEND !== 'sqlite' || !process.env.SQLITE_PATH) return
+		const hours = envInt(process.env.SQLITE_BACKUP_INTERVAL_HOURS, 24, 0, 24 * 30)
+		if (hours === 0) {
+			server.log.info('SQLite backup job disabled (SQLITE_BACKUP_INTERVAL_HOURS=0)')
+			return
+		}
+		const keep = envInt(process.env.SQLITE_BACKUP_KEEP, 7, 1, 365)
+		const sqlitePath = process.env.SQLITE_PATH
+		const minFraction = parseMinFraction(process.env.BACKUP_MIN_FRACTION)
+		const task = new AsyncTask(
+			'sqlite-backup',
+			async () => {
+				const res = backupSqlite(sqlitePath, undefined, minFraction)
+				// A refusal is logged at ERROR, not swallowed: the whole point is
+				// that nobody is watching, so a silently-skipped backup would be
+				// indistinguishable from a working one.
+				if (!res.ok) server.log.error(`SQLite backup FAILED — ${res.message}`)
+				else {
+					server.log.info(`SQLite backup OK: ${res.message}`)
+					const gone = pruneBackups(sqlitePath, keep)
+					if (gone.length) server.log.info(`Pruned ${gone.length} old backup(s), keeping ${keep}`)
+				}
+			},
+			(err) => server.log.error(err)
+		)
+		server.scheduler.addSimpleIntervalJob(
+			new SimpleIntervalJob({ hours, runImmediately: true }, task)
+		)
+		server.log.info(`SQLite backup every ${hours}h, keeping ${keep}`)
 	}
 	server.ready(() => {
 		if (!ctx) {
