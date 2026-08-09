@@ -9,6 +9,7 @@ import type {
 	ProviderCandidate
 } from './types'
 
+import { abridgedFromTitleSuffix } from '#helpers/providers/abridged'
 import detectTextLanguage from '#helpers/utils/detectTextLanguage'
 import fetch from '#helpers/utils/fetchPlus'
 import { regionLanguage } from '#helpers/utils/language'
@@ -269,6 +270,10 @@ export default class AppleBooksProvider implements BookProvider {
 				// another's regression.
 				language: inferLanguage ? detectTextLanguage(stripHtml(r.description)) : null,
 				title: cleanAppleTitle(r.collectionName as string),
+				// Read from the RAW collectionName: cleanAppleTitle strips the
+				// "(Unabridged)" suffix on the line above, so this is the last
+				// point at which the statement still exists.
+				abridged: abridgedFromTitleSuffix(r.collectionName as string),
 				authors: r.artistName ? [r.artistName] : [],
 				narrators: [],
 				audioSeconds: null,

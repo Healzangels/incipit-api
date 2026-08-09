@@ -2,6 +2,7 @@ import type { FastifyBaseLogger } from 'fastify'
 
 import type { BookProvider, BookSearchQuery, FetchBookOptions, ProviderCandidate } from './types'
 
+import { abridgedFrom } from '#helpers/providers/abridged'
 import fetch from '#helpers/utils/fetchPlus'
 import { normalizeLanguage } from '#helpers/utils/language'
 import { regions } from '#static/regions'
@@ -34,6 +35,11 @@ interface AudibleProduct {
 	product_images?: Record<string, string>
 	/** Edition language, e.g. "english" — supplied by the product_details group. */
 	language?: string
+	/**
+	 * "abridged" | "unabridged", from the product_attrs group RESPONSE_GROUPS
+	 * already requests. It was on the wire and unread until 2026-08-09.
+	 */
+	format_type?: string
 }
 
 /** Transport for an Audible catalog search; injectable so tests need no network. */
@@ -146,6 +152,9 @@ export default class AudibleProvider implements BookProvider {
 			id: p.asin as string,
 			asin: p.asin as string,
 			language: normalizeLanguage(p.language),
+			// Audible states this outright in product_attrs, which RESPONSE_GROUPS
+			// already requests — the value was on the wire and simply unread.
+			abridged: abridgedFrom(p.format_type),
 			title: p.title ?? '',
 			authors: (p.authors ?? []).map((a) => a.name).filter((n): n is string => !!n),
 			narrators: (p.narrators ?? []).map((n) => n.name).filter((n): n is string => !!n),
@@ -191,6 +200,7 @@ export default class AudibleProvider implements BookProvider {
 				// product_details reports a language NAME ("english"); normalize so it
 				// compares against Storytel's ISO codes and OpenLibrary's MARC codes.
 				language: normalizeLanguage(p.language),
+				abridged: abridgedFrom(p.format_type),
 				title: p.title ?? '',
 				authors: (p.authors ?? []).map((a) => a.name).filter((n): n is string => !!n),
 				narrators: (p.narrators ?? []).map((n) => n.name).filter((n): n is string => !!n),

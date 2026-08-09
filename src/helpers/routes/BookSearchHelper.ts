@@ -1810,6 +1810,34 @@ export default class BookSearchHelper {
 				// tell apart.
 				const byExactTitle = tagTitleTier(b) - tagTitleTier(a)
 				if (byExactTitle !== 0) return byExactTitle
+				// ABRIDGED loses to UNABRIDGED when nothing else can separate them.
+				//
+				// normalizeTitle strips "(Abridged)"/"(Unabridged)", so the two
+				// editions of one book reduce to the SAME string and every arm above
+				// — including byExactTitle — declines. With no duration signal they
+				// were genuinely indistinguishable and the winner fell through to the
+				// cosmetic arms below.
+				//
+				// That is the NORMAL state on a first scan: Plex matches before it
+				// analyses, so `part.duration` is -1 and the bundle withholds the
+				// hint by design (a partial sum would veto the CORRECT edition).
+				// Measured on this library 2026-08-09 — four books sat on abridged
+				// records at less than half the file's runtime: I Shall Wear Midnight
+				// (707min file / 262min record), Hannibal (758/366), Fade (588/278),
+				// Dirk Gently (479/181). Replaying them against the live API with a
+				// duration hint put the unabridged edition first at 1.000; without
+				// one, four candidates tied at 0.850.
+				//
+				// Deliberately BELOW every evidence arm (pin, language, volume,
+				// audio, narrator, runtime, title) — an operator who owns the
+				// abridged edition still wins on their sidecar pin or a known
+				// duration. This only decides rows the evidence cannot, and it never
+				// filters: an abridged edition stays offered and pickable.
+				//
+				// `undefined` (provider said nothing) must not beat a stated
+				// unabridged, so only a POSITIVE abridged claim demotes.
+				const byAbridged = Number(a.abridged === true) - Number(b.abridged === true)
+				if (byAbridged !== 0) return byAbridged
 				// Same normalized name, different DECORATION: prefer the title
 				// closest to its own normalized form. Measured live 2026-08-07:
 				// Hardcover community data held "Xanth 19 - Roc and a Hard Place"

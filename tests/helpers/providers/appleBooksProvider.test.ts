@@ -51,6 +51,13 @@ describe('AppleBooksProvider.search', () => {
 			// signal"), which is what the matcher treats as non-actionable.
 			language: null,
 			title: 'Project Hail Mary',
+			// The suffix is STRIPPED from the title but READ first: Apple states
+			// abridgement only there, so capturing it is the last chance before
+			// cleanAppleTitle discards it. This fixture is "(Unabridged)", so the
+			// candidate carries an explicit false rather than an unstated
+			// undefined -- which is what lets it win the tiebreak against an
+			// abridged sibling.
+			abridged: false,
 			authors: ['Andy Weir'],
 			narrators: [],
 			audioSeconds: null,

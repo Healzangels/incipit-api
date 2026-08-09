@@ -60,6 +60,31 @@ export interface ProviderCandidate {
 	 * demote a candidate. Only a positively-known clash is actionable.
 	 */
 	language: string | null
+	/**
+	 * True when the provider states this edition is ABRIDGED, false when it
+	 * states unabridged, undefined when it says nothing.
+	 *
+	 * Optional, unlike `language`, on purpose: most providers carry no such flag
+	 * at all, so requiring it would force six of eight to write a meaningless
+	 * `abridged: undefined`. The risk that comes with optional — a provider that
+	 * HAS the signal silently dropping it — is covered by a source guard in
+	 * `abridgedTiebreak.test.ts` instead.
+	 *
+	 * It exists because `normalizeTitle` deliberately strips "(Abridged)" and
+	 * "(Unabridged)" from titles before scoring, so the two editions of one book
+	 * normalize to the SAME string. With no duration signal — which is the
+	 * normal state on a first scan, since Plex matches before it analyses and the
+	 * bundle withholds a partial sum — nothing else in the comparator can tell
+	 * them apart, and the winner was effectively arbitrary. Measured on this
+	 * library 2026-08-09: four books (I Shall Wear Midnight, Hannibal, Fade,
+	 * Dirk Gently) sat on ABRIDGED records whose runtime was less than half the
+	 * file's, all four tied at 0.850 at match time.
+	 *
+	 * A TIEBREAK, never a filter: an abridged edition is a real product someone
+	 * may own, and an abridged file with a sidecar pin or a known duration must
+	 * still win on that evidence. This only decides rows nothing else can.
+	 */
+	abridged?: boolean
 }
 
 /** A candidate after scoring against the query. */
