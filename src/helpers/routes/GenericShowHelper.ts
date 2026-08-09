@@ -141,12 +141,30 @@ export default class GenericShowHelper {
 		const data = await this.paprHelper.findOneWithProjection()
 		// Make sure data is not null
 		if (data.data === null) throw this.errorMessageDataType()
+		return this.projectData(data.data)
+	}
 
-		// 2. Sort data if feature flag enabled (adds O(n log n) overhead)
+	/**
+	 * The post-read half of {@link getDataWithProjection}: optional key sort,
+	 * then the schema parse that guarantees the served shape.
+	 *
+	 * Split out so a caller that ALREADY HOLDS the projected document can apply
+	 * the same treatment without paying for a second round trip.
+	 * createOrUpdateData was doing exactly that — every papr createOrUpdate path
+	 * returns a findOneWithProjection result, and the caller then threw it away
+	 * and re-read it, one wasted query per book on every write (≈1,600 of them
+	 * in a from-scratch scan). The sort and the parse are NOT waste, which is
+	 * why this is a split rather than a deletion: dropping the second call
+	 * outright would have skipped both.
+	 * @param {unknown} doc the already-projected document
+	 * @returns {ApiAuthorProfile | ApiBook | ApiChapter} the parsed, served shape
+	 */
+	private projectData(doc: unknown): ApiAuthorProfile | ApiBook | ApiChapter {
+		// Sort data if feature flag enabled (adds O(n log n) overhead)
 		const perfConfig = getPerformanceConfig()
 		const dataToParse = perfConfig.USE_SORTED_KEYS
-			? this.sharedHelper.sortObjectByKeys(data.data)
-			: data.data
+			? this.sharedHelper.sortObjectByKeys(doc as never)
+			: doc
 		// Parse the data to make sure it's the correect type
 		const parsed = this.schema.safeParse(dataToParse)
 		// If the data is not the correct type, throw an error
@@ -172,8 +190,10 @@ export default class GenericShowHelper {
 		const dataToReturn = await this.paprHelper.createOrUpdate()
 		if (dataToReturn.data === null) throw this.errorMessageDataType()
 
-		// 3. Get the data with projections
-		const data = await this.getDataWithProjection()
+		// 3. Apply the served-shape treatment to the record createOrUpdate just
+		// returned — every one of its paths yields a findOneWithProjection
+		// result, so re-reading it here was a wasted query per write.
+		const data = this.projectData(dataToReturn.data)
 
 		// 4. Update or create the data in redis
 		// Fire-and-forget by design, but MUST swallow: setOne logs and rethrows,

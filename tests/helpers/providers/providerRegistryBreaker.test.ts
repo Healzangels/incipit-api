@@ -284,3 +284,28 @@ describe('the ASIN rescue paths ration upstream calls', () => {
 		expect(await registry.fetchCandidateByAsin('B0X', OPTS)).toBeNull()
 	})
 })
+
+describe('a hung cache must not stall a search', () => {
+	// The cache READ was time-boxed for exactly this reason. The WRITE sat
+	// bare one line later, so a hung Redis stalled the search anyway — with
+	// the answer already in hand. A cache write is maintenance: losing it
+	// costs one re-fetch, failing the search costs the match.
+	test('a cache write that never settles still returns the result', async () => {
+		const provider = {
+			name: 'audible',
+			search: async () => [{ id: 'x' }] as never
+		}
+		const registry = new ProviderRegistry([provider as never])
+		const cache = {
+			get: async () => null,
+			// Never resolves — the shape a hung Redis actually presents.
+			set: () => new Promise<void>(() => undefined)
+		}
+		const out = await registry.searchAll(
+			{ title: 'A Book', region: 'us' } as never,
+			undefined,
+			cache as never
+		)
+		expect(out.length).toBe(1)
+	}, 20000)
+})

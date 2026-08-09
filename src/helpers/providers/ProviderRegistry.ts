@@ -188,7 +188,18 @@ export default class ProviderRegistry {
 		const result = await this.breakerFor(provider.name).execute(() =>
 			withTimeout(provider.search(query, logger), PROVIDER_TIMEOUT_MS, provider.name)
 		)
-		if (cache) await cache.set(provider.name, query, result)
+		// FIRE AND FORGET, and MUST swallow — the same rule (and the same
+		// spelling) the show helpers use for their Redis writes.
+		//
+		// The cache READ was hardened with a timeout because a hung Redis must
+		// not stall a search forever; the WRITE then sat bare one line later
+		// and stalled it anyway, with the answer already in hand. Awaiting it
+		// under the provider timeout would still have cost 25 SECONDS per
+		// search. Nothing downstream needs the write to have landed: losing it
+		// costs one re-fetch, failing the search costs the match. An unhandled
+		// rejection would also take the process down, which is why the catch is
+		// not optional.
+		if (cache) void cache.set(provider.name, query, result).catch(() => undefined)
 		return result
 	}
 
