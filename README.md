@@ -277,6 +277,12 @@ Audnexus can be deployed to Coolify, a self-hosted open-source alternative to Ve
    - `CIRCUIT_BREAKER_ENABLED`: Enable circuit breaker pattern for external API calls (default: `true`)
    - `METRICS_ENABLED`: Enable performance metrics collection and /metrics endpoint (default: `true`)
 
+   **Provider Toggles:**
+   - `CHAPTARR_ENABLED`: Query the Chaptarr metadata service (default: `true`; set `false` to disable). Keyless. Supplements Audible with narrator, duration, chapters and cross-provider ids, and resolves ASINs Audible has delisted — an Audible "husk" (a product id it still acknowledges but serves no title for) falls through to Chaptarr instead of losing the operator's pin. It is another project's free infrastructure, so it sits behind its own circuit breaker; this flag is the kill switch.
+   - `STORYTEL_ENABLED`: Query Storytel (default: `false`). Keyless, real narrator + runtime, but its English catalogue is thin for indie SF/LitRPG — useful mainly for mainstream or European libraries.
+   - `APPLE_ENABLED`: Query Apple Books (default: `true`). Keyless; the main source of square cover art.
+   - `LIBRIVOX_ENABLED`: Query LibriVox for public-domain recordings (default: `false`).
+
    **Metrics Endpoint Security:**
    - `METRICS_AUTH_TOKEN`: Authentication token for /metrics endpoint (optional)
    - `METRICS_ALLOWED_IPS`: Comma-separated list of allowed IPs/CIDR ranges for /metrics (supports CIDR notation, optional)
