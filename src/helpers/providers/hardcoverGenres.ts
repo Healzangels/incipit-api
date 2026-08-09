@@ -91,13 +91,24 @@ export function syntheticGenreAsin(name: string): string {
 	return String((h % 1_000_000_000) + 1_000_000_000)
 }
 
-/** Synonym fold, applied after cleaning. The first live serve had "Science
- * Fiction" and "Sci-fi" side by side on one book; folding the well-known
- * alias lets the dedupe below collapse them. Keys are lowercased clean names. */
-const GENRE_ALIASES: Record<string, string> = {
-	'sci-fi': 'Science Fiction',
-	scifi: 'Science Fiction'
-}
+/**
+ * Synonym fold, applied after cleaning. The first live serve had "Science
+ * Fiction" and "Sci-fi" side by side on one book; folding the well-known alias
+ * lets the dedupe below collapse them. Keys are lowercased clean names.
+ *
+ * A MAP, not an object literal, and that is the whole point: the keys are
+ * upstream-controlled free text (Hardcover community tags, and Chaptarr feeds
+ * raw Goodreads shelves through the same mapper). Indexing a plain object with
+ * `constructor` or `__proto__` resolves an Object.prototype member, `??` does
+ * not fall back to the tag, and the next line's `.toLowerCase()` throws a
+ * TypeError — which lands BEFORE the redis.set in both callers, so the book
+ * loses every genre AND the empty answer is never cached, re-paying a
+ * Hardcover GraphQL query plus a Chaptarr work fetch on every refresh forever.
+ */
+const GENRE_ALIASES = new Map<string, string>([
+	['sci-fi', 'Science Fiction'],
+	['scifi', 'Science Fiction']
+])
 
 /**
  * A community tag name reduced to a plain genre name, or '' when nothing
@@ -163,7 +174,7 @@ export function namesToGenres(names: string[]): ApiGenre[] {
 	for (const name of names) {
 		const cleaned = cleanGenreName(name)
 		if (!cleaned || /^general$/i.test(cleaned)) continue
-		const clean = GENRE_ALIASES[cleaned.toLowerCase()] ?? cleaned
+		const clean = GENRE_ALIASES.get(cleaned.toLowerCase()) ?? cleaned
 		const key = clean.toLowerCase()
 		if (seen.has(key)) continue
 		seen.add(key)
@@ -173,8 +184,10 @@ export function namesToGenres(names: string[]): ApiGenre[] {
 	return out
 }
 
-/** True when every entry looks like a cached ApiGenre. */
-function isGenreArray(v: unknown): v is ApiGenre[] {
+/** True when every entry looks like a cached ApiGenre. Exported because every
+ * community-genre cache re-reads the same shape; a second copy of this guard
+ * is a second place for it to drift from ApiGenre. */
+export function isGenreArray(v: unknown): v is ApiGenre[] {
 	return (
 		Array.isArray(v) &&
 		v.every(

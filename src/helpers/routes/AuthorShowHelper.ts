@@ -12,7 +12,7 @@ import {
 import PaprAudibleAuthorHelper from '#helpers/database/papr/audible/PaprAudibleAuthorHelper'
 import { NotFoundError } from '#helpers/errors/ApiErrors'
 import { chaptarrAuthorInfo } from '#helpers/providers/chaptarrAuthor'
-import { withGoodreadsAuthorInfo } from '#helpers/providers/goodreadsSeries'
+import { GOODREADS_NOPHOTO_RE, withGoodreadsAuthorInfo } from '#helpers/providers/goodreadsSeries'
 import type HardcoverProvider from '#helpers/providers/HardcoverProvider'
 import { isBookAssetUrl } from '#helpers/providers/HardcoverProvider'
 import defaultRegistry from '#helpers/providers/registry'
@@ -101,9 +101,15 @@ export function isNonPortraitImage(
  * than our deliberate avatar, and read as a REAL portrait, which freezes
  * every downstream gap check for those authors. Same trap class as the
  * static avatars; same rulebook.
+ *
+ * ONE rule, GOODREADS_NOPHOTO_RE, shared with the Goodreads leg that has
+ * always had it and with the Chaptarr photo picker. This gate briefly carried
+ * its own `goodreads\.com\/.*nophoto` spelling, which is strictly narrower and
+ * missed the host the repo's own fixture uses (i.gr-assets.com) — the exact
+ * shape it was written to catch.
  */
 export function isGoodreadsNoPhoto(url: string | null | undefined): boolean {
-	return Boolean(url && /goodreads\.com\/.*nophoto/i.test(url))
+	return Boolean(url && GOODREADS_NOPHOTO_RE.test(url))
 }
 
 export default class AuthorShowHelper extends GenericShowHelper {
@@ -300,10 +306,15 @@ export default class AuthorShowHelper extends GenericShowHelper {
 		// like every rung: it never overrides a value an earlier source set,
 		// and its photo still passes the placeholder guard.
 		if (!author.image?.trim() || !author.description?.trim()) {
+			// ?force=1 retries a cached MISS here for the same reason it does on
+			// the Goodreads rung: an honest miss is cached for an hour, and
+			// without the seam the operator's heal — and the automated second
+			// chance three minutes later — could not re-ask this rung at all.
 			const { image: ctImage, bio: ctBio } = await chaptarrAuthorInfo(
 				this.asin,
 				this.redisClient,
-				this.logger
+				this.logger,
+				{ retryCachedMiss: this.options.force === '1' }
 			)
 			if (ctImage && !isPlaceholder(ctImage) && !author.image?.trim()) {
 				this.logger?.info({ author: author.name }, 'author image: filled from Chaptarr')

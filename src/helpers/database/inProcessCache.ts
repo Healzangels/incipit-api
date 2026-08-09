@@ -60,7 +60,21 @@ export class InProcessCache {
 			// Alternate covers, INCLUDING the [] negatives. Small and precious.
 			mkPartition('altcover', ['incipit:altcover:'], 8 * 1024 * 1024, 20000),
 			// Goodreads series + author lookups, including short-TTL misses.
-			mkPartition('goodreads', ['grseries:', 'grauthor:'], 8 * 1024 * 1024, 20000)
+			mkPartition('goodreads', ['grseries:', 'grauthor:'], 8 * 1024 * 1024, 20000),
+			// The community-metadata backfills: Hardcover/Chaptarr genres and
+			// Chaptarr author portraits. Same shape and same reason as the two
+			// above — a few hundred bytes each, and the entries that matter most
+			// are the long-TTL NEGATIVES ("asked, found none": 7 DAYS for a
+			// genre-less book, so it does not re-pay a GraphQL query plus a work
+			// fetch on every refresh). Unpartitioned they landed in `records` and
+			// were the first thing a scan's record fill evicted — precisely the
+			// pathology this scheme's header exists to prevent.
+			mkPartition(
+				'enrichment',
+				['incipit:hcgenres:', 'incipit:ctgenres:', 'incipit:ctauthor:'],
+				8 * 1024 * 1024,
+				20000
+			)
 		]
 		// Everything else — chiefly the full serialized records the show routes
 		// read before the DB (`${region}-${type}-${asin}`), the largest set.

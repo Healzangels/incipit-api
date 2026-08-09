@@ -69,6 +69,28 @@ describe('pickPhoto', () => {
 		expect(pickPhoto([])).toBeNull()
 		expect(pickPhoto(undefined)).toBeNull()
 	})
+
+	test('EVERY Goodreads nophoto host is refused, not just the goodreads.com one', () => {
+		// The local rule was /goodreads\.com\/.*nophoto/i, strictly narrower
+		// than this repo's own GOODREADS_NOPHOTO_RE (/\/nophoto\//i) — and it
+		// missed the exact shape goodreadsAuthor.test.ts uses as its fixture.
+		// A survivor is written to author.image, persisted, and then reads as a
+		// real portrait: the backstop rungs are gated off and `incomplete`
+		// computes false, for that author, permanently.
+		const hosts = [
+			'https://i.gr-assets.com/images/S/nophoto/user/u_200x266.png',
+			'https://images.gr-assets.com/authors/nophoto/user/u_111x148.png',
+			'https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/nophoto/user/u_700x933.png'
+		]
+		for (const url of hosts) {
+			expect(pickPhoto([{ provider: 'goodreads', url }])).toBeNull()
+		}
+		// A REAL gr-assets portrait still passes — the rule is the /nophoto/
+		// path segment, not the host.
+		const real =
+			'https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/authors/1492336018i/16727429._UY200_.jpg'
+		expect(pickPhoto([{ provider: 'goodreads', url: real }])).toBe(real)
+	})
 })
 
 class FakeRedis {
@@ -145,5 +167,101 @@ describe('chaptarrAuthorInfo', () => {
 		})
 		expect(out).toEqual({ image: null, bio: null })
 		expect(calls).toEqual([])
+	})
+
+	test('CHAPTARR_ENABLED=false silences this leg entirely', async () => {
+		// registry.ts gates only the provider REGISTRATION, which governs the
+		// search path. This leg calls the transport directly, so without its own
+		// check the kill-switch left /authors/:asin calling api2.chaptarr.com.
+		const previous = process.env.CHAPTARR_ENABLED
+		process.env.CHAPTARR_ENABLED = 'false'
+		try {
+			const calls: string[] = []
+			const out = await chaptarrAuthorInfo('B001IGFHW6', redis, undefined, {
+				authorFetch: async (asin) => {
+					calls.push(asin)
+					return RESPONSE
+				}
+			})
+			expect(out).toEqual({ image: null, bio: null })
+			expect(calls).toEqual([])
+			expect(redis.writes).toEqual([])
+		} finally {
+			if (previous === undefined) delete process.env.CHAPTARR_ENABLED
+			else process.env.CHAPTARR_ENABLED = previous
+		}
+	})
+})
+
+/**
+ * THE FORCED RE-ASK.
+ *
+ * The Goodreads rung beside this one takes `{ retryCachedMiss }` from the
+ * operator's ?force=1. This rung read its cache unconditionally, so a cached
+ * MISS (1h TTL) pinned it blind — and since the automated second chance fires
+ * after THREE MINUTES, that retry was a guaranteed no-op for this rung.
+ */
+describe('chaptarrAuthorInfo retryCachedMiss', () => {
+	let redis: FakeRedis
+	beforeEach(() => {
+		redis = new FakeRedis()
+	})
+
+	const miss = async () => ({ author: { name: 'X', bio: '', photos: [] } })
+	const hit = async () => ({
+		author: { name: 'X', bio: 'A bio.', photos: [PHOTOS[1]] }
+	})
+
+	test('a cached MISS is re-asked, and the fresh answer wins', async () => {
+		await chaptarrAuthorInfo('B0BLIND001', redis, undefined, { authorFetch: miss })
+		const calls: string[] = []
+		const out = await chaptarrAuthorInfo('B0BLIND001', redis, undefined, {
+			retryCachedMiss: true,
+			authorFetch: async (asin) => {
+				calls.push(asin)
+				return hit()
+			}
+		})
+		expect(calls).toEqual(['B0BLIND001'])
+		expect(out).toEqual({ image: 'https://i.gr-assets.com/y.jpg', bio: 'A bio.' })
+	})
+
+	test('without the flag the cached MISS still answers, unchanged', async () => {
+		await chaptarrAuthorInfo('B0BLIND001', redis, undefined, { authorFetch: miss })
+		const calls: string[] = []
+		const out = await chaptarrAuthorInfo('B0BLIND001', redis, undefined, {
+			authorFetch: async (asin) => {
+				calls.push(asin)
+				return hit()
+			}
+		})
+		expect(calls).toEqual([])
+		expect(out).toEqual({ image: null, bio: null })
+	})
+
+	test('a COMPLETE cached answer is honored even under force', async () => {
+		// The mirror stays protected: force re-asks a gap, never a full record.
+		await chaptarrAuthorInfo('B0WHOLE001', redis, undefined, { authorFetch: hit })
+		const calls: string[] = []
+		await chaptarrAuthorInfo('B0WHOLE001', redis, undefined, {
+			retryCachedMiss: true,
+			authorFetch: async (asin) => {
+				calls.push(asin)
+				return hit()
+			}
+		})
+		expect(calls).toEqual([])
+	})
+
+	test('a forced re-ask that comes back emptier keeps what the cache knew', async () => {
+		// Returning the fresh nulls would hand the caller LESS than we had.
+		await chaptarrAuthorInfo('B0PARTIAL1', redis, undefined, {
+			authorFetch: async () => ({ author: { name: 'X', bio: '', photos: [PHOTOS[1]] } })
+		})
+		const out = await chaptarrAuthorInfo('B0PARTIAL1', redis, undefined, {
+			retryCachedMiss: true,
+			authorFetch: miss
+		})
+		expect(out.image).toBe('https://i.gr-assets.com/y.jpg')
 	})
 })

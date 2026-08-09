@@ -7,6 +7,14 @@ import { NotFoundError } from '#helpers/errors/ApiErrors'
 import { chaptarrChapters } from '#helpers/providers/chaptarrChapters'
 import GenericShowHelper from '#helpers/routes/GenericShowHelper'
 
+/**
+ * The two NotFoundError codes GenericShowHelper.updateActions answers by
+ * PRESERVING the stored record ("the product is gone from Audible, keep what we
+ * have"). Named here because this subclass has to decide whether to let that
+ * branch see the error at all.
+ */
+const PRESERVE_CODES = new Set(['REGION_UNAVAILABLE', 'PRODUCT_DELISTED'])
+
 export default class ChapterShowHelper extends GenericShowHelper {
 	constructor(
 		asin: string,
@@ -29,6 +37,22 @@ export default class ChapterShowHelper extends GenericShowHelper {
 	 * shared-instance case where chapters were simply OFF — plus delisted and
 	 * region-locked ASINs). A non-NotFound failure still throws: that is a
 	 * bug or an outage, not a gap to paper over.
+	 *
+	 * FILL-ONLY MEANS FILL-ONLY, and this is where that is enforced. Catching
+	 * the whole NotFoundError family made GenericShowHelper's preserve branch
+	 * unreachable: a stored record with `isAccurate: true` and real brand
+	 * intro/outro offsets was REPLACED by Chaptarr's `isAccurate: false`,
+	 * all-zero-brand record and persisted — permanent loss, on every refresh.
+	 * And it is not a rare shape: ChapterHelper.fetchChapter swallows every
+	 * failure and returns undefined, so a plain transient Audible 500/429/
+	 * timeout arrives here as REGION_UNAVAILABLE too.
+	 *
+	 * So when the error is one the preserve branch handles AND there is a
+	 * stored record to preserve, rethrow and let it win. Substitute only when
+	 * there is nothing to lose. The ADP_TOKEN-less case — the reason this
+	 * fallback exists on this deployment — is unaffected: ChapterHelper throws
+	 * that one from its CONSTRUCTOR with no `details.code`, so it is not a
+	 * preserve code and still falls through to Chaptarr, stored record or not.
 	 */
 	async getNewData(): Promise<ApiAuthorProfile | ApiBook | ApiChapter | undefined> {
 		let audibleError: NotFoundError | null = null
@@ -37,6 +61,7 @@ export default class ChapterShowHelper extends GenericShowHelper {
 			if (data) return data
 		} catch (err) {
 			if (!(err instanceof NotFoundError)) throw err
+			if (this.originalData && PRESERVE_CODES.has(String(err.details?.code ?? ''))) throw err
 			audibleError = err
 		}
 		const fallback = await chaptarrChapters(this.asin, this.options.region, {

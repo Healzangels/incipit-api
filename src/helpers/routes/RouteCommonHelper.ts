@@ -36,26 +36,6 @@ class RouteCommonHelper {
 	}
 
 	/**
-	 * Validate the QUERY only, skipping the ASIN check.
-	 *
-	 * For the provider-id path (`hardcover-edition-…`, `overdrive-…`): those
-	 * ids are deliberately not ASINs, so the ASIN rule would reject every one
-	 * of them — which is why that branch skipped this helper entirely and, with
-	 * it, ALL query validation. The same `?region=zz` that earns a 400 on an
-	 * ASIN answered 200 on a provider id, and the unvalidated value then flowed
-	 * into the region-conflict check and every provider fetch. The query rules
-	 * are identical for both id shapes; only the id rule differs.
-	 * @returns {object} the parsed options and the reply
-	 */
-	queryOnlyHandler(): { options: ApiQueryString; reply: FastifyReply } {
-		this.parseQueryString()
-		return {
-			options: this.parsedQuery,
-			reply: this.reply
-		}
-	}
-
-	/**
 	 * Handle parse error and throw appropriate error
 	 * @param {object} error - ZodError object
 	 * @throws {Error} - Throws error if query is Invalid

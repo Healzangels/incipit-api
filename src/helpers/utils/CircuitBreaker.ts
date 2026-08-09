@@ -155,12 +155,19 @@ export class CircuitBreaker {
 			throw new CircuitOpenError(timeUntilRetry)
 		}
 
+		// Whether THIS call is a recovery probe is decided on the way IN and can
+		// never be re-decided by what other calls did while it was in flight —
+		// see onFailure. The two sides are deliberately asymmetric: a success is
+		// only news if the circuit is still open to it (state NOW), a failure is
+		// the probe's own verdict (state THEN).
+		const enteredHalfOpen = this.state === 'HALF_OPEN'
+
 		try {
 			const result = await fn()
 			this.onSuccess()
 			return result
 		} catch (error) {
-			this.onFailure()
+			this.onFailure(enteredHalfOpen)
 			throw error
 		}
 	}
@@ -224,14 +231,22 @@ export class CircuitBreaker {
 	/**
 	 * Handle failed execution
 	 */
-	private onFailure(): void {
+	private onFailure(enteredHalfOpen: boolean): void {
 		this.lastFailureTime = Date.now()
 		this.failures++
 
-		// Same rule as onSuccess: the state NOW decides. A failure arriving
-		// after the circuit already reopened simply re-opens it (harmless and
-		// correct), and one arriving while half-open still slams it shut.
-		if (this.state === 'HALF_OPEN') {
+		// The OPPOSITE rule to onSuccess, and deliberately so: a failed recovery
+		// probe is judged on the state it ENTERED in, not the state it lands in.
+		// execute() has no probe lock (it gates only on OPEN) and these breakers
+		// are module singletons, so several probes enter HALF_OPEN together
+		// during a scan. Reading `this.state` here meant that if two of them
+		// succeeded and CLOSED the circuit first, the third's failure landed in
+		// CLOSED and merely bumped `failures` to 1 of 5 — the provider that just
+		// failed its recovery probe got the full traffic wave back, and the
+		// `this.failures = 0` on any CLOSED success could keep it from ever
+		// reaching the threshold. "HALF_OPEN -> OPEN: any failure" (class doc)
+		// means any failure BY A PROBE, whenever it lands.
+		if (enteredHalfOpen || this.state === 'HALF_OPEN') {
 			// Any failure in HALF_OPEN goes back to OPEN
 			this.openCircuit()
 		} else if (this.failures >= this.failureThreshold) {

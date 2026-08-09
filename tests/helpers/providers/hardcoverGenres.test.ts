@@ -98,6 +98,22 @@ describe('genresFromCachedTags', () => {
 		expect(alone.map((g) => g.name)).toEqual(['Science Fiction'])
 	})
 
+	test('a tag named after an Object.prototype member is just a tag', () => {
+		// The alias table used to be an object literal indexed by an
+		// upstream-controlled key. `GENRE_ALIASES['constructor']` resolves
+		// Object.prototype.constructor — a FUNCTION, so `??` does not fall back
+		// and the next line's `clean.toLowerCase()` throws TypeError. That
+		// throw lands BEFORE the redis.set in both callers, so the book loses
+		// every genre AND the empty answer is never cached: a Hardcover GraphQL
+		// query plus a Chaptarr work fetch, re-paid on every refresh forever.
+		// Chaptarr feeds free-text Goodreads shelves through this same mapper.
+		for (const poison of ['constructor', '__proto__', 'toString', 'valueOf', 'hasOwnProperty']) {
+			const out = genresFromCachedTags({ Genre: [{ tag: poison }, { tag: 'Horror' }] })
+			expect(out.map((g) => g.name)).toEqual([poison, 'Horror'])
+			for (const g of out) expect(() => ApiGenreSchema.parse(g)).not.toThrow()
+		}
+	})
+
 	test('synthetic asins are stable and always exactly 10 digits', () => {
 		expect(syntheticGenreAsin('Horror')).toBe(syntheticGenreAsin('horror'))
 		for (const name of ['a', 'Science Fiction', '日本語', 'x'.repeat(500)]) {

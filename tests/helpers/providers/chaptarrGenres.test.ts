@@ -40,16 +40,35 @@ const LIVE_GENRES = [
 ]
 
 describe('genresFromWork', () => {
-	test('drops shelf noise, folds aliases, dedupes, caps — the shared discipline', () => {
+	test('drops shelf noise, dedupes, caps — the shared discipline', () => {
 		const names = genresFromWork(LIVE_GENRES).map((g) => g.name)
 		expect(names).not.toContain('Audiobook')
 		expect(names).not.toContain('Book Club')
 		expect(names).not.toContain('General')
-		// Sci-fi folds into the already-present Science fiction (case-deduped).
-		expect(names.filter((n) => n.toLowerCase().includes('science fiction')).length)
-			.toBeLessThanOrEqual(2) // 'Science fiction' + 'Science Fiction & Fantasy'
 		expect(names).toContain('Dystopia')
 		expect(names.length).toBeLessThanOrEqual(8)
+	})
+
+	test('the Sci-fi alias FOLDS into an existing Science fiction', () => {
+		// This assertion used to read "at most 2 names contain 'science
+		// fiction'", measured 0 on LIVE_GENRES — because MAX_GENRES cuts the
+		// alphabetical list off at "Mystery", so neither name is even in the
+		// answer. It passed identically with the fold deleted. Ask the question
+		// on an input where the fold is the ONLY thing that can decide it.
+		const names = genresFromWork(['Science fiction', 'Sci-fi', 'Dystopia']).map((g) => g.name)
+		expect(names).toEqual(['Science fiction', 'Dystopia'])
+		expect(names).not.toContain('Sci-fi')
+		// And the other direction: with no sibling to fold into, the alias
+		// still normalizes rather than passing through raw.
+		expect(genresFromWork(['Sci-fi']).map((g) => g.name)).toEqual(['Science Fiction'])
+	})
+
+	test('shelf noise is matched POST-CLEAN, the way the set documents itself', () => {
+		// The filter used to test the RAW name while cleanGenreName ran later,
+		// so every decorated shelf escaped it and was then cleaned into exactly
+		// the term the set exists to drop — and cached for 30 days.
+		const decorated = ['📚 Audiobook', '🎧 audiobooks', 'Book  Club', 'To  Read', 'Weird fiction']
+		expect(genresFromWork(decorated).map((g) => g.name)).toEqual(['Weird fiction'])
 	})
 
 	test('every entry passes ApiGenreSchema', () => {
@@ -150,5 +169,30 @@ describe('backfillChaptarrGenres', () => {
 			await backfillChaptarrGenres({ id: 'overdrive-1', redis: redis as never, workFetch: spy })
 		).toEqual([])
 		expect(calls).toEqual([])
+	})
+
+	test('CHAPTARR_ENABLED=false silences this leg entirely', async () => {
+		// registry.ts gates only the provider REGISTRATION, which governs the
+		// search path. This leg calls the transport directly, so without its own
+		// check the kill-switch left /books/:asin calling api2.chaptarr.com.
+		const previous = process.env.CHAPTARR_ENABLED
+		process.env.CHAPTARR_ENABLED = 'false'
+		try {
+			const calls: string[] = []
+			const out = await backfillChaptarrGenres({
+				id: 'B00HYGYN5Q',
+				redis: redis as never,
+				workFetch: async (id) => {
+					calls.push(id)
+					return WORK
+				}
+			})
+			expect(out).toEqual([])
+			expect(calls).toEqual([])
+			expect(redis.writes).toEqual([])
+		} finally {
+			if (previous === undefined) delete process.env.CHAPTARR_ENABLED
+			else process.env.CHAPTARR_ENABLED = previous
+		}
 	})
 })

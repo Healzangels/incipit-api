@@ -157,14 +157,9 @@ export default class PaprAudibleBookHelper {
 			// are precisely the books the Hardcover/Chaptarr genre backfill exists
 			// to serve, so the frozen set is not hypothetical.
 			if (this.bookData.title) {
-				// The protection the old gate gave incidentally, kept — but scoped to
-				// the field it was actually about. A fetch that lost its genres (the
-				// scrape leg failed) must not erase the ones we already hold, so carry
-				// them forward and let every OTHER corrected field land. Blocking the
-				// whole record was never the narrow way to do this.
-				if (!this.bookData.genres?.length && data.genres?.length) {
-					this.bookData = { ...this.bookData, genres: data.genres }
-				}
+				// The protection the old gate gave incidentally, kept — and NOT scoped
+				// to genres, because genres is the one field that never needed it.
+				this.bookData = this.withEmptiedFieldsCarriedForward(data)
 				this.logger?.info(NoticeUpdateAsin(this.asin, 'book'))
 				// Update
 				return this.update()
@@ -175,6 +170,41 @@ export default class PaprAudibleBookHelper {
 
 		// Create
 		return this.create()
+	}
+
+	/**
+	 * An EMPTY incoming array or string never blanks a non-empty stored one.
+	 *
+	 * update() writes `$set: { ...this.bookData }`, which is a top-level merge:
+	 * a field the fetch OMITS keeps its stored value, but a field the fetch
+	 * reports as `[]` or `''` overwrites it. ApiHelper decides which of those
+	 * two an incomplete upstream answer produces, and the split is not the one
+	 * the genres guard assumed — `genres` and `rating` are CONDITIONALLY spread,
+	 * so they go absent (already safe), while `narrators` (`?.map(...) || []`
+	 * over a schema-OPTIONAL upstream field), `authors`, `description` (`''`)
+	 * and `isbn` (`?? ''`) are mapped unconditionally and arrive as an
+	 * ASSERTIVE empty. Proved at runtime: a thin fetch wrote `narrators: []`
+	 * and `description: ''` over a stored `[{name:'R.C. Bray'}]` and a curated
+	 * description. So the rule is about the shape of the value, not a list of
+	 * field names — a new assertive-empty field is covered the day it is added.
+	 *
+	 * Only arrays and strings can be "empty" here: numbers, booleans, dates and
+	 * objects (seriesPrimary) are left entirely alone, so this can never bring
+	 * back a stale series or runtime. Absent keys are folded into the same rule
+	 * for one behaviour instead of two — under the merge that is what already
+	 * happens, this just writes it down.
+	 * @param {ApiBook} stored the record currently held in the DB
+	 * @returns {ApiBook} the incoming record with blanked fields restored
+	 */
+	private withEmptiedFieldsCarriedForward(stored: ApiBook): ApiBook {
+		const nonEmpty = (value: unknown): boolean =>
+			Array.isArray(value) ? value.length > 0 : typeof value === 'string' && value.length > 0
+		const incoming = this.bookData as unknown as Record<string, unknown>
+		const rescued: Record<string, unknown> = {}
+		for (const [key, storedValue] of Object.entries(stored)) {
+			if (nonEmpty(storedValue) && !nonEmpty(incoming[key])) rescued[key] = storedValue
+		}
+		return Object.keys(rescued).length ? ({ ...incoming, ...rescued } as ApiBook) : this.bookData
 	}
 
 	/**

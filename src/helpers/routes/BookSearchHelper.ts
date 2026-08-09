@@ -170,7 +170,18 @@ export function titleExtendsQuery(
  * when both rows already have a runtime, which makes that predicate a
  * tautology.)
  */
-const AUDIO_CATALOG_PROVIDERS = new Set(['audible', 'apple', 'storytel', 'libro', 'overdrive'])
+const AUDIO_CATALOG_PROVIDERS = new Set([
+	'audible',
+	'apple',
+	'storytel',
+	'libro',
+	'overdrive',
+	// Chaptarr qualifies on the same terms: `ChaptarrProvider.search` emits
+	// only editions that pass its audiobook-format filter, and `candidateFrom`
+	// refuses an asin-less row — so a chaptarr candidate is a catalogued audio
+	// edition carrying its OWN asin, never a print record wearing a grafted one.
+	'chaptarr'
+])
 
 // A BUNDLE record -- "Legacy of the Drow Gift Set", "Expanse Box Set Books 1-3",
 // "The Stormlight Archive, Books 1-4" -- carries the queried book's title as a
@@ -524,7 +535,19 @@ const PROVIDER_RANK: Record<string, number> = {
 	apple: 2,
 	storytel: 2,
 	libro: 2,
-	openlibrary: 3
+	// Chaptarr sits BELOW every first-party catalog and ABOVE the book-level
+	// fallback. It is an aggregator: its rows are second-hand copies of these
+	// same catalogs, so when a first-party row ties it there is no reason to
+	// prefer the copy — but it does carry a real audio edition (asin, narrator,
+	// runtime), which outranks an OpenLibrary print record.
+	//
+	// Being ABSENT was the bug. `providerRank` returns `?? 9` for anything it
+	// does not name, and the arm below records what that cost: on a live fresh
+	// scan every candidate ties at 0.85 (nothing is analyzed, so no row
+	// corroborates), the same `?? 9` fallthrough for overdrive/pinned lost 215
+	// of 342 sidecar-pinned books, and this arm is where it happened.
+	chaptarr: 3,
+	openlibrary: 4
 }
 function providerRank(c: ScoredCandidate): number {
 	return PROVIDER_RANK[c.provider] ?? 9
@@ -899,10 +922,15 @@ export default class BookSearchHelper {
 		//
 		// search_tools.py refuses an ISBN-10 sitting in a sidecar's `asin` field
 		// because pinning it blind "would match the print edition over the audio
-		// one". That objection does not reach this path: the lookup goes through
-		// fetchCandidateByAsin, which only Audible implements, and Audible's
-		// catalog holds no print editions — a print-only ISBN resolves to nothing
-		// and contributes nothing.
+		// one". That objection does not reach this path — but READ WHY, because
+		// the reason changed. It used to rest on "only Audible implements
+		// fetchCandidateByAsin, and Audible's catalog holds no print editions".
+		// Chaptarr implements it too, is registered after Audible (so it is
+		// exactly the fallthrough for an ASIN Audible declines), and its work
+		// carries every edition there is — it answered B09LVB8T3V with a German
+		// Kindle ebook. What enforces the invariant now is the PROVIDER side:
+		// ChaptarrProvider.editionForAsin only ever resolves an audiobook-format
+		// edition, so a print-only identifier still resolves to nothing here.
 		const isbnId = audibleIdFromIsbn(this.options.isbn)
 		const ids = [asin, isbnId === asin ? null : isbnId].filter((v): v is string => Boolean(v))
 		const inPool = (id: string) => pool.some((c) => c.asin?.toUpperCase() === id)

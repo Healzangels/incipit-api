@@ -187,6 +187,40 @@ describe('PaprAudibleBookHelper should', () => {
 		const written = mockUpdateOne.mock.calls.at(-1)?.[1] as { $set: { genres?: unknown } }
 		expect(written.$set.genres).toEqual(parsedBook.genres)
 	})
+	test('createOrUpdate refuses to BLANK stored narrators, authors or description', async () => {
+		// Genres was never the field at risk. ApiHelper spreads `genres` and
+		// `rating` CONDITIONALLY, so a thin fetch omits them and the $set merge
+		// already protects them — while `narrators` (`?.map(...) || []` over a
+		// schema-OPTIONAL upstream field), `authors` and `description` (`''`) are
+		// mapped unconditionally and arrive as an ASSERTIVE empty, which
+		// overwrites. Proved at runtime: `$set.narrators = []` and
+		// `$set.description = ''` landed on a stored [{name:'R.C. Bray'}] and a
+		// curated description.
+		mockIsEqualData.mockReturnValue(false)
+		mockFindOne
+			.mockResolvedValueOnce(parsedBook as unknown as BookDocument)
+			.mockResolvedValueOnce(bookWithoutProjection)
+			.mockResolvedValue(parsedBook as unknown as BookDocument)
+		helper.setData({
+			...parsedBook,
+			authors: [],
+			description: '',
+			narrators: [],
+			title: 'A Corrected Title'
+		})
+
+		await helper.createOrUpdate()
+
+		const written = mockUpdateOne.mock.calls.at(-1)?.[1] as {
+			$set: { authors?: unknown; description?: unknown; narrators?: unknown; title?: unknown }
+		}
+		expect(written.$set.narrators).toEqual(parsedBook.narrators)
+		expect(written.$set.authors).toEqual(parsedBook.authors)
+		expect(written.$set.description).toBe(parsedBook.description)
+		// ...and the corrected field still lands: this is a carry-forward, not
+		// the whole-record freeze the old genres gate imposed.
+		expect(written.$set.title).toBe('A Corrected Title')
+	})
 	test('createOrUpdate no genres on new or old: still updates', async () => {
 		// The frozen-record case. Genres reach a book from the API's
 		// category_ladders or, only when those are empty, the HTML scrape — so a

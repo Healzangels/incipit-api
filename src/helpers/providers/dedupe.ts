@@ -345,10 +345,16 @@ export function dedupeCandidates(
 	const isAudioArt = (c: ScoredCandidate): boolean =>
 		AUDIOBOOK_COVER_PROVIDERS.has(c.provider) || c.audioSeconds != null
 	const groupCovers = new Map<number, string[]>()
+	// The assets already in each group, kept ALONGSIDE the urls. The membership
+	// test used to re-derive coverAsset for every url already seen, on every
+	// push -- O(k^2) regex passes per group for a set whose answer never
+	// changes once computed.
+	const groupAssets = new Map<number, Set<string>>()
 	ordered.forEach((c, i) => {
 		if (isJunk(c) || !c.cover || !isAudioArt(c)) return
 		const root = find(i)
 		const seen = groupCovers.get(root) ?? []
+		const assets = groupAssets.get(root) ?? new Set<string>()
 		// Compare by ASSET, keep the URL. Amazon serves one picture at many
 		// sizes (`._SL500_`, `._SX450_`), and a raw-string check treats those
 		// as two different covers — so the winner's poster shipped again as
@@ -356,8 +362,12 @@ export function dedupeCandidates(
 		// always normalized this way; dedupe now shares the same function
 		// rather than a second copy of the rule.
 		const asset = coverAsset(c.cover)
-		if (!seen.some((u) => coverAsset(u) === asset)) seen.push(c.cover)
+		if (!assets.has(asset)) {
+			assets.add(asset)
+			seen.push(c.cover)
+		}
 		groupCovers.set(root, seen)
+		groupAssets.set(root, assets)
 	})
 
 	ordered.forEach((_, i) => {

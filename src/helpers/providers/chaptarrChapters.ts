@@ -2,6 +2,7 @@ import type { FastifyBaseLogger } from 'fastify'
 
 import { type ApiChapter, ApiChapterSchema } from '#config/types'
 import {
+	chaptarrEnabled,
 	type ChaptarrWorkFetch,
 	editionForAsin,
 	fetchChaptarrWork
@@ -46,6 +47,9 @@ export async function chaptarrChapters(
 	opts: BackfillOpts = {}
 ): Promise<ApiChapter | null> {
 	if (!asin) return null
+	// The kill-switch governs THIS leg too — see chaptarrEnabled. Without it,
+	// CHAPTARR_ENABLED=false still called out from every chapter miss.
+	if (!chaptarrEnabled()) return null
 	try {
 		const workFetch = opts.workFetch ?? fetchChaptarrWork
 		const response = await workFetch(`az:${asin}`, opts.logger)
@@ -54,19 +58,22 @@ export async function chaptarrChapters(
 		const raw = edition?.chapters
 		if (!edition || !raw?.length) return null
 
-		const chapters = raw.map((c, i) => ({
-			lengthMs: typeof c.lengthMs === 'number' && c.lengthMs >= 0 ? c.lengthMs : 0,
-			startOffsetMs:
-				typeof c.startOffsetMs === 'number' && c.startOffsetMs >= 0 ? c.startOffsetMs : 0,
-			startOffsetSec:
-				typeof c.startOffsetSec === 'number' && c.startOffsetSec >= 0
-					? c.startOffsetSec
-					: Math.floor(
-							(typeof c.startOffsetMs === 'number' && c.startOffsetMs >= 0 ? c.startOffsetMs : 0) /
-								1000
-						),
-			title: c.title?.trim() || `Chapter ${i + 1}`
-		}))
+		const chapters = raw.map((c, i) => {
+			// Bound once: the sec field DERIVES from the ms field when upstream
+			// omits it, so writing the same guard twice is one edit away from
+			// two chapters' worth of offsets disagreeing with each other.
+			const startOffsetMs =
+				typeof c.startOffsetMs === 'number' && c.startOffsetMs >= 0 ? c.startOffsetMs : 0
+			return {
+				lengthMs: typeof c.lengthMs === 'number' && c.lengthMs >= 0 ? c.lengthMs : 0,
+				startOffsetMs,
+				startOffsetSec:
+					typeof c.startOffsetSec === 'number' && c.startOffsetSec >= 0
+						? c.startOffsetSec
+						: Math.floor(startOffsetMs / 1000),
+				title: c.title?.trim() || `Chapter ${i + 1}`
+			}
+		})
 
 		const last = chapters[chapters.length - 1]
 		const runtimeLengthMs =

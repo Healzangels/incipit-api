@@ -257,12 +257,17 @@ async function _show(fastify: FastifyInstance) {
 
 		const dataHelper = new BookDataHelper(defaultRegistry, asin, region, credentials, request.log)
 		if (dataHelper.isProviderId) {
-			// The QUERY still gets validated here (see queryOnlyHandler): only
-			// the ASIN rule is inapplicable to a provider id, and skipping the
-			// whole helper meant `?region=zz` answered 200 on this branch while
-			// the ASIN branch 400s the identical request.
-			const providerHandler = new RouteCommonHelper(asin, request.query, reply).queryOnlyHandler()
-			if (providerHandler.reply.statusCode !== 200) return providerHandler.reply
+			// The QUERY still gets validated here: only the ASIN rule is
+			// inapplicable to a provider id, and skipping validation entirely
+			// meant `?region=zz` answered 200 on this branch while the ASIN
+			// branch 400s the identical request.
+			//
+			// Called for the THROW, not for a return value. parseQueryString's
+			// only failure path is handleParseError -> `throw new
+			// BadRequestError(...)`, and RouteCommonHelper never touches
+			// reply.code/status/send, so an `if (reply.statusCode !== 200)` here
+			// could only ever read Fastify's untouched 200.
+			new RouteCommonHelper(asin, request.query, reply).parseQueryString()
 			const book = await dataHelper.fetch()
 			if (!book) throw new NotFoundError(MessageNotFoundInDb(asin))
 			// This branch is how a provider EDITION record reaches Plex, and it

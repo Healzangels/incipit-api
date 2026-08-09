@@ -100,3 +100,44 @@ describe('updateOne', () => {
 		expect(after.name).toBe('Sqlite Probe')
 	})
 })
+
+/**
+ * The model reaches callers as `as unknown as typeof paprModel`, so TypeScript
+ * offers them papr's ENTIRE update surface while only two operators exist here.
+ * Unimplemented ones used to be dropped in silence and then report success —
+ * `$unset` answered modifiedCount 1 having changed nothing, `{ upsert: true }`
+ * inserted nothing and answered 0. Nothing sends either today, which is exactly
+ * when to nail it down: the failure mode is "green on the mongo CI leg, wrong
+ * on the sqlite prod backend", the same trap the $currentDate touch already
+ * sprang. Same discipline as whereFor's filter rule — enforced, not remembered.
+ */
+describe('updateOne refuses what it does not implement', () => {
+	test('an unimplemented operator THROWS instead of reporting a phantom success', async () => {
+		await expect(
+			Author.updateOne({ asin: ASIN }, { $unset: { description: '' } } as never)
+		).rejects.toThrow(/\$unset/)
+		const after = (await Author.findOne({ asin: ASIN })) as unknown as { description: string }
+		// And the record is untouched, rather than "modified" by a no-op.
+		expect(after.description).toBeTruthy()
+	})
+
+	test('an unimplemented operator alongside a valid $set throws too', async () => {
+		// The dangerous shape: the half it understands would otherwise land and
+		// look like the whole update succeeded.
+		const mixed = { $set: { description: 'Half applied.' }, $inc: { count: 1 } } as never
+		await expect(Author.updateOne({ asin: ASIN }, mixed)).rejects.toThrow(/\$inc/)
+		const after = (await Author.findOne({ asin: ASIN })) as unknown as { description: string }
+		expect(after.description).not.toBe('Half applied.')
+	})
+
+	test('an options argument THROWS — upsert cannot silently no-op', async () => {
+		await expect(
+			Author.updateOne(
+				{ asin: 'B0NOTHERE01' },
+				{ $set: { name: 'Ghost' } } as never,
+				{ upsert: true } as never
+			)
+		).rejects.toThrow(/options/)
+		expect(await Author.findOne({ asin: 'B0NOTHERE01' })).toBeNull()
+	})
+})

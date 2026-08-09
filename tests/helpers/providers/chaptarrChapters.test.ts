@@ -107,4 +107,26 @@ describe('chaptarrChapters', () => {
 		})
 		expect(out).toBeNull()
 	})
+
+	test('CHAPTARR_ENABLED=false silences this leg entirely', async () => {
+		// registry.ts gates only the provider REGISTRATION, which governs the
+		// search path. This leg calls the transport directly, so without its own
+		// check the kill-switch left /chapters/:asin calling api2.chaptarr.com.
+		const previous = process.env.CHAPTARR_ENABLED
+		process.env.CHAPTARR_ENABLED = 'false'
+		try {
+			const calls: string[] = []
+			const out = await chaptarrChapters('B00HYGYN5Q', 'us', {
+				workFetch: async (id) => {
+					calls.push(id)
+					return work
+				}
+			})
+			expect(out).toBeNull()
+			expect(calls).toEqual([])
+		} finally {
+			if (previous === undefined) delete process.env.CHAPTARR_ENABLED
+			else process.env.CHAPTARR_ENABLED = previous
+		}
+	})
 })

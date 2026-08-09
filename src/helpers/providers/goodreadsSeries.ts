@@ -759,7 +759,7 @@ interface SeriesEnrichable {
 }
 
 /** Minimal shape of the redis client the route already holds. */
-interface RedisLike {
+export interface RedisLike {
 	get(key: string): Promise<string | null>
 	set(key: string, value: string, mode: 'EX', ttl: number): Promise<unknown>
 }
@@ -2032,7 +2032,14 @@ const AUTHOR_CACHE_PREFIX = `grauthor:v1:${MIRROR_KEY}:`
 
 // Goodreads' placeholder for an author with no photo — a real URL, so it must be
 // rejected explicitly or it would count as a "found" portrait.
-const GOODREADS_NOPHOTO_RE = /\/nophoto\//i
+//
+// EXPORTED, and the only spelling of this rule in the codebase. Goodreads
+// serves the silhouette from several hosts (i.gr-assets.com,
+// compressed.photo.goodreads.com), so any rule that reaches for the
+// "goodreads.com" domain is strictly narrower and lets one through — and a
+// survivor is persisted to author.image, where it reads as a real portrait and
+// gates the photo backstop for that author forever. Match the PATH segment.
+export const GOODREADS_NOPHOTO_RE = /\/nophoto\//i
 
 interface GoodreadsAuthorResponse {
 	ForeignId?: number

@@ -156,15 +156,22 @@ export default class GenericShowHelper {
 	 * in a from-scratch scan). The sort and the parse are NOT waste, which is
 	 * why this is a split rather than a deletion: dropping the second call
 	 * outright would have skipped both.
-	 * @param {unknown} doc the already-projected document
+	 *
+	 * Typed as the served union rather than `unknown`: both callers already hold
+	 * exactly that after their null checks, and sortObjectByKeys(data: object)
+	 * accepts it structurally with no cast. The `as never` this replaces would
+	 * have swallowed a future caller handing over a raw *Document (model shape,
+	 * wider than the Api schema) — which the safeParse below turns into an
+	 * errorMessageDataType 500 at runtime instead of a compile error.
+	 * @param {ApiAuthorProfile | ApiBook | ApiChapter} doc the projected document
 	 * @returns {ApiAuthorProfile | ApiBook | ApiChapter} the parsed, served shape
 	 */
-	private projectData(doc: unknown): ApiAuthorProfile | ApiBook | ApiChapter {
+	private projectData(
+		doc: ApiAuthorProfile | ApiBook | ApiChapter
+	): ApiAuthorProfile | ApiBook | ApiChapter {
 		// Sort data if feature flag enabled (adds O(n log n) overhead)
 		const perfConfig = getPerformanceConfig()
-		const dataToParse = perfConfig.USE_SORTED_KEYS
-			? this.sharedHelper.sortObjectByKeys(doc as never)
-			: doc
+		const dataToParse = perfConfig.USE_SORTED_KEYS ? this.sharedHelper.sortObjectByKeys(doc) : doc
 		// Parse the data to make sure it's the correect type
 		const parsed = this.schema.safeParse(dataToParse)
 		// If the data is not the correct type, throw an error

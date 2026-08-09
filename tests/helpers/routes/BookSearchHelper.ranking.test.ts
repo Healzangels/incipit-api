@@ -75,6 +75,73 @@ describe('ranking tiebreaks', () => {
 		expect(out[0].asin).toBe('B0PINNED01')
 	})
 
+	/**
+	 * chaptarr had NO PROVIDER_RANK entry, so it took the `?? 9` unknown
+	 * default — the same fallthrough the arm at the bottom of the comparator
+	 * records as having cost 215 of 342 sidecar-pinned books on a live scan.
+	 * On a fresh scan nothing is analyzed, every candidate ties at 0.85, and
+	 * this arm is what decides.
+	 */
+	describe('chaptarr ranks as the aggregator it is', () => {
+		// No runtime, no narrators, distinct asins: every arm above provider
+		// declines and dedupe keeps both rows.
+		const tie = (a: string, b: string) =>
+			helperFor([
+				candidate({ provider: a, id: a, asin: 'B0AAAAAAA1' }),
+				candidate({ provider: b, id: b, asin: 'B0BBBBBBB2' })
+			]).search()
+
+		test('beats the book-level OpenLibrary fallback', async () => {
+			expect((await tie('openlibrary', 'chaptarr'))[0].id).toBe('chaptarr')
+		})
+
+		for (const first of ['audible', 'hardcover', 'apple']) {
+			test(`loses to ${first} — a first-party row beats a copy of it`, async () => {
+				expect((await tie(first, 'chaptarr'))[0].id).toBe(first)
+			})
+		}
+
+		test('and an UNKNOWN provider still sorts last', async () => {
+			expect((await tie('chaptarr', 'somethingnew'))[0].id).toBe('chaptarr')
+		})
+
+		test('counts as an AUDIO CATALOG for the fuller-title preference', async () => {
+			// AUDIO_CATALOG_PROVIDERS exists because dedupe can graft an asin
+			// onto a print record, so a bare asin is not proof of an audio
+			// edition. Chaptarr qualifies on its own terms: search() emits only
+			// audiobook-format editions and candidateFrom refuses asin-less rows.
+			// Absent from the set, both rows are ineligible and the arm falls
+			// through to closest-runtime, which prefers the SHORT title here.
+			const prior = process.env.DURATION_TIE_TITLE_PREFERENCE
+			process.env.DURATION_TIE_TITLE_PREFERENCE = 'fuller'
+			try {
+				const out = await helperFor(
+					[
+						candidate({
+							provider: 'chaptarr',
+							id: 'short',
+							asin: 'B0SHORT0001',
+							audioSeconds: 65598
+						}),
+						candidate({
+							provider: 'chaptarr',
+							id: 'full',
+							asin: 'B0FULL00001',
+							title: 'Dune: The Graphic Novel Companion',
+							audioSeconds: 65580
+						})
+					],
+					{ duration: 65604000 }
+				).search()
+				expect(out).toHaveLength(2)
+				expect(out[0].id).toBe('full')
+			} finally {
+				if (prior === undefined) delete process.env.DURATION_TIE_TITLE_PREFERENCE
+				else process.env.DURATION_TIE_TITLE_PREFERENCE = prior
+			}
+		})
+	})
+
 	test('on a confidence tie, the wanted LANGUAGE beats being an audio edition', async () => {
 		// A duration-corroborated foreign audio edition (+0.15 corroboration,
 		// -0.15 language demotion = net 0.85) ties an uncorroborated correct-

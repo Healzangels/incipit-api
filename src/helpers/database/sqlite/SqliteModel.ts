@@ -33,7 +33,7 @@
  * not the existence phase.
  */
 import { Database } from 'bun:sqlite'
-import type { ZodType } from 'zod'
+import type { ZodObject } from 'zod'
 
 /** Hex ObjectId-alike: 4 timestamp bytes + 8 random bytes, like mongo's. */
 export class SqliteObjectId {
@@ -190,12 +190,21 @@ function syncAuthorFts(d: Database, id: string, doc: Doc | null) {
 }
 
 export interface SqliteModelOptions {
-	/** Validates writes — the stand-in for papr's server-side $jsonSchema. */
-	schema: ZodType
+	/**
+	 * Validates writes — the stand-in for papr's server-side $jsonSchema. A
+	 * ZodObject specifically, not any ZodType: updateOne needs `.partial()`,
+	 * and all three call sites pass a plain `z.object(...)` (Api{AuthorProfile,
+	 * Book,Chapter}Schema). Typing it as ZodType only moved that requirement
+	 * into a runtime probe whose false branch could never be taken.
+	 */
+	schema: ZodObject
 }
 
 export function sqliteModel(table: string, opts: SqliteModelOptions) {
 	const isAuthors = table === 'authors'
+	// Derived ONCE per table, not per update: `.partial()` rebuilds a whole
+	// schema object, and updateOne is on the write path of every scan.
+	const partialSchema = opts.schema.partial()
 
 	const rowsFor = (filter: Doc, extraSql = '', args2: (string | number)[] = []) => {
 		const { sql, args } = whereFor(table, filter)
@@ -274,8 +283,35 @@ export function sqliteModel(table: string, opts: SqliteModelOptions) {
 
 		async updateOne(
 			filter: Doc,
-			update: { $set?: Doc; $currentDate?: Record<string, boolean> }
+			update: { $set?: Doc; $currentDate?: Record<string, boolean> },
+			options?: unknown
 		): Promise<{ acknowledged: boolean; modifiedCount: number }> {
+			// SAME DISCIPLINE AS whereFor: the constraint is ENFORCED, not
+			// remembered. The model is handed to callers as `as unknown as typeof
+			// paprModel` (Author.ts, Book.ts, Chapter.ts), so they type-check
+			// against papr's FULL surface while only these two operators are
+			// implemented. Everything else used to be dropped in silence and then
+			// LIE about it — `$unset` returned modifiedCount 1 having changed
+			// nothing, `{ upsert: true }` inserted nothing and returned 0. No
+			// caller sends either today; the point is that the day one does, it
+			// fails on the sqlite CI leg instead of on the sqlite prod backend
+			// only. (A stray `_id` in $set is fine: the merge writes it into the
+			// doc column and revive() overwrites it from the real row id.)
+			const unsupported = Object.keys(update ?? {}).filter(
+				(op) => op !== '$set' && op !== '$currentDate'
+			)
+			if (unsupported.length) {
+				throw new Error(
+					`SqliteModel(${table}): unsupported update operator(s) ${unsupported.join(',')} — ` +
+						'only $set and $currentDate are implemented, deliberately'
+				)
+			}
+			if (options !== undefined) {
+				throw new Error(
+					`SqliteModel(${table}): updateOne options are not implemented — ` +
+						'an upsert would silently no-op here while it inserts on mongo'
+				)
+			}
 			const rows = rowsFor(filter, 'LIMIT 1')
 			if (!rows.length) return { acknowledged: true, modifiedCount: 0 }
 			const row = rows[0]
@@ -316,13 +352,8 @@ export function sqliteModel(table: string, opts: SqliteModelOptions) {
 			// type-checked (a `name: 42` payload is still refused), absent ones
 			// are simply not this update's business. The guard is RELAXED to the
 			// right shape, never removed — and the merged doc is still never
-			// parsed, which is what protects the model-shape aliases.
-			const partialSchema =
-				typeof (opts.schema as { partial?: unknown }).partial === 'function'
-					? (
-							opts.schema as unknown as { partial: () => { parse: (v: unknown) => unknown } }
-						).partial()
-					: opts.schema
+			// parsed, which is what protects the model-shape aliases. Derived
+			// once, at construction (see partialSchema).
 			const cleanPayload = (Object.keys(payload).length ? partialSchema.parse(payload) : {}) as Doc
 			// TOP-LEVEL MERGE — fields absent from $set survive. This is the
 			// §7.2 high-severity pin: authorData carries no aliases, and a doc

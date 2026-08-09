@@ -69,7 +69,15 @@ mock.module('@fastify/redis', () => ({}))
 
 // The author enrichment chain would otherwise reach the live network; it has
 // its own suites, and here it must simply not run.
+//
+// Spread the real module and replace only what reaches out. Enumerating the
+// exports by hand made this mock a LINK error the moment AuthorShowHelper
+// imported one that was not listed (the shared GOODREADS_NOPHOTO_RE) — and the
+// failure surfaced HERE rather than in the suite that added the import,
+// because mock.module leaks across files in a suite run.
+const realGoodreads = await import('#helpers/providers/goodreadsSeries')
 mock.module('#helpers/providers/goodreadsSeries', () => ({
+	...realGoodreads,
 	withGoodreadsAuthorInfo: async () => ({ image: null, bio: null }),
 	fetchGoodreadsAuthorInfo: async () => ({ image: null, bio: null }),
 	withGoodreadsSeries: async (book: unknown) => book,

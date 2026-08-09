@@ -261,6 +261,71 @@ describe('the CHAPTARR chapter fallback', () => {
 	})
 })
 
+/**
+ * FILL-ONLY MEANS FILL-ONLY: THE FALLBACK MUST NOT OVERWRITE A STORED RECORD.
+ *
+ * GenericShowHelper.updateActions PRESERVES the stored record when the update
+ * throws NotFoundError with code REGION_UNAVAILABLE or PRODUCT_DELISTED.
+ * Catching the whole NotFoundError family here made that branch unreachable: a
+ * stored record with `isAccurate: true` and real brand offsets was replaced by
+ * Chaptarr's `isAccurate: false`, all-zero-brand record and persisted.
+ *
+ * And it is the COMMON shape, not a rare one — ChapterHelper.fetchChapter
+ * swallows every failure and returns undefined, so a transient Audible
+ * 500/429/timeout also arrives here as REGION_UNAVAILABLE.
+ */
+describe('the fallback vs the preserve branch', () => {
+	const CHAPTARR_ANSWER = { asin: 'B079LRSMNN', chapters: [{ title: 'From Chaptarr' }] }
+	const unavailable = (code: string) => new NotFoundError('gone', { code })
+
+	for (const code of ['REGION_UNAVAILABLE', 'PRODUCT_DELISTED']) {
+		test(`${code} with a STORED record rethrows so the preserve branch wins`, async () => {
+			const err = unavailable(code)
+			mockChapterHelperProcess.mockRejectedValue(err)
+			mockChaptarrChapters.mockResolvedValue(CHAPTARR_ANSWER)
+			helper.originalData = chaptersWithoutProjection
+			await expect(helper.getNewData()).rejects.toBe(err)
+			expect(mockChaptarrChapters).not.toHaveBeenCalled()
+		})
+
+		test(`${code} with NOTHING stored still falls through to Chaptarr`, async () => {
+			// Nothing to preserve: filling is strictly better than 404ing.
+			mockChapterHelperProcess.mockRejectedValue(unavailable(code))
+			mockChaptarrChapters.mockResolvedValue(CHAPTARR_ANSWER)
+			helper.originalData = null
+			expect(await helper.getNewData()).toBe(CHAPTARR_ANSWER as never)
+		})
+	}
+
+	test('the ADP_TOKEN-less NotFoundError (no details.code) ALWAYS fills', async () => {
+		// ChapterHelper throws this one from its CONSTRUCTOR, with no details —
+		// and it is the reason this fallback exists on this deployment. A
+		// stored record must not gate it, or every credential-less instance
+		// keeps whatever it happened to store first, forever.
+		mockChapterHelperProcess.mockRejectedValue(new NotFoundError('no creds'))
+		mockChaptarrChapters.mockResolvedValue(CHAPTARR_ANSWER)
+		helper.originalData = chaptersWithoutProjection
+		expect(await helper.getNewData()).toBe(CHAPTARR_ANSWER as never)
+	})
+
+	test('a NotFoundError with an UNRELATED code still fills', async () => {
+		mockChapterHelperProcess.mockRejectedValue(new NotFoundError('nope', { code: 'NO_CHAPTERS' }))
+		mockChaptarrChapters.mockResolvedValue(CHAPTARR_ANSWER)
+		helper.originalData = chaptersWithoutProjection
+		expect(await helper.getNewData()).toBe(CHAPTARR_ANSWER as never)
+	})
+
+	test("END TO END: updateActions returns the STORED chapters, not Chaptarr's", async () => {
+		// The wiring, not just the branch: the rethrow has to reach
+		// updateActions' catch and come back as the projected stored record.
+		mockChapterHelperProcess.mockRejectedValue(unavailable('REGION_UNAVAILABLE'))
+		mockChaptarrChapters.mockResolvedValue(CHAPTARR_ANSWER)
+		helper.originalData = chaptersWithoutProjection
+		await expect(helper.updateActions()).resolves.toStrictEqual(parsedChapters)
+		expect(mockPaprCreateOrUpdate).not.toHaveBeenCalled()
+	})
+})
+
 describe('ChapterShowHelper should throw error when', () => {
 	test('getChaptersWithProjection is not a chapter type', async () => {
 		mockPaprFindOneWithProjection.mockResolvedValue({ data: null, modified: false })

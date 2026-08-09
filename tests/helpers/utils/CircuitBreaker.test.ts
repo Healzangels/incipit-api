@@ -427,4 +427,42 @@ describe('concurrent probes in HALF_OPEN', () => {
 		await breaker.execute(async () => 'ok')
 		expect(breaker.getStats().state).toBe('CLOSED')
 	})
+
+	it('a failed probe re-opens even if other probes CLOSED the circuit under it', async () => {
+		// The failure side of the same interleaving, and the state must be read
+		// the OTHER way round: the probe entered in HALF_OPEN, so its failure is
+		// the recovery verdict no matter what the state is when it lands.
+		//
+		// failureThreshold 5 on purpose: with 1 the failure would re-open from
+		// CLOSED anyway and the assertion would pass against the bug — the
+		// vacuous shape this repo has paid for before. At 5, only the HALF_OPEN
+		// rule can produce OPEN from a single failure.
+		const breaker = new CircuitBreaker({
+			failureThreshold: 5,
+			resetTimeoutMs: 1,
+			successThreshold: 1
+		})
+		for (let i = 0; i < 5; i++) {
+			await breaker.execute(async () => Promise.reject(new Error('down'))).catch(() => undefined)
+		}
+		expect(breaker.getStats().state).toBe('OPEN')
+		await new Promise((r) => setTimeout(r, 5))
+
+		// Probe C enters HALF_OPEN and stays in flight.
+		let failSlowProbe: (e: Error) => void = () => undefined
+		const slowProbe = breaker
+			.execute(() => new Promise<string>((_, reject) => (failSlowProbe = reject)))
+			.catch(() => undefined)
+		expect(breaker.getStats().state).toBe('HALF_OPEN')
+
+		// Probes A/B land first and close the circuit under it.
+		await breaker.execute(async () => 'ok')
+		expect(breaker.getStats().state).toBe('CLOSED')
+
+		failSlowProbe(new Error('recovery probe failed'))
+		await slowProbe
+
+		// C's failure IS a failed recovery probe: back to OPEN, not "1 of 5".
+		expect(breaker.getStats().state).toBe('OPEN')
+	})
 })

@@ -2,8 +2,12 @@ import type { FastifyRedis } from '@fastify/redis'
 import type { FastifyBaseLogger } from 'fastify'
 
 import type { ApiGenre } from '#config/types'
-import { type ChaptarrWorkFetch, fetchChaptarrWork } from '#helpers/providers/ChaptarrProvider'
-import { namesToGenres } from '#helpers/providers/hardcoverGenres'
+import {
+	chaptarrEnabled,
+	type ChaptarrWorkFetch,
+	fetchChaptarrWork
+} from '#helpers/providers/ChaptarrProvider'
+import { cleanGenreName, isGenreArray, namesToGenres } from '#helpers/providers/hardcoverGenres'
 import { decodeProviderId } from '#helpers/providers/providerId'
 
 /**
@@ -51,11 +55,17 @@ export function chaptarrGenreKey(id: string): string {
 	return `incipit:ctgenres:${KEY_VERSION}:${bare.toUpperCase()}`
 }
 
-/** Chaptarr work genres -> ApiGenre[], shelf noise removed. */
+/** Chaptarr work genres -> ApiGenre[], shelf noise removed.
+ *
+ * CLEAN FIRST, then filter. SHELF_NOISE says "post-clean" and the filter used
+ * to test the RAW name, so every shelf whose decoration namesToGenres would
+ * strip a moment later escaped it: "📚 Audiobook", "🎧 audiobooks", "Book  Club"
+ * and "To  Read" all cleaned into exactly the terms this set exists to drop —
+ * and then got cached for 30 days. */
 export function genresFromWork(names: unknown): ApiGenre[] {
 	if (!Array.isArray(names)) return []
 	const kept = names.filter(
-		(n): n is string => typeof n === 'string' && !SHELF_NOISE.has(n.trim().toLowerCase())
+		(n): n is string => typeof n === 'string' && !SHELF_NOISE.has(cleanGenreName(n).toLowerCase())
 	)
 	return namesToGenres(kept)
 }
@@ -69,20 +79,6 @@ export function chaptarrWorkIdFor(id: string): string | null {
 	if (decoded === null) return bare ? `az:${bare}` : null
 	if (decoded.provider === 'hardcover' && decoded.kind === 'book') return `hc:${decoded.nativeId}`
 	return null
-}
-
-function isGenreArray(v: unknown): v is ApiGenre[] {
-	return (
-		Array.isArray(v) &&
-		v.every(
-			(g) =>
-				!!g &&
-				typeof g === 'object' &&
-				typeof (g as ApiGenre).asin === 'string' &&
-				typeof (g as ApiGenre).name === 'string' &&
-				typeof (g as ApiGenre).type === 'string'
-		)
-	)
 }
 
 interface BackfillOpts {
@@ -102,6 +98,10 @@ interface BackfillOpts {
  */
 export async function backfillChaptarrGenres(opts: BackfillOpts): Promise<ApiGenre[]> {
 	const { id, redis, logger } = opts
+	// The kill-switch governs THIS leg too, not just the registry's provider
+	// registration — before the check, CHAPTARR_ENABLED=false still sent every
+	// genre-less book's refresh to api2.chaptarr.com.
+	if (!chaptarrEnabled()) return []
 	if (!redis || !id) return []
 
 	try {

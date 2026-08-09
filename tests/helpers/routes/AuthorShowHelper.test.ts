@@ -42,7 +42,14 @@ const mockChaptarrAuthorInfo = mock()
 mock.module('#helpers/providers/chaptarrAuthor', () => ({
 	chaptarrAuthorInfo: mockChaptarrAuthorInfo
 }))
+// Spread the real module, then replace exactly the four network-touching
+// functions. Listing exports by hand instead broke the moment AuthorShowHelper
+// imported a fifth one (the shared GOODREADS_NOPHOTO_RE): a partial mock is a
+// LINK error for the importer, and because mock.module leaks across files in a
+// suite run it took a sibling suite down with it, not this one.
+const realGoodreads = await import('#helpers/providers/goodreadsSeries')
 mock.module('#helpers/providers/goodreadsSeries', () => ({
+	...realGoodreads,
 	// The helper calls the CACHED wrapper; mock it explicitly rather than relying
 	// on a missing export resolving to the real (network-touching) module.
 	withGoodreadsAuthorInfo: mockFetchGoodreadsAuthorInfo,
@@ -271,6 +278,70 @@ describe('AuthorShowHelper should', () => {
 		const out = (await helper.getNewData()) as ApiAuthorProfile
 		expect(out.image).toBe('https://gr/real.jpg')
 		expect(out.description).toBe('Filled by Chaptarr.')
+		getSpy.mockRestore()
+	})
+
+	test('a /nophoto/ URL from ANY Goodreads host is refused, not persisted', async () => {
+		// The gate briefly used /goodreads\.com\/.*nophoto/i, which misses the
+		// host this repo's own Goodreads fixture uses. A survivor is written to
+		// author.image and persisted, and from then on reads as a real portrait:
+		// the backstop rungs are gated off and `incomplete` computes false for
+		// that author forever. The rule is the /nophoto/ PATH segment.
+		mockScrapeProcess.mockRejectedValue(
+			new NotFoundError('gone', { asin, code: 'REGION_UNAVAILABLE' })
+		)
+		const getSpy = spyOn(defaultRegistry, 'get').mockReturnValue({
+			fetchAuthorInfo: mock().mockResolvedValue({ image: null, bio: null })
+		} as unknown as ReturnType<typeof defaultRegistry.get>)
+		mockFetchGoodreadsAuthorInfo.mockResolvedValue({ image: null, bio: null })
+		mockChaptarrAuthorInfo.mockResolvedValue({
+			image: 'https://i.gr-assets.com/images/S/nophoto/user/u_200x266.png',
+			bio: 'A bio.'
+		})
+		helper = new AuthorShowHelper(
+			asin,
+			{ region: 'us', name: 'Mitchel Scanlon', update: '1' } as never,
+			null
+		)
+		const out = (await helper.getNewData()) as ApiAuthorProfile
+		expect(out.image).not.toContain('nophoto')
+		// It fell through to the static-avatar fill, i.e. it was treated as the
+		// placeholder it is rather than as a portrait.
+		expect(out.image).toContain('assets.hardcover.app/static/avatars/')
+		getSpy.mockRestore()
+	})
+
+	test('?force=1 asks the Chaptarr rung to retry its cached MISS', async () => {
+		// The Goodreads rung beside it has always taken this seam. Without it a
+		// cached miss (1h TTL) pinned this rung blind — and the automated second
+		// chance fires after THREE MINUTES, so that retry was a guaranteed
+		// no-op here and the operator's own heal was blind too.
+		mockScrapeProcess.mockRejectedValue(
+			new NotFoundError('gone', { asin, code: 'REGION_UNAVAILABLE' })
+		)
+		const getSpy = spyOn(defaultRegistry, 'get').mockReturnValue({
+			fetchAuthorInfo: mock().mockResolvedValue({ image: null, bio: null })
+		} as unknown as ReturnType<typeof defaultRegistry.get>)
+		mockFetchGoodreadsAuthorInfo.mockResolvedValue({ image: null, bio: null })
+		mockChaptarrAuthorInfo.mockResolvedValue({ image: null, bio: null })
+
+		helper = new AuthorShowHelper(
+			asin,
+			{ region: 'us', name: 'Graham McNeill', update: '1', force: '1' } as never,
+			null
+		)
+		await helper.getNewData()
+		expect(mockChaptarrAuthorInfo.mock.calls[0]?.[3]).toEqual({ retryCachedMiss: true })
+
+		// ...and an UNFORCED pass must not re-ask: the mirror stays protected.
+		mockChaptarrAuthorInfo.mockClear()
+		helper = new AuthorShowHelper(
+			asin,
+			{ region: 'us', name: 'Graham McNeill', update: '1' } as never,
+			null
+		)
+		await helper.getNewData()
+		expect(mockChaptarrAuthorInfo.mock.calls[0]?.[3]).toEqual({ retryCachedMiss: false })
 		getSpy.mockRestore()
 	})
 
