@@ -46,8 +46,13 @@ const CONFIDENCE_BAND = 0.02
 /**
  * Strip an Amazon size modifier so one picture at two sizes compares equal —
  * otherwise `._SL500_` and `._SX450_` would both be offered.
+ *
+ * EXPORTED because dedupe needs the identical rule: it was comparing raw URLs
+ * when building coverAlternates, so the same asset at two sizes shipped as
+ * poster PLUS alternate — a duplicate tile in the picker, which is the exact
+ * class this project has spent months removing. One rule, one place.
  */
-function coverAsset(url: string): string {
+export function coverAsset(url: string): string {
 	return url.replace(/\._[A-Z0-9,]+_\.(jpg|jpeg|png)(?=$|\?)/i, '.$1')
 }
 

@@ -588,7 +588,12 @@ describe('dedupeCandidates — alternate covers from the merged group', () => {
 		scored({ provider: 'audible', audioSeconds: 58200, ...over })
 
 	test('the losers of a merge donate their covers as alternates', () => {
-		const winner = audio({ id: 'w', asin: 'B08G9PRS1K', narrators: ['Ray Porter'], cover: 'win.jpg' })
+		const winner = audio({
+			id: 'w',
+			asin: 'B08G9PRS1K',
+			narrators: ['Ray Porter'],
+			cover: 'win.jpg'
+		})
 		const other = audio({ id: 'o', asin: 'B08G9PRS1K', cover: 'other.jpg' })
 		const out = dedupeCandidates([winner, other])
 		expect(out).toHaveLength(1)
@@ -605,7 +610,12 @@ describe('dedupeCandidates — alternate covers from the merged group', () => {
 	test('a PRINT cover is not offered as an alternate', () => {
 		// hardcover with no asin and no audioSeconds is a print record: portrait
 		// art, which must not reach a square poster slot.
-		const winner = audio({ id: 'w', asin: 'B08G9PRS1K', narrators: ['Ray Porter'], cover: 'win.jpg' })
+		const winner = audio({
+			id: 'w',
+			asin: 'B08G9PRS1K',
+			narrators: ['Ray Porter'],
+			cover: 'win.jpg'
+		})
 		const print = scored({
 			provider: 'hardcover',
 			id: 'p',
@@ -635,5 +645,54 @@ describe('dedupeCandidates — alternate covers from the merged group', () => {
 		const junk = audio({ id: 'junk', asin: 'B08G9PRS1K', cover: 'ai-narrated.jpg' })
 		const out = dedupeCandidates([w, junk], null, new Set(['junk']))
 		expect(out[0].coverAlternates ?? []).toEqual([])
+	})
+})
+
+describe('coverAlternates are compared by ASSET, not by URL', () => {
+	// Amazon serves one picture at many sizes (`._SL500_`, `._SX450_`). The
+	// alternates pipeline compared raw strings, so the winner's own poster
+	// came back as its own "alternate" — a duplicate tile in the Plex picker,
+	// which is the exact class this project spent months removing.
+	// nearTieCovers has always normalized this way; dedupe now shares it.
+	const AMZ = 'https://m.media-amazon.com/images/I/61abc'
+
+	function row(over: Partial<ScoredCandidate> = {}): ScoredCandidate {
+		return {
+			provider: 'audible',
+			id: 'x',
+			asin: null,
+			title: 'A Book',
+			authors: ['An Author'],
+			narrators: ['A Narrator'],
+			audioSeconds: 36000,
+			cover: `${AMZ}._SL500_.jpg`,
+			language: 'en',
+			confidence: 0.9,
+			durationDeltaPct: null,
+			...over
+		} as ScoredCandidate
+	}
+
+	test('the same asset at another size is not offered as an alternate', () => {
+		const out = dedupeCandidates([
+			row({ id: 'winner', asin: 'B0SAMEASSET' }),
+			row({ id: 'twin', asin: 'B0SAMEASSET', provider: 'hardcover', cover: `${AMZ}._SX450_.jpg` })
+		])
+		expect(out.length).toBe(1)
+		expect(out[0].coverAlternates ?? []).toEqual([])
+	})
+
+	test('a genuinely different picture IS still offered', () => {
+		const out = dedupeCandidates([
+			row({ id: 'winner', asin: 'B0DIFFART1' }),
+			row({
+				id: 'other',
+				asin: 'B0DIFFART1',
+				provider: 'hardcover',
+				cover: 'https://m.media-amazon.com/images/I/99zzz._SL500_.jpg'
+			})
+		])
+		expect(out.length).toBe(1)
+		expect(out[0].coverAlternates?.length).toBe(1)
 	})
 })

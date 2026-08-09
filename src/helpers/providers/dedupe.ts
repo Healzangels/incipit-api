@@ -1,3 +1,4 @@
+import { coverAsset } from '#helpers/providers/nearTieCovers'
 import type { ScoredCandidate } from '#helpers/providers/types'
 import { normalizeLanguage } from '#helpers/utils/language'
 
@@ -348,7 +349,14 @@ export function dedupeCandidates(
 		if (isJunk(c) || !c.cover || !isAudioArt(c)) return
 		const root = find(i)
 		const seen = groupCovers.get(root) ?? []
-		if (!seen.includes(c.cover)) seen.push(c.cover)
+		// Compare by ASSET, keep the URL. Amazon serves one picture at many
+		// sizes (`._SL500_`, `._SX450_`), and a raw-string check treats those
+		// as two different covers — so the winner's poster shipped again as
+		// its own alternate, a duplicate tile in the picker. nearTieCovers has
+		// always normalized this way; dedupe now shares the same function
+		// rather than a second copy of the rule.
+		const asset = coverAsset(c.cover)
+		if (!seen.some((u) => coverAsset(u) === asset)) seen.push(c.cover)
 		groupCovers.set(root, seen)
 	})
 
@@ -372,7 +380,11 @@ export function dedupeCandidates(
 				: (audioCoverDonor ?? bestWithCover.get(root))
 			const finalCover = coverDonor ? coverDonor.cover : winner.cover
 			// Everything the group offers EXCEPT the picture already showing.
-			const alternates = (groupCovers.get(root) ?? []).filter((u) => u !== finalCover)
+			// ...and the same rule on the way out: the picture already showing
+			// must not reappear as an alternate merely because the alternate
+			// names a different size of it.
+			const finalAsset = finalCover ? coverAsset(finalCover) : null
+			const alternates = (groupCovers.get(root) ?? []).filter((u) => coverAsset(u) !== finalAsset)
 			if (asinDonor || narrDonor || coverDonor || alternates.length) {
 				out.push({
 					...winner,
