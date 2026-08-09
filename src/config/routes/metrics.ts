@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import ipRangeCheck from 'ip-range-check'
 
@@ -6,6 +5,7 @@ import { getPerformanceConfig } from '#config/performance'
 import { getPerformanceMetrics } from '#config/performance/hooks'
 import { getMatchMetrics, type MatchMetrics } from '#helpers/utils/matchTelemetry'
 import { getProviderHealth } from '#helpers/utils/providerHealth'
+import { secureEquals } from '#helpers/utils/secureCompare'
 
 /**
  * Strip the library-content fields from the recent match decisions.
@@ -121,16 +121,9 @@ function validateMetricsAuth(request: FastifyRequest): boolean {
 
 	// Check token-based access
 	if (authToken) {
-		const requestToken = request.headers['x-metrics-token']?.toString()
-		if (requestToken && authToken) {
-			const bufRequest = Buffer.from(requestToken)
-			const bufAuth = Buffer.from(authToken)
-			if (bufRequest.length !== bufAuth.length) {
-				return false
-			}
-			if (crypto.timingSafeEqual(bufRequest, bufAuth)) {
-				return true
-			}
+		// Length-independent compare — the same rule as the delete token.
+		if (secureEquals(request.headers['x-metrics-token']?.toString(), authToken)) {
+			return true
 		}
 	}
 

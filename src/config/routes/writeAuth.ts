@@ -1,7 +1,7 @@
-import crypto from 'crypto'
 import { FastifyReply, FastifyRequest } from 'fastify'
 
 import { isIpAllowed, parseEnvArray } from '#config/routes/metrics'
+import { secureEquals } from '#helpers/utils/secureCompare'
 
 /**
  * Access guard for the DESTRUCTIVE routes (the DELETE endpoints).
@@ -30,16 +30,10 @@ export function isDeleteAllowed(request: FastifyRequest): boolean {
 		return true
 	}
 
-	// Token (constant-time compare, length-guarded so timingSafeEqual can't throw).
-	if (authToken) {
-		const requestToken = request.headers['x-delete-token']?.toString()
-		if (requestToken) {
-			const bufRequest = Buffer.from(requestToken)
-			const bufAuth = Buffer.from(authToken)
-			if (bufRequest.length === bufAuth.length && crypto.timingSafeEqual(bufRequest, bufAuth)) {
-				return true
-			}
-		}
+	// Token, compared without leaking its LENGTH (see secureEquals: the
+	// length guard timingSafeEqual requires is itself observable).
+	if (secureEquals(request.headers['x-delete-token']?.toString(), authToken)) {
+		return true
 	}
 
 	return false

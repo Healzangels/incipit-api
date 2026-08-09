@@ -264,6 +264,26 @@ describe('GET /books/:asin runs the whole serve pipeline', () => {
 		expect(getMatchMetrics().languageMismatchedLookups).toBe(before + 1)
 	})
 
+	test('the PROVIDER-ID branch validates the query too — same rules, different id', async () => {
+		// It returns before the shared route helper, so it used to perform ZERO
+		// query validation: `?region=zz` answered 200 here while the identical
+		// request on an ASIN 400s, and the unvalidated value then flowed into
+		// the region-conflict check and every provider fetch.
+		servedByProvider = bookRecord({ asin: null })
+		const bad = await get('hardcover-edition-27515221', '?region=zz')
+		servedByProvider = null
+		expect(bad.status).toBe(400)
+	})
+
+	test('a VALID region still passes on the provider-id branch', async () => {
+		// The guard must not break the branch it protects.
+		servedByProvider = bookRecord({ asin: null, title: 'Baneblade' })
+		const ok = await get('hardcover-edition-27515221', '?region=us')
+		servedByProvider = null
+		expect(ok.status).toBe(200)
+		expect(ok.body.title).toBe('Baneblade')
+	})
+
 	test('a record whose language matches the region is NOT flagged', async () => {
 		// Guards the assertion above from passing on a counter that only ever
 		// increments.
