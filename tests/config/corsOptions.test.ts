@@ -44,13 +44,36 @@ describe('corsOrigin', () => {
 	})
 
 	test('never returns true — reflecting any origin must not be reachable by config', () => {
-		for (const value of ['*', 'true', '1', 'yes']) {
+		for (const value of ['true', '1', 'yes']) {
 			process.env[ENV] = value
 			const got = corsOrigin()
 			expect(got).not.toBe(true)
-			// A literal "*" is treated as an origin string, not as a wildcard flag.
 			expect(Array.isArray(got) || got === false).toBe(true)
 		}
+	})
+
+	test('a WILDCARD ENTRY is refused, not passed through as an origin string', () => {
+		// This test used to assert only `not.toBe(true)` and pass happily on
+		// ['*'] — pinning the TYPE while the security property leaked. But
+		// @fastify/cors collapses an origins array containing '*' to origin
+		// '*', so `CORS_ALLOWED_ORIGINS=*` reinstated by configuration the
+		// exact `origin: true` this module exists to remove.
+		process.env[ENV] = '*'
+		expect(corsOrigin()).toBe(false)
+	})
+
+	test("'null' is refused too — it is the Origin of a sandboxed iframe", () => {
+		process.env[ENV] = 'null'
+		expect(corsOrigin()).toBe(false)
+		process.env[ENV] = 'NULL'
+		expect(corsOrigin()).toBe(false)
+	})
+
+	test('one bad entry does not deny the good ones', () => {
+		// Filtered, not rejected wholesale: an operator who adds '*' beside a
+		// real origin keeps the real origin working.
+		process.env[ENV] = 'https://app.example.com,*'
+		expect(corsOrigin()).toEqual(['https://app.example.com'])
 	})
 })
 
