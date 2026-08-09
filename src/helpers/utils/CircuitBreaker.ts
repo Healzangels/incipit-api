@@ -155,14 +155,12 @@ export class CircuitBreaker {
 			throw new CircuitOpenError(timeUntilRetry)
 		}
 
-		const isHalfOpen = this.state === 'HALF_OPEN'
-
 		try {
 			const result = await fn()
-			this.onSuccess(isHalfOpen)
+			this.onSuccess()
 			return result
 		} catch (error) {
-			this.onFailure(isHalfOpen)
+			this.onFailure()
 			throw error
 		}
 	}
@@ -183,10 +181,25 @@ export class CircuitBreaker {
 	/**
 	 * Handle successful execution
 	 */
-	private onSuccess(isHalfOpen: boolean): void {
+	private onSuccess(): void {
 		this.lastSuccessTime = Date.now()
 
-		if (isHalfOpen) {
+		// READ THE STATE NOW, not at call time. execute() used to capture
+		// `this.state === 'HALF_OPEN'` BEFORE its await and hand that stale
+		// flag down here, so a probe that started while half-open and landed
+		// after a CONCURRENT failure had already re-OPENed the circuit still
+		// counted toward closing it — re-CLOSING a circuit that had just been
+		// opened, and sending the next wave of traffic straight back at a
+		// provider that is still down. These breakers are module singletons
+		// shared by every in-flight request to a provider, so concurrent
+		// probes are the normal case during a scan, not a rare interleaving.
+		// A success arriving while the state is OPEN (a concurrent failure
+		// re-opened the circuit under this call) correctly falls through to the
+		// CLOSED-shaped branch below: openCircuit() has already zeroed the
+		// counters and transitionState() re-zeros them on the next HALF_OPEN,
+		// so it changes nothing observable. An explicit early return read well
+		// but no mutation could kill it — dead code by proof, so it is gone.
+		if (this.state === 'HALF_OPEN') {
 			this.successes++
 			if (this.successes >= this.successThreshold) {
 				// Service recovered, close the circuit
@@ -211,11 +224,14 @@ export class CircuitBreaker {
 	/**
 	 * Handle failed execution
 	 */
-	private onFailure(isHalfOpen: boolean): void {
+	private onFailure(): void {
 		this.lastFailureTime = Date.now()
 		this.failures++
 
-		if (isHalfOpen) {
+		// Same rule as onSuccess: the state NOW decides. A failure arriving
+		// after the circuit already reopened simply re-opens it (harmless and
+		// correct), and one arriving while half-open still slams it shut.
+		if (this.state === 'HALF_OPEN') {
 			// Any failure in HALF_OPEN goes back to OPEN
 			this.openCircuit()
 		} else if (this.failures >= this.failureThreshold) {

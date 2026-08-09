@@ -376,3 +376,55 @@ describe('CircuitOpenError carries a 503 and a stated wait', () => {
 		expect(new CircuitOpenError(5)).toBeInstanceOf(Error)
 	})
 })
+
+describe('concurrent probes in HALF_OPEN', () => {
+	// These breakers are module singletons shared by every in-flight request
+	// to a provider, so overlapping calls are the NORMAL case during a scan.
+	// execute() used to capture `state === 'HALF_OPEN'` before its await and
+	// hand that stale flag to the completion handlers, so a probe that landed
+	// after a concurrent failure had already re-opened the circuit still
+	// counted toward CLOSING it — reopening the floodgates on a provider that
+	// is still down.
+
+	// successThreshold 1 on purpose: with the default of 2 a single stale
+	// success cannot close the circuit ANYWAY, so the test below would pass
+	// against the bug it exists to catch — the vacuous-test shape this repo
+	// has paid for before. One success must be enough for the assertion to
+	// mean something.
+	async function halfOpenBreaker() {
+		const breaker = new CircuitBreaker({
+			failureThreshold: 1,
+			resetTimeoutMs: 1,
+			successThreshold: 1
+		})
+		await breaker.execute(async () => Promise.reject(new Error('down'))).catch(() => undefined)
+		expect(breaker.getStats().state).toBe('OPEN')
+		await new Promise((r) => setTimeout(r, 5))
+		// The next execute() transitions OPEN -> HALF_OPEN on entry.
+		return breaker
+	}
+
+	it('a stale success must NOT re-close a circuit a concurrent failure just opened', async () => {
+		const breaker = await halfOpenBreaker()
+		let releaseSlowProbe: () => void = () => undefined
+		const slowProbe = breaker.execute(
+			() => new Promise<string>((resolve) => (releaseSlowProbe = () => resolve('ok')))
+		)
+		// While the slow probe is in flight, a second probe FAILS and re-opens.
+		await breaker.execute(async () => Promise.reject(new Error('still down'))).catch(() => undefined)
+		expect(breaker.getStats().state).toBe('OPEN')
+
+		releaseSlowProbe()
+		await slowProbe
+
+		// The late success is stale news: the circuit must stay shut.
+		expect(breaker.getStats().state).toBe('OPEN')
+	})
+
+	it('a genuine half-open success still closes the circuit', async () => {
+		// The guard must not break recovery — the whole point of HALF_OPEN.
+		const breaker = await halfOpenBreaker()
+		await breaker.execute(async () => 'ok')
+		expect(breaker.getStats().state).toBe('CLOSED')
+	})
+})
