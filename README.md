@@ -281,6 +281,8 @@ Audnexus can be deployed to Coolify, a self-hosted open-source alternative to Ve
    - `CHAPTARR_ENABLED`: Query the Chaptarr metadata service (default: `true`; set `false` to disable). Keyless. Supplements Audible with narrator, duration, chapters and cross-provider ids, and resolves ASINs Audible has delisted — an Audible "husk" (a product id it still acknowledges but serves no title for) falls through to Chaptarr instead of losing the operator's pin. It is another project's free infrastructure, so it sits behind its own circuit breaker; this flag is the kill switch.
    - `STORYTEL_ENABLED`: Query Storytel (default: `false`). Keyless, real narrator + runtime, but its English catalogue is thin for indie SF/LitRPG — useful mainly for mainstream or European libraries.
    - `APPLE_ENABLED`: Query Apple Books (default: `true`). Keyless; the main source of square cover art.
+   - `OVERDRIVE_ENABLED`: Query OverDrive/Libby (default: `true`). Keyless library catalogue that often carries what Audible lacks — Blackstone, Recorded Books, older and indie titles — with narrator, runtime and cover, so its candidates are real audio editions rather than print fallbacks. It has no ASIN, so a duration-confirmed Audible edition still outranks it.
+   - `OVERDRIVE_LIBRARY`: Which OverDrive library's holdings to search (optional; defaults to a large public library). Results are scoped to that library's catalogue.
    - `LIBRIVOX_ENABLED`: Query LibriVox for public-domain recordings (default: `false`).
 
    **Metrics Endpoint Security:**
