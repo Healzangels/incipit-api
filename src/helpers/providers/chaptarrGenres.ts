@@ -7,6 +7,7 @@ import {
 	type ChaptarrWorkFetch,
 	fetchChaptarrWork
 } from '#helpers/providers/ChaptarrProvider'
+import type { GenreContext } from '#helpers/providers/genreNormalize'
 import { cleanGenreName, isGenreArray, namesToGenres } from '#helpers/providers/hardcoverGenres'
 import { decodeProviderId } from '#helpers/providers/providerId'
 
@@ -62,12 +63,12 @@ export function chaptarrGenreKey(id: string): string {
  * strip a moment later escaped it: "📚 Audiobook", "🎧 audiobooks", "Book  Club"
  * and "To  Read" all cleaned into exactly the terms this set exists to drop —
  * and then got cached for 30 days. */
-export function genresFromWork(names: unknown): ApiGenre[] {
+export function genresFromWork(names: unknown, ctx: GenreContext = {}): ApiGenre[] {
 	if (!Array.isArray(names)) return []
 	const kept = names.filter(
 		(n): n is string => typeof n === 'string' && !SHELF_NOISE.has(cleanGenreName(n).toLowerCase())
 	)
-	return namesToGenres(demoteGenericShelves(kept))
+	return namesToGenres(demoteGenericShelves(kept), ctx)
 }
 
 /**
@@ -139,6 +140,8 @@ interface BackfillOpts {
 	logger?: FastifyBaseLogger
 	/** Test seam, same shape as ChaptarrProvider's constructor injection. */
 	workFetch?: ChaptarrWorkFetch
+	/** The book itself, so a shelf that merely restates it can be dropped. */
+	ctx?: GenreContext
 }
 
 /**
@@ -172,7 +175,7 @@ export async function backfillChaptarrGenres(opts: BackfillOpts): Promise<ApiGen
 	try {
 		const workFetch = opts.workFetch ?? fetchChaptarrWork
 		const response = await workFetch(workId, logger)
-		const genres = genresFromWork(response?.work?.genres)
+		const genres = genresFromWork(response?.work?.genres, opts.ctx ?? {})
 		await redis
 			.set(
 				chaptarrGenreKey(id),

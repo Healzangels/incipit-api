@@ -2,6 +2,15 @@ import type { FastifyRedis } from '@fastify/redis'
 import type { FastifyBaseLogger } from 'fastify'
 
 import type { ApiGenre } from '#config/types'
+import type { GenreContext } from '#helpers/providers/genreNormalize'
+import {
+	canonicalName,
+	dedupeKey,
+	isNoiseShelf,
+	isSelfReference,
+	normalizeDisplay,
+	splitJoinedShelf
+} from '#helpers/providers/genreNormalize'
 import { defaultGql, type HardcoverGql } from '#helpers/providers/HardcoverProvider'
 import { decodeProviderId } from '#helpers/providers/providerId'
 
@@ -42,8 +51,13 @@ const MISS_TTL_SECONDS = 604800
  *
  * v2: name cleaning + the sci-fi alias fold. The first live serve (2026-08-08)
  * put "🐙 Weird Fiction" and a "Science Fiction"/"Sci-fi" duplicate pair on
- * real books — community tags carry emoji and synonyms the raw mapper kept. */
-const KEY_VERSION = 'v2'
+ * real books — community tags carry emoji and synonyms the raw mapper kept.
+ *
+ * v3: the shelf-noise layer (see genreNormalize). Every answer cached under v2
+ * was computed WITHOUT the joined-shelf split and the format/BISAC/foreign
+ * drops, so serving them for another 30 days would leak exactly the names this
+ * change exists to remove. */
+const KEY_VERSION = 'v3'
 
 /** Most genres a backfill will attach. Hardcover lists by tag frequency, so
  * the head of the list is the community's actual verdict and the tail is
@@ -107,7 +121,13 @@ export function syntheticGenreAsin(name: string): string {
  */
 const GENRE_ALIASES = new Map<string, string>([
 	['sci-fi', 'Science Fiction'],
-	['scifi', 'Science Fiction']
+	['scifi', 'Science Fiction'],
+	// Measured on Demons Don't Dream 2026-08-09: "Humor" and "Humour" arrived on
+	// the SAME book. dedupeKey cannot fold these — they differ by a letter, not
+	// by case, plural or a suffix — so the synonym table is the right place.
+	['humour', 'Humor'],
+	['humourous', 'Humorous'],
+	['fantacy', 'Fantasy']
 ])
 
 /**
@@ -136,9 +156,10 @@ export function cleanGenreName(name: string): string {
  * existing "Science Fiction" instead of arriving as siblings.
  * @param {unknown} raw the cached_tags value (object over the wire; a string
  *   is tolerated defensively since it is jsonb upstream)
+ * @param {GenreContext} [ctx] the book, so a shelf restating it is dropped
  * @returns {ApiGenre[]} cleaned, deduped, capped, schema-valid genres
  */
-export function genresFromCachedTags(raw: unknown): ApiGenre[] {
+export function genresFromCachedTags(raw: unknown, ctx: GenreContext = {}): ApiGenre[] {
 	let tags = raw
 	if (typeof tags === 'string') {
 		try {
@@ -156,7 +177,7 @@ export function genresFromCachedTags(raw: unknown): ApiGenre[] {
 			typeof entry === 'string' ? entry : ((entry as { tag?: unknown } | null)?.tag ?? null)
 		if (typeof name === 'string') names.push(name)
 	}
-	return namesToGenres(names)
+	return namesToGenres(names, ctx)
 }
 
 /**
@@ -168,18 +189,31 @@ export function genresFromCachedTags(raw: unknown): ApiGenre[] {
  * @param {string[]} names raw names in source order
  * @returns {ApiGenre[]} cleaned, deduped, capped genres
  */
-export function namesToGenres(names: string[]): ApiGenre[] {
+export function namesToGenres(names: string[], ctx: GenreContext = {}): ApiGenre[] {
 	const seen = new Set<string>()
 	const out: ApiGenre[] = []
 	for (const name of names) {
-		const cleaned = cleanGenreName(name)
-		if (!cleaned || /^general$/i.test(cleaned)) continue
-		const clean = GENRE_ALIASES.get(cleaned.toLowerCase()) ?? cleaned
-		const key = clean.toLowerCase()
-		if (seen.has(key)) continue
-		seen.add(key)
-		out.push({ asin: syntheticGenreAsin(clean), name: clean, type: 'genre' })
-		if (out.length >= MAX_GENRES) break
+		// SPLIT FIRST. A joined shelf carries several real genres, and judging the
+		// whole string discards all of them: "Fiction / Fantasy / General" is one
+		// over-long BISAC path but three usable parts.
+		for (const part of splitJoinedShelf(cleanGenreName(name))) {
+			const cleaned = cleanGenreName(part)
+			if (!cleaned) continue
+			const aliased = GENRE_ALIASES.get(cleaned.toLowerCase()) ?? cleaned
+			if (isNoiseShelf(aliased)) continue
+			if (isSelfReference(aliased, ctx)) continue
+			// The canonical spelling is chosen by the FOLD KEY, so every book that
+			// reaches this genre by any spelling shows the same tag.
+			const rawKey = dedupeKey(aliased)
+			const display = canonicalName(rawKey) ?? normalizeDisplay(aliased)
+			// Dedupe on the CANONICAL key, so two spellings that resolve to one
+			// display name cannot both be kept.
+			const key = dedupeKey(display)
+			if (!key || seen.has(key)) continue
+			seen.add(key)
+			out.push({ asin: syntheticGenreAsin(display), name: display, type: 'genre' })
+			if (out.length >= MAX_GENRES) return out
+		}
 	}
 	return out
 }
@@ -209,6 +243,8 @@ interface BackfillOpts {
 	logger?: FastifyBaseLogger
 	/** Test seam, same shape as HardcoverProvider's constructor injection. */
 	gql?: HardcoverGql
+	/** The book itself, so a shelf that merely restates it can be dropped. */
+	ctx?: GenreContext
 }
 
 interface CachedTagsEnvelope {
@@ -262,7 +298,7 @@ export async function backfillHardcoverGenres(opts: BackfillOpts): Promise<ApiGe
 		const gql = opts.gql ?? defaultGql
 		const data = await gql<CachedTagsEnvelope>(q.query, q.variables, token)
 		const cachedTags = data.editions?.[0]?.book?.cached_tags ?? data.books?.[0]?.cached_tags
-		const genres = genresFromCachedTags(cachedTags)
+		const genres = genresFromCachedTags(cachedTags, opts.ctx ?? {})
 		await redis
 			.set(
 				hardcoverGenreKey(id),

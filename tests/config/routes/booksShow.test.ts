@@ -330,12 +330,22 @@ describe('genre backfill on the item response', () => {
 		expect(chaptarrAskedIds).toEqual(['B0TESTASIN'])
 	})
 
-	test('a Hardcover HIT never pays for the Chaptarr call', async () => {
+	test('BOTH community sources are consulted, and both contribute', async () => {
+		// This replaces "a Hardcover HIT never pays for the Chaptarr call". That
+		// guard was right while the leg only filled empty records: Chaptarr was a
+		// fallback, so paying for it after a Hardcover hit was pure waste. Now
+		// that both add to every book (2026-08-09), skipping Chaptarr on a
+		// Hardcover hit would discard most of the genres this change exists to
+		// gather — and chaining them would put two round-trips on the critical
+		// path, so they run concurrently.
 		backfillGenres = HC_GENRES
-		chaptarrGenres = [{ asin: '1000000009', name: 'ShouldNotAppear', type: 'genre' }]
+		chaptarrGenres = [{ asin: '1000000009', name: 'Dark Academia', type: 'genre' }]
 		const { body } = await get('B0TESTASIN')
-		expect(body.genres).toEqual(HC_GENRES)
-		expect(chaptarrAskedIds).toEqual([])
+		expect(chaptarrAskedIds).toEqual(['B0TESTASIN'])
+		expect(body.genres.map((g: { name: string }) => g.name)).toEqual([
+			...HC_GENRES.map((g) => g.name),
+			'Dark Academia'
+		])
 	})
 
 	test('a genre-less record gets Hardcover genres attached', async () => {
@@ -346,12 +356,28 @@ describe('genre backfill on the item response', () => {
 		expect(backfilledIds).toEqual(['B0TESTASIN'])
 	})
 
-	test('a record WITH genres is never overridden — Audible data wins', async () => {
+	test('a record WITH genres is ADDED TO, never overridden — Audible keeps its place', async () => {
+		// The invariant is unchanged and still the important one: Audible's own
+		// categories survive verbatim, in order, with their own ids. What changed
+		// (2026-08-09) is that the record no longer STOPS there — the old gate
+		// returned early on any existing genre, which fired for 1,756 of 1,758
+		// cached books and made the community sources dead weight.
 		const audible = [{ asin: '18574597011', name: 'Science Fiction & Fantasy', type: 'genre' }]
 		served = bookRecord({ genres: audible })
 		backfillGenres = HC_GENRES
 		const { body } = await get('B0TESTASIN')
-		expect(body.genres).toEqual(audible)
+		expect(body.genres.slice(0, 1)).toEqual(audible)
+		expect(body.genres.length).toBeGreaterThan(audible.length)
+	})
+
+	test('a community genre that merely restates an Audible one is dropped', async () => {
+		// The duplication this whole normalization layer exists to prevent:
+		// "Fantasy fiction" must not land beside Audible's "Fantasy".
+		served = bookRecord({ genres: [{ asin: '18574597011', name: 'Fantasy', type: 'genre' }] })
+		backfillGenres = [{ asin: '1000000011', name: 'Fantasy fiction', type: 'genre' }]
+		chaptarrGenres = []
+		const { body } = await get('B0TESTASIN')
+		expect(body.genres.map((g: { name: string }) => g.name)).toEqual(['Fantasy'])
 	})
 
 	test('no genres anywhere leaves the field OFF — the bundle reads presence', async () => {

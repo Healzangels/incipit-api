@@ -107,10 +107,27 @@ describe('genresFromCachedTags', () => {
 		// every genre AND the empty answer is never cached: a Hardcover GraphQL
 		// query plus a Chaptarr work fetch, re-paid on every refresh forever.
 		// Chaptarr feeds free-text Goodreads shelves through this same mapper.
+		//
+		// The INVARIANT is what is asserted here, not the exact output: no throw,
+		// the real genre beside the poison still arrives, and every row is
+		// schema-valid. This used to assert the poison name came back verbatim,
+		// which was a mirror of the then-current formatting — the shelf-noise
+		// layer (2026-08-09) legitimately title-cases an all-lowercase name and
+		// drops '__proto__' entirely, since its dedupe key is empty once
+		// punctuation is stripped. Neither is the defect this test exists for.
 		for (const poison of ['constructor', '__proto__', 'toString', 'valueOf', 'hasOwnProperty']) {
-			const out = genresFromCachedTags({ Genre: [{ tag: poison }, { tag: 'Horror' }] })
-			expect(out.map((g) => g.name)).toEqual([poison, 'Horror'])
-			for (const g of out) expect(() => ApiGenreSchema.parse(g)).not.toThrow()
+			let out: ReturnType<typeof genresFromCachedTags> = []
+			expect(() => {
+				out = genresFromCachedTags({ Genre: [{ tag: poison }, { tag: 'Horror' }] })
+			}).not.toThrow()
+			// The genuine genre is never lost to its poisoned neighbour.
+			expect(out.map((g) => g.name)).toContain('Horror')
+			for (const g of out) {
+				expect(() => ApiGenreSchema.parse(g)).not.toThrow()
+				// Nothing resolved to a prototype member: every name is a string
+				// that came from the tag, never a function or an inherited value.
+				expect(typeof g.name).toBe('string')
+			}
 		}
 	})
 

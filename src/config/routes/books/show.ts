@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify'
 
-import type { ApiBook } from '#config/types'
+import type { ApiBook, ApiGenre } from '#config/types'
 import { RequestGeneric } from '#config/typing/requests'
 import { NotFoundError } from '#helpers/errors/ApiErrors'
 import {
@@ -9,6 +9,7 @@ import {
 	rememberAlternates
 } from '#helpers/providers/alternateCoverCache'
 import { backfillChaptarrGenres } from '#helpers/providers/chaptarrGenres'
+import { mergeGenres } from '#helpers/providers/genreNormalize'
 import { withGoodreadsSeries } from '#helpers/providers/goodreadsSeries'
 import { backfillHardcoverGenres } from '#helpers/providers/hardcoverGenres'
 import ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
@@ -185,27 +186,45 @@ async function _show(fastify: FastifyInstance) {
 		// ©gen tags survived as one mega-genre and rolled up to the artist page.
 		// Hardcover's community genres answer by the same asin; serving them lets
 		// the bundle's existing clear-and-replace fix the album, no plugin change.
-		// The gate is the record's own genres: Audible data is never overridden.
-		const withGenres = async <T extends { genres?: unknown }>(book: T): Promise<T> => {
-			if (Array.isArray(book?.genres) && book.genres.length) return book
-			// Hardcover first (curated bucket), Chaptarr second (broader
-			// Goodreads-shelf aggregate, shelf noise filtered) — sequential on
-			// purpose: the second source is only paid for when the first has
-			// nothing, and both cache their empties so the chain stays cheap.
-			let genres = await backfillHardcoverGenres({
-				id: asin,
-				redis: fastify.redis ?? null,
-				token: credentials.hardcover ?? process.env.HARDCOVER_TOKEN,
-				logger: request.log
-			})
-			if (!genres.length) {
-				genres = await backfillChaptarrGenres({
+		// Audible data is never OVERRIDDEN — its genres keep their place and their
+		// ids — but it is now ADDED TO. The old gate returned early whenever the
+		// record had any genres at all, and measured 2026-08-09 that was 1,756 of
+		// 1,758 cached books, so the whole leg fired for two of them. Merging is
+		// what makes the community sources worth their calls; genreNormalize is
+		// what keeps the merge from restating what Audible already said.
+		const withGenres = async <
+			T extends { genres?: unknown; title?: string; seriesPrimary?: { name?: string } | null }
+		>(
+			book: T
+		): Promise<T> => {
+			const existing = Array.isArray(book?.genres) ? (book.genres as ApiGenre[]) : []
+			// The book itself, so a shelf that merely restates it ("Harry Potter"
+			// on Goblet of Fire) is dropped rather than shown as a genre.
+			const ctx = { title: book?.title ?? null, series: book?.seriesPrimary?.name ?? null }
+			// CONCURRENT, not sequential. While this only filled empties, running
+			// Chaptarr solely on a Hardcover miss made the second source nearly
+			// free; now that both contribute to every book, chaining them would put
+			// two round-trips on the critical path instead of one. Both cache hits
+			// and empties for 30/7 days, so the steady state is redis either way.
+			const [hardcover, chaptarr] = await Promise.all([
+				backfillHardcoverGenres({
 					id: asin,
 					redis: fastify.redis ?? null,
-					logger: request.log
+					token: credentials.hardcover ?? process.env.HARDCOVER_TOKEN,
+					logger: request.log,
+					ctx
+				}),
+				backfillChaptarrGenres({
+					id: asin,
+					redis: fastify.redis ?? null,
+					logger: request.log,
+					ctx
 				})
-			}
-			return genres.length ? { ...book, genres } : book
+			])
+			// Hardcover ahead of Chaptarr: its curated Genre bucket is a better
+			// first claim on the remaining slots than a raw Goodreads shelf list.
+			const merged = mergeGenres(existing, [...hardcover, ...chaptarr])
+			return merged.length > existing.length ? { ...book, genres: merged } : book
 		}
 
 		const finish = async <
