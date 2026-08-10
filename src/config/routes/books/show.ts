@@ -8,7 +8,7 @@ import {
 	recallAlternates,
 	rememberAlternates
 } from '#helpers/providers/alternateCoverCache'
-import { backfillChaptarrGenres } from '#helpers/providers/chaptarrGenres'
+import { backfillChaptarrGenres, chaptarrGenresByTitle } from '#helpers/providers/chaptarrGenres'
 import { mergeGenres } from '#helpers/providers/genreNormalize'
 import { withGoodreadsSeries } from '#helpers/providers/goodreadsSeries'
 import { backfillHardcoverGenres } from '#helpers/providers/hardcoverGenres'
@@ -193,7 +193,12 @@ async function _show(fastify: FastifyInstance) {
 		// what makes the community sources worth their calls; genreNormalize is
 		// what keeps the merge from restating what Audible already said.
 		const withGenres = async <
-			T extends { genres?: unknown; title?: string; seriesPrimary?: { name?: string } | null }
+			T extends {
+				genres?: unknown
+				title?: string
+				authors?: { name?: string }[]
+				seriesPrimary?: { name?: string } | null
+			}
 		>(
 			book: T
 		): Promise<T> => {
@@ -224,7 +229,25 @@ async function _show(fastify: FastifyInstance) {
 			// Hardcover ahead of Chaptarr: its curated Genre bucket is a better
 			// first claim on the remaining slots than a raw Goodreads shelf list.
 			const merged = mergeGenres(existing, [...hardcover, ...chaptarr])
-			return merged.length > existing.length ? { ...book, genres: merged } : book
+			if (merged.length) {
+				return merged.length > existing.length ? { ...book, genres: merged } : book
+			}
+
+			// NOTHING ANSWERED. Gated on an empty result, so this costs a request
+			// only for books every other source is mute about — measured
+			// 2026-08-10, 94 of 1,607 albums, and 63 of those were pinned to
+			// `openlibrary-works-…`/`overdrive-…` editions that chaptarrWorkIdFor
+			// cannot map to a work at all. Those records carry a title and an
+			// author and nothing else, so a confirmed title match is the only
+			// handle left.
+			const rescued = await chaptarrGenresByTitle({
+				title: book?.title ?? '',
+				author: book?.authors?.[0]?.name ?? '',
+				redis: fastify.redis ?? null,
+				logger: request.log,
+				ctx
+			})
+			return rescued.length ? { ...book, genres: rescued } : book
 		}
 
 		const finish = async <

@@ -4,11 +4,14 @@ import type { FastifyBaseLogger } from 'fastify'
 import type { ApiGenre } from '#config/types'
 import {
 	chaptarrEnabled,
+	type ChaptarrMatchFetch,
 	type ChaptarrWorkFetch,
+	defaultMatchFetch,
 	fetchChaptarrWork
 } from '#helpers/providers/ChaptarrProvider'
 import type { GenreContext } from '#helpers/providers/genreNormalize'
 import { cleanGenreName, isGenreArray, namesToGenres } from '#helpers/providers/hardcoverGenres'
+import { sim, titleSim } from '#helpers/providers/matchScorer'
 import { decodeProviderId } from '#helpers/providers/providerId'
 
 /**
@@ -151,4 +154,115 @@ export async function backfillChaptarrGenres(opts: BackfillOpts): Promise<ApiGen
 		logger?.warn({ err, id }, 'chaptarr genre backfill failed; serving without genres')
 		return []
 	}
+}
+
+/**
+ * How close a matched work's title must be before its genres are trusted.
+ *
+ * titleSim is subtitle-tolerant, which is the whole reason it is used here:
+ * Chaptarr routinely carries a series qualifier the record omits ("Night Mare"
+ * vs "Night Mare :Xanth 6", "Two to the Fifth" vs "Two to the Fifth (Xanth)").
+ * An EXACT fold rejected 17 of 65 probed books, and inspection showed almost
+ * all of them were the same book wearing a subtitle. At 0.85 the yield went
+ * from 38 to 45 with no wrong book admitted.
+ */
+const TITLE_CONFIRM = 0.85
+
+/** The author must agree almost exactly — it is the only independent check
+ * there is, and a title alone matches far too many books. */
+const AUTHOR_CONFIRM = 0.9
+
+/** 7 days. A title-matched answer is weaker evidence than an id-keyed one, so
+ * it is re-earned sooner; a miss is cheap to repeat. */
+const TITLE_TTL_SECONDS = 604800
+
+/** Cache key for a title+author rescue. Folded so casing and punctuation in the
+ * album tag cannot mint a second entry for the same book. */
+export function chaptarrTitleGenreKey(title: string, author: string): string {
+	const fold = (s: string) =>
+		(s ?? '')
+			.toLowerCase()
+			.replace(/[^a-z0-9]+/g, '-')
+			.replace(/^-|-$/g, '')
+	return `incipit:ctgenres-t:${KEY_VERSION}:${fold(title)}|${fold(author)}`
+}
+
+interface TitleRescueOpts {
+	title: string
+	author: string
+	redis: FastifyRedis | null
+	logger?: FastifyBaseLogger
+	ctx?: GenreContext
+	matchFetch?: ChaptarrMatchFetch
+	workFetch?: ChaptarrWorkFetch
+}
+
+/**
+ * LAST RESORT: genres for a book whose id Chaptarr cannot be asked about.
+ *
+ * WHY THIS EXISTS. chaptarrWorkIdFor maps plain ASINs (az:) and hardcover-book
+ * ids (hc:) and nothing else, so an album pinned to an `openlibrary-works-…` or
+ * `overdrive-…` edition can never reach the work route. Measured on the live
+ * library 2026-08-10: 94 albums carried NO genres at all, and 63 of them were
+ * exactly those two id shapes — Audible has no record for them either, so every
+ * source was mute.
+ *
+ * The /match endpoint resolves a title+author query to a work identity, which
+ * is the one handle those records still offer: they carry a title and an
+ * author and nothing else (no asin, no isbn — checked).
+ *
+ * CONFIRMED, never trusted. A title query matches too many books to accept on
+ * faith, so the answer is only used when the returned work agrees on BOTH title
+ * and author. Of 65 probed, 45 confirmed and every one had genres; the 20 that
+ * did not are left with nothing, which is what they already had.
+ * @param {TitleRescueOpts} opts title, author, redis, optional seams
+ * @returns {Promise<ApiGenre[]>} genres for the book, or [] when unconfirmed
+ */
+export async function chaptarrGenresByTitle(opts: TitleRescueOpts): Promise<ApiGenre[]> {
+	const { title, author, redis, logger } = opts
+	if (!chaptarrEnabled()) return []
+	if (!redis || !title || !author) return []
+
+	const key = chaptarrTitleGenreKey(title, author)
+	try {
+		const raw = await redis.get(key)
+		if (raw) {
+			const parsed: unknown = JSON.parse(raw)
+			if (isGenreArray(parsed)) return parsed
+		}
+	} catch {
+		// A broken cache has told us nothing; compute.
+	}
+
+	let genres: ApiGenre[] = []
+	try {
+		const matchFetch = opts.matchFetch ?? defaultMatchFetch
+		const matches = await matchFetch(
+			`${title} ${author}`.trim(),
+			{ artist: author, album: title },
+			logger
+		)
+		const top = matches?.[0]
+		const workId = top?.work_id
+		if (
+			workId &&
+			titleSim(title, top?.work_title ?? '') >= TITLE_CONFIRM &&
+			sim(author, top?.author ?? '') >= AUTHOR_CONFIRM
+		) {
+			const workFetch = opts.workFetch ?? fetchChaptarrWork
+			const work = await workFetch(workId, logger)
+			genres = genresFromWork(work?.work?.genres, opts.ctx ?? {})
+		} else if (top) {
+			logger?.debug(
+				{ title, author, saw: top?.work_title },
+				'chaptarr title rescue: match did not confirm; serving without genres'
+			)
+		}
+	} catch (err) {
+		logger?.warn({ err, title }, 'chaptarr title genre rescue failed; serving without genres')
+		return []
+	}
+
+	await redis.set(key, JSON.stringify(genres), 'EX', TITLE_TTL_SECONDS).catch(() => {})
+	return genres
 }

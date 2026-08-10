@@ -87,13 +87,22 @@ mock.module('#helpers/providers/hardcoverGenres', () => ({
 	}
 }))
 
-/** The SECOND genre source: consulted only when Hardcover answered empty. */
+/** The SECOND genre source, and the LAST-RESORT title rescue behind it. */
 let chaptarrGenres: { asin: string; name: string; type: string }[] = []
 let chaptarrAskedIds: string[] = []
+let titleRescueGenres: { asin: string; name: string; type: string }[] = []
+let titleRescueCalls: { title: string; author: string }[] = []
+// Every export the route imports has to be here: a module mock REPLACES the
+// module, so adding an import to show.ts without adding it here fails the whole
+// file with "Export named … not found" rather than a readable assertion.
 mock.module('#helpers/providers/chaptarrGenres', () => ({
 	backfillChaptarrGenres: async ({ id }: { id: string }) => {
 		chaptarrAskedIds.push(id)
 		return chaptarrGenres
+	},
+	chaptarrGenresByTitle: async ({ title, author }: { title: string; author: string }) => {
+		titleRescueCalls.push({ title, author })
+		return titleRescueGenres
 	}
 }))
 
@@ -320,6 +329,31 @@ describe('genre backfill on the item response', () => {
 		backfilledIds = []
 		chaptarrGenres = []
 		chaptarrAskedIds = []
+		titleRescueGenres = []
+		titleRescueCalls = []
+	})
+
+	test('the title rescue fires ONLY when every other source is mute', async () => {
+		// Gated on an empty result so it costs a request only for the books that
+		// would otherwise serve nothing — measured 2026-08-10, 94 of 1,607 albums,
+		// 63 of them pinned to openlibrary/overdrive ids that cannot be mapped to
+		// a Chaptarr work at all.
+		served = bookRecord({ genres: [] })
+		backfillGenres = []
+		chaptarrGenres = []
+		titleRescueGenres = [{ asin: '1000000021', name: 'Fantasy', type: 'genre' }]
+		const { body } = await get('B0TESTASIN')
+		expect(titleRescueCalls).toHaveLength(1)
+		expect(body.genres.map((g: { name: string }) => g.name)).toEqual(['Fantasy'])
+	})
+
+	test('a book that got genres from ANY source never pays for the rescue', async () => {
+		served = bookRecord({ genres: [] })
+		backfillGenres = HC_GENRES
+		titleRescueGenres = [{ asin: '1000000021', name: 'ShouldNotAppear', type: 'genre' }]
+		const { body } = await get('B0TESTASIN')
+		expect(titleRescueCalls).toEqual([])
+		expect(body.genres.map((g: { name: string }) => g.name)).not.toContain('ShouldNotAppear')
 	})
 
 	test('Hardcover empty -> the CHAPTARR fallback answers', async () => {

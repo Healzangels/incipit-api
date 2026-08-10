@@ -4,6 +4,7 @@ import { ApiGenreSchema } from '#config/types'
 import {
 	backfillChaptarrGenres,
 	chaptarrGenreKey,
+	chaptarrGenresByTitle,
 	chaptarrWorkIdFor,
 	genresFromWork
 } from '#helpers/providers/chaptarrGenres'
@@ -258,5 +259,131 @@ describe('umbrella shelves are dropped', () => {
 		// only ranking there is, and inventing another would lose information.
 		const out = genresFromWork(['Zebra', 'Apple', 'Fiction', 'Mango']).map((g) => g.name)
 		expect(out).toEqual(['Zebra', 'Apple', 'Mango'])
+	})
+})
+
+describe('chaptarrGenresByTitle — the last-resort rescue', () => {
+	/**
+	 * WHY IT EXISTS. Measured on the live library 2026-08-10: 94 of 1,607 albums
+	 * carried NO genres at all, and 63 were pinned to `openlibrary-works-…` or
+	 * `overdrive-…` editions. chaptarrWorkIdFor maps only az: and hc:, so those
+	 * books could never reach the work route — and Audible has no record for them
+	 * either, so every source was mute. Their records carry a title and an author
+	 * and nothing else (no asin, no isbn — checked), which is why the /match
+	 * endpoint is the only handle left.
+	 */
+	let redis: FakeRedis
+	beforeEach(() => {
+		redis = new FakeRedis()
+	})
+
+	const WORK = { work: { genres: ['Fantasy', 'Adventure', 'Magic'] } }
+	const rescue = (over: Record<string, unknown> = {}) =>
+		chaptarrGenresByTitle({
+			title: 'Castle Roogna',
+			author: 'Piers Anthony',
+			redis: redis as never,
+			matchFetch: async () => [
+				{ work_id: 'hc:123645', work_title: 'Castle Roogna', author: 'Piers Anthony' }
+			],
+			workFetch: async () => WORK,
+			...over
+		} as never)
+
+	test('a confirmed match yields its genres', async () => {
+		// The real shape: /match answered exactly this for Castle Roogna.
+		const out = await rescue()
+		expect(out.map((g) => g.name)).toEqual(['Fantasy', 'Adventure', 'Magic'])
+	})
+
+	test('a SUBTITLED work title still confirms — the reason titleSim is used', async () => {
+		// Chaptarr carries the series qualifier the record omits. An exact fold
+		// rejected 17 of 65 probed books, nearly all of them this case; titleSim
+		// took the yield from 38 to 45 without admitting a wrong book.
+		for (const wt of ['Night Mare :Xanth 6', 'Night Mare (Xanth #6)', 'Night Mare: A Novel']) {
+			const out = await rescue({
+				title: 'Night Mare',
+				matchFetch: async () => [{ work_id: 'hc:1', work_title: wt, author: 'Piers Anthony' }]
+			})
+			expect(out.length).toBeGreaterThan(0)
+		}
+	})
+
+	test('A WRONG TITLE is refused', async () => {
+		// A title query matches far too many books to accept on faith. Attaching
+		// another book's genres is silent and permanent.
+		expect(
+			await rescue({
+				matchFetch: async () => [
+					{ work_id: 'hc:9', work_title: 'A Spell for Chameleon', author: 'Piers Anthony' }
+				]
+			})
+		).toEqual([])
+	})
+
+	test('A WRONG AUTHOR is refused, even when the title is exact', async () => {
+		// SEPARATE TEST, AND A SEPARATE REDIS, on purpose. Both assertions used to
+		// live in one test sharing `redis`, and the cache key is derived from
+		// title+author — so the second call read the first call's cached [] and
+		// the author branch was never executed. Mutation testing caught it:
+		// replacing the author check with `true` left the suite green.
+		redis = new FakeRedis()
+		const out = await rescue({
+			matchFetch: async () => [
+				{ work_id: 'hc:9', work_title: 'Castle Roogna', author: 'Terry Pratchett' }
+			]
+		})
+		expect(out).toEqual([])
+	})
+
+	test('no match, no work id, and a thrown fetch all serve []', async () => {
+		expect(await rescue({ matchFetch: async () => [] })).toEqual([])
+		expect(
+			await rescue({
+				matchFetch: async () => [{ work_title: 'Castle Roogna', author: 'Piers Anthony' }]
+			})
+		).toEqual([])
+		expect(
+			await rescue({
+				matchFetch: async () => {
+					throw new Error('down')
+				}
+			})
+		).toEqual([])
+	})
+
+	test('a title-only or author-only record never even asks', async () => {
+		// Both halves are required for the confirmation, so a record missing one
+		// cannot be rescued and must not spend a request finding that out.
+		const calls: string[] = []
+		const spy = async (q: string) => {
+			calls.push(q)
+			return []
+		}
+		expect(await rescue({ author: '', matchFetch: spy })).toEqual([])
+		expect(await rescue({ title: '', matchFetch: spy })).toEqual([])
+		expect(calls).toEqual([])
+	})
+
+	test('the answer is cached, including the empty one', async () => {
+		let asked = 0
+		const counting = async () => {
+			asked++
+			return [{ work_id: 'hc:9', work_title: 'Something Else', author: 'Nobody' }]
+		}
+		await rescue({ matchFetch: counting })
+		await rescue({ matchFetch: counting })
+		expect(asked).toBe(1)
+		expect(redis.writes[0]?.ttl).toBe(604800)
+	})
+
+	test('no redis means no compute — nowhere to record the answer', async () => {
+		const calls: string[] = []
+		const spy = async (q: string) => {
+			calls.push(q)
+			return []
+		}
+		expect(await rescue({ redis: null, matchFetch: spy })).toEqual([])
+		expect(calls).toEqual([])
 	})
 })

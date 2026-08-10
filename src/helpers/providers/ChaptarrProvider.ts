@@ -71,7 +71,7 @@ export function chaptarrEnabled(): boolean {
 	return process.env.CHAPTARR_ENABLED !== 'false'
 }
 
-interface ChaptarrMatch {
+export interface ChaptarrMatch {
 	author?: string
 	author_id?: string
 	work_title?: string
@@ -162,7 +162,7 @@ export async function chaptarrGet(url: string): Promise<unknown> {
 	return res?.data ?? null
 }
 
-const defaultMatchFetch: ChaptarrMatchFetch = async (q, tags) => {
+export const defaultMatchFetch: ChaptarrMatchFetch = async (q, tags) => {
 	// `tags` is LOAD-BEARING, not optional garnish: the server answers a bare
 	// {q, media_type} body with {} — no error, no matches. Measured live
 	// 2026-08-08, and it cost this provider its first deploy (1 call, 0
