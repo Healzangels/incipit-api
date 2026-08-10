@@ -314,3 +314,44 @@ describe('mergeGenres', () => {
 		expect(merged).toHaveLength(MAX_MERGED_GENRES)
 	})
 })
+
+describe('generic umbrellas never outrank specific genres, from ANY source', () => {
+	// Measured live 2026-08-10, the second forced refresh after deploy: Fourth
+	// Wing was served Hardcover's frequency-ordered eight — with the umbrella
+	// "Fiction" at position four — which took every slot before Chaptarr's
+	// "High Fantasy" and "Magic" could reach the cap. The album ended up with
+	// MORE genres and FEWER useful ones. Chaptarr had been demoted since it was
+	// added; Hardcover never was, on the grounds that its frequency order is
+	// evidence. Frequency is evidence of what people TAG, not of what is worth
+	// showing, and a stable partition keeps that order among the specifics.
+	test('Hardcover frequency order is preserved among the real genres', () => {
+		const out = namesToGenres([
+			'Fantasy',
+			'Romantasy',
+			'Romance',
+			'Fiction',
+			'Adventure',
+			'High Fantasy',
+			'Magic'
+		]).map((g) => g.name)
+		// Order among the specifics is untouched...
+		expect(out.slice(0, 6)).toEqual([
+			'Fantasy',
+			'Romantasy',
+			'Romance',
+			'Adventure',
+			'High Fantasy',
+			'Magic'
+		])
+		// ...and the umbrella sits behind every one of them.
+		expect(out.indexOf('Fiction')).toBe(out.length - 1)
+	})
+
+	test('a specific genre is never evicted by an umbrella at the cap', () => {
+		// Eight specifics plus an umbrella: the umbrella is what gets cut.
+		const names = ['Fiction', 'A1', 'B2', 'C3', 'D4', 'E5', 'F6', 'G7', 'H8']
+		const out = namesToGenres(names).map((g) => g.name)
+		expect(out).not.toContain('Fiction')
+		expect(out).toHaveLength(8)
+	})
+})

@@ -72,6 +72,37 @@ const NOISE_SHELVES = new Set([
 	'unknown'
 ])
 
+/**
+ * Umbrella shelves that describe almost every book and so distinguish none.
+ *
+ * NOT noise — "Fiction" is a true statement and worth a slot if one is spare.
+ * It simply must never outrank a genre that actually says something. Lives here
+ * rather than in chaptarrGenres because BOTH community sources need it: see
+ * namesToGenres.
+ */
+const GENERIC_SHELVES = new Set([
+	'fiction',
+	'nonfiction',
+	'non fiction',
+	'literature fiction',
+	'general',
+	'book',
+	'novel',
+	'adult',
+	'adult fiction',
+	'audiobook',
+	'classic'
+])
+
+/**
+ * Whether a name is an umbrella that describes almost every book.
+ * @param {string} name a cleaned genre name
+ * @returns {boolean} true when it should sort behind the specific genres
+ */
+export function isGenericShelf(name: string): boolean {
+	return GENERIC_SHELVES.has(dedupeKey(name))
+}
+
 /** Longest a real genre name runs. "Intercontinental ballistic missiles" (35)
  * is a subject heading; "Mystery, Thriller & Suspense" (28) is a real Audible
  * category, so the line sits above one and below the other. */

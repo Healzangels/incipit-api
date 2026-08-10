@@ -6,6 +6,7 @@ import type { GenreContext } from '#helpers/providers/genreNormalize'
 import {
 	canonicalName,
 	dedupeKey,
+	isGenericShelf,
 	isNoiseShelf,
 	isSelfReference,
 	normalizeDisplay,
@@ -191,7 +192,15 @@ export function genresFromCachedTags(raw: unknown, ctx: GenreContext = {}): ApiG
  */
 export function namesToGenres(names: string[], ctx: GenreContext = {}): ApiGenre[] {
 	const seen = new Set<string>()
-	const out: ApiGenre[] = []
+	// A STABLE PARTITION, applied to EVERY community source rather than Chaptarr
+	// alone. Hardcover orders by tag frequency, and that order is evidence worth
+	// keeping — but frequency is not usefulness: measured live 2026-08-10 on
+	// Fourth Wing, Hardcover ranked the umbrella "Fiction" fourth and took eight
+	// of the ten slots, so "High Fantasy" and "Magic" never got one and the album
+	// LOST both in the merge. Partitioning keeps Hardcover's order among the
+	// genres that say something and only ever moves umbrellas behind them.
+	const specific: ApiGenre[] = []
+	const generic: ApiGenre[] = []
 	for (const name of names) {
 		// SPLIT FIRST. A joined shelf carries several real genres, and judging the
 		// whole string discards all of them: "Fiction / Fantasy / General" is one
@@ -211,10 +220,12 @@ export function namesToGenres(names: string[], ctx: GenreContext = {}): ApiGenre
 			const key = dedupeKey(display)
 			if (!key || seen.has(key)) continue
 			seen.add(key)
-			out.push({ asin: syntheticGenreAsin(display), name: display, type: 'genre' })
-			if (out.length >= MAX_GENRES) return out
+			const genre: ApiGenre = { asin: syntheticGenreAsin(display), name: display, type: 'genre' }
+			if (isGenericShelf(display)) generic.push(genre)
+			else specific.push(genre)
 		}
 	}
+	const out = [...specific, ...generic].slice(0, MAX_GENRES)
 	return out
 }
 

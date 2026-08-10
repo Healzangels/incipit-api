@@ -38,7 +38,12 @@ const ANNIHILATION_TAGS = {
 describe('genresFromCachedTags', () => {
 	test('takes the Genre bucket only — Moods and Tags are review vocabulary', () => {
 		const names = genresFromCachedTags(ANNIHILATION_TAGS).map((g) => g.name)
-		expect(names).toEqual(['Fiction', 'Horror', 'Science Fiction', 'Adventure', 'Suspense'])
+		// "Fiction" now sorts LAST rather than first. Hardcover ranks by tag
+		// frequency and "Fiction" is the most-tagged thing on almost any novel,
+		// which is precisely why it says nothing — and on Fourth Wing (live,
+		// 2026-08-10) it took a slot that "High Fantasy" and "Magic" then could
+		// not reach. The frequency order among the REAL genres is untouched.
+		expect(names).toEqual(['Horror', 'Science Fiction', 'Adventure', 'Suspense', 'Fiction'])
 		expect(names).not.toContain('mysterious')
 		expect(names).not.toContain('Unloveable Characters')
 	})
@@ -180,12 +185,13 @@ describe('backfillHardcoverGenres', () => {
 			token: 't',
 			gql
 		})
+		// "Fiction" sorts last — see the ordering note on genresFromCachedTags.
 		expect(out.map((g) => g.name)).toEqual([
-			'Fiction',
 			'Horror',
 			'Science Fiction',
 			'Adventure',
-			'Suspense'
+			'Suspense',
+			'Fiction'
 		])
 		expect(calls.length).toBe(1)
 		expect(calls[0].variables).toEqual({ asin: 'B00HYGYN5Q' })
