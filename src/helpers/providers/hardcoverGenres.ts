@@ -13,6 +13,7 @@ import {
 	splitJoinedShelf
 } from '#helpers/providers/genreNormalize'
 import { defaultGql, type HardcoverGql } from '#helpers/providers/HardcoverProvider'
+import { sameVolume, sim, titleSim } from '#helpers/providers/matchScorer'
 import { decodeProviderId } from '#helpers/providers/providerId'
 
 /**
@@ -83,6 +84,19 @@ const GENRES_BY_EDITION_QUERY = `query IncipitGenresByEdition($id: Int!) {
 const GENRES_BY_BOOK_QUERY = `query IncipitGenresByBook($id: Int!) {
 	books(where: { id: { _eq: $id } }, limit: 1) {
 		cached_tags
+	}
+}`
+
+/** Title lookup for the last-resort rescue. Asks for the title and the author
+ * names too, because the answer is CONFIRMED before it is used — a title query
+ * alone matches far too many books. Limit 5: enough that the right edition is
+ * in reach, small enough that this stays one cheap query rather than the
+ * registry's multi-second provider fan-out. */
+const GENRES_BY_TITLE_QUERY = `query IncipitGenresByTitle($title: String!) {
+	books(where: { title: { _ilike: $title } }, limit: 5) {
+		title
+		cached_tags
+		contributions { author { name } }
 	}
 }`
 
@@ -333,4 +347,97 @@ export async function backfillHardcoverGenres(opts: BackfillOpts): Promise<ApiGe
 		logger?.warn({ err, id }, 'hardcover genre backfill failed; serving without genres')
 		return []
 	}
+}
+
+/** Same thresholds as the Chaptarr rescue — one confirmation standard. */
+const TITLE_CONFIRM = 0.85
+const AUTHOR_CONFIRM = 0.9
+/** 7 days: a title-matched answer is weaker evidence than an id-keyed one. */
+const TITLE_TTL_SECONDS = 604800
+
+interface TitleBook {
+	title?: string | null
+	cached_tags?: unknown
+	contributions?: { author?: { name?: string | null } | null }[] | null
+}
+
+/** Cache key for a Hardcover title rescue. */
+export function hardcoverTitleGenreKey(title: string, author: string): string {
+	const fold = (s: string) =>
+		(s ?? '')
+			.toLowerCase()
+			.replace(/[^a-z0-9]+/g, '-')
+			.replace(/^-|-$/g, '')
+	return `incipit:hctgenres:${KEY_VERSION}:${fold(title)}|${fold(author)}`
+}
+
+interface TitleRescueOpts {
+	title: string
+	author: string
+	redis: FastifyRedis | null
+	token?: string
+	logger?: FastifyBaseLogger
+	ctx?: GenreContext
+	gql?: HardcoverGql
+}
+
+/**
+ * LAST RESORT: Hardcover genres found by TITLE, for a book its ASIN cannot
+ * reach.
+ *
+ * WHY. backfillHardcoverGenres queries by asin/edition/book id, so an audiobook
+ * ASIN that is simply absent from Hardcover's edition table misses a book
+ * Hardcover plainly has. Measured 2026-08-10 on the 25 plain-ASIN albums still
+ * without genres after the Chaptarr rescue: Chaptarr resolved every one of them
+ * to the right work but those works carry NO genres (Neuromancer, Brave New
+ * World, The Odyssey, four Vince Flynn thrillers), while Hardcover holds 7-9
+ * good genres for the same books under a different edition id. 14 of the 25
+ * are recoverable this way.
+ *
+ * CONFIRMED on title, author AND volume. The volume check is not defensive
+ * padding: probing this fallback, "Wreck Jumpers 2" and "Wreck Jumpers 3" both
+ * matched the SAME hardcover book, because titleSim treats a trailing volume
+ * number as noise.
+ * @param {TitleRescueOpts} opts title, author, redis, token, optional seams
+ * @returns {Promise<ApiGenre[]>} genres, or [] when nothing confirmed
+ */
+export async function hardcoverGenresByTitle(opts: TitleRescueOpts): Promise<ApiGenre[]> {
+	const { title, author, redis, token, logger } = opts
+	if (!redis || !title || !author) return []
+
+	const key = hardcoverTitleGenreKey(title, author)
+	try {
+		const raw = await redis.get(key)
+		if (raw) {
+			const parsed: unknown = JSON.parse(raw)
+			if (isGenreArray(parsed)) return parsed
+		}
+	} catch {
+		// A broken cache has told us nothing; compute.
+	}
+	if (!token) return []
+
+	let genres: ApiGenre[] = []
+	try {
+		const gql = opts.gql ?? defaultGql
+		const data = await gql<{ books?: TitleBook[] }>(GENRES_BY_TITLE_QUERY, { title }, token)
+		for (const book of data.books ?? []) {
+			const candidateTitle = book.title ?? ''
+			if (titleSim(title, candidateTitle) < TITLE_CONFIRM) continue
+			if (!sameVolume(title, candidateTitle)) continue
+			const names = (book.contributions ?? []).map((c) => c?.author?.name ?? '').filter(Boolean)
+			if (!names.some((n) => sim(author, n) >= AUTHOR_CONFIRM)) continue
+			const found = genresFromCachedTags(book.cached_tags, opts.ctx ?? {})
+			if (found.length) {
+				genres = found
+				break
+			}
+		}
+	} catch (err) {
+		logger?.warn({ err, title }, 'hardcover title genre rescue failed; serving without genres')
+		return []
+	}
+
+	await redis.set(key, JSON.stringify(genres), 'EX', TITLE_TTL_SECONDS).catch(() => {})
+	return genres
 }

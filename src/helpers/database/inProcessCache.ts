@@ -71,7 +71,17 @@ export class InProcessCache {
 			// pathology this scheme's header exists to prevent.
 			mkPartition(
 				'enrichment',
-				['incipit:hcgenres:', 'incipit:ctgenres:', 'incipit:ctauthor:'],
+				[
+					'incipit:hcgenres:',
+					'incipit:ctgenres:',
+					'incipit:ctauthor:',
+					// The two TITLE-keyed genre rescues (2026-08-10). Their negatives
+					// matter more than most: they are the answer for books every
+					// other source is mute about, so an eviction re-pays a Chaptarr
+					// match plus a Hardcover GraphQL query on the next refresh.
+					'incipit:ctgenres-t:',
+					'incipit:hctgenres:'
+				],
 				8 * 1024 * 1024,
 				20000
 			)

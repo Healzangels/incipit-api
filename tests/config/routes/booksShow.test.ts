@@ -77,6 +77,8 @@ mock.module('#helpers/providers/squareCover', () => ({
  * same lesson as recalledKeys below. */
 let backfillGenres: { asin: string; name: string; type: string }[] = []
 let backfilledIds: string[] = []
+let hcTitleRescueGenres: { asin: string; name: string; type: string }[] = []
+let hcTitleRescueCalls: { title: string; author: string }[] = []
 const realHardcoverGenres = await import('#helpers/providers/hardcoverGenres')
 mock.module('#helpers/providers/hardcoverGenres', () => ({
 	...realHardcoverGenres,
@@ -84,6 +86,10 @@ mock.module('#helpers/providers/hardcoverGenres', () => ({
 		await enrichTrace('genres')
 		backfilledIds.push(id)
 		return backfillGenres
+	},
+	hardcoverGenresByTitle: async ({ title, author }: { title: string; author: string }) => {
+		hcTitleRescueCalls.push({ title, author })
+		return hcTitleRescueGenres
 	}
 }))
 
@@ -331,6 +337,23 @@ describe('genre backfill on the item response', () => {
 		chaptarrAskedIds = []
 		titleRescueGenres = []
 		titleRescueCalls = []
+		hcTitleRescueGenres = []
+		hcTitleRescueCalls = []
+	})
+
+	test('BOTH title rescues run, and Hardcover leads the merge', async () => {
+		// They fail for different reasons and cover each other: Chaptarr cannot be
+		// asked about openlibrary/overdrive ids at all, while Hardcover is queried
+		// only by ASIN and misses books it plainly has.
+		served = bookRecord({ genres: [] })
+		backfillGenres = []
+		chaptarrGenres = []
+		hcTitleRescueGenres = [{ asin: '1000000031', name: 'Cyberpunk', type: 'genre' }]
+		titleRescueGenres = [{ asin: '1000000032', name: 'Dystopian', type: 'genre' }]
+		const { body } = await get('B0TESTASIN')
+		expect(hcTitleRescueCalls).toHaveLength(1)
+		expect(titleRescueCalls).toHaveLength(1)
+		expect(body.genres.map((g: { name: string }) => g.name)).toEqual(['Cyberpunk', 'Dystopian'])
 	})
 
 	test('the title rescue fires ONLY when every other source is mute', async () => {
@@ -351,8 +374,10 @@ describe('genre backfill on the item response', () => {
 		served = bookRecord({ genres: [] })
 		backfillGenres = HC_GENRES
 		titleRescueGenres = [{ asin: '1000000021', name: 'ShouldNotAppear', type: 'genre' }]
+		hcTitleRescueGenres = [{ asin: '1000000022', name: 'AlsoNot', type: 'genre' }]
 		const { body } = await get('B0TESTASIN')
 		expect(titleRescueCalls).toEqual([])
+		expect(hcTitleRescueCalls).toEqual([])
 		expect(body.genres.map((g: { name: string }) => g.name)).not.toContain('ShouldNotAppear')
 	})
 

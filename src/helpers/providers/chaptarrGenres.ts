@@ -11,7 +11,7 @@ import {
 } from '#helpers/providers/ChaptarrProvider'
 import type { GenreContext } from '#helpers/providers/genreNormalize'
 import { cleanGenreName, isGenreArray, namesToGenres } from '#helpers/providers/hardcoverGenres'
-import { sim, titleSim } from '#helpers/providers/matchScorer'
+import { sameVolume, sim, titleSim } from '#helpers/providers/matchScorer'
 import { decodeProviderId } from '#helpers/providers/providerId'
 
 /**
@@ -247,6 +247,11 @@ export async function chaptarrGenresByTitle(opts: TitleRescueOpts): Promise<ApiG
 		if (
 			workId &&
 			titleSim(title, top?.work_title ?? '') >= TITLE_CONFIRM &&
+			// A trailing volume number is noise to titleSim, so "Wreck Jumpers 2"
+			// and "Wreck Jumpers 3" both clear the title bar against "Wreck
+			// Jumpers" — demonstrated on the Hardcover probe 2026-08-10, where the
+			// two resolved to one id. Same exposure here, same guard.
+			sameVolume(title, top?.work_title ?? '') &&
 			sim(author, top?.author ?? '') >= AUTHOR_CONFIRM
 		) {
 			const workFetch = opts.workFetch ?? fetchChaptarrWork

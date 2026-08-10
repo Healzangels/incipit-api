@@ -11,7 +11,7 @@ import {
 import { backfillChaptarrGenres, chaptarrGenresByTitle } from '#helpers/providers/chaptarrGenres'
 import { mergeGenres } from '#helpers/providers/genreNormalize'
 import { withGoodreadsSeries } from '#helpers/providers/goodreadsSeries'
-import { backfillHardcoverGenres } from '#helpers/providers/hardcoverGenres'
+import { backfillHardcoverGenres, hardcoverGenresByTitle } from '#helpers/providers/hardcoverGenres'
 import ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
 import defaultRegistry from '#helpers/providers/registry'
 import { bestSquareCover } from '#helpers/providers/squareCover'
@@ -240,13 +240,34 @@ async function _show(fastify: FastifyInstance) {
 			// cannot map to a work at all. Those records carry a title and an
 			// author and nothing else, so a confirmed title match is the only
 			// handle left.
-			const rescued = await chaptarrGenresByTitle({
-				title: book?.title ?? '',
-				author: book?.authors?.[0]?.name ?? '',
-				redis: fastify.redis ?? null,
-				logger: request.log,
-				ctx
-			})
+			//
+			// TWO rescues, concurrently, because they fail for DIFFERENT reasons and
+			// each covers the other's gap. Chaptarr cannot be asked about
+			// openlibrary/overdrive ids at all (63 albums); Hardcover is only ever
+			// queried by ASIN, so an audiobook ASIN absent from its edition table
+			// misses a book it plainly has (25 albums, of which Chaptarr resolved
+			// every one to a work carrying NO genres). Hardcover first on the
+			// merge: its curated bucket beats a raw Goodreads shelf list.
+			const rescueTitle = book?.title ?? ''
+			const rescueAuthor = book?.authors?.[0]?.name ?? ''
+			const [hcRescue, ctRescue] = await Promise.all([
+				hardcoverGenresByTitle({
+					title: rescueTitle,
+					author: rescueAuthor,
+					redis: fastify.redis ?? null,
+					token: credentials.hardcover ?? process.env.HARDCOVER_TOKEN,
+					logger: request.log,
+					ctx
+				}),
+				chaptarrGenresByTitle({
+					title: rescueTitle,
+					author: rescueAuthor,
+					redis: fastify.redis ?? null,
+					logger: request.log,
+					ctx
+				})
+			])
+			const rescued = mergeGenres([], [...hcRescue, ...ctRescue])
 			return rescued.length ? { ...book, genres: rescued } : book
 		}
 

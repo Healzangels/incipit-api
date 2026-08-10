@@ -122,7 +122,12 @@ describe('every cache namespace in src/ has a partition', () => {
 
 	const namespaces = new Map<string, string>()
 	for (const file of tsFiles(SRC)) {
-		for (const m of readFileSync(file, 'utf8').matchAll(/incipit:[a-z0-9]+:/g)) {
+		// HYPHENS INCLUDED. The pattern was /incipit:[a-z0-9]+:/, which cannot
+		// match `incipit:ctgenres-t:` — so that namespace shipped unpartitioned
+		// and this guard, whose entire job is to catch exactly that, said nothing
+		// (2026-08-10). A guard with a blind spot is worse than no guard: it is
+		// read as coverage.
+		for (const m of readFileSync(file, 'utf8').matchAll(/incipit:[a-z0-9-]+:/g)) {
 			if (!namespaces.has(m[0])) namespaces.set(m[0], relative(SRC, file))
 		}
 	}
@@ -131,6 +136,9 @@ describe('every cache namespace in src/ has a partition', () => {
 		// A regex that matched nothing would make every assertion below vacuous.
 		expect(namespaces.size).toBeGreaterThanOrEqual(5)
 		expect([...namespaces.keys()]).toContain('incipit:altcover:')
+		// A HYPHENATED namespace must be visible to the sweep — the blind spot
+		// that let incipit:ctgenres-t: through.
+		expect([...namespaces.keys()]).toContain('incipit:ctgenres-t:')
 	})
 
 	for (const [prefix, file] of namespaces) {

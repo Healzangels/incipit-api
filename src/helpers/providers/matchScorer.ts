@@ -198,6 +198,33 @@ export function titleSim(want: string, cand: string): number {
 	)
 }
 
+/** Trailing volume number on a title's stem, or null. "Wreck Jumpers 2" -> 2. */
+function volumeOf(s: string): number | null {
+	const stem = (s || '').split(/\s*[:(]\s*/)[0]
+	const m = /(?:^|\s)(\d{1,3})\s*$/.exec(stem)
+	return m?.[1] ? Number(m[1]) : null
+}
+
+/**
+ * Whether two titles refer to the same VOLUME.
+ *
+ * titleSim deliberately tolerates subtitles, and that tolerance treats a
+ * trailing volume number as noise: "Wreck Jumpers 2" and "Wreck Jumpers 3" both
+ * score above 0.85 against "Wreck Jumpers", so a title-only confirmation
+ * happily attaches one volume's data to another. Measured 2026-08-10 while
+ * probing a Hardcover genre fallback — both books resolved to the SAME
+ * hardcover id.
+ *
+ * A missing number on both sides is agreement; a number on one side only is
+ * not, because that is exactly the "Wreck Jumpers 2" vs "Wreck Jumpers" case.
+ * @param {string} a one title
+ * @param {string} b the other
+ * @returns {boolean} true when neither carries a volume, or both carry the same
+ */
+export function sameVolume(a: string, b: string): boolean {
+	return volumeOf(a) === volumeOf(b)
+}
+
 export interface CandidateScore {
 	confidence: number
 	durationDeltaPct: number | null
