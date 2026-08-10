@@ -5,8 +5,8 @@ import {
 	backfillChaptarrGenres,
 	chaptarrGenreKey,
 	chaptarrWorkIdFor,
-	demoteGenericShelves,
-	genresFromWork} from '#helpers/providers/chaptarrGenres'
+	genresFromWork
+} from '#helpers/providers/chaptarrGenres'
 
 /**
  * Chaptarr genre backfill — the second source in the genre leg.
@@ -44,24 +44,21 @@ describe('a generic shelf produced BY A SPLIT is still demoted', () => {
 		// Measured live 2026-08-10 on the first forced refresh after the merge
 		// shipped: "Fiction" landed ahead of "Space Opera" on Project Hail Mary
 		// and ahead of "High Fantasy" on Fourth Wing, where the cap then dropped
-		// the specific genre and kept the umbrella. demoteGenericShelves ran
-		// BEFORE namesToGenres split the joined shelf, so a generic name that
-		// only existed as part of one was never offered to the demotion.
+		// the specific genre and kept the umbrella. Demotion fixed the ordering;
+		// umbrellas are now dropped outright, so the split must not smuggle one
+		// back in as a usable name.
 		const out = genresFromWork([
 			'Fiction / Fantasy / General',
 			'High Fantasy',
 			'Space Opera'
 		]).map((g) => g.name)
-		expect(out.indexOf('Fiction')).toBeGreaterThan(out.indexOf('High Fantasy'))
-		expect(out.indexOf('Fiction')).toBeGreaterThan(out.indexOf('Space Opera'))
+		expect(out).toEqual(['Fantasy', 'High Fantasy', 'Space Opera'])
 	})
 
 	test('the specific genres inside a joined shelf keep their place', () => {
 		// Splitting early must not cost the useful halves their position.
 		const out = genresFromWork(['Fiction / Fantasy', 'Horror']).map((g) => g.name)
-		expect(out).toContain('Fantasy')
-		expect(out).toContain('Horror')
-		expect(out.indexOf('Fiction')).toBe(out.length - 1)
+		expect(out).toEqual(['Fantasy', 'Horror'])
 	})
 })
 
@@ -228,9 +225,12 @@ describe('backfillChaptarrGenres', () => {
 	})
 })
 
-describe('demoteGenericShelves', () => {
+describe('umbrella shelves are dropped', () => {
 	// Chaptarr returns Goodreads shelves ALPHABETICALLY, and namesToGenres caps
 	// at MAX_GENRES — which quietly made alphabetical order the selection rule.
+	// Umbrellas were demoted first; that fixed the ordering but still let them
+	// occupy slots on books with few community genres, so they are now dropped.
+	// demoteGenericShelves went with the change: one rule, in namesToGenres.
 	const ANNIHILATION = [
 		'Adventure', 'Audiobook', 'Book Club', 'Dystopia', 'Fantasy', 'Fiction',
 		'General', 'Horror', 'Literary Fiction', 'Literature & Fiction', 'Mystery',
@@ -248,35 +248,15 @@ describe('demoteGenericShelves', () => {
 		expect(names).not.toContain('literature & fiction')
 	})
 
-	test('umbrellas go last but are NOT dropped', () => {
-		// "Fiction" is true and worth keeping when there is room; it just must
-		// not outrank a genre that says something.
-		expect(demoteGenericShelves(['Fiction', 'Dystopia', 'General', 'Horror'])).toEqual([
-			'Dystopia',
-			'Horror',
-			'Fiction',
-			'General'
-		])
+	test('an umbrella never reaches the output at all', () => {
+		const out = genresFromWork(['Fiction', 'Dystopia', 'General', 'Horror']).map((g) => g.name)
+		expect(out).toEqual(['Dystopia', 'Horror'])
 	})
 
-	test('order WITHIN each group is left alone', () => {
-		// A stable partition, not a sort: reordering the specific genres against
-		// each other would invent a ranking this provider never supplied.
-		expect(demoteGenericShelves(['Zebra', 'Apple', 'Fiction', 'Mango'])).toEqual([
-			'Zebra',
-			'Apple',
-			'Mango',
-			'Fiction'
-		])
-	})
-
-	test('matching is post-clean and case-insensitive, like SHELF_NOISE', () => {
-		const out = demoteGenericShelves(['  FICTION  ', 'Dystopia', 'Literature and Fiction'])
-		expect(out[0]).toBe('Dystopia')
-		expect(out).toHaveLength(3)
-	})
-
-	test('an all-generic list is untouched rather than emptied', () => {
-		expect(demoteGenericShelves(['Fiction', 'General'])).toEqual(['Fiction', 'General'])
+	test('order among the real genres is left alone', () => {
+		// Dropping must not reorder what remains: the provider's sequence is the
+		// only ranking there is, and inventing another would lose information.
+		const out = genresFromWork(['Zebra', 'Apple', 'Fiction', 'Mango']).map((g) => g.name)
+		expect(out).toEqual(['Zebra', 'Apple', 'Mango'])
 	})
 })

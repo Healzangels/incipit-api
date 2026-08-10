@@ -38,12 +38,14 @@ const ANNIHILATION_TAGS = {
 describe('genresFromCachedTags', () => {
 	test('takes the Genre bucket only — Moods and Tags are review vocabulary', () => {
 		const names = genresFromCachedTags(ANNIHILATION_TAGS).map((g) => g.name)
-		// "Fiction" now sorts LAST rather than first. Hardcover ranks by tag
+		// "Fiction" is DROPPED, not merely sorted last. Hardcover ranks by tag
 		// frequency and "Fiction" is the most-tagged thing on almost any novel,
-		// which is precisely why it says nothing — and on Fourth Wing (live,
-		// 2026-08-10) it took a slot that "High Fantasy" and "Magic" then could
-		// not reach. The frequency order among the REAL genres is untouched.
-		expect(names).toEqual(['Horror', 'Science Fiction', 'Adventure', 'Suspense', 'Fiction'])
+		// which is precisely why it says nothing. Demotion alone still let it
+		// through wherever a book had few community genres — Project Hail Mary
+		// came back carrying "Fiction" and "Adult" beside Audible's own
+		// "Science Fiction & Fantasy" (live, 2026-08-10). The frequency order
+		// among the REAL genres is untouched.
+		expect(names).toEqual(['Horror', 'Science Fiction', 'Adventure', 'Suspense'])
 		expect(names).not.toContain('mysterious')
 		expect(names).not.toContain('Unloveable Characters')
 	})
@@ -69,7 +71,7 @@ describe('genresFromCachedTags', () => {
 	})
 
 	test('tolerates the jsonb-as-string form and garbage shapes', () => {
-		expect(genresFromCachedTags(JSON.stringify(ANNIHILATION_TAGS)).length).toBe(5)
+		expect(genresFromCachedTags(JSON.stringify(ANNIHILATION_TAGS)).length).toBe(4)
 		expect(genresFromCachedTags('not json')).toEqual([])
 		expect(genresFromCachedTags(null)).toEqual([])
 		expect(genresFromCachedTags(42)).toEqual([])
@@ -185,13 +187,12 @@ describe('backfillHardcoverGenres', () => {
 			token: 't',
 			gql
 		})
-		// "Fiction" sorts last — see the ordering note on genresFromCachedTags.
+		// "Fiction" is dropped — see the note on genresFromCachedTags.
 		expect(out.map((g) => g.name)).toEqual([
 			'Horror',
 			'Science Fiction',
 			'Adventure',
-			'Suspense',
-			'Fiction'
+			'Suspense'
 		])
 		expect(calls.length).toBe(1)
 		expect(calls[0].variables).toEqual({ asin: 'B00HYGYN5Q' })
@@ -252,7 +253,7 @@ describe('backfillHardcoverGenres', () => {
 			token: 't',
 			gql: gql2
 		})
-		expect(out.length).toBe(5)
+		expect(out.length).toBe(4)
 		expect(calls2.length).toBe(0)
 	})
 
@@ -277,7 +278,7 @@ describe('backfillHardcoverGenres', () => {
 		})
 		expect(bCalls[0].query).toContain('books(where: { id:')
 		expect(bCalls[0].variables).toEqual({ id: 376172 })
-		expect(out.length).toBe(5)
+		expect(out.length).toBe(4)
 	})
 
 	test('a non-Hardcover provider id asks nothing — Hardcover cannot answer it', async () => {
@@ -358,7 +359,7 @@ describe('backfillHardcoverGenres', () => {
 			token: 't',
 			gql
 		})
-		expect(out.length).toBe(5)
+		expect(out.length).toBe(4)
 		expect(calls.length).toBe(1)
 	})
 })

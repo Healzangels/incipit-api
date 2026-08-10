@@ -335,8 +335,9 @@ describe('generic umbrellas never outrank specific genres, from ANY source', () 
 			'High Fantasy',
 			'Magic'
 		]).map((g) => g.name)
-		// Order among the specifics is untouched...
-		expect(out.slice(0, 6)).toEqual([
+		// The order among the specifics is untouched, and the umbrella is gone
+		// entirely rather than parked at the end.
+		expect(out).toEqual([
 			'Fantasy',
 			'Romantasy',
 			'Romance',
@@ -344,16 +345,16 @@ describe('generic umbrellas never outrank specific genres, from ANY source', () 
 			'High Fantasy',
 			'Magic'
 		])
-		// ...and the umbrella sits behind every one of them.
-		expect(out.indexOf('Fiction')).toBe(out.length - 1)
 	})
 
 	test('a specific genre is never evicted by an umbrella at the cap', () => {
-		// Eight specifics plus an umbrella: the umbrella is what gets cut.
+		// Eight specifics plus an umbrella: the umbrella never competes at all.
+		// Dropping rather than demoting is what makes this structural — it can
+		// only ever free a slot, never take one.
 		const names = ['Fiction', 'A1', 'B2', 'C3', 'D4', 'E5', 'F6', 'G7', 'H8']
 		const out = namesToGenres(names).map((g) => g.name)
 		expect(out).not.toContain('Fiction')
-		expect(out).toHaveLength(8)
+		expect(out).toEqual(['A1', 'B2', 'C3', 'D4', 'E5', 'F6', 'G7', 'H8'])
 	})
 })
 

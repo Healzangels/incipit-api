@@ -57,8 +57,11 @@ const MISS_TTL_SECONDS = 604800
  * v3: the shelf-noise layer (see genreNormalize). Every answer cached under v2
  * was computed WITHOUT the joined-shelf split and the format/BISAC/foreign
  * drops, so serving them for another 30 days would leak exactly the names this
- * change exists to remove. */
-const KEY_VERSION = 'v3'
+ * change exists to remove.
+ *
+ * v4: umbrella shelves are dropped rather than demoted — a v3 answer can still
+ * carry "Fiction" at the tail. */
+const KEY_VERSION = 'v4'
 
 /** Most genres a backfill will attach. Hardcover lists by tag frequency, so
  * the head of the list is the community's actual verdict and the tail is
@@ -192,15 +195,23 @@ export function genresFromCachedTags(raw: unknown, ctx: GenreContext = {}): ApiG
  */
 export function namesToGenres(names: string[], ctx: GenreContext = {}): ApiGenre[] {
 	const seen = new Set<string>()
-	// A STABLE PARTITION, applied to EVERY community source rather than Chaptarr
-	// alone. Hardcover orders by tag frequency, and that order is evidence worth
-	// keeping — but frequency is not usefulness: measured live 2026-08-10 on
-	// Fourth Wing, Hardcover ranked the umbrella "Fiction" fourth and took eight
-	// of the ten slots, so "High Fantasy" and "Magic" never got one and the album
-	// LOST both in the merge. Partitioning keeps Hardcover's order among the
-	// genres that say something and only ever moves umbrellas behind them.
-	const specific: ApiGenre[] = []
-	const generic: ApiGenre[] = []
+	// UMBRELLAS ARE DROPPED, not sorted to the back.
+	//
+	// They were demoted first, which fixed the case that mattered — Hardcover
+	// ranked "Fiction" fourth by tag frequency on Fourth Wing and took eight of
+	// ten slots, so "High Fantasy" and "Magic" never got one. But demotion only
+	// moves them; where a book has few community genres they still arrive, and
+	// Project Hail Mary came back with "Fiction" and "Adult" beside Audible's own
+	// "Science Fiction & Fantasy" (measured live 2026-08-10). Neither says
+	// anything a reader can browse by, and Audible already covers the umbrella
+	// level better than the community does.
+	//
+	// Dropping is also the SAFE shape: it can only free a slot, never take one
+	// from a specific genre. Both regressions in this area came from rules that
+	// re-ranked things — a trailing-"fiction" fold that collapsed "Science
+	// Fiction" onto "science", and "classic" wrongly marked an umbrella, which
+	// pushed "Classics" off The Da Vinci Code and let "Russian" in.
+	const out: ApiGenre[] = []
 	for (const name of names) {
 		// SPLIT FIRST. A joined shelf carries several real genres, and judging the
 		// whole string discards all of them: "Fiction / Fantasy / General" is one
@@ -220,12 +231,11 @@ export function namesToGenres(names: string[], ctx: GenreContext = {}): ApiGenre
 			const key = dedupeKey(display)
 			if (!key || seen.has(key)) continue
 			seen.add(key)
-			const genre: ApiGenre = { asin: syntheticGenreAsin(display), name: display, type: 'genre' }
-			if (isGenericShelf(display)) generic.push(genre)
-			else specific.push(genre)
+			if (isGenericShelf(display)) continue
+			out.push({ asin: syntheticGenreAsin(display), name: display, type: 'genre' })
+			if (out.length >= MAX_GENRES) return out
 		}
 	}
-	const out = [...specific, ...generic].slice(0, MAX_GENRES)
 	return out
 }
 

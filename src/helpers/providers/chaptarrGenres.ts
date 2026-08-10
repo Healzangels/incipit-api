@@ -7,7 +7,7 @@ import {
 	type ChaptarrWorkFetch,
 	fetchChaptarrWork
 } from '#helpers/providers/ChaptarrProvider'
-import { type GenreContext, splitJoinedShelf } from '#helpers/providers/genreNormalize'
+import type { GenreContext } from '#helpers/providers/genreNormalize'
 import { cleanGenreName, isGenreArray, namesToGenres } from '#helpers/providers/hardcoverGenres'
 import { decodeProviderId } from '#helpers/providers/providerId'
 
@@ -52,13 +52,15 @@ const MISS_TTL_SECONDS = 604800
 
 /** Bumped whenever the mapping rule changes, exactly like hardcoverGenreKey.
  *
- * v2: the shelf-noise layer, the canonical-spelling table, and the
- * split-before-demote fix. THIS WAS MISSED when the noise layer shipped — the
- * Hardcover key went v2 -> v3 and this one was left at v1, which would have
- * served pre-normalization answers (foreign shelves, LCSH headings, uncanonical
- * spellings) out of cache for a further 30 days while the code that produced
- * them was gone. Two caches, two versions, one rule change: bump BOTH. */
-const KEY_VERSION = 'v2'
+ * v2: the shelf-noise layer and the canonical-spelling table. THIS WAS MISSED
+ * when the noise layer shipped — the Hardcover key went v2 -> v3 and this one
+ * was left at v1, which would have served pre-normalization answers out of
+ * cache for a further 30 days while the code that produced them was gone. Two
+ * caches, two versions, one rule change: bump BOTH.
+ *
+ * v3: umbrella shelves are dropped rather than demoted, so every v2 answer
+ * carries a "Fiction"/"Adult" this rule would now remove. */
+const KEY_VERSION = 'v3'
 
 export function chaptarrGenreKey(id: string): string {
 	const bare = (id ?? '').split('_')[0] ?? ''
@@ -77,69 +79,10 @@ export function genresFromWork(names: unknown, ctx: GenreContext = {}): ApiGenre
 	const kept = names.filter(
 		(n): n is string => typeof n === 'string' && !SHELF_NOISE.has(cleanGenreName(n).toLowerCase())
 	)
-	// SPLIT BEFORE DEMOTING. namesToGenres splits joined shelves itself, but it
-	// does so AFTER this point, so a generic umbrella that only exists as part of
-	// a joined shelf — "Fiction" inside "Fiction / Fantasy / General" — was never
-	// seen by the demotion and kept the position its parent happened to hold.
-	// Measured live 2026-08-10 on the first forced refresh after deploy: "Fiction"
-	// landed ahead of "Space Opera" on Project Hail Mary and ahead of "High
-	// Fantasy" on Fourth Wing, where the MAX_GENRES cut then dropped the specific
-	// genre and kept the umbrella. Splitting here makes the demotion see every
-	// name that can reach the cap.
-	const expanded = kept.flatMap(splitJoinedShelf)
-	return namesToGenres(demoteGenericShelves(expanded), ctx)
-}
-
-/**
- * Umbrella shelves that describe almost every book and so distinguish none.
- *
- * Not noise — "Fiction" is a true statement and worth keeping if there is room.
- * It simply must not outrank a genre that actually says something.
- */
-const GENERIC_SHELVES = new Set([
-	'fiction',
-	'nonfiction',
-	'non fiction',
-	'literature & fiction',
-	'literature and fiction',
-	'general',
-	'books',
-	'novel',
-	'novels',
-	'adult',
-	'adult fiction'
-])
-
-/**
- * Push umbrella shelves behind specific ones, preserving order within each group.
- *
- * CHAPTARR ONLY, and the asymmetry is the point. Hardcover returns genres in
- * FREQUENCY order, so its sequence is evidence and reordering it would throw
- * information away. Chaptarr returns Goodreads shelves ALPHABETICALLY, so its
- * sequence carries nothing at all — and `namesToGenres` caps at MAX_GENRES,
- * which turned that non-signal into the selection rule.
- *
- * Measured on Annihilation (17 shelves, the fixture in this repo). Before:
- *   Adventure | Dystopia | Fantasy | Fiction | Horror | Literary Fiction |
- *   Literature & Fiction | Mystery
- * Three of eight slots spent on near-synonymous umbrellas while "Science
- * fiction", "Weird fiction", "Thriller" and "Suspense" — the genres that
- * actually describe the book — were cut at the alphabetical boundary.
- *
- * A stable partition, not a sort: within each group the provider's order is
- * left alone, so this only ever moves umbrellas later and never reshuffles the
- * specific genres against each other.
- * @param {string[]} names shelf names, already noise-filtered
- * @returns {string[]} the same names, specific ones first
- */
-export function demoteGenericShelves(names: string[]): string[] {
-	const specific: string[] = []
-	const generic: string[] = []
-	for (const n of names) {
-		if (GENERIC_SHELVES.has(cleanGenreName(n).toLowerCase())) generic.push(n)
-		else specific.push(n)
-	}
-	return [...specific, ...generic]
+	// No pre-sort: namesToGenres now DROPS umbrella shelves outright, for every
+	// community source, so ordering them here would change nothing. The local
+	// GENERIC_SHELVES copy went with it — one vocabulary, in genreNormalize.
+	return namesToGenres(kept, ctx)
 }
 
 /** The Chaptarr work id for a requested book id, or null when it cannot be
