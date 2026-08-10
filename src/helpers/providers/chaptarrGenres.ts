@@ -10,7 +10,7 @@ import {
 	fetchChaptarrWork
 } from '#helpers/providers/ChaptarrProvider'
 import type { GenreContext } from '#helpers/providers/genreNormalize'
-import { cleanGenreName, isGenreArray, namesToGenres } from '#helpers/providers/hardcoverGenres'
+import { isGenreArray, namesToGenres } from '#helpers/providers/hardcoverGenres'
 import { sameVolume, sim, titleSim } from '#helpers/providers/matchScorer'
 import { decodeProviderId } from '#helpers/providers/providerId'
 
