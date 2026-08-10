@@ -443,3 +443,32 @@ describe('the "X fiction" fold is safe because it is table-gated', () => {
 		])
 	})
 })
+
+describe('ONE noise vocabulary, shared by every source', () => {
+	// chaptarrGenres kept its own SHELF_NOISE list while genreNormalize kept
+	// NOISE_SHELVES — two vocabularies for one concept, the same drift that the
+	// GENERIC_SHELVES duplicate caused. The consequence reached a real book:
+	// "Audio book" arrived on The Caves of Steel (2026-08-10) through the
+	// HARDCOVER leg, which never saw Chaptarr's list.
+	test('a SPACED format shelf is noise, whichever source sent it', () => {
+		for (const name of ['Audio book', 'audio book', 'E book', 'Book Club', 'Did not finish']) {
+			expect(isNoiseShelf(name)).toBe(true)
+		}
+	})
+
+	test('the unspaced forms still drop', () => {
+		for (const name of ['Audiobook', 'Ebook', 'Kindle', 'Library']) {
+			expect(isNoiseShelf(name)).toBe(true)
+		}
+	})
+
+	test('"Sf" folds to Science Fiction rather than shipping as a fragment', () => {
+		// It reached The Salmon of Doubt as a title-cased two-letter shelf.
+		expect(namesToGenres(['Sf']).map((g) => g.name)).toEqual(['Science Fiction'])
+		expect(namesToGenres(['sci fi']).map((g) => g.name)).toEqual(['Science Fiction'])
+		// And it collapses into a sibling rather than sitting beside it.
+		expect(namesToGenres(['Science Fiction', 'Sf']).map((g) => g.name)).toEqual([
+			'Science Fiction'
+		])
+	})
+})

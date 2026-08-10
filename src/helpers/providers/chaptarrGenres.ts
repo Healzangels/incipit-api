@@ -31,25 +31,6 @@ import { decodeProviderId } from '#helpers/providers/providerId'
  * never cached, no redis -> no compute.
  */
 
-/** Goodreads shelving habits that are not genres. Lowercased, post-clean. */
-const SHELF_NOISE = new Set([
-	'audiobook',
-	'audiobooks',
-	'audio book',
-	'book club',
-	'currently reading',
-	'to read',
-	'owned',
-	'favorites',
-	'favourites',
-	'kindle',
-	'library',
-	'ebook',
-	'e book',
-	'dnf',
-	'did not finish'
-])
-
 const HIT_TTL_SECONDS = 2592000
 const MISS_TTL_SECONDS = 604800
 
@@ -79,9 +60,10 @@ export function chaptarrGenreKey(id: string): string {
  * and then got cached for 30 days. */
 export function genresFromWork(names: unknown, ctx: GenreContext = {}): ApiGenre[] {
 	if (!Array.isArray(names)) return []
-	const kept = names.filter(
-		(n): n is string => typeof n === 'string' && !SHELF_NOISE.has(cleanGenreName(n).toLowerCase())
-	)
+	// No local noise list: namesToGenres applies isNoiseShelf to EVERY community
+	// source, and keeping a second Chaptarr-only vocabulary here is what let
+	// "Audio book" through on the Hardcover leg. One set, in genreNormalize.
+	const kept = names.filter((n): n is string => typeof n === 'string')
 	// No pre-sort: namesToGenres now DROPS umbrella shelves outright, for every
 	// community source, so ordering them here would change nothing. The local
 	// GENERIC_SHELVES copy went with it — one vocabulary, in genreNormalize.

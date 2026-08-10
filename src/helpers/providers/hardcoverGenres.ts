@@ -130,6 +130,10 @@ export function syntheticGenreAsin(name: string): string {
 const GENRE_ALIASES = new Map<string, string>([
 	['sci-fi', 'Science Fiction'],
 	['scifi', 'Science Fiction'],
+	// "Sf" reached a shelf on The Salmon of Doubt (2026-08-10) as a title-cased
+	// two-letter fragment, because nothing folded it.
+	['sf', 'Science Fiction'],
+	['sci fi', 'Science Fiction'],
 	// Measured on Demons Don't Dream 2026-08-09: "Humor" and "Humour" arrived on
 	// the SAME book. dedupeKey cannot fold these — they differ by a letter, not
 	// by case, plural or a suffix — so the synonym table is the right place.

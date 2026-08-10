@@ -46,7 +46,16 @@ export interface GenreContext {
  */
 const NOISE_SHELVES = new Set([
 	'ebook',
+	'e book',
 	'audiobook',
+	// SPACED FORMS TOO. dedupeKey folds case and plurals but not whitespace, so
+	// "Audio book" is a different key from "audiobook" — it reached a real book
+	// (The Caves of Steel, 2026-08-10) through the HARDCOVER leg, which never
+	// saw chaptarrGenres' own SHELF_NOISE list. That list has been folded in
+	// here so both sources share one vocabulary.
+	'audio book',
+	'book club',
+	'did not finish',
 	'audio',
 	'book',
 	'kindle',
