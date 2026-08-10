@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
 	dedupeKey,
+	isGenericShelf,
 	isNoiseShelf,
 	isSelfReference,
 	MAX_MERGED_GENRES,
@@ -353,5 +354,45 @@ describe('generic umbrellas never outrank specific genres, from ANY source', () 
 		const out = namesToGenres(names).map((g) => g.name)
 		expect(out).not.toContain('Fiction')
 		expect(out).toHaveLength(8)
+	})
+})
+
+describe('the generic list contains ONLY umbrellas', () => {
+	// I added 'classic' to this set while moving it between modules, on the
+	// assumption it was umbrella-ish. It is not: "Classics" is a real genre, and
+	// demoting it dropped it off The Da Vinci Code below the cap while the shelf
+	// "Russian" took the freed slot (measured live 2026-08-10). The list it was
+	// moved FROM never contained it. Nothing joins the set without a measured
+	// case, and these are the names that must never be in it.
+	test('real genres are never demoted as umbrellas', () => {
+		for (const real of [
+			'Classics',
+			'Classic',
+			'Historical Fiction',
+			'Literary Fiction',
+			'Science Fiction',
+			'Genre Fiction',
+			'Humorous Fiction',
+			'Crime Fiction'
+		]) {
+			expect(isGenericShelf(real)).toBe(false)
+		}
+	})
+
+	test('the umbrellas themselves still demote', () => {
+		for (const umbrella of ['Fiction', 'fiction', 'Nonfiction', 'General', 'Adult', 'Novels']) {
+			expect(isGenericShelf(umbrella)).toBe(true)
+		}
+	})
+
+	test('Classics survives the cap on a real feed', () => {
+		// The exact shelf list Chaptarr returns for The Da Vinci Code.
+		const out = namesToGenres([
+			'adult', 'Adventure', 'Classics', 'Crime', 'Cryptographers', 'Fiction',
+			'General', 'Historical Fiction', 'Museum', 'Mystery', 'Mystery Thriller',
+			'Novels', 'Russian', 'Suspense', 'Thriller', 'Young Adult'
+		]).map((g) => g.name)
+		expect(out).toContain('Classics')
+		expect(out).not.toContain('Fiction')
 	})
 })

@@ -89,9 +89,12 @@ const GENERIC_SHELVES = new Set([
 	'book',
 	'novel',
 	'adult',
-	'adult fiction',
-	'audiobook',
-	'classic'
+	'adult fiction'
+	// 'classic' WAS HERE and must never come back: "Classics" is a real genre,
+	// not an umbrella. Adding it demoted Classics off The Da Vinci Code
+	// (measured live 2026-08-10) and let the shelf "Russian" take its slot. The
+	// list this was moved from never contained it — it was added on a hunch, and
+	// the hunch cost a genre. Nothing joins this set without a measured case.
 ])
 
 /**
