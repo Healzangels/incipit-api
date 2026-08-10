@@ -7,7 +7,7 @@ import {
 	type ChaptarrWorkFetch,
 	fetchChaptarrWork
 } from '#helpers/providers/ChaptarrProvider'
-import type { GenreContext } from '#helpers/providers/genreNormalize'
+import { type GenreContext, splitJoinedShelf } from '#helpers/providers/genreNormalize'
 import { cleanGenreName, isGenreArray, namesToGenres } from '#helpers/providers/hardcoverGenres'
 import { decodeProviderId } from '#helpers/providers/providerId'
 
@@ -49,7 +49,16 @@ const SHELF_NOISE = new Set([
 
 const HIT_TTL_SECONDS = 2592000
 const MISS_TTL_SECONDS = 604800
-const KEY_VERSION = 'v1'
+
+/** Bumped whenever the mapping rule changes, exactly like hardcoverGenreKey.
+ *
+ * v2: the shelf-noise layer, the canonical-spelling table, and the
+ * split-before-demote fix. THIS WAS MISSED when the noise layer shipped — the
+ * Hardcover key went v2 -> v3 and this one was left at v1, which would have
+ * served pre-normalization answers (foreign shelves, LCSH headings, uncanonical
+ * spellings) out of cache for a further 30 days while the code that produced
+ * them was gone. Two caches, two versions, one rule change: bump BOTH. */
+const KEY_VERSION = 'v2'
 
 export function chaptarrGenreKey(id: string): string {
 	const bare = (id ?? '').split('_')[0] ?? ''
@@ -68,7 +77,17 @@ export function genresFromWork(names: unknown, ctx: GenreContext = {}): ApiGenre
 	const kept = names.filter(
 		(n): n is string => typeof n === 'string' && !SHELF_NOISE.has(cleanGenreName(n).toLowerCase())
 	)
-	return namesToGenres(demoteGenericShelves(kept), ctx)
+	// SPLIT BEFORE DEMOTING. namesToGenres splits joined shelves itself, but it
+	// does so AFTER this point, so a generic umbrella that only exists as part of
+	// a joined shelf — "Fiction" inside "Fiction / Fantasy / General" — was never
+	// seen by the demotion and kept the position its parent happened to hold.
+	// Measured live 2026-08-10 on the first forced refresh after deploy: "Fiction"
+	// landed ahead of "Space Opera" on Project Hail Mary and ahead of "High
+	// Fantasy" on Fourth Wing, where the MAX_GENRES cut then dropped the specific
+	// genre and kept the umbrella. Splitting here makes the demotion see every
+	// name that can reach the cap.
+	const expanded = kept.flatMap(splitJoinedShelf)
+	return namesToGenres(demoteGenericShelves(expanded), ctx)
 }
 
 /**

@@ -39,6 +39,32 @@ const LIVE_GENRES = [
 	'Weird fiction'
 ]
 
+describe('a generic shelf produced BY A SPLIT is still demoted', () => {
+	test('"Fiction" inside a joined shelf cannot outrank a specific genre', () => {
+		// Measured live 2026-08-10 on the first forced refresh after the merge
+		// shipped: "Fiction" landed ahead of "Space Opera" on Project Hail Mary
+		// and ahead of "High Fantasy" on Fourth Wing, where the cap then dropped
+		// the specific genre and kept the umbrella. demoteGenericShelves ran
+		// BEFORE namesToGenres split the joined shelf, so a generic name that
+		// only existed as part of one was never offered to the demotion.
+		const out = genresFromWork([
+			'Fiction / Fantasy / General',
+			'High Fantasy',
+			'Space Opera'
+		]).map((g) => g.name)
+		expect(out.indexOf('Fiction')).toBeGreaterThan(out.indexOf('High Fantasy'))
+		expect(out.indexOf('Fiction')).toBeGreaterThan(out.indexOf('Space Opera'))
+	})
+
+	test('the specific genres inside a joined shelf keep their place', () => {
+		// Splitting early must not cost the useful halves their position.
+		const out = genresFromWork(['Fiction / Fantasy', 'Horror']).map((g) => g.name)
+		expect(out).toContain('Fantasy')
+		expect(out).toContain('Horror')
+		expect(out.indexOf('Fiction')).toBe(out.length - 1)
+	})
+})
+
 describe('genresFromWork', () => {
 	test('drops shelf noise, dedupes, caps — the shared discipline', () => {
 		const names = genresFromWork(LIVE_GENRES).map((g) => g.name)
