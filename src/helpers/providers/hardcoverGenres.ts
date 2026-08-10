@@ -12,7 +12,10 @@ import {
 	normalizeDisplay,
 	splitJoinedShelf
 } from '#helpers/providers/genreNormalize'
-import { defaultGql, type HardcoverGql } from '#helpers/providers/HardcoverProvider'
+import HardcoverProvider, {
+	defaultGql,
+	type HardcoverGql
+} from '#helpers/providers/HardcoverProvider'
 import { sameVolume, sim, titleSim } from '#helpers/providers/matchScorer'
 import { decodeProviderId } from '#helpers/providers/providerId'
 
@@ -84,19 +87,6 @@ const GENRES_BY_EDITION_QUERY = `query IncipitGenresByEdition($id: Int!) {
 const GENRES_BY_BOOK_QUERY = `query IncipitGenresByBook($id: Int!) {
 	books(where: { id: { _eq: $id } }, limit: 1) {
 		cached_tags
-	}
-}`
-
-/** Title lookup for the last-resort rescue. Asks for the title and the author
- * names too, because the answer is CONFIRMED before it is used — a title query
- * alone matches far too many books. Limit 5: enough that the right edition is
- * in reach, small enough that this stays one cheap query rather than the
- * registry's multi-second provider fan-out. */
-const GENRES_BY_TITLE_QUERY = `query IncipitGenresByTitle($title: String!) {
-	books(where: { title: { _ilike: $title } }, limit: 5) {
-		title
-		cached_tags
-		contributions { author { name } }
 	}
 }`
 
@@ -355,12 +345,6 @@ const AUTHOR_CONFIRM = 0.9
 /** 7 days: a title-matched answer is weaker evidence than an id-keyed one. */
 const TITLE_TTL_SECONDS = 604800
 
-interface TitleBook {
-	title?: string | null
-	cached_tags?: unknown
-	contributions?: { author?: { name?: string | null } | null }[] | null
-}
-
 /** Cache key for a Hardcover title rescue. */
 export function hardcoverTitleGenreKey(title: string, author: string): string {
 	const fold = (s: string) =>
@@ -379,6 +363,13 @@ interface TitleRescueOpts {
 	logger?: FastifyBaseLogger
 	ctx?: GenreContext
 	gql?: HardcoverGql
+	/** Test seam: the provider whose search finds the book. */
+	provider?: {
+		search: (
+			q: unknown,
+			l?: FastifyBaseLogger
+		) => Promise<{ id: string; title: string; authors: string[] }[]>
+	}
 }
 
 /**
@@ -419,15 +410,33 @@ export async function hardcoverGenresByTitle(opts: TitleRescueOpts): Promise<Api
 
 	let genres: ApiGenre[] = []
 	try {
-		const gql = opts.gql ?? defaultGql
-		const data = await gql<{ books?: TitleBook[] }>(GENRES_BY_TITLE_QUERY, { title }, token)
-		for (const book of data.books ?? []) {
-			const candidateTitle = book.title ?? ''
-			if (titleSim(title, candidateTitle) < TITLE_CONFIRM) continue
-			if (!sameVolume(title, candidateTitle)) continue
-			const names = (book.contributions ?? []).map((c) => c?.author?.name ?? '').filter(Boolean)
-			if (!names.some((n) => sim(author, n) >= AUTHOR_CONFIRM)) continue
-			const found = genresFromCachedTags(book.cached_tags, opts.ctx ?? {})
+		// THE PROVIDER'S OWN SEARCH, not a hand-written title query.
+		//
+		// The first version of this asked `books(where: { title: { _ilike: … } })`
+		// and Hardcover answered 403 to every single call — measured in the
+		// container log 2026-08-10 on Neuromancer, Brave New World, Count Zero and
+		// The Peripheral. That is an unindexed scan of the whole books table, and
+		// Hardcover blocks it; its documented entry point is the `search` query,
+		// which HardcoverProvider already wraps and which demonstrably works.
+		//
+		// So: reuse the search to find the book, then hand its id to the id-keyed
+		// backfill below. Two proven components instead of one invented query.
+		const provider = opts.provider ?? new HardcoverProvider({ token, gql: opts.gql })
+		const candidates = await provider.search({ title, author, region: 'us' } as never, logger)
+		for (const c of candidates) {
+			if (titleSim(title, c.title ?? '') < TITLE_CONFIRM) continue
+			// A trailing volume number is noise to titleSim: "Wreck Jumpers 2" and
+			// "Wreck Jumpers 3" both matched ONE hardcover book while probing this.
+			if (!sameVolume(title, c.title ?? '')) continue
+			if (!(c.authors ?? []).some((n) => sim(author, n) >= AUTHOR_CONFIRM)) continue
+			const found = await backfillHardcoverGenres({
+				id: c.id,
+				redis,
+				token,
+				logger,
+				ctx: opts.ctx,
+				gql: opts.gql
+			})
 			if (found.length) {
 				genres = found
 				break

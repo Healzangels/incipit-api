@@ -380,22 +380,23 @@ describe('hardcoverGenresByTitle — the ASIN-missed rescue', () => {
 		redis = new FakeRedis()
 	})
 
-	const NEUROMANCER = {
-		books: [
-			{
-				title: 'Neuromancer',
-				cached_tags: { Genre: [{ tag: 'Cyberpunk' }, { tag: 'Science Fiction' }] },
-				contributions: [{ author: { name: 'William Gibson' } }]
-			}
-		]
-	}
+	/** What the id-keyed backfill finds once the search has named the book. */
+	const TAGS = { editions: [{ book: { cached_tags: { Genre: [
+		{ tag: 'Cyberpunk' }, { tag: 'Science Fiction' }
+	] } } }] }
+	const found = (title: string, authors: string[], id = 'hardcover-book-535688') => ({
+		id,
+		title,
+		authors
+	})
 	const call = (over: Record<string, unknown> = {}) =>
 		hardcoverGenresByTitle({
 			title: 'Neuromancer',
 			author: 'William Gibson',
 			redis: redis as never,
 			token: 't',
-			gql: (async () => NEUROMANCER) as never,
+			provider: { search: async () => [found('Neuromancer', ['William Gibson'])] },
+			gql: (async () => TAGS) as never,
 			...over
 		} as never)
 
@@ -407,43 +408,21 @@ describe('hardcoverGenresByTitle — the ASIN-missed rescue', () => {
 		// Not defensive padding. Probing this fallback on 2026-08-10, BOTH
 		// "Wreck Jumpers 2" and "Wreck Jumpers 3" matched the same hardcover book,
 		// because titleSim treats a trailing volume number as noise.
-		const series = {
-			books: [
-				{
-					title: 'Wreck Jumpers',
-					cached_tags: { Genre: [{ tag: 'Science Fiction' }] },
-					contributions: [{ author: { name: 'Jason Anspach' } }]
-				}
-			]
-		}
-		const out = await hardcoverGenresByTitle({
+		const out = await call({
 			title: 'Wreck Jumpers 2',
 			author: 'Jason Anspach',
-			redis: redis as never,
-			token: 't',
-			gql: (async () => series) as never
-		} as never)
+			provider: { search: async () => [found('Wreck Jumpers', ['Jason Anspach'])] }
+		})
 		expect(out).toEqual([])
 	})
 
 	test('the SAME volume on both sides still confirms', async () => {
-		const series = {
-			books: [
-				{
-					title: 'Wreck Jumpers 2',
-					cached_tags: { Genre: [{ tag: 'Science Fiction' }] },
-					contributions: [{ author: { name: 'Jason Anspach' } }]
-				}
-			]
-		}
-		const out = await hardcoverGenresByTitle({
+		const out = await call({
 			title: 'Wreck Jumpers 2',
 			author: 'Jason Anspach',
-			redis: redis as never,
-			token: 't',
-			gql: (async () => series) as never
-		} as never)
-		expect(out.map((g) => g.name)).toEqual(['Science Fiction'])
+			provider: { search: async () => [found('Wreck Jumpers 2', ['Jason Anspach'])] }
+		})
+		expect(out.map((g) => g.name)).toEqual(['Cyberpunk', 'Science Fiction'])
 	})
 
 	test('a WRONG TITLE is refused even when the author matches', async () => {
@@ -453,30 +432,14 @@ describe('hardcoverGenresByTitle — the ASIN-missed rescue', () => {
 		// book is the realistic failure — Hardcover returns five rows for a title
 		// query and the wrong one can carry the right author.
 		const out = await call({
-			gql: async () => ({
-				books: [
-					{
-						title: 'Pattern Recognition',
-						cached_tags: { Genre: [{ tag: 'Thriller' }] },
-						contributions: [{ author: { name: 'William Gibson' } }]
-					}
-				]
-			})
+			provider: { search: async () => [found('Pattern Recognition', ['William Gibson'])] }
 		})
 		expect(out).toEqual([])
 	})
 
 	test('a WRONG AUTHOR is refused even when the title is exact', async () => {
 		const out = await call({
-			gql: async () => ({
-				books: [
-					{
-						title: 'Neuromancer',
-						cached_tags: { Genre: [{ tag: 'Cyberpunk' }] },
-						contributions: [{ author: { name: 'Someone Else' } }]
-					}
-				]
-			})
+			provider: { search: async () => [found('Neuromancer', ['Someone Else'])] }
 		})
 		expect(out).toEqual([])
 	})
@@ -484,19 +447,18 @@ describe('hardcoverGenresByTitle — the ASIN-missed rescue', () => {
 	test('it walks past a genre-less match to a usable one', async () => {
 		// Hardcover returns several editions and the first can be a bare stub —
 		// measured: Blaze and The Plague of Shadows matched with zero genres.
+		let n = 0
 		const out = await call({
-			gql: async () => ({
-				books: [
-					{ title: 'Neuromancer', cached_tags: {}, contributions: [{ author: { name: 'William Gibson' } }] },
-					{
-						title: 'Neuromancer',
-						cached_tags: { Genre: [{ tag: 'Cyberpunk' }] },
-						contributions: [{ author: { name: 'William Gibson' } }]
-					}
+			provider: {
+				search: async () => [
+					found('Neuromancer', ['William Gibson'], 'hardcover-book-1'),
+					found('Neuromancer', ['William Gibson'], 'hardcover-book-2')
 				]
-			})
+			},
+			// The first id has no tags; the walk must reach the second.
+			gql: async () => (n++ === 0 ? { editions: [{ book: { cached_tags: {} } }] } : TAGS)
 		})
-		expect(out.map((g) => g.name)).toEqual(['Cyberpunk'])
+		expect(out.map((g) => g.name)).toEqual(['Cyberpunk', 'Science Fiction'])
 	})
 
 	test('no token, no redis, or a thrown query all serve []', async () => {
@@ -504,8 +466,12 @@ describe('hardcoverGenresByTitle — the ASIN-missed rescue', () => {
 		expect(await call({ redis: null })).toEqual([])
 		expect(
 			await call({
-				gql: async () => {
-					throw new Error('down')
+				provider: {
+					search: async () => {
+						// Hardcover answered 403 to the hand-written title query this
+						// rescue originally used — measured live 2026-08-10.
+						throw new Error('Request failed with status code 403')
+					}
 				}
 			})
 		).toEqual([])
@@ -513,12 +479,14 @@ describe('hardcoverGenresByTitle — the ASIN-missed rescue', () => {
 
 	test('the answer is cached, including the empty one', async () => {
 		let asked = 0
-		const gql = async () => {
-			asked++
-			return { books: [] }
+		const provider = {
+			search: async () => {
+				asked++
+				return []
+			}
 		}
-		await call({ gql })
-		await call({ gql })
+		await call({ provider })
+		await call({ provider })
 		expect(asked).toBe(1)
 		expect(redis.writes[0]?.ttl).toBe(604800)
 	})
