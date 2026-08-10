@@ -69,7 +69,7 @@ describe('genresFromWork', () => {
 		expect(names).not.toContain('Audiobook')
 		expect(names).not.toContain('Book Club')
 		expect(names).not.toContain('General')
-		expect(names).toContain('Dystopia')
+		expect(names).toContain('Dystopian')
 		expect(names.length).toBeLessThanOrEqual(8)
 	})
 
@@ -85,7 +85,7 @@ describe('genresFromWork', () => {
 		// (2026-08-09) picks one spelling per genre so the same tag cannot appear
 		// twice in the library under two casings.
 		const names = genresFromWork(['Science fiction', 'Sci-fi', 'Dystopia']).map((g) => g.name)
-		expect(names).toEqual(['Science Fiction', 'Dystopia'])
+		expect(names).toEqual(['Science Fiction', 'Dystopian'])
 		expect(names).not.toContain('Sci-fi')
 		// And the other direction: with no sibling to fold into, the alias
 		// still normalizes rather than passing through raw.
@@ -251,7 +251,7 @@ describe('umbrella shelves are dropped', () => {
 
 	test('an umbrella never reaches the output at all', () => {
 		const out = genresFromWork(['Fiction', 'Dystopia', 'General', 'Horror']).map((g) => g.name)
-		expect(out).toEqual(['Dystopia', 'Horror'])
+		expect(out).toEqual(['Dystopian', 'Horror'])
 	})
 
 	test('order among the real genres is left alone', () => {

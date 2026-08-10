@@ -397,3 +397,49 @@ describe('the generic list contains ONLY umbrellas', () => {
 		expect(out).not.toContain('Fiction')
 	})
 })
+
+describe('the "X fiction" fold is safe because it is table-gated', () => {
+	// The SAME fold lived in dedupeKey once, unconditionally, and collapsed
+	// "Science Fiction" onto "science". It is safe here only because the direct
+	// lookup runs FIRST: a name Audible itself carries never reaches the strip.
+	const nameOf = (s: string) => namesToGenres([s])[0]?.name
+
+	test("Audible's own '<X> Fiction' genres are never folded away", () => {
+		expect(nameOf('Science Fiction')).toBe('Science Fiction')
+		expect(nameOf('Historical Fiction')).toBe('Historical Fiction')
+		expect(nameOf('Literary Fiction')).toBe('Literary Fiction')
+		expect(nameOf('Crime Fiction')).toBe('Crime Fiction')
+		// And the pair Audible keeps DISTINCT stays distinct.
+		expect(nameOf('Historical Fiction')).not.toBe(nameOf('Historical'))
+	})
+
+	test('an invented "<known genre> fiction" folds onto the genre', () => {
+		// Measured live: Blaze came back with "Suspense" AND "Suspense fiction".
+		expect(nameOf('Suspense fiction')).toBe('Suspense')
+		expect(nameOf('Adventure fiction')).toBe('Adventure')
+		expect(nameOf('Mystery fiction')).toBe('Mystery')
+	})
+
+	test('a stem Audible does not know is left alone', () => {
+		// "Spanish fiction" is noise, but inventing a genre for it would be worse
+		// than showing it. Passed through verbatim — normalizeDisplay only
+		// title-cases a name that is ENTIRELY lowercase, and this one is not.
+		expect(nameOf('Spanish fiction')).toBe('Spanish fiction')
+	})
+
+	test('the duplicate pair collapses on one book', () => {
+		expect(namesToGenres(['Suspense', 'Suspense fiction']).map((g) => g.name)).toEqual([
+			'Suspense'
+		])
+		expect(namesToGenres(['Dystopian', 'Dystopias']).map((g) => g.name)).toEqual(['Dystopian'])
+	})
+
+	test('mergeGenres folds it too — foldKey and the mapper must agree', () => {
+		// If foldKey used the raw table while the mapper used canonicalName, a
+		// name the mapper folds would still dedupe under its unfolded key here.
+		const g = (name: string) => ({ asin: '1000000001', name, type: 'genre' as const })
+		expect(mergeGenres([g('Suspense')], [g('Suspense fiction')]).map((x) => x.name)).toEqual([
+			'Suspense'
+		])
+	})
+})

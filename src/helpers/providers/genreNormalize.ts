@@ -238,6 +238,11 @@ const CANONICAL_NAMES = new Map<string, string>([
 	['military fiction', 'Military'],
 	['english fiction', 'English'],
 	['adventure story', 'Adventure'],
+	// Measured on Brave New World 2026-08-10: "Dystopian" and "Dystopias" arrived
+	// on the same book. dedupeKey folds the plural to "dystopia", which is a
+	// different key from "dystopian" — a letter apart, so no structural rule
+	// reaches it.
+	['dystopia', 'Dystopian'],
 	['literature', 'Literature & Fiction'],
 	['children', 'Children'],
 	['american', 'American'],
@@ -259,7 +264,22 @@ const CANONICAL_NAMES = new Map<string, string>([
  * @returns {string | null} the canonical display name, or null when unlisted
  */
 export function canonicalName(key: string): string | null {
-	return CANONICAL_NAMES.get(key) ?? null
+	const direct = CANONICAL_NAMES.get(key)
+	if (direct) return direct
+	// A TRAILING " fiction" folds onto its stem — but ONLY when the whole name is
+	// not itself a known genre, which the lookup above has just ruled out.
+	//
+	// That order is the entire safety of this rule. The same fold lived in
+	// dedupeKey once, unconditionally, and collapsed "Science Fiction" onto
+	// "science", colliding a major genre with the unrelated "Science". Here
+	// "Science Fiction" and "Historical Fiction" are Audible's own vocabulary, so
+	// they match directly and never reach the strip — while "Suspense fiction"
+	// and "Adventure fiction", which Hardcover invents and Audible does not
+	// carry, fold onto Suspense and Adventure. Measured live 2026-08-10: Blaze
+	// came back with "Suspense" AND "Suspense fiction" on the same book.
+	const stem = key.replace(/\s+fiction$/, '')
+	if (stem !== key && stem) return CANONICAL_NAMES.get(stem) ?? null
+	return null
 }
 
 /**
@@ -275,7 +295,9 @@ export function canonicalName(key: string): string | null {
  */
 export function foldKey(name: string): string {
 	const key = dedupeKey(name)
-	const canonical = CANONICAL_NAMES.get(key)
+	// canonicalName(), not a raw table lookup: the two must agree, or a name the
+	// mapper folds would still dedupe under its unfolded key at the merge.
+	const canonical = canonicalName(key)
 	return canonical ? dedupeKey(canonical) : key
 }
 
