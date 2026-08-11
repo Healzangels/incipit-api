@@ -14,6 +14,7 @@ import {
 } from '#helpers/providers/matchScorer'
 import { withNearTieAlternates } from '#helpers/providers/nearTieCovers'
 import type ProviderRegistry from '#helpers/providers/ProviderRegistry'
+import { type DegradedReport, PRIMARY_PROVIDERS } from '#helpers/providers/ProviderRegistry'
 import type ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
 import type { BookSearchQuery, ProviderCandidate, ScoredCandidate } from '#helpers/providers/types'
 import { envInt } from '#helpers/utils/env'
@@ -974,6 +975,38 @@ export default class BookSearchHelper {
 		return pool
 	}
 
+	/**
+	 * Providers that did not answer during this helper's fan-out(s), accumulated
+	 * because `search()` can fan out twice (album title, then the widened track
+	 * title) and a primary being down on EITHER pass makes the pool incomplete.
+	 */
+	private readonly degraded = new Set<string>()
+
+	/** The PRIMARY providers that did not answer, so the caller can tell an
+	 *  incomplete pool from an empty one. Empty when the fan-out was healthy. */
+	get degradedPrimaries(): string[] {
+		return [...this.degraded].filter((name) => PRIMARY_PROVIDERS.has(name))
+	}
+
+	/**
+	 * True when these results must not be treated as the final word: a primary
+	 * provider was down AND nothing we did assemble is a strong match.
+	 *
+	 * Both halves matter. Degradation alone is not enough — if a strong match
+	 * survived, the missing provider could not have displaced it, and refusing
+	 * to answer would throw away a good match over an irrelevant outage. A weak
+	 * top result alone is not enough either; that is just a hard book. It is the
+	 * pair that is dangerous, because the caller cannot see the difference
+	 * between "the best there is" and "the best of what was reachable", and Plex
+	 * bakes whatever it gets into a sticky guid.
+	 * @param {ScoredCandidate[]} results the ranked results about to be served
+	 * @returns {boolean} true when the answer is unknown rather than negative
+	 */
+	resultsAreUnreliable(results: ScoredCandidate[]): boolean {
+		if (this.degradedPrimaries.length === 0) return false
+		return !results.some((r) => r.confidence >= STRONG_MATCH)
+	}
+
 	private async fanOut(normalizedTitle: string): Promise<ProviderCandidate[]> {
 		const query: BookSearchQuery = {
 			title: normalizedTitle,
@@ -982,7 +1015,10 @@ export default class BookSearchHelper {
 			region: this.options.region,
 			credentials: this.credentials
 		}
-		return this.registry.searchAll(query, this.logger, this.cache)
+		const report: DegradedReport = { degraded: [] }
+		const candidates = await this.registry.searchAll(query, this.logger, this.cache, report)
+		report.degraded.forEach((name) => this.degraded.add(name))
+		return candidates
 	}
 
 	/**

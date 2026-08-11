@@ -2,13 +2,18 @@ import { FastifyInstance } from 'fastify'
 
 import searchRequiresATitle from '#config/routes/books/search/requireQuery'
 import { BookSearchQueryString, BookSearchQueryStringSchema } from '#config/types'
-import { BadRequestError } from '#helpers/errors/ApiErrors'
+import { BadRequestError, ServiceUnavailableError } from '#helpers/errors/ApiErrors'
 import { rememberAlternates } from '#helpers/providers/alternateCoverCache'
 import type ProviderRegistry from '#helpers/providers/ProviderRegistry'
 import ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
 import defaultRegistry from '#helpers/providers/registry'
 import BookSearchHelper from '#helpers/routes/BookSearchHelper'
-import { ErrorMessageBadQuery, MessageBadRegion, MessageNoSearchTitle } from '#static/messages'
+import {
+	ErrorMessageBadQuery,
+	MessageBadRegion,
+	MessageNoSearchTitle,
+	MessageUpstreamDegraded
+} from '#static/messages'
 
 /**
  * GET /books — multi-provider book search.
@@ -24,7 +29,7 @@ import { ErrorMessageBadQuery, MessageBadRegion, MessageNoSearchTitle } from '#s
  */
 export function makeSearchBookRoute(registry: ProviderRegistry = defaultRegistry) {
 	return async function _show(fastify: FastifyInstance) {
-		fastify.get<{ Querystring: BookSearchQueryString }>('/books', async (request) => {
+		fastify.get<{ Querystring: BookSearchQueryString }>('/books', async (request, reply) => {
 			const parsed = BookSearchQueryStringSchema.safeParse(request.query)
 			if (!parsed.success) {
 				const field = parsed.error.issues[0]?.path[0]
@@ -58,6 +63,23 @@ export function makeSearchBookRoute(registry: ProviderRegistry = defaultRegistry
 
 			const helper = new BookSearchHelper(registry, options, request.log, credentials, cache)
 			const results = await helper.search()
+
+			// A pool assembled while a PRIMARY was down, with nothing strong in it,
+			// is an unknown answer wearing an answer's clothes. Serving it 200
+			// poisons the caller's cache with whatever the reachable providers
+			// happened to return: measured on "Shadows Beneath", five Apple rows
+			// for unrelated books at 0.75 while the correct anthology sat behind
+			// Hardcover's open breaker. 503 is not cached and says "ask again",
+			// which is what the search route actually knows.
+			if (helper.resultsAreUnreliable(results)) {
+				const degraded = helper.degradedPrimaries
+				request.log.warn(
+					{ degraded, results: results.length, title: options.title },
+					'book search degraded: refusing to serve a possibly incomplete answer'
+				)
+				reply.header('Retry-After', '60')
+				throw new ServiceUnavailableError(MessageUpstreamDegraded(degraded))
+			}
 			// Hand the alternates forward. They exist only HERE -- dedupe builds
 			// them from the editions it merged, and the item route never sees a
 			// candidate set. Caching by id is what lets `/books/:asin` answer on a

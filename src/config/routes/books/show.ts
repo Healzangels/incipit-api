@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify'
 
 import type { ApiBook, ApiGenre } from '#config/types'
 import { RequestGeneric } from '#config/typing/requests'
-import { NotFoundError } from '#helpers/errors/ApiErrors'
+import { NotFoundError, ServiceUnavailableError } from '#helpers/errors/ApiErrors'
 import {
 	alternateCoverKey,
 	recallAlternates,
@@ -12,6 +12,7 @@ import { backfillChaptarrGenres, chaptarrGenresByTitle } from '#helpers/provider
 import { mergeGenres } from '#helpers/providers/genreNormalize'
 import { withGoodreadsSeries } from '#helpers/providers/goodreadsSeries'
 import { backfillHardcoverGenres, hardcoverGenresByTitle } from '#helpers/providers/hardcoverGenres'
+import { decodeProviderId } from '#helpers/providers/providerId'
 import ProviderSearchCache from '#helpers/providers/ProviderSearchCache'
 import defaultRegistry from '#helpers/providers/registry'
 import { bestSquareCover } from '#helpers/providers/squareCover'
@@ -26,7 +27,7 @@ import {
 	recordLanguageMismatchedLookup,
 	recordStaleServedOnUpstreamUnavailable
 } from '#helpers/utils/matchTelemetry'
-import { MessageNotFoundInDb } from '#static/messages'
+import { MessageNotFoundInDb, MessageUpstreamDegraded } from '#static/messages'
 
 /**
  * Early warning for a stale/wrong pinned ASIN: an item lookup whose record
@@ -331,7 +332,23 @@ async function _show(fastify: FastifyInstance) {
 			// reply.code/status/send, so an `if (reply.statusCode !== 200)` here
 			// could only ever read Fastify's untouched 200.
 			new RouteCommonHelper(asin, request.query, reply).parseQueryString()
-			const book = await dataHelper.fetch()
+			// fetch() RESOLVES null only when the provider genuinely has no such
+			// record, and REJECTS when we could not ask (open breaker, timeout,
+			// transport). Letting the rejection escape as a 500 -- or worse,
+			// collapsing it into the 404 below -- tells Plex this edition does not
+			// exist, and Plex writes that verdict into a sticky guid. Six albums
+			// came out of the 2026-08-10 rebuild with nothing but their file tags
+			// this way. 503 says "ask again", which is the truth.
+			let book: Awaited<ReturnType<typeof dataHelper.fetch>>
+			try {
+				book = await dataHelper.fetch()
+			} catch (err) {
+				request.log.warn({ err, asin }, 'provider fetch unavailable: serving 503, not 404')
+				reply.header('Retry-After', '60')
+				throw new ServiceUnavailableError(
+					MessageUpstreamDegraded([decodeProviderId(asin)?.provider ?? 'provider'])
+				)
+			}
 			if (!book) throw new NotFoundError(MessageNotFoundInDb(asin))
 			// This branch is how a provider EDITION record reaches Plex, and it
 			// is exactly where the Dungeon Crawler Carl French edition slipped

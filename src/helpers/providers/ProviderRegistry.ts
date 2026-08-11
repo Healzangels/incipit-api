@@ -48,6 +48,34 @@ function isCircuitOpen(reason: unknown): boolean {
 	return String((reason as Error)?.message ?? '').includes('Circuit breaker is OPEN')
 }
 
+/**
+ * The providers whose absence can change WHICH book wins.
+ *
+ * Every other provider in the registry is documented there as a SUPPLEMENT that
+ * can never outrank a corroborated primary edition, so losing one narrows the
+ * pool without changing the answer. Losing a primary is different: it can remove
+ * the row that would have won and leave a lower-scoring wrong book on top, which
+ * is exactly what happened to "Shadows Beneath" while Hardcover's breaker was
+ * open. Named here, once, so the search route and the registry cannot drift.
+ */
+export const PRIMARY_PROVIDERS: ReadonlySet<string> = new Set(['audible', 'hardcover'])
+
+/**
+ * Out-param a caller passes to `searchAll` to learn which providers did not
+ * answer.
+ *
+ * Deliberately an optional FOURTH ARGUMENT rather than a second method or a
+ * richer return type. The helper is typed against ProviderRegistry but the
+ * suites inject duck-typed stubs that implement `searchAll` and nothing else --
+ * a `searchAllWithReport()` call blew up 119 of them with "not a function". An
+ * ignored extra argument leaves every stub working, and a stub that never fills
+ * the report reads as a HEALTHY fan-out, which is the safe direction to fail:
+ * unreported degradation costs the old behaviour, never a spurious outage.
+ */
+export interface DegradedReport {
+	degraded: string[]
+}
+
 export default class ProviderRegistry {
 	private providers: BookProvider[]
 	// One breaker per provider: a source that is rate-limiting us must not keep
@@ -306,7 +334,8 @@ export default class ProviderRegistry {
 	async searchAll(
 		query: BookSearchQuery,
 		logger?: FastifyBaseLogger,
-		cache?: ProviderSearchCache
+		cache?: ProviderSearchCache,
+		report?: DegradedReport
 	): Promise<ProviderCandidate[]> {
 		const settled = await Promise.allSettled(
 			// The breaker wraps a THUNK, so an open circuit costs no request at
@@ -319,6 +348,7 @@ export default class ProviderRegistry {
 		)
 
 		const candidates: ProviderCandidate[] = []
+		const degraded: string[] = []
 		settled.forEach((result, i) => {
 			if (result.status === 'fulfilled') {
 				// Record how much it actually returned, not just that it answered: a
@@ -335,8 +365,13 @@ export default class ProviderRegistry {
 				recordProviderFailure(this.providers[i].name, open)
 				if (open) logger?.debug(line, 'book search provider skipped: circuit open')
 				else logger?.error(line, 'book search provider failed')
+				// A SKIPPED provider counts as degraded exactly like a failed one:
+				// the pool is missing its rows either way, and the open circuit is
+				// the common case during the outage this guard exists for.
+				degraded.push(this.providers[i].name)
 			}
 		})
+		if (report) report.degraded = degraded
 		return candidates
 	}
 }

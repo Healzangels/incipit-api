@@ -118,6 +118,9 @@ mock.module('#helpers/providers/chaptarrGenres', () => ({
 // still unwired. `isProviderId` keeps the real decoder so id routing is honest.
 const { decodeProviderId } = await import('#helpers/providers/providerId')
 let servedByProvider: Record<string, unknown> | null = null
+/** When set, the provider fetch REJECTS — "we could not ask", not "no such
+ *  book". fetch() resolving null is the genuinely-absent case. */
+let providerFetchThrows: Error | null = null
 mock.module('#helpers/routes/BookDataHelper', () => ({
 	default: class {
 		constructor(
@@ -128,6 +131,7 @@ mock.module('#helpers/routes/BookDataHelper', () => ({
 			return decodeProviderId(this.id) !== null
 		}
 		async fetch() {
+			if (providerFetchThrows) throw providerFetchThrows
 			return servedByProvider
 		}
 	}
@@ -297,6 +301,27 @@ describe('GET /books/:asin runs the whole serve pipeline', () => {
 		servedByProvider = null
 		expect(ok.status).toBe(200)
 		expect(ok.body.title).toBe('Baneblade')
+	})
+
+	test('an UNREACHABLE provider is 503, never 404 — Plex must not learn "no such book"', async () => {
+		// The rebuild of 2026-08-10 left six albums showing nothing but their
+		// file tags: Hardcover's breaker was open, the fetch rejected, and the
+		// branch answered as though the edition did not exist. Plex writes that
+		// verdict into a sticky guid, so the album never recovers on its own.
+		providerFetchThrows = new Error('Circuit breaker is OPEN')
+		const { status, body } = await get('hardcover-edition-27515221', '?region=us')
+		providerFetchThrows = null
+		expect(status).toBe(503)
+		expect(String(body.message ?? body.error ?? '')).toContain('hardcover')
+	})
+
+	test('a provider that genuinely has no such record is still a 404', async () => {
+		// The other half of the distinction: an unavailable upstream must not
+		// make a real absence look temporary either.
+		servedByProvider = null
+		providerFetchThrows = null
+		const { status } = await get('hardcover-edition-27515221', '?region=us')
+		expect(status).toBe(404)
 	})
 
 	test('a record whose language matches the region is NOT flagged', async () => {
