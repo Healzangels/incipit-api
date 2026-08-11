@@ -59,13 +59,80 @@ export const CONTAINER_SHELF_NAMES: ReadonlySet<string> = new Set([
 const isContainer = (name: string | null | undefined): boolean =>
 	Boolean(name) && CONTAINER_SHELF_NAMES.has(foldSeriesName(String(name)))
 
+/**
+ * SPLIT SHELVES: one series carrying two spellings, so part of it sorts away
+ * from the rest.
+ *
+ * The sort title is composed from the shelf NAME plus the position, so two
+ * spellings of one series are two shelves: "Hannibal Lecter Series, Book 3"
+ * files nowhere near "Hannibal Lecter, Book 1". The book is correctly matched
+ * and correctly numbered and still out of order, which is the failure mode that
+ * costs the most trust.
+ *
+ * Censused across the whole library 2026-08-11 (1,456 albums carrying a
+ * "<shelf>, Book N - <title>" sort title): NINE series split, SIXTEEN albums
+ * sorting away from their own siblings. Each entry below is one of them, keyed
+ * on the MINORITY spelling and mapped to the one its siblings already use.
+ *
+ * Deliberately a curated table rather than a rule that strips "Series"/
+ * "Trilogy"/parentheticals. Measured, that rule is wrong twice over: it would
+ * merge "Riyria Chronicles" with the genuinely separate "Riyria Revelations",
+ * and Isaac Asimov's majority spelling is the QUALIFIED one ("Foundation
+ * (Chronological Order)" 3 albums vs "Foundation" 1) so majority-wins picks the
+ * name that should not survive. Only the VARIANT is rewritten, never the
+ * canonical name, so a same-named series by another author is untouched.
+ *
+ * HARRY POTTER IS DELIBERATELY ABSENT. Its 7/7 split is not damage: the
+ * library holds the Jim Dale AND Stephen Fry narrations, and "Harry Potter
+ * (Narrated by Stephen Fry)" is what keeps two complete readings from
+ * interleaving on one shelf. A balanced split is an operator choice; a lone
+ * straggler is a defect. Do not "fix" it.
+ */
+export const SERIES_ALIASES: ReadonlyMap<string, string> = new Map([
+	['mitch rapp (abridged)', 'Mitch Rapp'],
+	['chronicles of narnia (publication order)', 'Chronicles of Narnia'],
+	['riyria', 'Riyria Chronicles'],
+	['foundation (chronological order)', 'Foundation'],
+	['hannibal lecter series', 'Hannibal Lecter'],
+	['dragon king', 'Dragon King Trilogy'],
+	['jack ryan jr. novel', 'Jack Ryan, Jr.'],
+	['lighthouse trilogy', 'Lighthouse']
+])
+
+/**
+ * The canonical spelling for a shelf name, or the name unchanged.
+ * @param {string | null | undefined} name the series name as the provider gave it
+ * @returns {string | null | undefined} the canonical spelling
+ */
+export function canonicalShelfName<T extends string | null | undefined>(name: T): T | string {
+	if (!name) return name
+	return SERIES_ALIASES.get(foldSeriesName(String(name))) ?? name
+}
+
+/** A series with its name canonicalised, or the same object when nothing moves. */
+const canonicalised = (s: ShelfSeries | undefined): ShelfSeries | undefined => {
+	if (!s?.name) return s
+	const name = canonicalShelfName(s.name)
+	return name === s.name ? s : { ...s, name }
+}
+
 const positioned = (s: ShelfSeries | null | undefined): boolean =>
 	Boolean(s?.name) && isShelvablePosition(s?.position ?? null)
 
 export function applyShelfPolicy<T extends ShelfBook>(book: T): T {
-	const primary = book.seriesPrimary?.name ? book.seriesPrimary : undefined
-	const secondary = asSeries(book.seriesSecondary)
+	// Canonicalise FIRST, so every rule below sees one spelling. The duplicate
+	// check in particular is a fold comparison: with the alias applied after it,
+	// "Hannibal Lecter" and "Hannibal Lecter Series" would still read as two
+	// different series and both survive into the two slots.
+	const primary = canonicalised(book.seriesPrimary?.name ? book.seriesPrimary : undefined)
+	const secondary = canonicalised(asSeries(book.seriesSecondary))
 	if (!primary && !secondary) return book
+	// A rename alone is a change worth returning, even when no rule below fires.
+	if (primary !== book.seriesPrimary || (secondary && secondary !== book.seriesSecondary)) {
+		book = { ...book }
+		if (primary) (book as ShelfBook).seriesPrimary = primary
+		if (secondary) (book as ShelfBook).seriesSecondary = secondary
+	}
 
 	// The two slots may never hold the same series, whatever else happens.
 	const duplicate =

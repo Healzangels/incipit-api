@@ -208,3 +208,78 @@ describe('a POSITIONED container still never shelves', () => {
 		expect(applyShelfPolicy(book)).toEqual(book)
 	})
 })
+
+describe('split shelves: one series, two spellings', () => {
+	// A split shelf is the failure mode that costs the most trust: the book is
+	// correctly matched AND correctly numbered and still files nowhere near its
+	// siblings, because the sort title is composed from the shelf NAME.
+	// Censused live 2026-08-11 across 1,456 albums carrying a
+	// "<shelf>, Book N - <title>" sort title: 9 series split, 16 albums adrift.
+
+	test('the straggler joins its siblings', () => {
+		// Thomas Harris: 3 albums on "Hannibal Lecter", 1 on "Hannibal Lecter
+		// Series" -- created by a re-match to a correct edition whose record
+		// happened to name the series differently.
+		const out = applyShelfPolicy({
+			seriesPrimary: { name: 'Hannibal Lecter Series', position: '3' }
+		})
+		expect(out.seriesPrimary).toEqual({ name: 'Hannibal Lecter', position: '3' })
+	})
+
+	test('the position is carried through the rename untouched', () => {
+		const out = applyShelfPolicy({
+			seriesPrimary: { name: 'Lighthouse Trilogy', position: '2' }
+		})
+		expect(out.seriesPrimary?.position).toBe('2')
+	})
+
+	test('canonicalises the SECONDARY slot too', () => {
+		const out = applyShelfPolicy({
+			seriesPrimary: { name: 'Some Shelf', position: '1' },
+			seriesSecondary: { name: 'Hannibal Lecter Series', position: '3' }
+		})
+		expect((out.seriesSecondary as { name: string }).name).toBe('Hannibal Lecter')
+	})
+
+	test('a rename that makes the two slots equal collapses to one', () => {
+		// This is why the alias runs BEFORE the duplicate check: the fold
+		// comparison would otherwise read the two spellings as two series and
+		// leave the echo in the tag slot.
+		const out = applyShelfPolicy({
+			seriesPrimary: { name: 'Hannibal Lecter', position: '3' },
+			seriesSecondary: { name: 'Hannibal Lecter Series', position: '3' }
+		})
+		expect(out.seriesPrimary).toEqual({ name: 'Hannibal Lecter', position: '3' })
+		expect(out.seriesSecondary).toBeUndefined()
+	})
+
+	test('the CANONICAL name is never rewritten, so another author is untouched', () => {
+		// Only the variant is keyed. "Lighthouse" by anyone else stays put.
+		const out = applyShelfPolicy({ seriesPrimary: { name: 'Lighthouse', position: '1' } })
+		expect(out.seriesPrimary).toEqual({ name: 'Lighthouse', position: '1' })
+	})
+
+	test('an unrelated series is not touched', () => {
+		const out = applyShelfPolicy({ seriesPrimary: { name: 'The Expanse', position: '4' } })
+		expect(out.seriesPrimary).toEqual({ name: 'The Expanse', position: '4' })
+	})
+
+	test('Asimov canonicalises to the BASE name even though it is the minority', () => {
+		// 3 albums say "Foundation (Chronological Order)" and 1 says "Foundation".
+		// Majority-wins would keep the qualifier -- an ordering is not a shelf.
+		const out = applyShelfPolicy({
+			seriesPrimary: { name: 'Foundation (Chronological Order)', position: '2' }
+		})
+		expect(out.seriesPrimary?.name).toBe('Foundation')
+	})
+
+	test('HARRY POTTER stays split -- that one is an operator choice', () => {
+		// The library holds the Jim Dale AND Stephen Fry readings; the qualifier
+		// is what stops two complete narrations interleaving on one shelf. A
+		// balanced 7/7 split is deliberate, a lone straggler is a defect.
+		const out = applyShelfPolicy({
+			seriesPrimary: { name: 'Harry Potter (Narrated by Stephen Fry)', position: '1' }
+		})
+		expect(out.seriesPrimary?.name).toBe('Harry Potter (Narrated by Stephen Fry)')
+	})
+})
