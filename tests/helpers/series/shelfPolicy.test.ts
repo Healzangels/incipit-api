@@ -282,4 +282,56 @@ describe('split shelves: one series, two spellings', () => {
 		})
 		expect(out.seriesPrimary?.name).toBe('Harry Potter (Narrated by Stephen Fry)')
 	})
+
+	// Rule 4, and the shipped defect that proved it was not being enforced.
+	// Baneblade served "Warhammer 40,000: Imperial Guard" #1 as its shelf AND
+	// "Warhammer 40,000 : Imperial Guard" #1 as its tag, live on both boxes,
+	// because the duplicate check was a bare fold and a bare fold reads the
+	// spaced colon as a different series. applyPins cannot stand in for this
+	// test -- it clears the echoing tag before the policy ever sees it, so the
+	// duplicate rule has to be exercised on its own.
+	test('provider colon spacing does not smuggle one series into both slots', () => {
+		const out = applyShelfPolicy({
+			title: 'Baneblade',
+			seriesPrimary: { name: 'Warhammer 40,000: Imperial Guard', position: '1' },
+			seriesSecondary: { name: 'Warhammer 40,000 : Imperial Guard', position: '1' }
+		})
+		expect(out.seriesPrimary).toEqual({ name: 'Warhammer 40,000: Imperial Guard', position: '1' })
+		expect(out.seriesSecondary).toBeUndefined()
+	})
+
+	// Added 2026-08-11. These three arrived as a POSITIONED resolver primary with
+	// the real sub-series stranded in the tag slot, and the operator had answered
+	// all twelve books by hand with a pin apiece. Classifying them lets the
+	// promote arm do it generically — measured over the golden corpus, 12 of
+	// those pins become redundant and no unpinned row moves. Each case below is
+	// one of those twelve; without the classification the umbrella IS the shelf.
+	describe('franchise umbrellas promote the sub-series out from under them', () => {
+		test.each([
+			['Halo: Cryptum', 'Halo', '8', 'The Forerunner Saga', '1'],
+			['The Lightning Thief', 'Camp Half-Blood Chronicles', '1', 'Percy Jackson and the Olympians', '1'],
+			['Xenos', 'Eisenhorn/Ravenor/Bequin', '1', 'Eisenhorn', '1']
+		])('%s shelves under %s, not %s', (title, umbrella, upos, real, rpos) => {
+			const out = applyShelfPolicy({
+				title,
+				seriesPrimary: { name: umbrella, position: upos },
+				seriesSecondary: { name: real, position: rpos }
+			})
+			expect(out.seriesPrimary).toEqual({ name: real, position: rpos })
+			// Rule 3: a container is not even a tag once vacated.
+			expect(out.seriesSecondary).toBeUndefined()
+		})
+
+		test('HOLLY GIBNEY is not one of them -- it shelves four albums of its own', () => {
+			// It umbrellas Bill Hodges and so reads like the same shape, but The
+			// Outsider, If It Bleeds, Holly and Never Flinch shelve under it.
+			// Classifying it would strip their shelf outright.
+			expect(CONTAINER_SHELF_NAMES.has('holly gibney')).toBe(false)
+			const out = applyShelfPolicy({
+				title: 'The Outsider',
+				seriesPrimary: { name: 'Holly Gibney', position: '1' }
+			})
+			expect(out.seriesPrimary).toEqual({ name: 'Holly Gibney', position: '1' })
+		})
+	})
 })

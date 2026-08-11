@@ -32,7 +32,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 
-import { foldSeriesName, withGoodreadsSeries } from '#helpers/providers/goodreadsSeries'
+import { foldSeriesName, sameSeriesName, withGoodreadsSeries } from '#helpers/providers/goodreadsSeries'
 import { applyPins } from '#helpers/series/shelfPins'
 import { applyShelfPolicy } from '#helpers/series/shelfPolicy'
 import { replayStats } from '#helpers/utils/fetchPlus'
@@ -210,7 +210,10 @@ async function evaluate(row: CorpusRow): Promise<RowResult> {
 	}
 
 	// Invariant first: the secondary slot must never duplicate the primary.
-	if (primary && secondary && key(primary.name) === key(secondary.name)) {
+	// sameSeriesName, not `key`: a bare fold reads a spaced colon as a different
+	// series, so the harness scored Baneblade a MATCH while it shipped one series
+	// in both slots — the gate was blind to the exact defect it exists to catch.
+	if (primary && secondary && sameSeriesName(primary.name, secondary.name)) {
 		return {
 			...base,
 			classification: 'SECONDARY_DUP',

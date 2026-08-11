@@ -224,32 +224,32 @@ export const SHELF_PINS: Record<string, ShelfPin> = {
 		source: 'measured-hard'
 	},
 	B00DZ0G088: {
-		series: 'The Riyria Chronicles',
+		series: 'Riyria Chronicles',
 		position: '1',
 		source: 'census-verdict'
 	},
 	B00F5BVQQQ: {
-		series: 'The Riyria Chronicles',
+		series: 'Riyria Chronicles',
 		position: '2',
 		source: 'census-verdict'
 	},
 	B0G6MTH7LC: {
-		series: 'The Riyria Chronicles',
+		series: 'Riyria Chronicles',
 		position: '2.5',
 		source: 'census-verdict'
 	},
 	B0GDRVSG7Z: {
-		series: 'The Riyria Chronicles',
+		series: 'Riyria Chronicles',
 		position: '2.6',
 		source: 'census-verdict'
 	},
 	B014WY3T34: {
-		series: 'The Riyria Chronicles',
+		series: 'Riyria Chronicles',
 		position: '3',
 		source: 'census-verdict'
 	},
 	B0D7ZB7B7R: {
-		series: 'The Riyria Chronicles',
+		series: 'Riyria Chronicles',
 		position: '5',
 		source: 'census-verdict'
 	},
@@ -457,7 +457,7 @@ export const SHELF_PINS: Record<string, ShelfPin> = {
 		source: 'operator-stated'
 	},
 	B08WJL3YG2: {
-		series: 'The Dragon King Trilogy',
+		series: 'Dragon King Trilogy',
 		position: '1',
 		source: 'operator-stated'
 	}

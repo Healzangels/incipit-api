@@ -24,7 +24,11 @@
  * Warhammer 40,000" contains a container name and is not one). The list is
  * deliberately tiny and reviewable; classification-as-data (C2/C3) grows it.
  */
-import { foldSeriesName, isShelvablePosition } from '#helpers/providers/goodreadsSeries'
+import {
+	foldSeriesName,
+	isShelvablePosition,
+	sameSeriesName
+} from '#helpers/providers/goodreadsSeries'
 
 interface ShelfSeries {
 	name?: string
@@ -53,10 +57,34 @@ export const CONTAINER_SHELF_NAMES: ReadonlySet<string> = new Set([
 	'warhammer 40,000',
 	'cosmere',
 	'cosmere universe',
-	'jack ryan universe'
+	'jack ryan universe',
+	// Added 2026-08-11 on the same test as the four above, measured rather than
+	// judged: each shelves ZERO albums of its own while the sub-series it
+	// umbrellas shelves 3, 6 and 4. Every one of them was reaching the shelf as
+	// a resolver PRIMARY with the real sub-series stranded in the tag slot, and
+	// the operator had answered all twelve by hand with a pin apiece. Naming
+	// them lets the promote arm below do it generically: A/B over the golden
+	// corpus, 12 of those pins become redundant, 0 unpinned rows move, 0 break.
+	// This is the difference between a per-book pin and a rule another library
+	// inherits for free.
+	//
+	// HOLLY GIBNEY IS DELIBERATELY ABSENT and must stay so. It reads like the
+	// same shape — it umbrellas Bill Hodges — but it shelves FOUR albums of its
+	// own (The Outsider, If It Bleeds, Holly, Never Flinch). Classifying it here
+	// would strip their shelf entirely. Shelving zero albums is the test;
+	// "sounds like a franchise" is not.
+	'halo',
+	'camp half-blood chronicles',
+	'eisenhorn/ravenor/bequin'
 ])
 
-const isContainer = (name: string | null | undefined): boolean =>
+/**
+ * Whether a name is a franchise container. Exported for shelfPins, which must
+ * not re-seat one into the tag slot it just vacated.
+ * @param {string | null | undefined} name the series name
+ * @returns {boolean} true when the name is a container
+ */
+export const isContainer = (name: string | null | undefined): boolean =>
 	Boolean(name) && CONTAINER_SHELF_NAMES.has(foldSeriesName(String(name)))
 
 /**
@@ -134,11 +162,11 @@ export function applyShelfPolicy<T extends ShelfBook>(book: T): T {
 		if (secondary) (book as ShelfBook).seriesSecondary = secondary
 	}
 
-	// The two slots may never hold the same series, whatever else happens.
-	const duplicate =
-		primary &&
-		secondary &&
-		foldSeriesName(String(primary.name)) === foldSeriesName(String(secondary.name))
+	// The two slots may never hold the same series, whatever else happens. The
+	// compare is sameSeriesName, not a bare fold: a bare fold reads
+	// "Warhammer 40,000 : Imperial Guard" and "Warhammer 40,000: Imperial Guard"
+	// as two series, which is how Baneblade shipped one series in both slots.
+	const duplicate = primary && secondary && sameSeriesName(primary.name, secondary.name)
 
 	// A CONTAINER never shelves, even POSITIONED. This guard used to be
 	// `positioned(primary)` alone, and isContainer was consulted only in the

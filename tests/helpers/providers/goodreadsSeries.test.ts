@@ -15,8 +15,54 @@ const {
 	seriesAliasFor,
 	resetGoodreadsThrottle,
 	mirrorKeyFor,
-	queryTitle
+	queryTitle,
+	sameSeriesName
 } = await import('#helpers/providers/goodreadsSeries')
+
+// Series-name IDENTITY, the compare behind the pin echo test, the shelf-policy
+// duplicate rule and the harness SECONDARY_DUP check. It has to be exactly wide
+// enough to see through provider colon spacing and no wider: this library keeps
+// "Riyria Chronicles" and "Riyria Revelations" as separate shelves, and "Jack
+// Ryan" and "Jack Ryan, Jr." as separate series, by operator census.
+describe('sameSeriesName', () => {
+	test('sees through the spacing a provider puts around a colon', () => {
+		// Live 2026-08-11: Baneblade shipped these two as its shelf AND its tag.
+		expect(sameSeriesName('Warhammer 40,000 : Imperial Guard', 'Warhammer 40,000: Imperial Guard')).toBe(true)
+	})
+
+	test('still folds a leading article and case, as foldSeriesName does', () => {
+		expect(sameSeriesName('The Riyria Chronicles', 'riyria chronicles')).toBe(true)
+	})
+
+	test.each([
+		['Riyria Chronicles', 'Riyria Revelations'],
+		['Jack Ryan', 'Jack Ryan, Jr.'],
+		['Eisenhorn', 'Eisenhorn/Ravenor/Bequin'],
+		['Foundation', 'Foundation (Chronological Order)'],
+		// Containment, not equality: an `includes` compare would merge these, and
+		// this library keeps them as separate shelves.
+		['Riyria', 'Riyria Chronicles'],
+		['Wax and Wayne', 'Wax and Wayne: Mistborn']
+	])('keeps %p and %p apart', (a, b) => {
+		expect(sameSeriesName(a, b)).toBe(false)
+	})
+
+	// The colon rule must not generalise into "ignore punctuation". These pairs
+	// differ ONLY in punctuation and are still different names; a wholesale strip
+	// merges them and every mutation of the normaliser would go unnoticed.
+	test.each([
+		['Warhammer 40,000', 'Warhammer 40000'],
+		['Jack Ryan, Jr.', 'Jack Ryan Jr']
+	])('does not merge %p with %p', (a, b) => {
+		expect(sameSeriesName(a, b)).toBe(false)
+	})
+
+	test('an absent name is never the same series as anything', () => {
+		expect(sameSeriesName(undefined, 'Eisenhorn')).toBe(false)
+		expect(sameSeriesName('Eisenhorn', null)).toBe(false)
+		expect(sameSeriesName('', '')).toBe(false)
+	})
+})
 
 // The cache key carries the MIRROR's identity (a switch must not serve the
 // previous backend's answers), so tests that address an exact key derive the

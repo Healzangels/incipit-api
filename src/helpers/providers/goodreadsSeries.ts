@@ -762,6 +762,44 @@ export const foldSeriesName = (value: string): string =>
 		.toLowerCase()
 
 /**
+ * "Are these two strings the same series?" — `foldSeriesName` plus the spacing
+ * providers put around a colon.
+ *
+ * Built BESIDE foldSeriesName, never inside it: that function keys
+ * SERIES_ALIASES and gates the rescue refusal and the volume-prefix gates, so
+ * widening it would change what MATCHES, not just what shelves.
+ *
+ * The blind spot was live. Baneblade served `Warhammer 40,000: Imperial Guard`
+ * #1 as its shelf and `Warhammer 40,000 : Imperial Guard` #1 as its tag — one
+ * series in both slots, which is the exact state shelfPolicy's rule 4 exists to
+ * prevent — because a bare fold compare reads the spaced colon as a different
+ * name. The same identity is used at three sites (the pin echo test, the policy
+ * duplicate test, the harness SECONDARY_DUP check), so all three were blind
+ * together and the gate scored the row a MATCH while it shipped the duplicate.
+ *
+ * Deliberately narrow. Measured over the 732 distinct series names in the
+ * golden corpus, this merges EXACTLY ONE pair — the Baneblade pair — and
+ * nothing else. It must stay that narrow: stripping punctuation wholesale would
+ * merge "Jack Ryan" with "Jack Ryan, Jr.", and comparing with `includes` would
+ * merge "Riyria Chronicles" with "Riyria Revelations". Both are distinct
+ * shelves in this library by operator census.
+ */
+const foldSeriesIdentity = (value: string): string =>
+	foldSeriesName(value).replace(/\s*([:;,])\s*/g, '$1')
+
+/**
+ * Whether two series names denote the same series. Exact after folding, never
+ * substring.
+ * @param {string | null | undefined} a one series name
+ * @param {string | null | undefined} b the other
+ * @returns {boolean} true when both are present and denote the same series
+ */
+export const sameSeriesName = (
+	a: string | null | undefined,
+	b: string | null | undefined
+): boolean => Boolean(a && b) && foldSeriesIdentity(String(a)) === foldSeriesIdentity(String(b))
+
+/**
  * The descriptor nouns providers bolt onto a series name. One list, because it
  * was two: the volume-prefix gates each carried their own copy, so widening it
  * in one place silently left the other narrower.

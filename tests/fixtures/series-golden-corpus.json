@@ -8331,7 +8331,7 @@
    },
    "required": {
     "outcome": "SERIES",
-    "series": "The Riyria Chronicles",
+    "series": "Riyria Chronicles",
     "position": "4",
     "expectedSortPrefix": "Riyria Chronicles, Book 4 - "
    },
@@ -8384,7 +8384,7 @@
    },
    "required": {
     "outcome": "SERIES",
-    "series": "The Riyria Chronicles",
+    "series": "Riyria Chronicles",
     "position": "1",
     "secondaryNote": "Riyria (combined-universe) at most a tag",
     "expectedSortPrefix": "Riyria Chronicles, Book 1 - "
@@ -8446,7 +8446,7 @@
    },
    "required": {
     "outcome": "SERIES",
-    "series": "The Riyria Chronicles",
+    "series": "Riyria Chronicles",
     "position": "2",
     "secondaryNote": "Riyria (combined-universe) at most a tag",
     "expectedSortPrefix": "Riyria Chronicles, Book 2 - "
@@ -8505,7 +8505,7 @@
    },
    "required": {
     "outcome": "SERIES",
-    "series": "The Riyria Chronicles",
+    "series": "Riyria Chronicles",
     "position": "2.5",
     "secondaryNote": "Riyria (combined-universe) at most a tag",
     "expectedSortPrefix": "Riyria Chronicles, Book 2.5 - "
@@ -8564,7 +8564,7 @@
    },
    "required": {
     "outcome": "SERIES",
-    "series": "The Riyria Chronicles",
+    "series": "Riyria Chronicles",
     "position": "2.6",
     "secondaryNote": "Riyria (combined-universe) at most a tag",
     "expectedSortPrefix": "Riyria Chronicles, Book 2.6 - "
@@ -8623,7 +8623,7 @@
    },
    "required": {
     "outcome": "SERIES",
-    "series": "The Riyria Chronicles",
+    "series": "Riyria Chronicles",
     "position": "3",
     "secondaryNote": "Riyria (combined-universe) at most a tag",
     "expectedSortPrefix": "Riyria Chronicles, Book 3 - ",
@@ -8683,7 +8683,7 @@
    },
    "required": {
     "outcome": "SERIES",
-    "series": "The Riyria Chronicles",
+    "series": "Riyria Chronicles",
     "position": "5",
     "secondaryNote": "Riyria (combined-universe) at most a tag",
     "expectedSortPrefix": "Riyria Chronicles, Book 5 - ",
@@ -27521,7 +27521,7 @@
    "pinType": "operator-stated",
    "required": {
     "outcome": "SERIES",
-    "series": "The Dragon King Trilogy",
+    "series": "Dragon King Trilogy",
     "position": "1",
     "note": "Same split class, opposite direction: Lawhead's trilogy IS three books, 2 of 3 records already say 'The Dragon King Trilogy'; this OverDrive record alone says 'The Dragon King'. Unify on the majority/canonical Trilogy name. The 2026-08-07 offline A/B rejected a GENERAL Trilogy fold (12 of 16 affected names were canonical, e.g. Void/Kharkanas Trilogy) - pins are the sanctioned per-book tool. | recordId re-bound overdrive-565194 -> B08WJL3YG2 on 2026-08-11 (matched on the album title stem; the corpus name carries a \": <series>\" suffix the library title does not)."
    }
