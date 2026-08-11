@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 
-import HardcoverProvider, { type HardcoverGql, interpretGqlBody } from '#helpers/providers/HardcoverProvider'
+import HardcoverProvider, {
+	type HardcoverGql,
+	interpretGqlBody
+} from '#helpers/providers/HardcoverProvider'
 import type { BookSearchQuery } from '#helpers/providers/types'
 
 // Canned responses mirror the real Hardcover shapes verified live during Gate 0:
@@ -261,6 +264,79 @@ describe('HardcoverProvider.fetchBook', () => {
 			}
 		]
 	}
+
+	test('an ORDERING listing never becomes the shelf', async () => {
+		// Reaper's Gale, measured live: Hardcover's book_series carried the real
+		// shelf AND "Malazan Authors' Suggested Reading Order", and buildSeries
+		// preserves Hardcover's own array order -- so series[1] handed the
+		// ordering to seriesSecondary. That value then WINS over the filtered
+		// goodreads answer (`book.seriesSecondary ?? result.secondary`), which is
+		// why filtering has to happen here and not only downstream.
+		const book = {
+			...parentBook,
+			book_series: [
+				{ position: 7, series: { name: 'Malazan Book of the Fallen' } },
+				{ position: 7, series: { name: "Malazan Authors' Suggested Reading Order" } },
+				{ position: 2, series: { name: 'The Tales of Bauchelain and Korbal Broach' } }
+			]
+		}
+		const p = new HardcoverProvider({ gql: fetchGql(matchedEdition, book) })
+		const out = await p.fetchBook('31501578', 'edition', {
+			region: 'us',
+			credentials: { hardcover: 'tok' }
+		})
+		expect(out?.seriesPrimary?.name).toBe('Malazan Book of the Fallen')
+		expect(out?.seriesSecondary?.name).toBe('The Tales of Bauchelain and Korbal Broach')
+	})
+
+	test('an ordering in FIRST position does not become the primary either', async () => {
+		const book = {
+			...parentBook,
+			book_series: [
+				{ position: 1, series: { name: 'Discworld (publication order)' } },
+				{ position: 1, series: { name: 'Discworld' } }
+			]
+		}
+		const p = new HardcoverProvider({ gql: fetchGql(matchedEdition, book) })
+		const out = await p.fetchBook('31501578', 'edition', {
+			region: 'us',
+			credentials: { hardcover: 'tok' }
+		})
+		expect(out?.seriesPrimary?.name).toBe('Discworld')
+		expect(out?.seriesSecondary).toBeUndefined()
+	})
+
+	test('when EVERY entry is an ordering, a coarse shelf still beats none', async () => {
+		// The same fallback goodreadsSeries makes when nothing survives the
+		// demotion: a variant shelf beats leaving the book unshelved.
+		const book = {
+			...parentBook,
+			book_series: [{ position: 1, series: { name: 'Wheel of Time (chronological)' } }]
+		}
+		const p = new HardcoverProvider({ gql: fetchGql(matchedEdition, book) })
+		const out = await p.fetchBook('31501578', 'edition', {
+			region: 'us',
+			credentials: { hardcover: 'tok' }
+		})
+		expect(out?.seriesPrimary?.name).toBe('Wheel of Time (chronological)')
+	})
+
+	test('a clean series pair is untouched', async () => {
+		const book = {
+			...parentBook,
+			book_series: [
+				{ position: 1, series: { name: 'Mistborn' } },
+				{ position: 1, series: { name: 'The Cosmere' } }
+			]
+		}
+		const p = new HardcoverProvider({ gql: fetchGql(matchedEdition, book) })
+		const out = await p.fetchBook('31501578', 'edition', {
+			region: 'us',
+			credentials: { hardcover: 'tok' }
+		})
+		expect(out?.seriesPrimary?.name).toBe('Mistborn')
+		expect(out?.seriesSecondary?.name).toBe('The Cosmere')
+	})
 
 	test('applies the MATCHED edition, not a popularity re-pick of the book editions', async () => {
 		const p = new HardcoverProvider({ gql: fetchGql(matchedEdition, parentBook) })

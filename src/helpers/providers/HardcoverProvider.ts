@@ -9,6 +9,7 @@ import type {
 	ProviderCandidate
 } from './types'
 
+import { isSeriesOrdering } from '#helpers/providers/goodreadsSeries'
 import fetch from '#helpers/utils/fetchPlus'
 import { normalizeLanguage, preferLanguage } from '#helpers/utils/language'
 
@@ -295,7 +296,28 @@ function buildSeries(book: HardcoverBook): { name: string; position?: string }[]
  * edition the caller intends.
  */
 function providerBook(book: HardcoverBook, edition: HardcoverEdition | undefined): ProviderBook {
-	const series = buildSeries(book)
+	// buildSeries preserves Hardcover's own array order and filters only for a
+	// non-empty name, so series[0]/series[1] were ARBITRARY positions. That is
+	// tolerable for the primary -- the goodreads leg overwrites it -- but the
+	// secondary it produces SURVIVES: seriesSecondary is merged as
+	// `book.seriesSecondary ?? result.secondary` (goodreadsSeries.ts:1232), so a
+	// provider secondary takes precedence over the filtered goodreads answer and
+	// the book ends up with its primary from one taxonomy and its secondary from
+	// another.
+	//
+	// This is the serving path for every album whose ASIN was never an Audible
+	// product id -- 786 of 1441 in the measured library, because a Hardcover
+	// edition exposes an `asin` for dedup and the matcher can pin to it. Measured
+	// on a 45-album sample of exactly that class: 7 carried a secondary and one
+	// was "Malazan Authors' Suggested Reading Order" on Reaper's Gale.
+	//
+	// An ordering is not a shelf, which is the rule the goodreads pool already
+	// applies; applying it here keeps the two paths from disagreeing. The
+	// fallback is deliberate: when EVERY entry is an ordering, a coarse shelf
+	// still beats none, matching the `clean.length` fallback in goodreadsSeries.
+	const all = buildSeries(book)
+	const clean = all.filter((entry) => !isSeriesOrdering(entry.name))
+	const series = clean.length ? clean : all
 	return {
 		asin: edition?.asin ?? null,
 		title: book.title ?? '',
