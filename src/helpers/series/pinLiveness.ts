@@ -28,6 +28,13 @@ export interface PinLivenessReport {
 	total: number
 	live: string[]
 	dead: string[]
+	/** Reached only by the portable key, not by the edition id — the pins that
+	 *  would be dead without it. */
+	byKeyOnly: string[]
+	/** Keys whose folded (title, author) matches MORE THAN ONE album. A pin on
+	 *  one of these applies to a book it was never stated for; an edition id
+	 *  could not do this, because it names exactly one record. */
+	ambiguous: { key: string; albums: string[] }[]
 }
 
 /**
@@ -44,12 +51,46 @@ export interface PinLivenessReport {
  */
 export function pinLiveness(
 	pins: Record<string, PinLike>,
-	liveRecordIds: Iterable<string>
+	liveRecordIds: Iterable<string>,
+	keyByRecord: Record<string, string[]> = {},
+	albumsByKey: ReadonlyMap<string, readonly string[]> = new Map()
 ): PinLivenessReport {
 	const live = new Set(liveRecordIds)
 	const keys = Object.keys(pins)
 	const reachable: string[] = []
 	const dead: string[] = []
-	for (const key of keys) (live.has(key) ? reachable : dead).push(key)
-	return { total: keys.length, live: reachable.sort(), dead: dead.sort() }
+	const byKeyOnly: string[] = []
+	// A pin is reachable when EITHER lookup finds it, because applyPins tries the
+	// edition id and then the portable key. Checking only the id reported 34 of 84
+	// pins dead on .99 while the decisions they encode were in force.
+	//
+	// The record -> key join comes from the generator, never inferred from the
+	// answer a pin carries: two pins can legitimately state the same series and
+	// position, and inferring would then credit one pin with the other's key.
+	for (const key of keys) {
+		if (live.has(key)) {
+			reachable.push(key)
+			continue
+		}
+		// ANY of the pin's keys reaching an album makes it live — a pin filed under
+		// both its own title and a baked-in-series alias is reachable by either.
+		const ks = keyByRecord[key] ?? []
+		if (ks.some((k) => (albumsByKey.get(k)?.length ?? 0) > 0)) {
+			reachable.push(key)
+			byKeyOnly.push(key)
+			continue
+		}
+		dead.push(key)
+	}
+	const ambiguous = [...new Set(Object.values(keyByRecord).flat())]
+		.map((k) => ({ key: k, albums: [...(albumsByKey.get(k) ?? [])] }))
+		.filter((a) => a.albums.length > 1)
+		.sort((a, b) => a.key.localeCompare(b.key))
+	return {
+		total: keys.length,
+		live: reachable.sort(),
+		dead: dead.sort(),
+		byKeyOnly: byKeyOnly.sort(),
+		ambiguous
+	}
 }

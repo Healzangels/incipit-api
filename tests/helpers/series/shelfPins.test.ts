@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 
+import { pinKey, pinKeyAliases } from '#helpers/series/pinKey'
 import { applyPins, type ShelfPin } from '#helpers/series/shelfPins'
-import { SHELF_PINS } from '#helpers/series/shelfPins.data'
+import { SHELF_PIN_KEYS, SHELF_PINS, SHELF_PINS_BY_KEY } from '#helpers/series/shelfPins.data'
 import { applyShelfPolicy,SERIES_ALIASES } from '#helpers/series/shelfPolicy'
 
 // Answer-level pins: operator-stated shelves for records the resolver cannot
@@ -336,6 +337,180 @@ describe('applyPins', () => {
 	})
 })
 
+// The portable key. A pin is keyed on the matched EDITION id, and two libraries
+// that matched the same collection independently agree on only 58% of those, so
+// the shipped table reaches 90/90 pins on one server and 49/90 on the other —
+// and ~0 for anyone else. These tests pin the fold that makes one table serve
+// them all, and the boundaries that stop it merging two different books.
+describe('pinKey', () => {
+	test('a title and an author fold to one key', () => {
+		expect(pinKey('The Crown Tower', 'Michael J. Sullivan')).toBe('thecrowntower|michaeljsullivan')
+	})
+
+	test.each([
+		['Slaughterhouse-Five: Unabridged', 'Slaughterhouse-Five'],
+		['Slaughterhouse-Five (Unabridged)', 'Slaughterhouse-Five'],
+		['Slaughterhouse-Five, Abridged', 'Slaughterhouse-Five']
+	])('%p keys the same as %p', (a, b) => {
+		expect(pinKey(a, 'Kurt Vonnegut')).toBe(pinKey(b, 'Kurt Vonnegut'))
+	})
+
+	test.each([
+		['Kurt Vonnegut Jr.', 'Kurt Vonnegut'],
+		['Kurt Vonnegut Jr', 'Kurt Vonnegut'],
+		['Martin Luther King, Jr.', 'Martin Luther King']
+	])('author %p keys the same as %p', (a, b) => {
+		expect(pinKey('T', a)).toBe(pinKey('T', b))
+	})
+
+	test('diacritics, case and punctuation do not split a key', () => {
+		expect(pinKey('Éclair: A Tale', 'Émile Zola')).toBe(pinKey('eclair a tale', 'emile zola'))
+	})
+
+	// The property that separates this from foldSeriesName, which folds a leading
+	// article. That is right for a SERIES (one shelf under either spelling) and
+	// wrong for a TITLE.
+	test('a leading article is NOT folded — "The Stand" is not "Stand"', () => {
+		expect(pinKey('The Stand', 'Stephen King')).not.toBe(pinKey('Stand', 'Stephen King'))
+	})
+
+	test.each([
+		['', 'Author'],
+		['Title', ''],
+		[null, 'Author'],
+		['Title', undefined],
+		['!!!', 'Author'],
+		['Title', '???']
+	])('pinKey(%p, %p) is empty, never a half-key', (t, a) => {
+		expect(pinKey(t as string, a as string)).toBe('')
+	})
+})
+
+describe('pinKeyAliases', () => {
+	// The shape it exists for: prod matched these to editions titled plainly,
+	// while the pin was minted from a record that bakes the series in.
+	test.each([
+		['Gauntlgrym: Legend of Drizzt', 'gauntlgrym'],
+		['Neverwinter: Legend of Drizzt', 'neverwinter'],
+		['Rise of the King: Legend of Drizzt: Companions Codex', 'riseoftheking'],
+		['Night of the Hunter: Legend of Drizzt: Companions Codex', 'nightofthehunter']
+	])('%p also keys as the plain title', (title, head) => {
+		expect(pinKeyAliases(title, 'R.A. Salvatore', 'The Legend of Drizzt')).toEqual([
+			`${head}|rasalvatore`
+		])
+	})
+
+	// The shape a blanket "cut at the first colon" would destroy. Measured, that
+	// fallback collapsed three Ahriman volumes onto one key and handed the
+	// correctly-unpinned #5 whichever pin won.
+	test.each([
+		['Ahriman: Sorcerer', 'Ahriman'],
+		['Ahriman: Unchanged', 'Ahriman'],
+		['Ahriman: Undying', 'Ahriman'],
+		['The Twice Dead King: Ruin', 'The Twice Dead King'],
+		['Halo: Cryptum', 'The Forerunner Saga']
+	])('%p keeps its volume — no alias', (title, series) => {
+		expect(pinKeyAliases(title, 'Some Author', series)).toEqual([])
+	})
+
+	test('a leading article does not stop the series being recognised', () => {
+		expect(pinKeyAliases('Archmage: The Legend of Drizzt', 'R.A. Salvatore', 'Legend of Drizzt')).toEqual([
+			'archmage|rasalvatore'
+		])
+	})
+
+	test.each([
+		['No Colon Here', 'S'],
+		['Head: Something Else', 'Other Series'],
+		[': Legend of Drizzt', 'The Legend of Drizzt']
+	])('%p with series %p produces no alias', (title, series) => {
+		expect(pinKeyAliases(title, 'A', series)).toEqual([])
+	})
+
+	test('a missing half produces no alias', () => {
+		expect(pinKeyAliases('X: Y', null, 'Y')).toEqual([])
+		expect(pinKeyAliases(null, 'A', 'Y')).toEqual([])
+		expect(pinKeyAliases('X: Y', 'A', null)).toEqual([])
+	})
+})
+
+describe('applyPins by portable key', () => {
+	const pin: ShelfPin = { series: 'Discworld', position: '9', source: 'operator-stated' }
+	const keyed: Record<string, ShelfPin> = { [pinKey('Eric', 'Terry Pratchett')]: pin }
+	const book = () => ({ title: 'Eric', authors: [{ name: 'Terry Pratchett' }] })
+
+	test('a pin reaches a record id it was never minted for', () => {
+		const out = applyPins(book(), 'B0NEVERSEEN', {}, keyed)
+		expect(out.seriesPrimary).toStrictEqual({ name: 'Discworld', position: '9' })
+	})
+
+	test('the EDITION id wins over the key', () => {
+		const byId: Record<string, ShelfPin> = {
+			B0EXACTEDIT: { series: 'Rincewind', position: '4', source: 'operator-stated' }
+		}
+		const out = applyPins(book(), 'B0EXACTEDIT', byId, keyed)
+		expect(out.seriesPrimary).toStrictEqual({ name: 'Rincewind', position: '4' })
+	})
+
+	test('the edition qualifier does not stop the key matching', () => {
+		const out = applyPins(
+			{ title: 'Eric (Unabridged)', authors: [{ name: 'Terry Pratchett' }] },
+			null,
+			{},
+			keyed
+		)
+		expect(out.seriesPrimary).toStrictEqual({ name: 'Discworld', position: '9' })
+	})
+
+	// Two editions of one book do not reliably list their authors in the same
+	// order, so every author is tried, not just authors[0].
+	test('a co-author listed second still finds the pin', () => {
+		const out = applyPins(
+			{ title: 'Eric', authors: [{ name: 'Some Illustrator' }, { name: 'Terry Pratchett' }] },
+			null,
+			{},
+			keyed
+		)
+		expect(out.seriesPrimary).toStrictEqual({ name: 'Discworld', position: '9' })
+	})
+
+	test('a DIFFERENT author does not collect the pin', () => {
+		const out = applyPins({ title: 'Eric', authors: [{ name: 'Neil Gaiman' }] }, null, {}, keyed)
+		expect(out.seriesPrimary).toBeUndefined()
+	})
+
+	test('a different title by the same author does not collect the pin', () => {
+		const out = applyPins({ title: 'Mort', authors: [{ name: 'Terry Pratchett' }] }, null, {}, keyed)
+		expect(out.seriesPrimary).toBeUndefined()
+	})
+
+	test.each([[undefined], [[]], [[{ name: '' }]], [null]])(
+		'a book whose authors are %p matches nothing',
+		(authors) => {
+			const table: Record<string, ShelfPin> = { '': pin, 'eric|': pin }
+			const b = { title: 'Eric', authors: authors as { name?: string }[] }
+			expect(applyPins(b, null, {}, table)).toBe(b)
+		}
+	)
+
+	// An author that is present but folds away leaves an EMPTY key. Nothing may
+	// be stored under it and nothing may match it — an empty key would otherwise
+	// collect every other book whose author also folds away.
+	test('an author that folds to nothing cannot collect a pin filed under ""', () => {
+		const table: Record<string, ShelfPin> = { '': pin, '|': pin, 'eric|': pin }
+		const b = { title: 'Eric', authors: [{ name: '???' }, { name: '...' }] }
+		expect(applyPins(b, null, {}, table)).toBe(b)
+	})
+
+	// The key table is a plain object literal too, so it carries the same
+	// prototype-chain hazard as the id table — and a title/author pair CAN fold
+	// to one of these where a 10-character ASIN never could.
+	test.each(['constructor', 'toString', 'valueOf'])('a key of %p is not a pin', (word) => {
+		const b = { title: word, authors: [{ name: '' }] }
+		expect(applyPins(b, null, {}, {})).toBe(b)
+	})
+})
+
 // T13 — a DATA gate, not a code test: no mutation of shelfPins.ts can break it.
 // It exists because a pin spelling a series differently from the alias table is
 // invisible to every code path and produces the one failure that costs the most
@@ -365,6 +540,45 @@ describe('the pin table agrees with the alias table', () => {
 	test('no alias target is itself an alias key', () => {
 		const chained = aliasTargets.filter((t) => SERIES_ALIASES.has(foldForAlias(t)))
 		expect(chained).toEqual([])
+	})
+})
+
+// The shipped key table. mintPins refuses to emit a colliding one, but the data
+// file is what actually ships, so the guarantee is asserted on the artifact.
+describe('the shipped portable key table', () => {
+	test('every key is well-formed — no empty side, no bare separator', () => {
+		const bad = Object.keys(SHELF_PINS_BY_KEY).filter((k) => !k || k.startsWith('|') || k.endsWith('|'))
+		expect(bad).toEqual([])
+	})
+
+	test('every keyed pin is a pin that also ships by edition id', () => {
+		const byId = new Set(Object.values(SHELF_PINS).map((p) => JSON.stringify(p)))
+		const orphans = Object.entries(SHELF_PINS_BY_KEY)
+			.filter(([, p]) => !byId.has(JSON.stringify(p)))
+			.map(([k]) => k)
+		expect(orphans).toEqual([])
+	})
+
+	// A key claimed by two different answers would apply a pin to a book it was
+	// never stated for — the failure mode an edition id could not have, because
+	// an edition id names exactly one record.
+	test('no two DIFFERENT answers share one key', () => {
+		const seen = new Map<string, string>()
+		const clashes: string[] = []
+		for (const [k, p] of Object.entries(SHELF_PINS_BY_KEY)) {
+			const answer = `${p.series} #${p.position ?? '-'}`
+			const prior = seen.get(k)
+			if (prior && prior !== answer) clashes.push(`${k}: ${prior} vs ${answer}`)
+			seen.set(k, answer)
+		}
+		expect(clashes).toEqual([])
+	})
+
+	test('most pins are portable — a table that only reaches one library is the bug', () => {
+		// Counted over RECORDS, not keys: a pin may also be filed under a
+		// baked-in-series alias, so counting keys would read over 100%.
+		const total = Object.keys(SHELF_PINS).length
+		expect(Object.keys(SHELF_PIN_KEYS).length).toBeGreaterThanOrEqual(Math.floor(total * 0.9))
 	})
 })
 

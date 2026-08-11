@@ -14,9 +14,10 @@
  * and the gate re-verifies. Hand-editing the data file drifts it from the
  * corpus and the generator will clobber it.
  */
-import { SHELF_PINS } from './shelfPins.data'
+import { SHELF_PINS, SHELF_PINS_BY_KEY } from './shelfPins.data'
 
 import { sameSeriesName } from '#helpers/providers/goodreadsSeries'
+import { pinKey } from '#helpers/series/pinKey'
 import { isContainer } from '#helpers/series/shelfPolicy'
 
 export interface ShelfPin {
@@ -41,8 +42,23 @@ interface PinSeries {
 }
 interface PinBook {
 	title?: string
+	authors?: ReadonlyArray<{ name?: string } | null | undefined> | null
 	seriesPrimary?: PinSeries | null
 	seriesSecondary?: unknown
+}
+
+/**
+ * Every key a book could be filed under — one per author, because two editions
+ * of one book do not reliably list their authors in the same order.
+ * @param {PinBook} book the book being served, before any pin is applied
+ * @returns {string[]} the candidate keys, most likely first
+ */
+const keysFor = (book: PinBook): string[] => {
+	const names = (book.authors ?? []).map((a) => a?.name).filter((n): n is string => Boolean(n))
+	// Empty keys are NOT filtered here on purpose: `owned` rejects a falsy key,
+	// so a second guard would be unreachable duplication — and unreachable code
+	// no mutation can kill is how a guard rots into decoration.
+	return [...new Set(names.map((n) => pinKey(book.title, n)))]
 }
 
 const asSeries = (v: unknown): PinSeries | undefined => {
@@ -51,17 +67,28 @@ const asSeries = (v: unknown): PinSeries | undefined => {
 	return typeof s.name === 'string' && s.name ? (v as PinSeries) : undefined
 }
 
+/** Own-property lookup. Both tables are plain object literals, so "constructor"
+ *  / "toString" / "valueOf" would otherwise return a truthy Function off
+ *  Object.prototype and every `pin.x` would read undefined off it — a pin that
+ *  was never stated. */
+const owned = (
+	table: Record<string, ShelfPin>,
+	k: string | null | undefined
+): ShelfPin | undefined => (k && Object.hasOwn(table, k) ? table[k] : undefined)
+
 export function applyPins<T extends PinBook>(
 	book: T,
 	recordId: string | null | undefined,
-	pins: Record<string, ShelfPin> = SHELF_PINS
+	pins: Record<string, ShelfPin> = SHELF_PINS,
+	keyed: Record<string, ShelfPin> = SHELF_PINS_BY_KEY
 ): T {
-	// Own-property only. `pins` is a plain object literal, so a recordId of
-	// "constructor" / "toString" / "valueOf" returns a truthy Function off the
-	// prototype chain and every `pin.x` below reads undefined off it — a pin that
-	// was never stated. Unreachable while record ids are 10-character ASINs;
-	// reachable the moment pins key on anything else.
-	const pin = recordId && Object.hasOwn(pins, recordId) ? pins[recordId] : undefined
+	// The EDITION id first and unconditionally: it is exact, and it keeps every
+	// pin that works today working. The folded (title, author) key is the
+	// fallback that makes the same table reach a library which matched the same
+	// book to a different edition — see pinKey.
+	const pin =
+		owned(pins, recordId) ??
+		keysFor(book).reduce<ShelfPin | undefined>((hit, k) => hit ?? owned(keyed, k), undefined)
 	// An unpinned book returns the SAME object, not a clone: the route calls this
 	// on every served book.
 	if (!pin) return book
