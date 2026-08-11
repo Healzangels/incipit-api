@@ -23,7 +23,8 @@
 		"test:gate": "bun test --timeout 30000 --parallel=1 tests/typing tests/static tests/helpers/database tests/helpers/errors tests/helpers/routes tests/helpers/utils tests/helpers/books tests/helpers/authors tests/helpers/providers tests/helpers/series tests/database tests/config",
 		"test:live": "bun test --timeout 60000 tests/live",
 		"watch-debug": "bun --watch --inspect src/server.ts",
-		"watch": "bun --watch src/server.ts"
+		"watch": "bun --watch src/server.ts",
+		"check:pins": "bun scripts/checkPinLiveness.ts"
 	},
 	"author": "David Dembeck",
 	"license": "GPL-3.0",
