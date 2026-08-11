@@ -1118,7 +1118,7 @@
    "group": "named-drizzt"
   },
   {
-   "recordId": "apple-audiobook-824435136",
+   "recordId": "B00IGB42TA",
    "ratingKey": "154668",
    "album": "Night of the Hunter: Legend of Drizzt: Companions Codex",
    "artist": "R. A. Salvatore",
@@ -1144,7 +1144,8 @@
     "series": "The Legend of Drizzt",
     "position": "28",
     "secondaryNote": "Companions Codex #1 stays secondary",
-    "expectedSortPrefix": "Legend of Drizzt, Book 28 - "
+    "expectedSortPrefix": "Legend of Drizzt, Book 28 - ",
+    "note": " | recordId re-bound apple-audiobook-824435136 -> B00IGB42TA on 2026-08-11 (matched on the album title stem; the corpus name carries a \": <series>\" suffix the library title does not)."
    },
    "specRule": [
     "R1",
@@ -1161,7 +1162,7 @@
    "mintPin": true
   },
   {
-   "recordId": "apple-audiobook-923599546",
+   "recordId": "B00NFO6TY4",
    "ratingKey": "154666",
    "album": "Rise of the King: Legend of Drizzt",
    "artist": "R. A. Salvatore",
@@ -1187,7 +1188,8 @@
     "series": "The Legend of Drizzt",
     "position": "29",
     "secondaryNote": "Companions Codex #2 stays secondary",
-    "expectedSortPrefix": "Legend of Drizzt, Book 29 - "
+    "expectedSortPrefix": "Legend of Drizzt, Book 29 - ",
+    "note": " | recordId re-bound apple-audiobook-923599546 -> B00NFO6TY4 on 2026-08-11 (matched on the album title stem; the corpus name carries a \": <series>\" suffix the library title does not)."
    },
    "specRule": [
     "R1",
@@ -5804,7 +5806,7 @@
    "group": "named-galaxys-edge"
   },
   {
-   "recordId": "0593287371",
+   "recordId": "B085LMPX86",
    "ratingKey": "155561",
    "album": "Tom Clancy Shadow of the Dragon",
    "artist": "Marc Cameron",
@@ -5858,7 +5860,8 @@
     "series": "Jack Ryan",
     "position": "30",
     "expectedSortPrefix": "Jack Ryan, Book 30 - ",
-    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer",
+    "note": " | recordId re-bound 0593287371 -> B085LMPX86 on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R3",
@@ -5872,7 +5875,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B07B3QDGFS",
+   "recordId": "B07B3DKWZZ",
    "ratingKey": "155438",
    "album": "Tom Clancy Line of Sight",
    "artist": "Mike Maden",
@@ -5914,7 +5917,8 @@
     "series": "Jack Ryan",
     "position": "25",
     "expectedSortPrefix": "Jack Ryan, Book 25 - ",
-    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer",
+    "note": " | recordId re-bound B07B3QDGFS -> B07B3DKWZZ on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R5",
@@ -5927,7 +5931,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B06XP12NZC",
+   "recordId": "B06XP2JSN1",
    "ratingKey": "155440",
    "album": "Tom Clancy Point of Contact",
    "artist": "Mike Maden",
@@ -5969,7 +5973,8 @@
     "series": "Jack Ryan",
     "position": "23",
     "expectedSortPrefix": "Jack Ryan, Book 23 - ",
-    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer",
+    "note": " | recordId re-bound B06XP12NZC -> B06XP2JSN1 on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R5",
@@ -6053,7 +6058,7 @@
    "mintPin": true
   },
   {
-   "recordId": "0593216229",
+   "recordId": "B081NWY9J5",
    "ratingKey": "155442",
    "album": "Tom Clancy Firing Point",
    "artist": "Mike Maden",
@@ -6097,7 +6102,8 @@
     "series": "Jack Ryan",
     "position": "29",
     "expectedSortPrefix": "Jack Ryan, Book 29 - ",
-    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer",
+    "note": " | recordId re-bound 0593216229 -> B081NWY9J5 on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R5"
@@ -6252,7 +6258,7 @@
    "mintPin": true
   },
   {
-   "recordId": "0593453255",
+   "recordId": "B08ZJXKFKW",
    "ratingKey": "155567",
    "album": "Tom Clancy Chain of Command",
    "artist": "Marc Cameron",
@@ -6307,7 +6313,8 @@
     "series": "Jack Ryan",
     "position": "32",
     "expectedSortPrefix": "Jack Ryan, Book 32 - ",
-    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer",
+    "note": " | recordId re-bound 0593453255 -> B08ZJXKFKW on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R3",
@@ -6322,7 +6329,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B002UZKKOO",
+   "recordId": "B0000DYXQT",
    "ratingKey": "152845",
    "album": "The Teeth of the Tiger",
    "artist": "Tom Clancy",
@@ -6363,7 +6370,8 @@
     "series": "Jack Ryan",
     "position": "12",
     "expectedSortPrefix": "Jack Ryan, Book 12 - ",
-    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer",
+    "note": " | recordId re-bound B002UZKKOO -> B0000DYXQT on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R5",
@@ -6505,7 +6513,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B00LADIYBI",
+   "recordId": "B00LACSZBI",
    "ratingKey": "154536",
    "album": "Tom Clancy Support and Defend",
    "artist": "Mark Greaney",
@@ -6546,7 +6554,8 @@
     "series": "Jack Ryan",
     "position": "17",
     "expectedSortPrefix": "Jack Ryan, Book 17 - ",
-    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer",
+    "note": " | recordId re-bound B00LADIYBI -> B00LACSZBI on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R5",
@@ -6558,7 +6567,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B00XV1C5EO",
+   "recordId": "B00XV0XC6A",
    "ratingKey": "154571",
    "album": "Tom Clancy Under Fire",
    "artist": "Grant Blackwood",
@@ -6599,7 +6608,8 @@
     "series": "Jack Ryan",
     "position": "19",
     "expectedSortPrefix": "Jack Ryan, Book 19 - ",
-    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer",
+    "note": " | recordId re-bound B00XV1C5EO -> B00XV0XC6A on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R5",
@@ -6611,7 +6621,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B01CUP1FPQ",
+   "recordId": "B01CUP10FG",
    "ratingKey": "154573",
    "album": "Tom Clancy Duty and Honor",
    "artist": "Grant Blackwood",
@@ -6652,7 +6662,8 @@
     "series": "Jack Ryan",
     "position": "21",
     "expectedSortPrefix": "Jack Ryan, Book 21 - ",
-    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer",
+    "note": " | recordId re-bound B01CUP1FPQ -> B01CUP10FG on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R5",
@@ -6664,7 +6675,7 @@
    "mintPin": true
   },
   {
-   "recordId": "1984887904",
+   "recordId": "B07N2YSTSN",
    "ratingKey": "155436",
    "album": "Tom Clancy Enemy Contact",
    "artist": "Mike Maden",
@@ -6705,7 +6716,8 @@
     "series": "Jack Ryan",
     "position": "27",
     "expectedSortPrefix": "Jack Ryan, Book 27 - ",
-    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer",
+    "note": " | recordId re-bound 1984887904 -> B07N2YSTSN on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R5",
@@ -6847,7 +6859,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B004EBW0K4",
+   "recordId": "B004FI1AZ2",
    "ratingKey": "152891",
    "album": "The Cardinal of the Kremlin",
    "artist": "Tom Clancy",
@@ -6900,7 +6912,8 @@
     "series": "Jack Ryan",
     "position": "3",
     "expectedSortPrefix": "Jack Ryan, Book 3 - ",
-    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer",
+    "note": " | recordId re-bound B004EBW0K4 -> B004FI1AZ2 on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R3",
@@ -7172,7 +7185,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B00PKJ2SVA",
+   "recordId": "B00PKJF5T2",
    "ratingKey": "154500",
    "album": "Full Force and Effect",
    "artist": "Mark Greaney",
@@ -7225,7 +7238,8 @@
     "series": "Jack Ryan",
     "position": "18",
     "expectedSortPrefix": "Jack Ryan, Book 18 - ",
-    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer",
+    "note": " | recordId re-bound B00PKJ2SVA -> B00PKJF5T2 on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R3",
@@ -7237,7 +7251,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B011PVT3A0",
+   "recordId": "B011PVUJ4Y",
    "ratingKey": "154496",
    "album": "Tom Clancy Commander-in-Chief",
    "artist": "Mark Greaney",
@@ -7290,7 +7304,8 @@
     "series": "Jack Ryan",
     "position": "20",
     "expectedSortPrefix": "Jack Ryan, Book 20 - ",
-    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer",
+    "note": " | recordId re-bound B011PVT3A0 -> B011PVUJ4Y on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R3",
@@ -7302,7 +7317,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B01JKG9FMS",
+   "recordId": "B01JKG9GQI",
    "ratingKey": "154498",
    "album": "Tom Clancy True Faith and Allegiance",
    "artist": "Mark Greaney",
@@ -7355,7 +7370,8 @@
     "series": "Jack Ryan",
     "position": "22",
     "expectedSortPrefix": "Jack Ryan, Book 22 - ",
-    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer",
+    "note": " | recordId re-bound B01JKG9FMS -> B01JKG9GQI on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R3",
@@ -7367,7 +7383,7 @@
    "mintPin": true
   },
   {
-   "recordId": "0593106792",
+   "recordId": "B0BXNPQFH7",
    "ratingKey": "155563",
    "album": "Tom Clancy Code of Honor",
    "artist": "Marc Cameron",
@@ -7420,7 +7436,8 @@
     "series": "Jack Ryan",
     "position": "28",
     "expectedSortPrefix": "Jack Ryan, Book 28 - ",
-    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer",
+    "note": " | recordId re-bound 0593106792 -> B0BXNPQFH7 on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R3",
@@ -7432,7 +7449,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B0BXK4QWDS",
+   "recordId": "B0BP876GP2",
    "ratingKey": "155569",
    "album": "Tom Clancy Command and Control",
    "artist": "Marc Cameron",
@@ -7485,7 +7502,8 @@
     "series": "Jack Ryan",
     "position": "37",
     "expectedSortPrefix": "Jack Ryan, Book 37 - ",
-    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer",
+    "note": " | recordId re-bound B0BXK4QWDS -> B0BP876GP2 on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R3",
@@ -7497,7 +7515,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B0CGS1GWMT",
+   "recordId": "B0CGRZ8QR5",
    "ratingKey": "155937",
    "album": "Tom Clancy Act of Defiance",
    "artist": "Brian Andrews",
@@ -7549,7 +7567,8 @@
     "outcome": "SERIES",
     "series": "Jack Ryan",
     "position": "38",
-    "expectedSortPrefix": "Jack Ryan, Book 38 - "
+    "expectedSortPrefix": "Jack Ryan, Book 38 - ",
+    "note": " | recordId re-bound B0CGS1GWMT -> B0CGRZ8QR5 on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R3",
@@ -7607,7 +7626,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B004FJA3TA",
+   "recordId": "B004O3NH3G",
    "ratingKey": "152900",
    "album": "The Bear and the Dragon",
    "artist": "Tom Clancy",
@@ -7660,7 +7679,8 @@
     "series": "Jack Ryan",
     "position": "10",
     "expectedSortPrefix": "Jack Ryan, Book 10 - ",
-    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer"
+    "secondaryNote": "sub-line (Jr./Clark) survives as the tag via the displaced resolver answer",
+    "note": " | recordId re-bound B004FJA3TA -> B004O3NH3G on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R5"
@@ -7671,7 +7691,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B002UZL4ZI",
+   "recordId": "B0083WD9HS",
    "ratingKey": "155142",
    "album": "Hannibal",
    "artist": "Thomas Harris",
@@ -7712,7 +7732,8 @@
     "outcome": "SERIES",
     "series": "Hannibal Lecter",
     "position": "3",
-    "expectedSortPrefix": "Hannibal Lecter, Book 3 - "
+    "expectedSortPrefix": "Hannibal Lecter, Book 3 - ",
+    "note": " | recordId re-bound B002UZL4ZI -> B0083WD9HS on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R6",
@@ -7728,7 +7749,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B004VA839A",
+   "recordId": "B004VLLJU4",
    "ratingKey": "155144",
    "album": "The Silence of the Lambs",
    "artist": "Thomas Harris",
@@ -7770,7 +7791,8 @@
     "outcome": "SERIES",
     "series": "Hannibal Lecter",
     "position": "2",
-    "expectedSortPrefix": "Hannibal Lecter, Book 2 - "
+    "expectedSortPrefix": "Hannibal Lecter, Book 2 - ",
+    "note": " | recordId re-bound B004VA839A -> B004VLLJU4 on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R6",
@@ -8560,7 +8582,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B0G6MDLP8N",
+   "recordId": "B014WY3T34",
    "ratingKey": "155496",
    "album": "The Death of Dulgath",
    "artist": "Michael J. Sullivan",
@@ -8604,7 +8626,8 @@
     "series": "The Riyria Chronicles",
     "position": "3",
     "secondaryNote": "Riyria (combined-universe) at most a tag",
-    "expectedSortPrefix": "Riyria Chronicles, Book 3 - "
+    "expectedSortPrefix": "Riyria Chronicles, Book 3 - ",
+    "note": " | recordId re-bound B0G6MDLP8N -> B014WY3T34 on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R2",
@@ -8619,7 +8642,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B0D828ZG1Y",
+   "recordId": "B0D7ZB7B7R",
    "ratingKey": "155492",
    "album": "Drumindor",
    "artist": "Michael J. Sullivan",
@@ -8663,7 +8686,8 @@
     "series": "The Riyria Chronicles",
     "position": "5",
     "secondaryNote": "Riyria (combined-universe) at most a tag",
-    "expectedSortPrefix": "Riyria Chronicles, Book 5 - "
+    "expectedSortPrefix": "Riyria Chronicles, Book 5 - ",
+    "note": " | recordId re-bound B0D828ZG1Y -> B0D7ZB7B7R on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R2",
@@ -11245,7 +11269,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B018W9PRIU",
+   "recordId": "B002UZLC9G",
    "ratingKey": "155240",
    "album": "The Elfstones of Shannara",
    "artist": "Terry Brooks",
@@ -11289,7 +11313,8 @@
     "series": "The Original Shannara Trilogy",
     "position": "2",
     "secondaryNote": "Terry's suggested orders stay tags at most",
-    "expectedSortPrefix": "Original Shannara Trilogy, Book 2 - "
+    "expectedSortPrefix": "Original Shannara Trilogy, Book 2 - ",
+    "note": " | recordId re-bound B018W9PRIU -> B002UZLC9G on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R3"
@@ -11301,7 +11326,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B002VA38KQ",
+   "recordId": "B0716TZWX8",
    "ratingKey": "155238",
    "album": "The Wishsong of Shannara",
    "artist": "Terry Brooks",
@@ -11345,7 +11370,8 @@
     "series": "The Original Shannara Trilogy",
     "position": "3",
     "secondaryNote": "Terry's suggested orders stay tags at most",
-    "expectedSortPrefix": "Original Shannara Trilogy, Book 3 - "
+    "expectedSortPrefix": "Original Shannara Trilogy, Book 3 - ",
+    "note": " | recordId re-bound B002VA38KQ -> B0716TZWX8 on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R3"
@@ -12330,7 +12356,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B002V0JZOO",
+   "recordId": "B07B6FFH3H",
    "ratingKey": "155304",
    "album": "The Lightning Thief",
    "artist": "Rick Riordan",
@@ -12373,7 +12399,8 @@
     "outcome": "SERIES",
     "series": "Percy Jackson and the Olympians",
     "position": "1",
-    "expectedSortPrefix": "Percy Jackson and the Olympians, Book 1 - "
+    "expectedSortPrefix": "Percy Jackson and the Olympians, Book 1 - ",
+    "note": " | recordId re-bound B002V0JZOO -> B07B6FFH3H on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R1",
@@ -12483,7 +12510,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B002V8L8KU",
+   "recordId": "B001FVJHMK",
    "ratingKey": "155312",
    "album": "The Battle of the Labyrinth",
    "artist": "Rick Riordan",
@@ -12526,7 +12553,8 @@
     "outcome": "SERIES",
     "series": "Percy Jackson and the Olympians",
     "position": "4",
-    "expectedSortPrefix": "Percy Jackson and the Olympians, Book 4 - "
+    "expectedSortPrefix": "Percy Jackson and the Olympians, Book 4 - ",
+    "note": " | recordId re-bound B002V8L8KU -> B001FVJHMK on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R1",
@@ -12588,7 +12616,7 @@
    "mintPin": true
   },
   {
-   "recordId": "apple-audiobook-1726570647",
+   "recordId": "B0CST52X6G",
    "ratingKey": "155310",
    "album": "Percy Jackson and the Olympians: Wrath of the Triple Goddess",
    "artist": "Rick Riordan",
@@ -12622,7 +12650,8 @@
     "outcome": "SERIES",
     "series": "Percy Jackson and the Olympians",
     "position": "7",
-    "expectedSortPrefix": "Percy Jackson and the Olympians, Book 7 - "
+    "expectedSortPrefix": "Percy Jackson and the Olympians, Book 7 - ",
+    "note": " | recordId re-bound apple-audiobook-1726570647 -> B0CST52X6G on 2026-08-11 (matched on the album title stem; the corpus name carries a \": <series>\" suffix the library title does not)."
    },
    "specRule": [
     "R1",
@@ -12693,7 +12722,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B07LH7M4KN",
+   "recordId": "B00767AAFU",
    "ratingKey": "153964",
    "album": "Halo: Primordium",
    "artist": "Greg Bear",
@@ -12736,7 +12765,8 @@
     "outcome": "SERIES",
     "series": "The Forerunner Saga",
     "position": "2",
-    "expectedSortPrefix": "Forerunner Saga, Book 2 - "
+    "expectedSortPrefix": "Forerunner Saga, Book 2 - ",
+    "note": " | recordId re-bound B07LH7M4KN -> B00767AAFU on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R1",
@@ -12750,7 +12780,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B07LH4WC4P",
+   "recordId": "B07LH72D8M",
    "ratingKey": "153962",
    "album": "Halo: Silentium",
    "artist": "Greg Bear",
@@ -12793,7 +12823,8 @@
     "outcome": "SERIES",
     "series": "The Forerunner Saga",
     "position": "3",
-    "expectedSortPrefix": "Forerunner Saga, Book 3 - "
+    "expectedSortPrefix": "Forerunner Saga, Book 3 - ",
+    "note": " | recordId re-bound B07LH4WC4P -> B07LH72D8M on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R1",
@@ -13035,7 +13066,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B00J8VK1WY",
+   "recordId": "B00J8VN0YU",
    "ratingKey": "153769",
    "album": "Mr. Mercedes",
    "artist": "Stephen King",
@@ -13078,7 +13109,8 @@
     "outcome": "SERIES",
     "series": "Bill Hodges",
     "position": "1",
-    "expectedSortPrefix": "Bill Hodges, Book 1 - "
+    "expectedSortPrefix": "Bill Hodges, Book 1 - ",
+    "note": " | recordId re-bound B00J8VK1WY -> B00J8VN0YU on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R1",
@@ -13092,7 +13124,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B00U7T90L4",
+   "recordId": "B00U7U0CJW",
    "ratingKey": "153771",
    "album": "Finders Keepers",
    "artist": "Stephen King",
@@ -13135,7 +13167,8 @@
     "outcome": "SERIES",
     "series": "Bill Hodges",
     "position": "2",
-    "expectedSortPrefix": "Bill Hodges, Book 2 - "
+    "expectedSortPrefix": "Bill Hodges, Book 2 - ",
+    "note": " | recordId re-bound B00U7T90L4 -> B00U7U0CJW on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R1",
@@ -13149,7 +13182,7 @@
    "mintPin": true
   },
   {
-   "recordId": "B018RDY61A",
+   "recordId": "B018RE0APU",
    "ratingKey": "153773",
    "album": "End of Watch",
    "artist": "Stephen King",
@@ -13192,7 +13225,8 @@
     "outcome": "SERIES",
     "series": "Bill Hodges",
     "position": "3",
-    "expectedSortPrefix": "Bill Hodges, Book 3 - "
+    "expectedSortPrefix": "Bill Hodges, Book 3 - ",
+    "note": " | recordId re-bound B018RDY61A -> B018RE0APU on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R1",
@@ -13297,7 +13331,8 @@
     "outcome": "SERIES",
     "series": "The Elric Saga",
     "position": "2",
-    "expectedSortPrefix": "Elric Saga, Book 2 - "
+    "expectedSortPrefix": "Elric Saga, Book 2 - ",
+    "note": " | mintPin cleared 2026-08-11: no album with this title is in the library, so there is nothing to pin. Re-enable if the book is added."
    },
    "specRule": [
     "R1",
@@ -13308,7 +13343,7 @@
    "sourceOfTruth": "Operator 2026-07-31: Moorcock = B ('2) ... let's still do B') \u2014 album DELETED from the library 2026-07-31; pinned anyway so a returning copy resolves correctly; ledger will carry it as GONE",
    "group": "census-family-moorcock",
    "note": "Single row; Elric has no other library siblings to anchor either way.",
-   "mintPin": true
+   "mintPin": false
   },
   {
    "recordId": "B0081TGOWK",
@@ -13368,7 +13403,7 @@
    "mintPin": true
   },
   {
-   "recordId": "1950366294",
+   "recordId": "B08J5JLLYN",
    "ratingKey": "155315",
    "album": "Diablo: the Sin War - Book Two",
    "artist": "Richard A. Knaak",
@@ -13408,7 +13443,8 @@
     "outcome": "SERIES",
     "series": "Diablo: The Sin War",
     "position": "2",
-    "expectedSortPrefix": "Diablo: The Sin War, Book 2 - "
+    "expectedSortPrefix": "Diablo: The Sin War, Book 2 - ",
+    "note": " | recordId re-bound 1950366294 -> B08J5JLLYN on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R7",
@@ -16803,7 +16839,7 @@
    "knownDefectNow": true
   },
   {
-   "recordId": "1789994462",
+   "recordId": "B07VYV6X1X",
    "ratingKey": "152824",
    "album": "Konrad Curze: The Night Haunter",
    "artist": "Guy Haley",
@@ -16847,7 +16883,8 @@
     "series": "The Horus Heresy: Primarchs",
     "position": "12",
     "secondaryNote": "current secondary acceptable as tag",
-    "expectedSortPrefix": "Horus Heresy: Primarchs, Book 12 - "
+    "expectedSortPrefix": "Horus Heresy: Primarchs, Book 12 - ",
+    "note": " | recordId re-bound 1789994462 -> B07VYV6X1X on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    },
    "specRule": [
     "R1"
@@ -27109,7 +27146,7 @@
    "group": "random-single-nochange"
   },
   {
-   "recordId": "apple-audiobook-595807561",
+   "recordId": "B00AXZZ23M",
    "ratingKey": "734419",
    "album": "Gauntlgrym: Legend of Drizzt",
    "artist": "R. A. Salvatore",
@@ -27132,7 +27169,8 @@
     "series": "The Legend of Drizzt",
     "position": "23",
     "expectedSortPrefix": "Legend of Drizzt, Book 23 - ",
-    "displayTitle": "Gauntlgrym"
+    "displayTitle": "Gauntlgrym",
+    "note": " | recordId re-bound apple-audiobook-595807561 -> B00AXZZ23M on 2026-08-11 (matched on the album title stem; the corpus name carries a \": <series>\" suffix the library title does not)."
    },
    "specRule": [
     "R1",
@@ -27146,7 +27184,7 @@
    "note": "operator 2026-07-30: display title shortened \u2014 the record bakes ': Legend of Drizzt...' into its title while every sibling uses the short name"
   },
   {
-   "recordId": "apple-audiobook-1032040112",
+   "recordId": "B011879DJM",
    "ratingKey": "734423",
    "album": "Archmage: Legend of Drizzt",
    "artist": "R. A. Salvatore",
@@ -27169,7 +27207,8 @@
     "series": "The Legend of Drizzt",
     "position": "31",
     "expectedSortPrefix": "Legend of Drizzt, Book 31 - ",
-    "displayTitle": "Archmage"
+    "displayTitle": "Archmage",
+    "note": " | recordId re-bound apple-audiobook-1032040112 -> B011879DJM on 2026-08-11 (matched on the album title stem; the corpus name carries a \": <series>\" suffix the library title does not)."
    },
    "specRule": [
     "R1",
@@ -27183,7 +27222,7 @@
    "note": "operator 2026-07-30: display title shortened \u2014 the record bakes ': Legend of Drizzt...' into its title while every sibling uses the short name"
   },
   {
-   "recordId": "apple-audiobook-609834561",
+   "recordId": "B00AY0DEN6",
    "ratingKey": "734421",
    "album": "Neverwinter: Legend of Drizzt",
    "artist": "R. A. Salvatore",
@@ -27206,7 +27245,8 @@
     "series": "The Legend of Drizzt",
     "position": "24",
     "expectedSortPrefix": "Legend of Drizzt, Book 24 - ",
-    "displayTitle": "Neverwinter"
+    "displayTitle": "Neverwinter",
+    "note": " | recordId re-bound apple-audiobook-609834561 -> B00AY0DEN6 on 2026-08-11 (matched on the album title stem; the corpus name carries a \": <series>\" suffix the library title does not)."
    },
    "specRule": [
     "R1",
@@ -27362,7 +27402,7 @@
    "knownDefectNow": false
   },
   {
-   "recordId": "B00J8KWFOM",
+   "recordId": "B00J8LHN6Q",
    "ratingKey": "175286",
    "album": "Authority",
    "artist": "Jeff VanderMeer",
@@ -27400,7 +27440,7 @@
     "outcome": "SERIES",
     "series": "Southern Reach",
     "position": "2",
-    "note": "Audible split the SAME series across two names: 'The Southern Reach Trilogy' on books 2-3, 'Southern Reach' on 1 and 4 (a Trilogy grew a Book 4, Audible renamed, middle books kept the old name). Operator 2026-08-07: the Trilogy name is factually wrong now; unify on 'Southern Reach'."
+    "note": "Audible split the SAME series across two names: 'The Southern Reach Trilogy' on books 2-3, 'Southern Reach' on 1 and 4 (a Trilogy grew a Book 4, Audible renamed, middle books kept the old name). Operator 2026-08-07: the Trilogy name is factually wrong now; unify on 'Southern Reach'. | recordId re-bound B00J8KWFOM -> B00J8LHN6Q on 2026-08-11: the pin was keyed on an edition the library no longer holds, so the decision had silently stopped applying."
    }
   },
   {
@@ -27446,7 +27486,7 @@
    }
   },
   {
-   "recordId": "overdrive-565194",
+   "recordId": "B08WJL3YG2",
    "ratingKey": "172966",
    "album": "In the Hall of the Dragon King",
    "artist": "Stephen R. Lawhead",
@@ -27483,49 +27523,8 @@
     "outcome": "SERIES",
     "series": "The Dragon King Trilogy",
     "position": "1",
-    "note": "Same split class, opposite direction: Lawhead's trilogy IS three books, 2 of 3 records already say 'The Dragon King Trilogy'; this OverDrive record alone says 'The Dragon King'. Unify on the majority/canonical Trilogy name. The 2026-08-07 offline A/B rejected a GENERAL Trilogy fold (12 of 16 affected names were canonical, e.g. Void/Kharkanas Trilogy) - pins are the sanctioned per-book tool."
+    "note": "Same split class, opposite direction: Lawhead's trilogy IS three books, 2 of 3 records already say 'The Dragon King Trilogy'; this OverDrive record alone says 'The Dragon King'. Unify on the majority/canonical Trilogy name. The 2026-08-07 offline A/B rejected a GENERAL Trilogy fold (12 of 16 affected names were canonical, e.g. Void/Kharkanas Trilogy) - pins are the sanctioned per-book tool. | recordId re-bound overdrive-565194 -> B08WJL3YG2 on 2026-08-11 (matched on the album title stem; the corpus name carries a \": <series>\" suffix the library title does not)."
    }
-  },
-  {
-   "recordId": "B004FI1AZ2",
-   "ratingKey": "190415",
-   "album": "The Cardinal of the Kremlin",
-   "artist": "Tom Clancy",
-   "pinType": "operator-stated",
-   "inputs": {
-    "title": "The Cardinal of the Kremlin",
-    "subtitle": null,
-    "author": "Tom Clancy",
-    "providerSeries": {
-     "name": "Jack Ryan",
-     "position": "4"
-    },
-    "providerSeries2": null,
-    "publicationName": null,
-    "audibleSeriesRaw": [
-     {
-      "title": "Jack Ryan",
-      "sequence": "4"
-     }
-    ],
-    "inputSource": "live api GET /books/B004FI1AZ2 (2026-08-11)"
-   },
-   "servedNow": {
-    "primary": {
-     "name": "Jack Ryan",
-     "position": "4"
-    },
-    "secondary": null,
-    "plexSortTitleNow": "Jack Ryan, Book 4 - The Cardinal of the Kremlin",
-    "sweepDegraded": false
-   },
-   "required": {
-    "outcome": "SERIES",
-    "series": "Jack Ryan",
-    "position": "3",
-    "note": "Collided with Clear and Present Danger on Book 4 while Book 3 was MISSING. Position re-measured 2026-08-11 against the authority this corpus already names for Jack Ryan -- mirror /series/171704 'Jack Ryan Universe (Publication Order)': Hunt 1, Patriot Games 2, Cardinal of the Kremlin 3, Clear and Present Danger 4."
-   },
-   "mintPin": true
   }
  ]
 }
