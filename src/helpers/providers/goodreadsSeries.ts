@@ -544,6 +544,55 @@ export function isSeriesOrdering(name: string | null | undefined): boolean {
 	return SERIES_ORDERING_RE.test(name ?? '')
 }
 
+// The librarian sections in a series description LINK to the series they name,
+// and the href carries the id: ".../series/94020-les-annales-de-la-compagnie-
+// noire". Matching on those IDS is exact -- no name normalization, no
+// orthography, no language guessing, which is what sank every earlier
+// candidate. Two sections matter, and they point in OPPOSITE directions:
+//
+//   "Also known as:"  -> these are RE-LISTINGS of me (translations, renumberings)
+//   "Sub-series:"     -> these are genuine ARCS within me
+//
+// Reading the text instead of the links is what made round 2 fail: "French
+// numbering" appears in the translation's description AND in the canonical
+// series' alias list, so prose cannot tell "I am one" from "I link to one".
+// The link direction can.
+const SERIES_AKA_HEADING = /also\s+known\s+as\s*:?/i
+const SERIES_SUB_HEADING = /sub-?series\s*:?/i
+
+// SCRIPT ONLY -- deliberately not diacritics and not function words.
+//
+// Every false positive the adversarial pass found was Latin-with-diacritics:
+// Bronte, Anais Nin, Deja Dead, Godel Escher Bach, Tolkien's Eowyn, and this
+// library's own "Tales from Alagaesia" (a fictional name, not a language). None
+// were non-Latin SCRIPT, because an English-language series is never written in
+// Hebrew, Cyrillic, Greek, Arabic or CJK. That makes script a narrow, decidable
+// signal where orthography was a guess.
+//
+// It is a backstop, not the mechanism: the librarian declarations above do the
+// work. This only stops a foreign re-listing being PROMOTED into the slot when
+// removing a better candidate leaves it next in line -- measured on
+// B0057POQJE, where the shelf moved to a Hebrew A Song of Ice and Fire.
+const NON_LATIN_SCRIPT = /[Ͱ-ϿЀ-ӿ֐-׿؀-ۿ぀-ヿ一-鿿가-힯]/
+
+/**
+ * The series ids linked in the section under `heading`, or [].
+ * @param {string | null} description the series record's Description
+ * @param {RegExp} heading the section heading to read under
+ * @returns {number[]} the linked Goodreads series ids
+ */
+export function linkedSeriesIdsUnder(description: string | null, heading: RegExp): number[] {
+	if (!description) return []
+	const match = heading.exec(description)
+	if (!match) return []
+	// Sections are separated by a blank-ish line; stop at the first one so a
+	// later paragraph's incidental link cannot join the list.
+	const block = description.slice(match.index + match[0].length).split(/\n\s*\n/)[0] ?? ''
+	const ids = new Set<number>()
+	for (const hit of block.matchAll(/\/series\/(\d+)/g)) ids.add(Number(hit[1]))
+	return [...ids]
+}
+
 /** An edition variant or franchise ordering: demoted, and never rescued. */
 function isOrdering(series: WorkSeries): boolean {
 	return isSeriesOrdering(series.Title)
@@ -575,13 +624,6 @@ function isUmbrella(series: WorkSeries): boolean {
  * Amalo" 6). 0 on any failure, so an unreachable count simply sorts last rather
  * than breaking the enrichment.
  */
-async function seriesMemberCount(
-	foreignId: number | undefined,
-	state?: LookupState,
-	logger?: FastifyBaseLogger
-): Promise<number> {
-	return (await seriesRecord(foreignId, state, logger)).count
-}
 
 /**
  * The memoized /series record for a series id: member count plus the
@@ -807,8 +849,15 @@ const AUTHOR_MISS_TTL_SECONDS = 3600
 // different data. Folding the mirror's identity in makes a switch behave
 // like every other answer-changing input the v4/v5 bumps handled: old rows
 // orphan and expire, every row recomputes cold against the new backend.
+// v6: the SECONDARY shelf is now chosen from the librarian declarations (the
+// "Also known as" re-listings are denied, a declared "Sub-series" list is
+// required when the winning shelf publishes one), so a cached v5 answer can
+// carry a secondary this code would never emit again -- measured on 39 of 146
+// books, 19 of which move from a translated shelf to their real sub-arc. The
+// hit TTL is a week; without the bump none of that reaches a shelf until the
+// entries expire one by one.
 const MIRROR_KEY = mirrorKeyFor(BASE)
-const CACHE_PREFIX = `grseries:v5:${MIRROR_KEY}:`
+const CACHE_PREFIX = `grseries:v6:${MIRROR_KEY}:`
 
 /**
  * Whether a Goodreads position can be used as a shelf key.
@@ -1827,6 +1876,13 @@ async function lookupByTitle(
 		let rescuedOver: string[] | undefined
 		let countProbe: LookupState | undefined
 		let rescuedOverSeries: WorkSeries[] | undefined
+		// The declarations are read off the POOL, never off `all`.
+		// seriesRecord is memoized and the count probe below already fetches every
+		// pool member, so this costs ZERO extra requests -- reading `all` instead
+		// added one call per demoted series and broke four fetch-budget pins.
+		// Nothing is lost: both declarations live on the winning shelf, which is
+		// by construction in the pool.
+		const descById = new Map<number, string | null>()
 		if (all.length > 1) {
 			// Drop edition-variants, franchise orderings and umbrellas, but only if
 			// a clean series survives -- otherwise keep them, a variant beats none.
@@ -1876,7 +1932,15 @@ async function lookupByTitle(
 			// instead (a wrong count really does misrank the answer we DO return).
 			countProbe = newLookupState()
 			for (const s of pool) {
-				counts.set(s, await seriesMemberCount(s.ForeignId, countProbe, logger))
+				// ONE record, both readers. seriesMemberCount was a one-line wrapper
+				// over this and had exactly this caller; reading the record directly
+				// is what makes the description free. Calling BOTH cost a second
+				// fetch whenever the first failed -- a failed record is deliberately
+				// not memoized, so the retry consumed a response and shifted the
+				// whole lookup.
+				const record = await seriesRecord(s.ForeignId, countProbe, logger)
+				counts.set(s, record.count)
+				if (typeof s.ForeignId === 'number') descById.set(s.ForeignId, record.description)
 			}
 			// A series that cannot POSITION our book is useless for shelving
 			// however large, so positioned series rank first; among those the
@@ -1913,7 +1977,35 @@ async function lookupByTitle(
 		// provider series as three of them.
 		if (all.length === 1 && (isOrdering(all[0]) || isUmbrella(all[0]))) variantOnly = true
 		const result: GoodreadsSeriesResult = { primary: toSeries(ranked[0]) }
-		if (ranked[1]) result.secondary = toSeries(ranked[1])
+		{
+			// DENY: any candidate the librarians list as a re-listing of another
+			// candidate ("Also known as"). Catches the translated/renumbered
+			// shelves whose NAME declares nothing -- Les Annales de la Compagnie
+			// Noire is linked from The Chronicles of the Black Company.
+			const denied = new Set<number>()
+			for (const desc of descById.values()) {
+				for (const id of linkedSeriesIdsUnder(desc, SERIES_AKA_HEADING)) denied.add(id)
+			}
+			// ALLOW: when the winning shelf declares its own arcs, a candidate that
+			// is not one of them is not a sub-arc of this shelf. Discworld lists
+			// seven; Kolekcja Swiat Dysku is not among them. When no list is
+			// declared the filter is inert -- absence of a declaration is not
+			// evidence against a candidate.
+			const primaryId = typeof ranked[0]?.ForeignId === 'number' ? ranked[0].ForeignId : null
+			const arcs = new Set(
+				primaryId === null
+					? []
+					: linkedSeriesIdsUnder(descById.get(primaryId) ?? null, SERIES_SUB_HEADING)
+			)
+			const fit = ranked.slice(1).find((s) => {
+				const id = typeof s.ForeignId === 'number' ? s.ForeignId : null
+				if (id !== null && denied.has(id)) return false
+				if (arcs.size && (id === null || !arcs.has(id))) return false
+				if (NON_LATIN_SCRIPT.test(String(s.Title ?? ''))) return false
+				return true
+			})
+			if (fit) result.secondary = toSeries(fit)
+		}
 		if (variantOnly) result.variantOnly = true
 		if (rescuedOver?.length) result.rescuedOver = rescuedOver
 		// The volume-marker veto (see volumeHint above): our own title says which

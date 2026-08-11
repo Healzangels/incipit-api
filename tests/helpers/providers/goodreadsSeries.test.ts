@@ -20,7 +20,7 @@ const {
 // The cache key carries the MIRROR's identity (a switch must not serve the
 // previous backend's answers), so tests that address an exact key derive the
 // fragment from the same helper the module uses rather than hardcoding it.
-const SERIES_PREFIX = `grseries:v5:${mirrorKeyFor(process.env.GOODREADS_SERIES_URL || 'https://api.bookinfo.pro')}:`
+const SERIES_PREFIX = `grseries:v6:${mirrorKeyFor(process.env.GOODREADS_SERIES_URL || 'https://api.bookinfo.pro')}:`
 
 // Pristine module state for EVERY test. The series-record memo lives for the
 // process, so without this, whichever test touches a series id first pins its
@@ -946,7 +946,7 @@ describe('a recovered work must not be discarded as degraded', () => {
 		expect(fetchMock.mock.calls[2][0]).toContain(`/author/${AUTHOR_ID}`)
 		// The v5 key carries the volume hint + folded provider series + language;
 		// assert the single grseries entry rather than hand-assembling segments.
-		const key = [...redis.store.keys()].find((k) => k.startsWith('grseries:v5:'))
+		const key = [...redis.store.keys()].find((k) => k.startsWith('grseries:v6:'))
 		expect(key).toBeDefined()
 		expect(redis.store.get(key as string)).toBe(
 			JSON.stringify({ primary: { name: 'Tier One', position: '9' } })
@@ -2157,7 +2157,7 @@ describe('the cache key carries everything the answer depends on', () => {
 			{ title: 'Ahriman: Exile', authors: [{ name: 'John French' }] },
 			redis
 		)
-		expect([...redis.store.keys()].every((k) => k.startsWith('grseries:v5:'))).toBe(true)
+		expect([...redis.store.keys()].every((k) => k.startsWith('grseries:v6:'))).toBe(true)
 	})
 })
 
@@ -2365,7 +2365,7 @@ describe('a persistently failing leg must not re-run the full lookup per serve',
 			redis
 		)
 		expect(out.seriesPrimary).toEqual({ name: 'Tintenwelt', position: '1' })
-		const key = [...redis.store.keys()].find((k) => k.startsWith('grseries:v5:'))
+		const key = [...redis.store.keys()].find((k) => k.startsWith('grseries:v6:'))
 		expect(key).toBeDefined()
 		expect(JSON.parse(redis.store.get(key as string) as string)).toEqual({
 			primary: { name: 'Tintenwelt', position: '1' }
@@ -2453,5 +2453,177 @@ describe('a persistently failing leg must not re-run the full lookup per serve',
 		})
 		const out = await withGoodreadsSeries(book(), redis)
 		expect(out.seriesPrimary).toEqual({ name: 'Tintenwelt', position: '1' })
+	})
+})
+
+/**
+ * The SECONDARY shelf is chosen from the librarians' own declarations.
+ *
+ * Measured live on 2026-08-11: 47 albums carried a translated shelf as their
+ * secondary -- 24 on "Kolekcja Swiat Dysku", 7 on "Les Annales de la Compagnie
+ * Noire", 6 on "Der grosse Bruderkrieg" -- because the ranking sorts on
+ * position and member count and nothing else, and `ranked[1]` was taken by
+ * index. Plex writes the secondary as a mood, and moods never clear, so a wrong
+ * one is permanent.
+ *
+ * Three earlier candidates were measured and rejected before this one: ordering
+ * getSeriesSecondary (fixed nothing, worsened 3 of the 4 books it touched), a
+ * name-based language heuristic (fired on "Tales from Alagaesia", Bronte, Anais
+ * Nin), and a description-TEXT rule (fired on the CORRECT primary, whose alias
+ * list mentions "French numbering"). The link direction is what none of them had.
+ */
+describe('secondary shelf: librarian declarations decide', () => {
+	const members = (n: number) => ({ LinkItems: Array.from({ length: n }, (_, i) => i) })
+	const workWith = (series: unknown[]) => ({ Title: 'Declared Book', Series: series })
+
+	test('a shelf the primary lists under "Also known as" is never the secondary', async () => {
+		// The re-listing is LINKED from the canonical shelf, so its id is known
+		// exactly -- no name matching, no language guess.
+		respond(
+			[{ workId: 42 }],
+			workWith([
+				{
+					Title: 'The Canonical Shelf',
+					ForeignId: 8100,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }]
+				},
+				{
+					Title: 'Les Annales de la Version Traduite',
+					ForeignId: 8101,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }]
+				},
+				{
+					Title: 'The Real Sub-Arc',
+					ForeignId: 8102,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }]
+				}
+			]),
+			{
+				...members(400),
+				Description:
+					'Also known as:\n    * <a href="/series/8101-les-annales">Les Annales de la Version Traduite</a> (see for French numbering)\n\nA blurb.'
+			},
+			// The re-listing must OUTRANK the real arc (30 > 12), or member count
+			// alone would keep it out of the slot and this test would pass without
+			// the denylist doing anything -- it did exactly that until a mutation
+			// run caught it.
+			members(30),
+			members(12)
+		)
+		const out = await fetchGoodreadsSeries('Declared Book', null)
+		expect(out?.primary).toEqual({ name: 'The Canonical Shelf', position: '1' })
+		expect(out?.secondary).toEqual({ name: 'The Real Sub-Arc', position: '1' })
+	})
+
+	test('when the primary declares "Sub-series", an undeclared candidate cannot be the secondary', async () => {
+		// Discworld publishes seven arcs; the Polish custom-order listing is not
+		// one of them, so it is not a sub-arc of this shelf however it ranks.
+		respond(
+			[{ workId: 42 }],
+			workWith([
+				{
+					Title: 'Discworld-ish',
+					ForeignId: 8200,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '8' }]
+				},
+				{
+					Title: 'Kolekcja Undeclared',
+					ForeignId: 8201,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }]
+				},
+				{
+					Title: 'Declared Arc',
+					ForeignId: 8202,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }]
+				}
+			]),
+			{
+				...members(400),
+				Description:
+					'See also: stuff\n\nSub-series:\n    <li><a href="/series/8202-declared-arc">Declared Arc</a>\n\nEnd.'
+			},
+			members(40),
+			members(9)
+		)
+		const out = await fetchGoodreadsSeries('Declared Book', null)
+		// Kolekcja outranks Declared Arc on member count (40 > 9) and would have
+		// won by index; the declaration is what keeps it out.
+		expect(out?.secondary).toEqual({ name: 'Declared Arc', position: '1' })
+	})
+
+	test('with NO declarations the filter is inert -- the old ranking still decides', async () => {
+		// Absence of a librarian list is not evidence against a candidate. Most
+		// works have neither section and must be completely unaffected.
+		respond(
+			[{ workId: 42 }],
+			workWith([
+				{
+					Title: 'Plain Parent',
+					ForeignId: 8300,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '3' }]
+				},
+				{
+					Title: 'Plain Sub',
+					ForeignId: 8301,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }]
+				}
+			]),
+			{ ...members(400), Description: 'Just prose, no lists.' },
+			{ ...members(20), Description: 'Also prose.' }
+		)
+		const out = await fetchGoodreadsSeries('Declared Book', null)
+		expect(out?.secondary).toEqual({ name: 'Plain Sub', position: '1' })
+	})
+
+	test('a non-Latin-SCRIPT shelf is never promoted into the slot', async () => {
+		// The backstop, and deliberately script-only: an English-language series
+		// is never written in Hebrew or CJK, while DIACRITICS are common in one
+		// ("Tales from Alagaesia" with a diaeresis is English). Without this, an
+		// exclusion that empties the slot lets the translation move up into it --
+		// measured on A Song of Ice and Fire, which landed on its Hebrew shelf.
+		respond(
+			[{ workId: 42 }],
+			workWith([
+				{
+					Title: 'A Song of Something',
+					ForeignId: 8400,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }]
+				},
+				{
+					Title: 'שיר של אש ושל קרח',
+					ForeignId: 8401,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }]
+				}
+			]),
+			{ ...members(400), Description: 'No lists here.' },
+			members(30)
+		)
+		const out = await fetchGoodreadsSeries('Declared Book', null)
+		expect(out?.primary).toEqual({ name: 'A Song of Something', position: '1' })
+		expect(out?.secondary).toBeUndefined()
+	})
+
+	test('a Latin shelf with DIACRITICS is still allowed -- it is not a language test', async () => {
+		// The guard the false-positive review demanded: Alagaesia/Bronte/Anais are
+		// English shelves and must survive.
+		respond(
+			[{ workId: 42 }],
+			workWith([
+				{
+					Title: 'Inheritance Cycle',
+					ForeignId: 8500,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }]
+				},
+				{
+					Title: 'Tales from Alagaësia',
+					ForeignId: 8501,
+					LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }]
+				}
+			]),
+			{ ...members(400), Description: 'No lists here.' },
+			members(30)
+		)
+		const out = await fetchGoodreadsSeries('Declared Book', null)
+		expect(out?.secondary).toEqual({ name: 'Tales from Alagaësia', position: '1' })
 	})
 })

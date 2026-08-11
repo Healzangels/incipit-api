@@ -60,7 +60,7 @@ describe('mirrorKeyFor', () => {
 			join(import.meta.dir, '..', '..', '..', 'src', 'helpers', 'providers', 'goodreadsSeries.ts'),
 			'utf8'
 		)
-		expect(src).toContain('const CACHE_PREFIX = `grseries:v5:${MIRROR_KEY}:`')
+		expect(src).toContain('const CACHE_PREFIX = `grseries:v6:${MIRROR_KEY}:`')
 		expect(src).toContain('const AUTHOR_CACHE_PREFIX = `grauthor:v1:${MIRROR_KEY}:`')
 	})
 
