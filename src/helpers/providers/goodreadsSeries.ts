@@ -557,6 +557,28 @@ export function isSeriesOrdering(name: string | null | undefined): boolean {
 // numbering" appears in the translation's description AND in the canonical
 // series' alias list, so prose cannot tell "I am one" from "I link to one".
 // The link direction can.
+// A trailing edition qualifier, with whatever separator precedes it. Audible
+// titles the Narnia readings "The Horse and His Boy: Unabridged"; the mirror
+// search is literal, so that word reaches the query and changes which work
+// comes back. Anchored to the END, so "The Unabridged Journals of Sylvia Plath"
+// is untouched.
+const EDITION_QUALIFIER_RE = /[\s:;,–—-]*[([]?(un)?abridged[)\]]?\s*$/i
+
+/**
+ * The title as it should be SEARCHED for: the edition qualifier removed.
+ *
+ * Deliberately not normalizeTitle, which also strips ", Book N" -- that marker
+ * is the volume hint, the one fact we hold about which volume this is.
+ * @param {string} title the record's title
+ * @returns {string} the title to query the mirror with
+ */
+export function queryTitle(title: string): string {
+	const stripped = title.replace(EDITION_QUALIFIER_RE, '').trim()
+	// Never query an empty string: a title that is ONLY a qualifier is junk, but
+	// the raw form at least carries whatever the record had.
+	return stripped || title
+}
+
 const SERIES_AKA_HEADING = /also\s+known\s+as\s*:?/i
 const SERIES_SUB_HEADING = /sub-?series\s*:?/i
 
@@ -1701,7 +1723,22 @@ async function lookupByTitle(
 	const volumeHint =
 		VOLUME_HINT_RE.exec(title)?.[1] ?? (subtitle ? VOLUME_HINT_RE.exec(subtitle)?.[1] : undefined)
 
-	const q = encodeURIComponent([title, author].filter(Boolean).join(' '))
+	// The QUERY drops a trailing edition qualifier. The scorer below already
+	// ignores it (normalizeTitle strips "unabridged"), but the mirror search is
+	// literal, so the word went into the query and changed WHICH WORK came back
+	// -- which silently changed the answer.
+	//
+	// Measured on "The Horse and His Boy" against the live mirror:
+	//   "...: Unabridged C.S. Lewis" -> 2 hits, correct work 3294501 SECOND
+	//   "...          C.S. Lewis"    -> 5 hits, correct work 3294501 FIRST
+	// and end to end through this function, the qualifier moved the answer from
+	// The Chronicles of Narnia #5 to #3 -- Audible's chronological number for a
+	// shelf that is otherwise publication order, putting two books on Book 3.
+	//
+	// Only the qualifier goes. NOT normalizeTitle, which also strips ", Book N"
+	// -- that marker is the volume hint read just above and the one fact we hold
+	// about which volume this is.
+	const q = encodeURIComponent([queryTitle(title), author].filter(Boolean).join(' '))
 	const hits = await getJson<SearchHit[]>(`/search?q=${q}`, state, logger)
 	if (!Array.isArray(hits) || hits.length === 0) return null
 

@@ -27487,47 +27487,6 @@
    }
   },
   {
-   "recordId": "B004EEUZ80",
-   "ratingKey": "189308",
-   "album": "The Horse and His Boy",
-   "artist": "C.S. Lewis",
-   "pinType": "operator-stated",
-   "inputs": {
-    "title": "The Horse and His Boy: Unabridged",
-    "subtitle": null,
-    "author": "C.S. Lewis",
-    "providerSeries": {
-     "name": "The Chronicles of Narnia",
-     "position": "3"
-    },
-    "providerSeries2": null,
-    "publicationName": null,
-    "audibleSeriesRaw": [
-     {
-      "title": "The Chronicles of Narnia",
-      "sequence": "3"
-     }
-    ],
-    "inputSource": "live api GET /books/B004EEUZ80 (2026-08-11)"
-   },
-   "servedNow": {
-    "primary": {
-     "name": "The Chronicles of Narnia",
-     "position": "3"
-    },
-    "secondary": null,
-    "plexSortTitleNow": "Chronicles of Narnia, Book 3 - The Horse and His Boy: Unabridged",
-    "sweepDegraded": false
-   },
-   "required": {
-    "outcome": "SERIES",
-    "series": "The Chronicles of Narnia",
-    "position": "5",
-    "note": "Audible numbers this 3, its CHRONOLOGICAL place, on a shelf that is otherwise PUBLICATION order (Dawn Treader 3, Silver Chair 4, Magician's Nephew 6) -- so the two collided on Book 3. Publication position is 5. Operator-stated 2026-08-11."
-   },
-   "mintPin": true
-  },
-  {
    "recordId": "B004FI1AZ2",
    "ratingKey": "190415",
    "album": "The Cardinal of the Kremlin",

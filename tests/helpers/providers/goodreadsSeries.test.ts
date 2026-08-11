@@ -14,7 +14,8 @@ const {
 	withGoodreadsSeries,
 	seriesAliasFor,
 	resetGoodreadsThrottle,
-	mirrorKeyFor
+	mirrorKeyFor,
+	queryTitle
 } = await import('#helpers/providers/goodreadsSeries')
 
 // The cache key carries the MIRROR's identity (a switch must not serve the
@@ -2625,5 +2626,78 @@ describe('secondary shelf: librarian declarations decide', () => {
 		)
 		const out = await fetchGoodreadsSeries('Declared Book', null)
 		expect(out?.secondary).toEqual({ name: 'Tales from Alagaësia', position: '1' })
+	})
+})
+
+describe('the mirror query drops a trailing edition qualifier', () => {
+	// The scorer already ignores "unabridged" (normalizeTitle strips it), but the
+	// mirror search is LITERAL, so the word went into the query and changed which
+	// WORK came back -- and with it the position.
+	//
+	// Measured live 2026-08-11 on "The Horse and His Boy":
+	//   "...: Unabridged C.S. Lewis" -> 2 hits, correct work 3294501 SECOND
+	//   "...          C.S. Lewis"    -> 5 hits, correct work 3294501 FIRST
+	// End to end through withGoodreadsSeries the qualifier moved the answer from
+	// The Chronicles of Narnia #5 to #3 -- Audible's CHRONOLOGICAL number on a
+	// shelf that is otherwise publication order, putting two books on Book 3.
+	// The shelf-derived position (positionFor, off the series LinkItems) was
+	// always right; it just never got to run.
+
+	test('the qualifier is stripped, with its separator', () => {
+		expect(queryTitle('The Horse and His Boy: Unabridged')).toBe('The Horse and His Boy')
+		expect(queryTitle('The Voyage of the Dawn Treader: Unabridged')).toBe(
+			'The Voyage of the Dawn Treader'
+		)
+		expect(queryTitle('The Magician’s Nephew: Abridged')).toBe('The Magician’s Nephew')
+	})
+
+	test('the parenthesised and bare forms go too', () => {
+		expect(queryTitle('Project Hail Mary (Unabridged)')).toBe('Project Hail Mary')
+		expect(queryTitle('Some Book [Abridged]')).toBe('Some Book')
+		expect(queryTitle('Some Book Unabridged')).toBe('Some Book')
+	})
+
+	test('a real word at the END is not eaten', () => {
+		// Anchored, so a qualifier-shaped word elsewhere survives.
+		expect(queryTitle('The Unabridged Journals of Sylvia Plath')).toBe(
+			'The Unabridged Journals of Sylvia Plath'
+		)
+		expect(queryTitle('Abridged Too Far')).toBe('Abridged Too Far')
+	})
+
+	test('the VOLUME marker survives -- it is the hint, not noise', () => {
+		// Deliberately NOT normalizeTitle, which strips ", Book N". That number is
+		// the one fact we hold about which volume this is.
+		expect(queryTitle('Ahriman, Book 3')).toBe('Ahriman, Book 3')
+		expect(queryTitle('Tier One Thrillers, Book 9: Unabridged')).toBe('Tier One Thrillers, Book 9')
+	})
+
+	test('a clean title is returned unchanged', () => {
+		expect(queryTitle('Prince Caspian')).toBe('Prince Caspian')
+	})
+
+	test('WIRING: the qualifier never reaches the /search url', async () => {
+		// The pure-function tests above all pass with the call site reverted to the
+		// raw title -- a mutation proved it. This is the one that fails, because
+		// the defect was never in the helper, it was in what the query carried.
+		respond([{ workId: 42 }], work())
+		await fetchGoodreadsSeries('The Grief of Stones: Unabridged', 'Katherine Addison')
+		const url = String(fetchMock.mock.calls[0]?.[0] ?? '')
+		expect(url).toContain('/search?q=')
+		expect(url.toLowerCase()).not.toContain('unabridged')
+		expect(decodeURIComponent(url)).toContain('The Grief of Stones Katherine Addison')
+	})
+
+	test('WIRING: a clean title reaches the url untouched', async () => {
+		respond([{ workId: 42 }], work())
+		await fetchGoodreadsSeries('The Grief of Stones', 'Katherine Addison')
+		expect(decodeURIComponent(String(fetchMock.mock.calls[0]?.[0] ?? ''))).toContain(
+			'The Grief of Stones Katherine Addison'
+		)
+	})
+
+	test('a title that is ONLY a qualifier keeps its raw form', () => {
+		// Never query an empty string.
+		expect(queryTitle('Unabridged')).toBe('Unabridged')
 	})
 })
