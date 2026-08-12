@@ -287,7 +287,8 @@
    "inputsVerified": [
     "live mirror /work probe 2026-07-30",
     "final2 sweep"
-   ]
+   ],
+   "mintPin": true
   },
   {
    "recordId": "B00BWA4ULM",
