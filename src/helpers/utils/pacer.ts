@@ -15,12 +15,12 @@ import sleep from '#helpers/utils/sleep'
  * So the client paces ITSELF: serialize the calls, hold a minimum gap between
  * them, and stand down entirely for a cooldown once the server does push back.
  *
- * Generalised from the pacing that already guards the Goodreads mirror
- * (goodreadsSeries.ts). That copy is deliberately NOT refactored onto this one
- * in the same change — it is entangled with that module's degraded-stand-down
- * and cache-miss semantics, and the series resolver is the last thing that
- * should be destabilised for a tidy-up. Adopting it there is a follow-up with
- * its own tests.
+ * Generalised from the pacing that already guarded the Goodreads mirror
+ * (goodreadsSeries.ts), which now uses this module too — the reason it took a
+ * follow-up to get there is `onPushBack` below. The two providers answer a
+ * push-back in opposite ways, and collapsing them onto one policy would have
+ * broken whichever lost. Naming the policy is what made the shared version
+ * honest rather than merely shorter.
  */
 export interface Pacer {
 	/** Wait for this caller's turn. Resolves when it may proceed. */
@@ -31,6 +31,11 @@ export interface Pacer {
 	standingDown(): boolean
 	/** Milliseconds until the cooldown lifts, 0 when not standing down. */
 	standDownRemainingMs(): number
+	/**
+	 * Clear all pacing state. Exists for tests: a pacer is module-level, so
+	 * without this one suite's push-back silently stands the next one down.
+	 */
+	reset(): void
 }
 
 export interface PacerOptions {
@@ -42,6 +47,22 @@ export interface PacerOptions {
 	minGapMs: () => number
 	/** How long to stand down after a push-back. */
 	cooldownMs: () => number
+	/**
+	 * What a push-back does to the callers that follow it.
+	 *
+	 * `'wait'` (the default) — `take()` holds them until the cooldown lifts,
+	 * then lets them through. Right when the caller wants the data and can
+	 * afford to wait for it, as Hardcover's genre enrichment can.
+	 *
+	 * `'shed'` — `take()` ignores the cooldown entirely, and the CALLER is
+	 * expected to consult `standingDown()` first and give up on its own terms.
+	 * Right where blocking is worse than returning nothing: the Goodreads mirror
+	 * sits on a serve path with a time budget, so a caller queued when a
+	 * push-back lands would sleep out the whole cooldown and blow it. Shedding
+	 * returns immediately and lets the caller mark the result DEGRADED, which is
+	 * what keeps an empty answer from being cached as a genuine miss.
+	 */
+	onPushBack?: 'wait' | 'shed'
 	/** Injectable clock and sleep, so tests need no real time. */
 	now?: () => number
 	wait?: (ms: number) => Promise<void>
@@ -56,6 +77,7 @@ export interface PacerOptions {
 export function createPacer(opts: PacerOptions): Pacer {
 	const now = opts.now ?? (() => Date.now())
 	const wait = opts.wait ?? sleep
+	const sheds = opts.onPushBack === 'shed'
 	let nextAllowedAt = 0
 	let cooldownUntil = 0
 	// Serializes the arithmetic below. Without a shared tail, N concurrent
@@ -67,8 +89,11 @@ export function createPacer(opts: PacerOptions): Pacer {
 		const slot = chain.then(async () => {
 			const gap = opts.minGapMs()
 			// A cooldown outranks the gap: after a push-back, waiting the gap and
-			// firing anyway is what turns one 429 into a run of them.
-			const until = Math.max(nextAllowedAt, cooldownUntil)
+			// firing anyway is what turns one 429 into a run of them. Under 'shed'
+			// it is deliberately NOT consulted -- that caller already declined at
+			// standingDown() rather than queueing, so honouring it here would only
+			// stall the callers that chose to proceed.
+			const until = sheds ? nextAllowedAt : Math.max(nextAllowedAt, cooldownUntil)
 			const t = now()
 			if (until > t) await wait(until - t)
 			// Re-read the clock: the wait above may have overshot, and pinning the
@@ -88,6 +113,11 @@ export function createPacer(opts: PacerOptions): Pacer {
 			cooldownUntil = Math.max(cooldownUntil, now() + Math.max(0, opts.cooldownMs()))
 		},
 		standingDown: () => now() < cooldownUntil,
-		standDownRemainingMs: () => Math.max(0, cooldownUntil - now())
+		standDownRemainingMs: () => Math.max(0, cooldownUntil - now()),
+		reset: () => {
+			nextAllowedAt = 0
+			cooldownUntil = 0
+			chain = Promise.resolve()
+		}
 	}
 }

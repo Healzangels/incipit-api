@@ -4,7 +4,7 @@ import { normalizeTitle, sim } from '#helpers/providers/matchScorer'
 import type { ProviderBookSeries } from '#helpers/providers/types'
 import { isSameAuthor } from '#helpers/utils/authorNameMatch'
 import fetch from '#helpers/utils/fetchPlus'
-import sleep from '#helpers/utils/sleep'
+import { createPacer } from '#helpers/utils/pacer'
 
 /**
  * Goodreads series lookup, via the public bookinfo.pro mirror.
@@ -1336,12 +1336,18 @@ function backoffMs(): number {
 	return Number.isFinite(raw) && raw >= 0 ? raw : 60000
 }
 
-let nextAllowedAt = 0
-let backoffUntil = 0
+// 'shed', not the default 'wait': a caller that finds the mirror standing down
+// returns null-degraded immediately (see getJson) rather than sleeping out the
+// cooldown on a serve path that has a time budget.
+const goodreadsPacer = createPacer({
+	minGapMs: minRequestGapMs,
+	cooldownMs: backoffMs,
+	onPushBack: 'shed'
+})
 
 // Per-ROW stand-down after a degraded lookup, keyed by the series cache key.
-// Deliberately separate from `backoffUntil`: that one is module-wide and armed
-// only by an explicit 429/503 push-back; this one bounds the row whose OWN
+// Deliberately separate from the pacer's cooldown: that one is module-wide and
+// armed only by an explicit 429/503 push-back; this one bounds the row whose OWN
 // records the mirror persistently fails on (a /work answering 500 every call),
 // where nothing may be cached and the full lookup would otherwise re-run per
 // serve. In-process only and short, so a recovered mirror converges without a
@@ -1424,29 +1430,9 @@ function newLookupState(): LookupState {
  * trap left to fall into.
  */
 export function resetGoodreadsThrottle(): void {
-	nextAllowedAt = 0
-	backoffUntil = 0
-	requestChain = Promise.resolve()
+	goodreadsPacer.reset()
 	seriesRecordMemo.clear()
 	degradedStandDown.clear()
-}
-// Serializes the pacing arithmetic: without a shared tail, N concurrent callers
-// each read the same nextAllowedAt and all fire at once.
-let requestChain: Promise<void> = Promise.resolve()
-
-/** Wait for this caller's turn in the paced queue. */
-function takeSlot(): Promise<void> {
-	const slot = requestChain.then(async () => {
-		const gap = minRequestGapMs()
-		if (gap <= 0) return
-		const now = Date.now()
-		const waitUntil = Math.max(nextAllowedAt, now)
-		if (waitUntil > now) await sleep(waitUntil - now)
-		nextAllowedAt = Math.max(waitUntil, Date.now()) + gap
-	})
-	// Keep the chain alive even if a link rejects.
-	requestChain = slot.catch(() => undefined)
-	return slot
 }
 
 async function getJson<T>(
@@ -1457,19 +1443,19 @@ async function getJson<T>(
 	// Standing down after a push-back: skip the call outright rather than adding
 	// to the pile. Counts as degraded -- the null we return says nothing about
 	// whether the data exists, so it must not be cached as a miss.
-	if (Date.now() < backoffUntil) {
+	if (goodreadsPacer.standingDown()) {
 		if (state) state.degraded = true
 		// Logged because this is INVISIBLE otherwise: every enrichment simply
 		// returns nothing, which looks identical to "this author has no photo".
 		// Diagnosing one such case took five steps precisely because a stand-down
 		// left no trace -- so say so, with how long is left on it.
 		logger?.debug(
-			{ path, backoffMsRemaining: backoffUntil - Date.now() },
+			{ path, backoffMsRemaining: goodreadsPacer.standDownRemainingMs() },
 			'goodreads: skipped, standing down after a rate-limit push-back'
 		)
 		return null
 	}
-	await takeSlot()
+	await goodreadsPacer.take()
 	try {
 		// retries=3 starts fetchPlus at its own retry ceiling, i.e. exactly ONE
 		// attempt. Its ladder fires up to 4 requests per call -- so a slot that the
@@ -1485,8 +1471,8 @@ async function getJson<T>(
 		// an always-429 mirror).
 		const status = (err as { status?: number })?.status
 		if (status === 429 || status === 503) {
-			const ms = backoffMs()
-			backoffUntil = Date.now() + ms
+			goodreadsPacer.pushBack()
+			const ms = goodreadsPacer.standDownRemainingMs()
 			// warn, not debug: being pushed back off the mirror degrades enrichment
 			// library-wide for the next minute, and it is the one condition an
 			// operator would want to see without raising the log level.

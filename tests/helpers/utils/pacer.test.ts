@@ -13,12 +13,13 @@ import { createPacer } from '#helpers/utils/pacer'
  * served in those windows came back with no genres — indistinguishable from a
  * book that has none.
  */
-const harness = (gap = 1000, cooldown = 60_000) => {
+const harness = (gap = 1000, cooldown = 60_000, onPushBack?: 'wait' | 'shed') => {
 	let clock = 1_000_000
 	const waits: number[] = []
 	const pacer = createPacer({
 		minGapMs: () => gap,
 		cooldownMs: () => cooldown,
+		onPushBack,
 		now: () => clock,
 		// Advance the fake clock instead of sleeping, so the pacer's own
 		// re-read-the-clock logic is exercised exactly as in production.
@@ -159,6 +160,58 @@ describe('createPacer', () => {
 		// Without the .catch keeping the chain alive, this never settles.
 		await pacer.take()
 		expect(waits).toEqual([1000])
+	})
+
+	// The Goodreads policy. Its getJson declines at standingDown() and returns
+	// null-degraded instead of queueing, so a cooldown honoured inside take()
+	// would only punish the callers that got through the guard first -- on a
+	// serve path with a time budget, up to a full 60s each.
+	describe("onPushBack: 'shed'", () => {
+		test('take() does NOT wait out a cooldown', async () => {
+			const h = harness(1000, 60_000, 'shed')
+			await h.pacer.take()
+			h.pacer.pushBack()
+			// Advance past the GAP, so the only thing that could still hold this
+			// caller is the cooldown. Under the default 'wait' this waits 59s.
+			h.advance(1000)
+			await h.pacer.take()
+			expect(h.waits).toEqual([])
+		})
+
+		test('the cooldown is still RECORDED, or the caller has nothing to shed on', async () => {
+			// Shedding is a caller-side decision; the pacer must still tell it that a
+			// push-back happened. A pacer that simply forgot 429s would pass the test
+			// above and silently disable the stand-down entirely.
+			const h = harness(1000, 60_000, 'shed')
+			h.pacer.pushBack()
+			expect(h.pacer.standingDown()).toBe(true)
+			expect(h.pacer.standDownRemainingMs()).toBe(60_000)
+		})
+
+		test('the gap is still enforced while standing down', async () => {
+			// Shed drops the COOLDOWN from take(), not the pacing. A caller that
+			// proceeds anyway must still be spaced off the previous one.
+			const h = harness(1000, 60_000, 'shed')
+			await h.pacer.take()
+			h.pacer.pushBack()
+			await h.pacer.take()
+			expect(h.waits).toEqual([1000])
+		})
+	})
+
+	test('reset clears BOTH the gap and the cooldown', async () => {
+		// A pacer is module-level, so a suite that arms a 429 stands down every
+		// suite that follows it in the same process. Half a reset is its own trap:
+		// clearing only the cooldown leaves the next caller paying a stale gap.
+		const h = harness(1000, 60_000)
+		await h.pacer.take()
+		h.pacer.pushBack()
+		expect(h.pacer.standingDown()).toBe(true)
+		h.pacer.reset()
+		expect(h.pacer.standingDown()).toBe(false)
+		expect(h.pacer.standDownRemainingMs()).toBe(0)
+		await h.pacer.take()
+		expect(h.waits).toEqual([])
 	})
 
 	test('two pacers are independent — a slow provider cannot throttle a healthy one', async () => {
