@@ -12232,7 +12232,7 @@
    "pinType": "census-verdict",
    "sourceOfTruth": "Census shard 1 \"definite\": primary \"The Cosmere\" #32 is the franchise umbrella (same container as the operator-banned Cosmere Universe shelf on The Emperor's Soul); Secret Projects #4 is the real positioned publishing series, consistent with Tress #1 / Yumi #3 secondaries.",
    "group": "census-umbrella-fix",
-   "note": "reviewNeeded: operator has banned the Cosmere container (Emperor's Soul) but has not explicitly chosen Secret Projects vs NONE for the two Secret-Projects-only rows.",
+   "note": "operator decision 2026-08-12: Secret Projects STAYS the shelf for the two rows that are not part of Hoid's Travails. The Sunlit Man already serves Secret Projects #4 from the resolver, so the shelf exists either way and the only question was whether Isles joined it or the pair dropped it. Reviewed and settled -- do not re-open as reviewNeeded.",
    "knownDefectNow": true
   },
   {
@@ -12279,11 +12279,12 @@
    "pinType": "census-verdict",
    "sourceOfTruth": "Census shard 2 \"STRONG\": primary \"The Cosmere\" #34 is the umbrella that mis-shelves The Emperor's Soul. Fresh mirror (work 216518815) lists ONLY The Cosmere Universe #21 - the umbrella position itself drifts (34 vs 21), reinforcing that a franchise index is not a shelf.",
    "group": "census-umbrella-fix",
-   "note": "reviewNeeded (same family decision as rk 153334).",
+   "note": "operator decision 2026-08-12: Secret Projects STAYS the shelf for the two rows that are not part of Hoid's Travails. The Sunlit Man already serves Secret Projects #4 from the resolver, so the shelf exists either way and the only question was whether Isles joined it or the pair dropped it. Reviewed and settled -- do not re-open as reviewNeeded.",
    "knownDefectNow": true,
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
-   ]
+   ],
+   "mintPin": true
   },
   {
    "recordId": "B0DFMN335N",
