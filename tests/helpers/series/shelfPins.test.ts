@@ -574,11 +574,21 @@ describe('the shipped portable key table', () => {
 		expect(clashes).toEqual([])
 	})
 
-	test('most pins are portable — a table that only reaches one library is the bug', () => {
-		// Counted over RECORDS, not keys: a pin may also be filed under a
-		// baked-in-series alias, so counting keys would read over 100%.
-		const total = Object.keys(SHELF_PINS).length
-		expect(Object.keys(SHELF_PIN_KEYS).length).toBeGreaterThanOrEqual(Math.floor(total * 0.9))
+	// EVERY pin, not "most". A pin with no portable key is dead on every library
+	// but the one it was minted against, which is the whole defect this table
+	// exists to fix — so an unportable pin must be a deliberate, argued
+	// exception, not something that slips in unnoticed.
+	//
+	// Three shipped unportable until 2026-08-12 (Dark Imperium, Helsreach,
+	// Rainbow Six): their corpus rows carried `inputs.author: null`, so no key
+	// could be formed. Rainbow Six is why a fallback to the album ARTIST is not
+	// the fix — its artist is the placeholder "(Clancy family)", which would
+	// mint a plausible-looking key that matches no album anywhere.
+	test('EVERY pin is portable, counted over records', () => {
+		// Records, not keys: a pin may also carry a baked-in-series alias, so
+		// counting keys would read over 100%.
+		const unportable = Object.keys(SHELF_PINS).filter((id) => !SHELF_PIN_KEYS[id]?.length)
+		expect(unportable).toEqual([])
 	})
 })
 
