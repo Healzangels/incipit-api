@@ -75,7 +75,21 @@ export const CONTAINER_SHELF_NAMES: ReadonlySet<string> = new Set([
 	// "sounds like a franchise" is not.
 	'halo',
 	'camp half-blood chronicles',
-	'eisenhorn/ravenor/bequin'
+	'eisenhorn/ravenor/bequin',
+	// Added 2026-08-12. Moorcock's multiverse umbrella, spanning Elric, Corum,
+	// Hawkmoon and Erekose -- the mirror returns it as "The Eternal Champion
+	// Sequence #5.3" for a book whose own series is The Elric Saga #2, and the
+	// fractional position is the tell that this is mega-sequence numbering
+	// rather than a shelf.
+	//
+	// Zero-tested like the four above, on BOTH servers: prod (1650 albums) and
+	// .99 (1652) shelve no Moorcock at all, so this strips nothing today. Noted
+	// plainly because that also makes it the WEAKEST evidence in this set -- the
+	// others were measured against sub-series they were actively stranding. The
+	// standing risk is that "The Eternal Champion" is also a real Moorcock novel
+	// and an omnibus line; if a library ever shelves albums directly under it,
+	// this entry is the thing to reconsider first.
+	'eternal champion sequence'
 ])
 
 /**

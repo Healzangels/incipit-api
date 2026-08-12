@@ -310,7 +310,19 @@ describe('split shelves: one series, two spellings', () => {
 		test.each([
 			['Halo: Cryptum', 'Halo', '8', 'The Forerunner Saga', '1'],
 			['The Lightning Thief', 'Camp Half-Blood Chronicles', '1', 'Percy Jackson and the Olympians', '1'],
-			['Xenos', 'Eisenhorn/Ravenor/Bequin', '1', 'Eisenhorn', '1']
+			['Xenos', 'Eisenhorn/Ravenor/Bequin', '1', 'Eisenhorn', '1'],
+			// Added 2026-08-12. The only case here whose umbrella carries a leading
+			// article, so it is also the one covering the fold: the set is keyed
+			// 'eternal champion sequence' and would silently never match if it were
+			// stored with the "The". The fractional 5.3 is the live value the
+			// mirror returns -- mega-sequence numbering, not a shelf position.
+			[
+				'The Sailor on the Seas of Fate',
+				'The Eternal Champion Sequence',
+				'5.3',
+				'The Elric Saga',
+				'2'
+			]
 		])('%s shelves under %s, not %s', (title, umbrella, upos, real, rpos) => {
 			const out = applyShelfPolicy({
 				title,
