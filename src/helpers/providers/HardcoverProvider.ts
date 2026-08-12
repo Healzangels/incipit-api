@@ -10,8 +10,10 @@ import type {
 } from './types'
 
 import { isSeriesOrdering } from '#helpers/providers/goodreadsSeries'
+import { envInt } from '#helpers/utils/env'
 import fetch from '#helpers/utils/fetchPlus'
 import { normalizeLanguage, preferLanguage } from '#helpers/utils/language'
+import { createPacer } from '#helpers/utils/pacer'
 
 /**
  * Hardcover provider — the strongest source in the Gate 0 benchmark (93% of the
@@ -237,7 +239,56 @@ export function interpretGqlBody<T>(body: unknown): T {
 /** Default transport: POST to Hardcover via the project's retrying fetch.
  * Exported so hardcoverGenres.ts shares the one transport (and its
  * "Bearer Bearer" strip) instead of growing a second, subtly different one. */
+/**
+ * Hardcover's own pacing. ONE pacer for the whole transport, so search, the
+ * genre backfill and the author-art leg queue together rather than each
+ * discovering the rate limit separately.
+ *
+ * WHY. Measured 2026-08-12 during prod's daily metadata sweep: 142 of 349 calls
+ * came back 429, the circuit breaker opened for 60s at a time and skipped 3,028
+ * more, and every book served inside those windows was served with NO GENRES.
+ * That is indistinguishable, at the point of use, from a book that genuinely
+ * has none — the failure is silent and it costs data.
+ *
+ * 1100ms by default, matching the gap the Goodreads mirror already holds, and
+ * comfortably inside Hardcover's published 60-requests-per-minute ceiling. A
+ * sweep therefore takes longer and LANDS, instead of finishing fast and losing
+ * a slice of the library to 429s. Retune (or disable with 0) via
+ * HARDCOVER_MIN_GAP_MS / HARDCOVER_COOLDOWN_MS without a rebuild.
+ */
+const hardcoverPacer = createPacer({
+	// envInt, not a hand-rolled parse: it is the one place that decides an empty
+	// string is NOT zero, which matters here because a declared-but-unset compose
+	// variable would otherwise read as "no pacing at all".
+	minGapMs: () => envInt(process.env.HARDCOVER_MIN_GAP_MS, 1100, 0, 60_000),
+	cooldownMs: () => envInt(process.env.HARDCOVER_COOLDOWN_MS, 60_000, 0, 3_600_000)
+})
+
+/** Whether an error is the server telling us to slow down. */
+const isRateLimited = (err: unknown): boolean =>
+	(err as { status?: number })?.status === 429 ||
+	(err as { response?: { status?: number } })?.response?.status === 429
+
 export const defaultGql: HardcoverGql = async <T>(
+	query: string,
+	variables: Record<string, unknown>,
+	token: string
+): Promise<T> => {
+	await hardcoverPacer.take()
+	try {
+		return await gqlOnce<T>(query, variables, token)
+	} catch (err) {
+		// A push-back starts a cooldown for EVERY caller, not just this one.
+		// Without it the next queued call fires 1.1s later into a server that has
+		// just said no, which is how one 429 becomes the run that opens the
+		// breaker.
+		if (isRateLimited(err)) hardcoverPacer.pushBack()
+		throw err
+	}
+}
+
+/** The unpaced transport. Not exported: every caller must go through the pacer. */
+const gqlOnce = async <T>(
 	query: string,
 	variables: Record<string, unknown>,
 	token: string
