@@ -11,106 +11,65 @@ function logHtmlWarning(selector: string, asin: string): void {
 }
 
 describe('Audible Book HTML Scraping Live Tests', () => {
-	describe('When scraping Project Hail Mary (B08G9PRS1K) genres', () => {
-		let dom: cheerio.CheerioAPI | undefined
-		let parsedResponse: HtmlBook | undefined
+	// One block per sample book. Each was FOUR tests before 2026-08-12 and
+	// asserted nothing:
+	//
+	//   'should successfully fetch HTML page'   expect(dom).toBeDefined()
+	//   'should successfully parse genres'      expect(true).toBe(true)
+	//   'should have valid genre structure'     if (parsed?.genres) { ... }
+	//   'should have at least one genre'        if (parsed?.genres) { ... }
+	//
+	// The two `if (parsed?.genres)` guards SKIP their own assertions on exactly
+	// the input that matters -- a parse that produced nothing -- and the third is
+	// literally unfailable. So the only red any of them could produce was the
+	// fetch, i.e. Audible's rate limiter. Had Audible rearranged its markup so no
+	// genre parsed at all, all twelve would have passed.
+	//
+	// Now: one test per book that asserts genres REALLY came out, and that treats
+	// a throttled fetch as what it is -- a run that could not check -- rather than
+	// as a finding. Total unreachability is caught by 'is not blind' below, so
+	// skipping here cannot hide a blackout.
+	const SAMPLE_BOOKS = [
+		{ asin: 'B08G9PRS1K', title: 'Project Hail Mary' },
+		{ asin: 'B017V4IM1G', title: 'Harry Potter' },
+		{ asin: 'B08C6YJ1LS', title: 'The Coldest Case' }
+	]
 
-		beforeAll(async () => {
-			const helper = new ScrapeHelper('B08G9PRS1K', 'us')
-			dom = await helper.fetchBook()
-			parsedResponse = await helper.parseResponse(dom)
-		}, 30000)
+	for (const book of SAMPLE_BOOKS) {
+		describe(`When scraping ${book.title} (${book.asin}) genres`, () => {
+			let dom: cheerio.CheerioAPI | undefined
+			let parsedResponse: HtmlBook | undefined
 
-		it('should successfully fetch HTML page', () => {
-			expect(dom).toBeDefined()
-		})
+			beforeAll(async () => {
+				const helper = new ScrapeHelper(book.asin, 'us')
+				dom = await helper.fetchBook()
+				parsedResponse = await helper.parseResponse(dom)
+			}, 30000)
 
-		it('should successfully parse genres (warns if HTML changed)', () => {
-			if (!parsedResponse) {
-				console.warn('[AUDIBLE HTML CHANGE] Could not parse genres for B08G9PRS1K')
-			}
-			// Don't fail - just detect the change
-			expect(true).toBe(true)
-		})
+			it('parses real genres, or reports that it could not fetch', () => {
+				if (!dom) {
+					console.warn(
+						`SKIPPED ${book.asin}: could not fetch (rate limited?). Genres were ` +
+							'NOT verified by this run.'
+					)
+					return
+				}
 
-		it('should have valid genre structure when parsed', () => {
-			if (parsedResponse?.genres) {
-				expect(Array.isArray(parsedResponse.genres)).toBe(true)
-				expect(parsedResponse.genres.length).toBeGreaterThan(0)
+				// Past this point the page IS in hand, so a parse failure is a markup
+				// change and must be red. No `if (parsedResponse)` guard -- that is
+				// what disabled these assertions before.
+				if (!parsedResponse) logHtmlWarning('genre parse', book.asin)
+				expect(parsedResponse).toBeDefined()
+				expect(Array.isArray(parsedResponse?.genres)).toBe(true)
+				expect(parsedResponse?.genres?.length ?? 0).toBeGreaterThan(0)
 
-				const firstGenre = parsedResponse.genres[0]
+				const firstGenre = parsedResponse?.genres?.[0]
 				expect(firstGenre).toHaveProperty('asin')
 				expect(firstGenre).toHaveProperty('name')
 				expect(firstGenre).toHaveProperty('type')
-			}
+			})
 		})
-
-		it('should have at least one genre', () => {
-			if (parsedResponse?.genres) {
-				expect(parsedResponse.genres.length).toBeGreaterThan(0)
-			}
-		})
-	})
-
-	describe('When scraping Harry Potter (B017V4IM1G) genres', () => {
-		let dom: cheerio.CheerioAPI | undefined
-		let parsedResponse: HtmlBook | undefined
-
-		beforeAll(async () => {
-			const helper = new ScrapeHelper('B017V4IM1G', 'us')
-			dom = await helper.fetchBook()
-			parsedResponse = await helper.parseResponse(dom)
-		}, 30000)
-
-		it('should successfully fetch HTML page', () => {
-			expect(dom).toBeDefined()
-		})
-
-		it('should successfully parse genres', () => {
-			if (!parsedResponse) {
-				console.warn('[AUDIBLE HTML CHANGE] Could not parse genres for B017V4IM1G')
-			}
-			// Warn but don't fail when Audible changes HTML
-			expect(true).toBe(true)
-		})
-
-		it('should have valid genre structure when parsed', () => {
-			if (parsedResponse?.genres) {
-				expect(Array.isArray(parsedResponse.genres)).toBe(true)
-				expect(parsedResponse.genres.length).toBeGreaterThan(0)
-			}
-		})
-	})
-
-	describe('When scraping The Coldest Case (B08C6YJ1LS) genres', () => {
-		let dom: cheerio.CheerioAPI | undefined
-		let parsedResponse: HtmlBook | undefined
-
-		beforeAll(async () => {
-			const helper = new ScrapeHelper('B08C6YJ1LS', 'us')
-			dom = await helper.fetchBook()
-			parsedResponse = await helper.parseResponse(dom)
-		}, 30000)
-
-		it('should successfully fetch HTML page', () => {
-			expect(dom).toBeDefined()
-		})
-
-		it('should successfully parse genres', () => {
-			if (!parsedResponse) {
-				console.warn('[AUDIBLE HTML CHANGE] Could not parse genres for B08C6YJ1LS')
-			}
-			// Warn but don't fail when Audible changes HTML
-			expect(true).toBe(true)
-		})
-
-		it('should have valid genre structure when parsed', () => {
-			if (parsedResponse?.genres) {
-				expect(Array.isArray(parsedResponse.genres)).toBe(true)
-				expect(parsedResponse.genres.length).toBeGreaterThan(0)
-			}
-		})
-	})
+	}
 
 	// The point of this file: notice when Audible's markup moves under the
 	// scraper. Until 2026-08-12 it could not do that, twice over.
@@ -183,44 +142,55 @@ describe('Audible Book HTML Scraping Live Tests', () => {
 	})
 
 	describe('Cross-region HTML scraping', () => {
-		it('should scrape from UK region', async () => {
-			const helper = new ScrapeHelper('B08G9PRS1K', 'uk')
-			const dom = await helper.fetchBook()
-			expect(dom).toBeDefined()
-
-			const parsed = await helper.parseResponse(dom)
-			if (parsed?.genres) {
-				expect(Array.isArray(parsed.genres)).toBe(true)
-			}
-		}, 30000)
-
-		it('should scrape from AU region', async () => {
-			const helper = new ScrapeHelper('B08G9PRS1K', 'au')
-			const dom = await helper.fetchBook()
-			expect(dom).toBeDefined()
-
-			const parsed = await helper.parseResponse(dom)
-			if (parsed?.genres) {
-				expect(Array.isArray(parsed.genres)).toBe(true)
-			}
-		}, 30000)
+		for (const region of ['uk', 'au'] as const) {
+			it(`scrapes from the ${region.toUpperCase()} region, or reports it could not fetch`, async () => {
+				const helper = new ScrapeHelper('B08G9PRS1K', region)
+				const dom = await helper.fetchBook()
+				if (!dom) {
+					console.warn(`SKIPPED ${region}: could not fetch (rate limited?).`)
+					return
+				}
+				// The page IS in hand, so it must parse. The previous version wrapped
+				// this in `if (parsed?.genres)` and then asserted only that an array
+				// is an array -- it could not fail on either arm.
+				const parsed = await helper.parseResponse(dom)
+				expect(parsed).toBeDefined()
+				expect(Array.isArray(parsed?.genres)).toBe(true)
+				// Genre COUNT is not asserted across regions: a regional catalogue
+				// legitimately differs, and this file has been burned by assertions
+				// that looked strict and were really about something else.
+				if (!parsed?.genres?.length) logHtmlWarning(`genres (${region})`, 'B08G9PRS1K')
+			}, 30000)
+		}
 	})
 
 	describe('Error handling for edge cases', () => {
-		it('should return undefined for 404 pages without throwing', async () => {
-			const helper = new ScrapeHelper('B00B5HZGUG', 'us')
-			const dom = await helper.fetchBook()
-			expect(dom).toBeUndefined()
-		}, 30000)
-
-		it('should handle pages with missing genre data gracefully', async () => {
-			const helper = new ScrapeHelper('B0036I54I6', 'us')
-			const dom = await helper.fetchBook()
-
-			if (dom) {
-				const parsed = await helper.parseResponse(dom)
-				expect(parsed).toBeUndefined()
+		it('returns undefined for a 404 page — verified against a live control', async () => {
+			// A CONTROL first. fetchBook returns undefined for a 404 AND for a
+			// throttled request, so asserting "undefined" alone passes for the wrong
+			// reason every time Audible is rate-limiting us -- a false GREEN, which
+			// is worse than the false reds elsewhere in this file because nobody
+			// investigates it.
+			const control = await new ScrapeHelper('B08G9PRS1K', 'us').fetchBook()
+			if (!control) {
+				console.warn(
+					'SKIPPED 404 check: the control book is unreachable, so "undefined" ' +
+						'would prove nothing about the 404 page.'
+				)
+				return
 			}
+			const dom = await new ScrapeHelper('B00B5HZGUG', 'us').fetchBook()
+			expect(dom).toBeUndefined()
+		}, 60000)
+
+		it('parses a page with no genre data to undefined, not a crash', async () => {
+			const dom = await new ScrapeHelper('B0036I54I6', 'us').fetchBook()
+			if (!dom) {
+				console.warn('SKIPPED B0036I54I6: could not fetch (rate limited?).')
+				return
+			}
+			const parsed = await new ScrapeHelper('B0036I54I6', 'us').parseResponse(dom)
+			expect(parsed).toBeUndefined()
 		}, 30000)
 	})
 })
