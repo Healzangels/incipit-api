@@ -47,11 +47,12 @@ export function makeSearchBookRoute(registry: ProviderRegistry = defaultRegistry
 			// never appear in access logs. The Plex bundle forwards the user's own
 			// Hardcover token this way; a self-hosted instance can omit it and rely
 			// on the provider's env default.
+			// NO per-request Hardcover token. Removed 2026-08-12: every deployment
+			// self-hosts incipit-api with its own HARDCOVER_TOKEN, so forwarding the
+			// operator's personal key from Plex's plaintext prefs on every request
+			// bought nothing and widened the blast radius of a mis-set api host pref.
+			// `credentials` stays — Audible chapter auth still rides it.
 			const credentials: Record<string, string> = {}
-			const hardcoverToken = request.headers['x-hardcover-token']
-			if (typeof hardcoverToken === 'string' && hardcoverToken) {
-				credentials.hardcover = hardcoverToken
-			}
 
 			// Cache provider results in Redis when it is available; degrades to live
 			// calls when it is not.

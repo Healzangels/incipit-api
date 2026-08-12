@@ -63,11 +63,12 @@ async function _show(fastify: FastifyInstance) {
 		// Non-Audible book (Hardcover/OpenLibrary): the id decodes to a provider, so
 		// re-query it for full metadata instead of the ASIN-based audnexus lookup.
 		const region = request.query.region ?? 'us'
+		// NO per-request Hardcover token. Removed 2026-08-12: every deployment
+		// self-hosts incipit-api with its own HARDCOVER_TOKEN, so forwarding the
+		// operator's personal key from Plex's plaintext prefs on every request
+		// bought nothing and widened the blast radius of a mis-set api host pref.
+		// `credentials` stays — Audible chapter auth still rides it.
 		const credentials: Record<string, string> = {}
-		const hardcoverToken = request.headers['x-hardcover-token']
-		if (typeof hardcoverToken === 'string' && hardcoverToken) {
-			credentials.hardcover = hardcoverToken
-		}
 		// Attach a native square cover (Apple Books) for a square Plex poster. Any
 		// object with a title/authors/image works for both response shapes. The
 		// Apple lookup is cached (this runs on every book response, refreshes too).
@@ -216,7 +217,7 @@ async function _show(fastify: FastifyInstance) {
 				backfillHardcoverGenres({
 					id: asin,
 					redis: fastify.redis ?? null,
-					token: credentials.hardcover ?? process.env.HARDCOVER_TOKEN,
+					token: process.env.HARDCOVER_TOKEN,
 					logger: request.log,
 					ctx
 				}),
@@ -256,7 +257,7 @@ async function _show(fastify: FastifyInstance) {
 					title: rescueTitle,
 					author: rescueAuthor,
 					redis: fastify.redis ?? null,
-					token: credentials.hardcover ?? process.env.HARDCOVER_TOKEN,
+					token: process.env.HARDCOVER_TOKEN,
 					logger: request.log,
 					ctx
 				}),

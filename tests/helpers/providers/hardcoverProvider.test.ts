@@ -44,11 +44,14 @@ const castleRoogna = {
 	editions: []
 }
 
-const baseQuery: BookSearchQuery = { title: 'x', region: 'us', credentials: { hardcover: 'tok' } }
+// No `credentials` here any more. The per-request Hardcover token was removed
+// 2026-08-12 — every deployment self-hosts the API with its own
+// HARDCOVER_TOKEN, so the provider takes ONE token at construction.
+const baseQuery: BookSearchQuery = { title: 'x', region: 'us' }
 
 describe('HardcoverProvider', () => {
 	test('maps an audio edition to a candidate with asin, duration, narrator and square cover', async () => {
-		const p = new HardcoverProvider({ gql: gqlWith([427578], [projectHailMary]) })
+		const p = new HardcoverProvider({ token: 'tok', gql: gqlWith([427578], [projectHailMary]) })
 		const out = await p.search({ ...baseQuery, title: 'Project Hail Mary' })
 		expect(out).toHaveLength(1)
 		expect(out[0]).toMatchObject({
@@ -72,7 +75,7 @@ describe('HardcoverProvider', () => {
 			...projectHailMary,
 			editions: [{ ...projectHailMary.editions[0], audio_seconds: null }]
 		}
-		const out = await new HardcoverProvider({ gql: gqlWith([1], [noDuration]) }).search({
+		const out = await new HardcoverProvider({ token: 'tok', gql: gqlWith([1], [noDuration]) }).search({
 			...baseQuery,
 			title: 'Project Hail Mary'
 		})
@@ -84,7 +87,7 @@ describe('HardcoverProvider', () => {
 	})
 
 	test('a book with no audio edition yields a book-level candidate (no narrator, no asin, book cover)', async () => {
-		const p = new HardcoverProvider({ gql: gqlWith([100], [castleRoogna]) })
+		const p = new HardcoverProvider({ token: 'tok', gql: gqlWith([100], [castleRoogna]) })
 		const out = await p.search({ ...baseQuery, title: 'Castle Roogna' })
 		expect(out).toHaveLength(1)
 		expect(out[0]).toMatchObject({
@@ -106,7 +109,7 @@ describe('HardcoverProvider', () => {
 				{ ...projectHailMary.editions[0], id: 999, asin: 'B08G9PRS1K', audio_seconds: 58253 }
 			]
 		}
-		const p = new HardcoverProvider({ gql: gqlWith([427578], [twoEditions]) })
+		const p = new HardcoverProvider({ token: 'tok', gql: gqlWith([427578], [twoEditions]) })
 		const out = await p.search({ ...baseQuery, title: 'Project Hail Mary' })
 		expect(out).toHaveLength(2)
 		expect(out.map((c) => c.audioSeconds)).toEqual([58200, 58253])
@@ -120,7 +123,7 @@ describe('HardcoverProvider', () => {
 				{ ...projectHailMary.editions[0], id: 2, language: { language: 'English' } }
 			]
 		}
-		const en = await new HardcoverProvider({ gql: gqlWith([1], [mixed]) }).search({
+		const en = await new HardcoverProvider({ token: 'tok', gql: gqlWith([1], [mixed]) }).search({
 			...baseQuery,
 			title: 'Project Hail Mary'
 		})
@@ -132,7 +135,7 @@ describe('HardcoverProvider', () => {
 			...projectHailMary,
 			editions: [{ ...projectHailMary.editions[0], id: 3, language: { language: 'French' } }]
 		}
-		const fallback = await new HardcoverProvider({ gql: gqlWith([1], [frOnly]) }).search({
+		const fallback = await new HardcoverProvider({ token: 'tok', gql: gqlWith([1], [frOnly]) }).search({
 			...baseQuery,
 			title: 'Project Hail Mary'
 		})
@@ -150,7 +153,7 @@ describe('HardcoverProvider', () => {
 				{ ...projectHailMary.editions[0], id: 11, language: null }
 			]
 		}
-		const kept = await new HardcoverProvider({ gql: gqlWith([1], [withNull]) }).search({
+		const kept = await new HardcoverProvider({ token: 'tok', gql: gqlWith([1], [withNull]) }).search({
 			...baseQuery,
 			title: 'Project Hail Mary'
 		})
@@ -165,7 +168,7 @@ describe('HardcoverProvider', () => {
 				{ ...projectHailMary.editions[0], id: 21, language: null }
 			]
 		}
-		const out = await new HardcoverProvider({ gql: gqlWith([1], [frAndNull]) }).search({
+		const out = await new HardcoverProvider({ token: 'tok', gql: gqlWith([1], [frAndNull]) }).search({
 			...baseQuery,
 			title: 'Project Hail Mary'
 		})
@@ -177,7 +180,7 @@ describe('HardcoverProvider', () => {
 			...projectHailMary,
 			editions: [{ ...projectHailMary.editions[0], asin: null }]
 		}
-		const p = new HardcoverProvider({ gql: gqlWith([427578], [noAsin]) })
+		const p = new HardcoverProvider({ token: 'tok', gql: gqlWith([427578], [noAsin]) })
 		const out = await p.search({ ...baseQuery, title: 'Project Hail Mary' })
 		expect(out[0].id).toBe('hardcover-edition-31501578')
 	})
@@ -195,24 +198,26 @@ describe('HardcoverProvider', () => {
 		expect(called).toBe(false)
 	})
 
-	test('prefers a per-request token over the env default', async () => {
-		let seenToken = ''
-		const gql: HardcoverGql = async <T>(
-			query: string,
-			_v: Record<string, unknown>,
-			token: string
-		): Promise<T> => {
-			seenToken = token
-			if (query.includes('search(')) return { search: { ids: [] } } as T
-			return { books: [] } as T
-		}
-		const p = new HardcoverProvider({ token: 'env-token', gql })
-		await p.search({ ...baseQuery, credentials: { hardcover: 'user-token' } })
-		expect(seenToken).toBe('user-token')
+	// Was: 'prefers a per-request token over the env default'. That path is GONE
+	// (2026-08-12) — a per-request token meant the operator's personal key rode
+	// from Plex's plaintext prefs on every call, for a shared-instance model no
+	// deployment uses. This pins the removal: a query that still carries one must
+	// be IGNORED, not honoured.
+	test('a per-request token in the query is IGNORED', async () => {
+		const seen: string[] = []
+		const p = new HardcoverProvider({
+			token: 'env-token',
+			gql: async <T>(_q: string, _v: Record<string, unknown>, token: string) => {
+				seen.push(token)
+				return { books: [] } as T
+			}
+		})
+		await p.search({ ...baseQuery, credentials: { hardcover: 'per-request-token' } })
+		expect(seen).toEqual(['env-token'])
 	})
 
 	test('returns [] when search finds no ids', async () => {
-		const p = new HardcoverProvider({ gql: gqlWith([], []) })
+		const p = new HardcoverProvider({ token: 'tok', gql: gqlWith([], []) })
 		const out = await p.search({ ...baseQuery, title: 'zzzznotabook' })
 		expect(out).toEqual([])
 	})
@@ -280,7 +285,7 @@ describe('HardcoverProvider.fetchBook', () => {
 				{ position: 2, series: { name: 'The Tales of Bauchelain and Korbal Broach' } }
 			]
 		}
-		const p = new HardcoverProvider({ gql: fetchGql(matchedEdition, book) })
+		const p = new HardcoverProvider({ token: 'tok', gql: fetchGql(matchedEdition, book) })
 		const out = await p.fetchBook('31501578', 'edition', {
 			region: 'us',
 			credentials: { hardcover: 'tok' }
@@ -297,7 +302,7 @@ describe('HardcoverProvider.fetchBook', () => {
 				{ position: 1, series: { name: 'Discworld' } }
 			]
 		}
-		const p = new HardcoverProvider({ gql: fetchGql(matchedEdition, book) })
+		const p = new HardcoverProvider({ token: 'tok', gql: fetchGql(matchedEdition, book) })
 		const out = await p.fetchBook('31501578', 'edition', {
 			region: 'us',
 			credentials: { hardcover: 'tok' }
@@ -313,7 +318,7 @@ describe('HardcoverProvider.fetchBook', () => {
 			...parentBook,
 			book_series: [{ position: 1, series: { name: 'Wheel of Time (chronological)' } }]
 		}
-		const p = new HardcoverProvider({ gql: fetchGql(matchedEdition, book) })
+		const p = new HardcoverProvider({ token: 'tok', gql: fetchGql(matchedEdition, book) })
 		const out = await p.fetchBook('31501578', 'edition', {
 			region: 'us',
 			credentials: { hardcover: 'tok' }
@@ -329,7 +334,7 @@ describe('HardcoverProvider.fetchBook', () => {
 				{ position: 1, series: { name: 'The Cosmere' } }
 			]
 		}
-		const p = new HardcoverProvider({ gql: fetchGql(matchedEdition, book) })
+		const p = new HardcoverProvider({ token: 'tok', gql: fetchGql(matchedEdition, book) })
 		const out = await p.fetchBook('31501578', 'edition', {
 			region: 'us',
 			credentials: { hardcover: 'tok' }
@@ -339,7 +344,7 @@ describe('HardcoverProvider.fetchBook', () => {
 	})
 
 	test('applies the MATCHED edition, not a popularity re-pick of the book editions', async () => {
-		const p = new HardcoverProvider({ gql: fetchGql(matchedEdition, parentBook) })
+		const p = new HardcoverProvider({ token: 'tok', gql: fetchGql(matchedEdition, parentBook) })
 		const book = await p.fetchBook('31501578', 'edition', {
 			region: 'us',
 			credentials: { hardcover: 'tok' }
@@ -360,7 +365,7 @@ describe('HardcoverProvider.fetchBook', () => {
 		// The Dungeon Crawler Carl case: a FRENCH edition served over a provider id
 		// must reach the route WITH its language, or flagLanguageMismatch is a no-op.
 		const frenchEdition = { ...matchedEdition, language: { language: 'French' } }
-		const p = new HardcoverProvider({ gql: fetchGql(frenchEdition, parentBook) })
+		const p = new HardcoverProvider({ token: 'tok', gql: fetchGql(frenchEdition, parentBook) })
 		const book = await p.fetchBook('31501578', 'edition', {
 			region: 'us',
 			credentials: { hardcover: 'tok' }
@@ -378,7 +383,7 @@ describe('HardcoverProvider.fetchBook', () => {
 				: parentBook.editions[0]
 			return { books: [{ ...parentBook, editions: [edition] }] } as T
 		}
-		const p = new HardcoverProvider({ gql })
+		const p = new HardcoverProvider({ token: 'tok', gql })
 		const book = await p.fetchBook('427578', 'book', {
 			region: 'us',
 			credentials: { hardcover: 'tok' }
@@ -387,14 +392,14 @@ describe('HardcoverProvider.fetchBook', () => {
 	})
 
 	test('returns null when the edition is not found', async () => {
-		const p = new HardcoverProvider({ gql: fetchGql(null, parentBook) })
+		const p = new HardcoverProvider({ token: 'tok', gql: fetchGql(null, parentBook) })
 		expect(
 			await p.fetchBook('404', 'edition', { region: 'us', credentials: { hardcover: 'tok' } })
 		).toBeNull()
 	})
 
 	test('a book-level id still resolves via the book pick', async () => {
-		const p = new HardcoverProvider({ gql: fetchGql(null, parentBook) })
+		const p = new HardcoverProvider({ token: 'tok', gql: fetchGql(null, parentBook) })
 		const book = await p.fetchBook('427578', 'book', {
 			region: 'us',
 			credentials: { hardcover: 'tok' }
@@ -405,6 +410,7 @@ describe('HardcoverProvider.fetchBook', () => {
 	})
 
 	test('returns null with no token', async () => {
+		// Tokenless ON PURPOSE — this is the no-token path.
 		const p = new HardcoverProvider({ gql: fetchGql(matchedEdition, parentBook) })
 		expect(await p.fetchBook('31501578', 'edition', { region: 'us' })).toBeNull()
 	})
@@ -440,7 +446,7 @@ describe('HardcoverProvider.fetchAuthorImage', () => {
 
 	test('returns null with no token, no match, or on a query error', async () => {
 		expect(
-			await new HardcoverProvider({ gql: authorGql([]) }).fetchAuthorImage('Andy Weir', {
+			await new HardcoverProvider({ token: 'tok', gql: authorGql([]) }).fetchAuthorImage('Andy Weir', {
 				region: 'us'
 			})
 		).toBeNull()
@@ -567,7 +573,7 @@ describe('HardcoverProvider.fetchAuthorInfo (image + bio)', () => {
 
 	test('no token or a query error yields both null', async () => {
 		expect(
-			await new HardcoverProvider({ gql: authorGql([]) }).fetchAuthorInfo('X', { region: 'us' })
+			await new HardcoverProvider({ token: 'tok', gql: authorGql([]) }).fetchAuthorInfo('X', { region: 'us' })
 		).toEqual({ image: null, bio: null, imageGenerated: false })
 		const throwing: HardcoverGql = async () => {
 			throw new Error('boom')
@@ -631,6 +637,7 @@ describe('HardcoverProvider.fetchBookByAsin', () => {
 	})
 
 	test('returns null without a token instead of throwing', async () => {
+		// Tokenless ON PURPOSE — this is the no-token path.
 		const provider = new HardcoverProvider({ gql: asinGql(32411759, edition, book) })
 		expect(await provider.fetchBookByAsin('B0FVG4C61Z', { region: 'us' })).toBeNull()
 	})

@@ -440,7 +440,9 @@ export default class HardcoverProvider implements BookProvider {
 	 *   one book-level candidate when a book has no audio edition)
 	 */
 	async search(query: BookSearchQuery, logger?: FastifyBaseLogger): Promise<ProviderCandidate[]> {
-		const token = query.credentials?.[HARDCOVER_NAME] ?? this.defaultToken
+		// One token per instance, from HARDCOVER_TOKEN. The per-request
+		// credential path was removed 2026-08-12 — see the note in the routes.
+		const token = this.defaultToken
 		if (!token) {
 			logger?.debug('hardcover: no token supplied, skipping provider')
 			return []
@@ -529,7 +531,7 @@ export default class HardcoverProvider implements BookProvider {
 	 * @returns {Promise<ProviderBook | null>} the edition's book data, or null
 	 */
 	async fetchBookByAsin(asin: string, opts: FetchBookOptions): Promise<ProviderBook | null> {
-		const token = opts.credentials?.[HARDCOVER_NAME] ?? this.defaultToken
+		const token = this.defaultToken
 		if (!token) {
 			opts.logger?.debug('hardcover: no token supplied, cannot resolve asin')
 			return null
@@ -550,7 +552,7 @@ export default class HardcoverProvider implements BookProvider {
 		kind: string,
 		opts: FetchBookOptions
 	): Promise<ProviderBook | null> {
-		const token = opts.credentials?.[HARDCOVER_NAME] ?? this.defaultToken
+		const token = this.defaultToken
 		if (!token) {
 			opts.logger?.debug('hardcover: no token supplied, cannot fetch book')
 			return null
@@ -604,7 +606,7 @@ export default class HardcoverProvider implements BookProvider {
 		name: string,
 		opts: FetchBookOptions
 	): Promise<{ image: string | null; bio: string | null; imageGenerated: boolean }> {
-		const token = opts.credentials?.[HARDCOVER_NAME] ?? this.defaultToken
+		const token = this.defaultToken
 		if (!token || !name) return { image: null, bio: null, imageGenerated: false }
 		try {
 			const data = await this.gql<{
