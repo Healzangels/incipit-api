@@ -25,7 +25,7 @@
  * an operator decision is still in force.
  */
 import { pinKey } from '#helpers/series/pinKey'
-import { pinLiveness } from '#helpers/series/pinLiveness'
+import { albumRecordIds, pinLiveness } from '#helpers/series/pinLiveness'
 import { SHELF_PIN_KEYS,SHELF_PINS } from '#helpers/series/shelfPins.data'
 
 const PLEX = process.env.PLEX_URL
@@ -47,8 +47,8 @@ if (!res.ok) {
 const xml = await res.text()
 
 // The agent's own guids carry the record id: incipit://<id>[_<region>]?lang=…
-const liveIds = new Set<string>()
-for (const m of xml.matchAll(/incipit:\/\/([A-Za-z0-9-]+?)(?:_[a-z]{2})?\?/g)) liveIds.add(m[1])
+// ALBUM guids only — see albumRecordIds for why a bare scan is wrong.
+const liveIds = albumRecordIds(xml)
 
 /**
  * Album ids grouped by the key applyPins would compute for them.
@@ -65,32 +65,45 @@ let unreadable = 0
 if (!idsOnly) {
 	const ids = [...liveIds]
 	let done = 0
-	const WORKERS = 8
+	// FOUR workers and a retry, not eight and none. Measured: at eight, 475 of
+	// 1858 records failed — and every one of a 40-album serial sample then
+	// returned 200. The gate was overloading the API and counting its own load as
+	// evidence. That matters more here than anywhere: an unreadable record makes
+	// a pin read as DEAD, so a checker that manufactures failures manufactures
+	// exactly the alarm it exists to raise, and a gate that cries wolf is ignored.
+	const WORKERS = 4
+	const ATTEMPTS = 3
 	const next = (function* () {
 		yield* ids
 	})()
+	const read = async (id: string): Promise<{ title?: string; authors?: { name?: string }[] } | null> => {
+		for (let attempt = 1; attempt <= ATTEMPTS; attempt += 1) {
+			try {
+				const r = await fetch(`${API}/books/${id}?region=us`)
+				if (r.ok) return (await r.json()) as { title?: string; authors?: { name?: string }[] }
+			} catch {
+				// fall through to the backoff
+			}
+			if (attempt < ATTEMPTS) await new Promise((r) => setTimeout(r, 400 * attempt))
+		}
+		return null
+	}
 	await Promise.all(
 		Array.from({ length: WORKERS }, async () => {
 			for (const id of next) {
-				try {
-					const r = await fetch(`${API}/books/${id}?region=us`)
-					if (r.ok) {
-						const b = (await r.json()) as { title?: string; authors?: { name?: string }[] }
-						for (const a of b.authors ?? []) {
-							const k = pinKey(b.title, a?.name)
-							if (k) albumsByKey.set(k, [...(albumsByKey.get(k) ?? []), id])
-						}
+				const b = await read(id)
+				// A record still unreadable after retries contributes no key, and that
+				// CAN report a live pin dead: if the pin's own edition id is absent
+				// from this library, the album that would have matched it by key is
+				// the very one we failed to read. Counted and surfaced rather than
+				// folded into the dead list — on prod the single remaining "dead" pin
+				// was an Apple upstream 503, not a bad key.
+				if (!b) unreadable += 1
+				else
+					for (const a of b.authors ?? []) {
+						const k = pinKey(b.title, a?.name)
+						if (k) albumsByKey.set(k, [...(albumsByKey.get(k) ?? []), id])
 					}
-					else unreadable += 1
-				} catch {
-					// A record the API cannot serve contributes no key, and that CAN
-					// report a live pin dead: if the pin's own edition id is absent from
-					// this library, the album that would have matched it by key is the
-					// very one we failed to read. Counted and surfaced rather than
-					// silently folded into the dead list — measured on prod, the single
-					// remaining "dead" pin was an Apple upstream 503, not a bad key.
-					unreadable += 1
-				}
 				if (++done % 200 === 0) console.log(`  ...${done}/${ids.length}`)
 			}
 		})

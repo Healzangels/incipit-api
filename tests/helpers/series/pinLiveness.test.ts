@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { pinLiveness } from '#helpers/series/pinLiveness'
+import { albumRecordIds, pinLiveness } from '#helpers/series/pinLiveness'
 
 /**
  * A pin is keyed on the matched EDITION's record id, so a re-match changes the
@@ -131,5 +131,35 @@ describe('pinLiveness', () => {
 			const out = pinLiveness(pins, [], keyed, new Map([['thecrowntower|michaeljsullivan', ['B0ONE']]]))
 			expect(out.ambiguous).toEqual([])
 		})
+	})
+})
+
+// The gate's INPUT, which was wrong and quietly inflated its own alarm: a bare
+// scan for `incipit://` also swept up every row's parentGuid (the ARTIST), and
+// those 404 as book lookups. Measured on .99: 209 artist ids counted as records
+// the API could not read, out of 233 reported unreadable.
+describe('albumRecordIds', () => {
+	const row = (guid: string, parent: string) =>
+		`<Directory ratingKey="1" guid="${guid}" parentGuid="${parent}" title="X" />`
+
+	test('takes the album guid and NOT the parent artist guid', () => {
+		const xml = `<MediaContainer>${row('com.plexapp.agents.incipit://B0ALBUM0001_us?lang=en', 'com.plexapp.agents.incipit://B0ARTIST001_us?lang=en')}</MediaContainer>`
+		expect([...albumRecordIds(xml)]).toEqual(['B0ALBUM0001'])
+	})
+
+	test('strips the region suffix', () => {
+		const xml = row('incipit://B0000ABCDE_us?lang=en', 'incipit://B0PARENT001?lang=en')
+		expect([...albumRecordIds(xml)]).toEqual(['B0000ABCDE'])
+	})
+
+	test('keeps a provider id with its hyphens', () => {
+		const xml = row('incipit://apple-audiobook-1726570647?lang=en', 'incipit://B0PARENT001?lang=en')
+		expect([...albumRecordIds(xml)]).toEqual(['apple-audiobook-1726570647'])
+	})
+
+	test('de-duplicates and survives a listing with no incipit guids', () => {
+		const xml = `${row('incipit://B0SAME00001?lang=en', 'incipit://B0P?lang=en')}${row('incipit://B0SAME00001?lang=en', 'incipit://B0P?lang=en')}`
+		expect([...albumRecordIds(xml)]).toEqual(['B0SAME00001'])
+		expect([...albumRecordIds('<MediaContainer><Directory guid="local://123" /></MediaContainer>')]).toEqual([])
 	})
 })

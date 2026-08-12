@@ -94,3 +94,30 @@ export function pinLiveness(
 		ambiguous
 	}
 }
+
+/**
+ * The record ids of the ALBUMS in a Plex section listing.
+ *
+ * Deliberately anchored on ` guid="`, not a bare scan for `incipit://`. A
+ * section listing also carries `parentGuid` (the ARTIST) on every row, and a
+ * whole-document scan swept those in too: measured on .99, 209 artist ids
+ * treated as book records, every one a 404 from /books/:id. The liveness gate
+ * then reported them as records it could not read — 209 of 233 "unreadable",
+ * an alarm it manufactured itself. `parentGuid` ends in a capital G, so
+ * requiring whitespace before a lowercase `guid=` excludes it exactly.
+ *
+ * The agent prefix is optional because Plex serves the FULL form,
+ * `com.plexapp.agents.incipit://…`. Anchoring on a bare `guid="incipit://`
+ * matches nothing on real data and empties the gate silently — caught here only
+ * because a test used the real string.
+ * @param {string} xml a Plex /library/sections/:id/all?type=9 response
+ * @returns {Set<string>} the album record ids, region suffix stripped
+ */
+export function albumRecordIds(xml: string): Set<string> {
+	const ids = new Set<string>()
+	for (const m of xml.matchAll(
+		/\sguid="(?:[\w.]*\.)?incipit:\/\/([A-Za-z0-9-]+?)(?:_[a-z]{2})?\?/g
+	))
+		ids.add(m[1])
+	return ids
+}
