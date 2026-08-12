@@ -1,9 +1,20 @@
 name: Live Integration Tests
 
 on:
-  schedule:
-    # Run daily at 9 AM UTC to detect Audible changes early
-    - cron: '0 9 * * *'
+  # NO SCHEDULE. This job fetches Audible product pages, and Audible RATE-LIMITS
+  # them: measured 2026-08-12, three consecutive local runs from a residential IP
+  # degraded 13 -> 12 -> 11 passing as the throttle tightened, and from a GitHub
+  # runner's datacenter IP every page fetch fails outright. So the daily cron
+  # could only ever report failure, and did -- red every morning from at least
+  # 2026-08-05, an email that carried no information.
+  #
+  # That is worse than useless for a job whose stated purpose is "detect Audible
+  # changes early": it cannot fetch, so it cannot detect, while training the
+  # reader to ignore the one alert that would matter. Production genre extraction
+  # was verified healthy throughout (8-10 genres per book on live records).
+  #
+  # Run it MANUALLY from a residential IP, where the fetches succeed. If a real
+  # daily canary is wanted, it belongs on the homelab, not on GitHub's IPs.
   workflow_dispatch:
     # Allow manual trigger with optional credentials
     inputs:

@@ -112,39 +112,74 @@ describe('Audible Book HTML Scraping Live Tests', () => {
 		})
 	})
 
+	// The point of this file: notice when Audible's markup moves under the
+	// scraper. Until 2026-08-12 it could not do that, twice over.
+	//
+	// It checked `li.categoriesLabel a` and `div.bc-chip-group a`, which
+	// ScrapeHelper does NOT use -- it reads `a[href*="/tag/"]` and
+	// `a[href*="/cat/"]` (ScrapeHelper.ts:61,67). Those two selectors are
+	// inherited from an older Audible layout, so the checks were watching markup
+	// nothing depends on.
+	//
+	// And the assertions were vacuous: `expect(true).toBe(true)` and
+	// `expect(len).toBeGreaterThanOrEqual(0)` cannot fail. The only way either
+	// test went red was the FETCH throwing -- which is exactly what Audible's
+	// rate limiting makes happen, so the file reported an outage every morning
+	// and a markup change never.
 	describe('HTML structure validation', () => {
-		it('should detect if categoriesLabel selector is present (warns if changed)', async () => {
+		// The selectors ScrapeHelper actually consumes. Keep in step with it.
+		const PRODUCTION_SELECTORS = ['a[href*="/tag/"]', 'a[href*="/cat/"]']
+
+		it('at least one production genre selector still matches', async () => {
 			const helper = new ScrapeHelper('B08G9PRS1K', 'us')
 			const dom = await helper.fetchBook()
 
+			// A failed fetch is Audible throttling us, NOT a markup change. Say so
+			// and stop, rather than reporting an outage as a structural break --
+			// conflating the two is what made this file noise. The "not every book
+			// is unreachable" test below is what catches a total blackout.
 			if (!dom) {
-				throw new Error('Failed to fetch HTML')
+				console.warn(
+					'SKIPPED structure check: could not fetch B08G9PRS1K (rate limited?). ' +
+						'The selectors were NOT verified by this run.'
+				)
+				return
 			}
 
-			const genreLinks = dom('li.categoriesLabel a')
-			if (genreLinks.length === 0) {
-				logHtmlWarning('li.categoriesLabel a', 'B08G9PRS1K')
-			}
+			const counts = PRODUCTION_SELECTORS.map((sel) => ({ sel, n: dom(sel).length }))
+			for (const { sel, n } of counts) if (n === 0) logHtmlWarning(sel, 'B08G9PRS1K')
 
-			// Warn but don't fail when selector doesn't match
-			expect(true).toBe(true)
+			// ANY of them matching means genre extraction still has a source. Not
+			// "all": measured 2026-08-12, Audible had moved categories into an
+			// embedded JSON blob ("categories":[{"name":...,"url":"/cat/..."}])
+			// rather than <a href="/cat/"> links, so requiring both would go red on
+			// a change the scraper already tolerates. Requiring at least one still
+			// fails loudly if the markup genuinely goes away.
+			expect(counts.some((c) => c.n > 0)).toBe(true)
 		}, 30000)
 
-		it('should detect if bc-chip-group selector is present', async () => {
-			const helper = new ScrapeHelper('B08G9PRS1K', 'us')
-			const dom = await helper.fetchBook()
-
-			if (!dom) {
-				throw new Error('Failed to fetch HTML')
+		// The counterpart to skipping on a failed fetch. Skipping is right for ONE
+		// throttled request, but if EVERY sample is unreachable the run verified
+		// nothing at all -- and a suite that reports green having checked nothing
+		// is the failure this whole file was rewritten to stop. So say it out loud.
+		it('is not blind — at least one sample book is reachable', async () => {
+			const asins = ['B08G9PRS1K', 'B017V4IM1G', 'B08C6YJ1LS']
+			let reached = 0
+			for (const asin of asins) {
+				const dom = await new ScrapeHelper(asin, 'us').fetchBook()
+				if (dom) reached += 1
+				// Spaced deliberately: firing three at once is what provokes the
+				// throttle this test exists to distinguish from a markup change.
+				await new Promise((r) => setTimeout(r, 2000))
 			}
-
-			const tagLinks = dom('div.bc-chip-group a')
-			if (tagLinks.length === 0) {
-				logHtmlWarning('div.bc-chip-group a', 'B08G9PRS1K')
-			}
-
-			expect(tagLinks.length).toBeGreaterThanOrEqual(0)
-		}, 30000)
+			if (reached === 0)
+				console.warn(
+					'Every sample book failed to fetch. Audible is refusing this IP ' +
+						'(GitHub runners are refused outright). Re-run from a residential ' +
+						'network; this run proves nothing about Audible’s markup.'
+				)
+			expect(reached).toBeGreaterThan(0)
+		}, 60000)
 	})
 
 	describe('Cross-region HTML scraping', () => {
