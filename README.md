@@ -78,10 +78,39 @@ These instructions will get you a copy of the project up and running on your loc
 
 - `MONGODB_URI`: MongoDB connection URL (e.g., `mongodb://localhost:27017/audnexus`)
 
-**Optional environment variables:**
+**Storage — pick one:**
 
-- Set `ADP_TOKEN` and `PRIVATE_KEY` for the chapters endpoint
-- Configure other optional variables as described in the [Deployment](#deployment) section
+- `MONGODB_URI` — the default backend.
+- `DB_BACKEND=sqlite` plus `SQLITE_PATH` — single-file storage, no Mongo needed.
+  Defaults to `./data/incipit.db` when unset.
+
+`REDIS_URL` is not strictly required, but **several features silently do nothing
+without it.** Alternate-cover computation in particular records its answer in redis
+and will not run at all if there is nowhere to record it — including the empty
+answer, so the work is not repeated on every request.
+
+**Providers:**
+
+| variable | why you want it |
+|---|---|
+| `GOODREADS_SERIES_URL` | The series source. Defaults to the SHARED public `https://api.bookinfo.pro`, which is one box serving thousands of users — expect rate limiting. Point it at your own [rreading-glasses](https://github.com/blampe/rreading-glasses) instance instead; the request pacing relaxes automatically when it is not the shared host. |
+| `HARDCOVER_TOKEN` | Hardcover genres, series and author portraits. Lives here, in the deployment's own environment — it is never accepted per request from a client. |
+| `CHAPTARR_ENABLED` | Chaptarr as a supplementary source. |
+| `OL_CONTACT` | Contact string sent to OpenLibrary, which their API asks of automated clients. |
+| `ADP_TOKEN`, `PRIVATE_KEY` | Audible device keys, needed only for the chapters endpoint. |
+
+**Write protection** — the delete routes refuse to run unless one of these is set, so
+an unconfigured deployment cannot be told to delete things:
+
+- `DELETE_AUTH_TOKEN` and/or `DELETE_ALLOWED_IPS`
+- `METRICS_AUTH_TOKEN` / `METRICS_ALLOWED_IPS` gate `/metrics` the same way
+- `TRUSTED_PROXIES`, or `TRUST_CLOUDFLARE=true`, so client IPs are read from the
+  right header when behind a proxy
+
+**Tuning (rarely needed)** — request pacing and match thresholds are env-tunable
+without a rebuild: `HARDCOVER_MIN_GAP_MS`, `HARDCOVER_COOLDOWN_MS`,
+`GOODREADS_MIN_GAP_MS`, `GOODREADS_BACKOFF_MS`, `GOODREADS_TIME_BUDGET_MS`,
+`IMAGES_SIMILAR_MAX_DISTANCE`, `DURATION_TIE_EPSILON_SECONDS`.
 
 Then start the server:
 
