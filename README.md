@@ -7,7 +7,7 @@
 
 <div align="center">
 
-[![Status](https://status.audnex.us/api/badge/4/status)](https://status.audnex.us)
+[![Status](https://img.shields.io/badge/status-active-success.svg)]()
 [![GitHub Issues](https://img.shields.io/github/issues/djdembeck/audnexus.svg)](https://github.com/djdembeck/audnexus/issues)
 [![GitHub Pull Requests](https://img.shields.io/github/issues-pr/djdembeck/audnexus.svg)](https://github.com/djdembeck/audnexus/pulls)
 [![License](https://img.shields.io/badge/license-GNUGPL-blue.svg)](/LICENSE)
@@ -38,11 +38,20 @@
 
 ## 🧐 About <a name = "about"></a>
 
-_Nexus - noun: a connection or series of connections linking two or more things._
+Incipit-api reconciles audiobook metadata from several sources into one answer, so a
+book that never had an Audible release still resolves. It is a fork of
+[audnexus](https://github.com/djdembeck/audnexus), and it is meant to be **run by you**
+— it is the backend for your own [Incipit.bundle](https://github.com/Healzangels/Incipit.bundle)
+Plex agent, not a shared public service.
 
-Looking around for audiobook metadata, we realized there's no solid (or open) single source of truth. Further, some solutions had community curated data, only to close their API. As such, this project has been created to enable development to include multiple sources of audiobook content in one response.
+Providers fanned out per lookup: **Audible, Hardcover, Chaptarr, Apple, OverDrive and
+OpenLibrary**. The API reconciles them rather than picking one — the match, the series,
+the genres and the cover art can each come from whichever source actually has them, and
+a candidate's stated runtime is weighed against the file's real duration so a wrong
+edition can be demoted.
 
-This project also makes integration into existing media servers very streamlined. Since all data can be returned with 1-2 API calls, there's little to no overhead processing on the client side. This enables rapid development of stable client plugins. Audnexus serves as a provider during the interim of waiting for a community driven audiobook database, at which time audnexus will be a seeder for such a database.
+Because it is self-hosted, provider credentials live in this deployment's own
+environment. Nothing is forwarded per request from a client.
 
 ## 🏁 Getting Started <a name = "getting_started"></a>
 
@@ -216,9 +225,11 @@ All errors follow this structure. The `details` field is optional and may be omi
 
 ## 🎈 Usage <a name="usage"></a>
 
-API usage documentation can be read here: https://audnex.us/
+The OpenAPI spec in this repo is the reference — upstream's https://audnex.us/ documents
+audnexus, not this fork, and does not cover what Incipit adds (`/images/similar`,
+`imageAlternates`, the series and genre reconciliation).
 
-Pre-rendered HTML documentation is also included in docs/index.html.
+Pre-rendered HTML documentation is included in `docs/index.html`.
 
 HTML can be re-generated from the spec, using:
 
