@@ -458,7 +458,13 @@ https://${TRAEFIK_DOMAIN}/books/${ASIN}
 
 ## ✍️ Authors <a name = "authors"></a>
 
-- [@djdembeck](https://github.com/djdembeck) - Idea & Initial work
+- [@djdembeck](https://github.com/djdembeck) — idea and initial work on
+  [audnexus](https://github.com/djdembeck/audnexus), which this project is a fork of.
+  The API shape, provider scaffolding and Fastify/Mongo groundwork are upstream's;
+  GPL-3.0 is inherited with them.
+
+Series data is served by [rreading-glasses](https://github.com/blampe/rreading-glasses)
+(GPL-3.0) — self-host it and point `GOODREADS_SERIES_URL` at your instance.
 
 ## 🎉 Acknowledgements <a name = "acknowledgement"></a>
 
