@@ -1,21 +1,26 @@
 openapi: 3.0.0
 info:
-  title: Audnexus
+  title: Incipit API
   description: |
-    Aggegate audiobook data
+    Reconciled audiobook metadata from several providers.
+
+    This is a self-hosted service — run your own instance and point your
+    Incipit.bundle Plex agent at it. There is no public deployment of this fork;
+    the upstream project it forks (audnexus) runs one, but it does not serve
+    these endpoints or these response fields.
   contact:
-    name: David Dembeck
-    url: 'https://github.com/laxamentumtech/audnexus'
+    name: Incipit
+    url: 'https://github.com/Healzangels/incipit-api'
   license:
     name: GPL v3
     url: 'https://www.gnu.org/licenses/gpl-3.0.en.html'
   version: 1.11.0
 externalDocs:
-  description: Find out more about Audnexus
-  url: 'https://github.com/djdembeck/audnexus'
+  description: Source, deployment and configuration
+  url: 'https://github.com/Healzangels/incipit-api'
 servers:
-  - url: 'https://api.audnex.us'
-    description: Public API
+  - url: 'http://localhost:3000'
+    description: Your own instance
 tags:
   - name: Authors
     description: Author functions
@@ -201,6 +206,160 @@ paths:
         - ApiKeyAuth: []
         - ipAuth: []
     parameters: []
+  /books:
+    get:
+      tags:
+        - Books
+      summary: Search for a book
+      description: |
+        Free-text search across every enabled provider, scored and reconciled into
+        one ranked list.
+
+        `runtimeLengthMin` is the parameter that most changes the answer: a
+        candidate whose stated length disagrees with the file's real duration is
+        demoted, and can be vetoed outright. That is how a wrong edition loses to
+        a right one scoring lower on text alone.
+      operationId: searchBooks
+      parameters:
+        - name: title
+          in: query
+          description: 'The book title. `query` and `keywords` are accepted aliases.'
+          schema:
+            type: string
+        - name: author
+          in: query
+          schema:
+            type: string
+        - name: narrator
+          in: query
+          schema:
+            type: string
+        - name: runtimeLengthMin
+          in: query
+          description: 'The file''s real duration in minutes. Corroborates or vetoes a candidate.'
+          schema:
+            type: number
+        - name: trackTitle
+          in: query
+          description: 'Title from the first track, used only when the album title finds nothing.'
+          schema:
+            type: string
+        - name: asin
+          in: query
+          description: 'Pins the result rather than competing with it.'
+          schema:
+            type: string
+        - name: isbn
+          in: query
+          schema:
+            type: string
+        - name: series
+          in: query
+          schema:
+            type: string
+        - name: seriesPosition
+          in: query
+          schema:
+            type: string
+        - name: region
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ranked candidates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+  /images/similar:
+    post:
+      tags:
+        - Books
+      summary: Are these two images the same picture?
+      description: |
+        Perceptual comparison, used by the Plex agent so the same cover is not
+        offered twice in different bytes (a 500px and a 1024px copy of one design).
+
+        Each side is EITHER base64 image bytes (`a`/`b`) OR a signature returned by
+        a previous call (`aSig`/`bSig`, preferred when both are sent), so a client
+        comparing one image against many uploads its bytes once and replays tokens.
+
+        Always answers 200 with a verdict. Undecodable CONTENT — unsupported
+        format, corrupt bytes, or a flat placeholder with no structure to hash —
+        reports `undecodable: true` rather than a confident false positive. An
+        unusable SIGNATURE additionally sets `staleSig`, the cue to re-send bytes.
+        Same luma but different colour is a colourway of one design, which counts
+        as a genuine alternative rather than a duplicate.
+      operationId: imagesSimilar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                a:
+                  type: string
+                  description: base64 image bytes
+                b:
+                  type: string
+                  description: base64 image bytes
+                aSig:
+                  type: string
+                  description: signature from a previous call
+                bSig:
+                  type: string
+                  description: signature from a previous call
+      responses:
+        '200':
+          description: A verdict
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  similar:
+                    type: boolean
+                  distance:
+                    type: number
+                    nullable: true
+                  undecodable:
+                    type: boolean
+                  staleSig:
+                    type: boolean
+                  aSig:
+                    type: string
+                  bSig:
+                    type: string
+        '400':
+          description: A side had neither bytes nor a signature
+  /version:
+    get:
+      tags:
+        - Books
+      summary: Build and uptime identity
+      operationId: getVersion
+      responses:
+        '200':
+          description: Build identity
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  commit:
+                    type: string
+                  commitShort:
+                    type: string
+                  builtAt:
+                    type: string
+                  startedAt:
+                    type: string
+                  uptimeSeconds:
+                    type: number
   '/books/{ASIN}':
     get:
       summary: Find book by ID
