@@ -307,32 +307,42 @@ describe('split shelves: one series, two spellings', () => {
 	// those pins become redundant and no unpinned row moves. Each case below is
 	// one of those twelve; without the classification the umbrella IS the shelf.
 	describe('franchise umbrellas promote the sub-series out from under them', () => {
-		test.each([
-			['Halo: Cryptum', 'Halo', '8', 'The Forerunner Saga', '1'],
-			['The Lightning Thief', 'Camp Half-Blood Chronicles', '1', 'Percy Jackson and the Olympians', '1'],
-			['Xenos', 'Eisenhorn/Ravenor/Bequin', '1', 'Eisenhorn', '1'],
+		// Named with a template rather than test.each's positional %s. With five
+		// tuple slots the format string consumed (title, umbrella, position) and
+		// rendered "Halo: Cryptum shelves under Halo, not 8" -- the exact OPPOSITE
+		// of the assertion, on the one line a failure puts in front of you.
+		const cases = [
+			{ title: 'Halo: Cryptum', umbrella: ['Halo', '8'], real: ['The Forerunner Saga', '1'] },
+			{
+				title: 'The Lightning Thief',
+				umbrella: ['Camp Half-Blood Chronicles', '1'],
+				real: ['Percy Jackson and the Olympians', '1']
+			},
+			{ title: 'Xenos', umbrella: ['Eisenhorn/Ravenor/Bequin', '1'], real: ['Eisenhorn', '1'] },
 			// Added 2026-08-12. The only case here whose umbrella carries a leading
 			// article, so it is also the one covering the fold: the set is keyed
 			// 'eternal champion sequence' and would silently never match if it were
 			// stored with the "The". The fractional 5.3 is the live value the
 			// mirror returns -- mega-sequence numbering, not a shelf position.
-			[
-				'The Sailor on the Seas of Fate',
-				'The Eternal Champion Sequence',
-				'5.3',
-				'The Elric Saga',
-				'2'
-			]
-		])('%s shelves under %s, not %s', (title, umbrella, upos, real, rpos) => {
-			const out = applyShelfPolicy({
-				title,
-				seriesPrimary: { name: umbrella, position: upos },
-				seriesSecondary: { name: real, position: rpos }
+			{
+				title: 'The Sailor on the Seas of Fate',
+				umbrella: ['The Eternal Champion Sequence', '5.3'],
+				real: ['The Elric Saga', '2']
+			}
+		] as const
+
+		for (const { title, umbrella, real } of cases) {
+			test(`${title} shelves under ${real[0]}, NOT the umbrella ${umbrella[0]}`, () => {
+				const out = applyShelfPolicy({
+					title,
+					seriesPrimary: { name: umbrella[0], position: umbrella[1] },
+					seriesSecondary: { name: real[0], position: real[1] }
+				})
+				expect(out.seriesPrimary).toEqual({ name: real[0], position: real[1] })
+				// Rule 3: a container is not even a tag once vacated.
+				expect(out.seriesSecondary).toBeUndefined()
 			})
-			expect(out.seriesPrimary).toEqual({ name: real, position: rpos })
-			// Rule 3: a container is not even a tag once vacated.
-			expect(out.seriesSecondary).toBeUndefined()
-		})
+		}
 
 		test('HOLLY GIBNEY is not one of them -- it shelves four albums of its own', () => {
 			// It umbrellas Bill Hodges and so reads like the same shape, but The
