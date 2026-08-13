@@ -1,202 +1,106 @@
 <!-- omit in toc -->
+# Contributing to incipit-api
 
-# Contributing to audnexus
-
-First off, thanks for taking the time to contribute! ❤️
-
-All types of contributions are encouraged and valued. See the [Table of Contents](#table-of-contents) for different ways to help and details about how this project handles them. Please make sure to read the relevant section before making your contribution. It will make it a lot easier for us maintainers and smooth out the experience for all involved. The community looks forward to your contributions. 🎉
-
-> And if you like the project, but just don't have time to contribute, that's fine. There are other easy ways to support the project and show your appreciation, which we would also be very happy about:
->
-> - Star the project
-> - Tweet about it
-> - Refer this project in your project's readme
-> - Mention the project at local meetups and tell your friends/colleagues
+Thanks for taking the time. This is short and specific: the general advice is the
+usual advice, so what follows is what is particular to this codebase.
 
 <!-- omit in toc -->
-
 ## Table of Contents
 
-- [I Have a Question](#i-have-a-question)
-- [I Want To Contribute](#i-want-to-contribute)
-  - [Reporting Bugs](#reporting-bugs)
-  - [Suggesting Enhancements](#suggesting-enhancements)
-  - [Your First Code Contribution](#your-first-code-contribution)
-  - [Improving The Documentation](#improving-the-documentation)
-- [Styleguides](#styleguides)
-  - [Commit Messages](#commit-messages)
-- [Join The Project Team](#join-the-project-team)
+- [Setup](#setup)
+- [Running the tests](#running-the-tests)
+- [Live tests are separate, and deliberately so](#live-tests-are-separate-and-deliberately-so)
+- [Provider work: the two rules](#provider-work-the-two-rules)
+- [What a good change looks like here](#what-a-good-change-looks-like-here)
+- [Reporting bugs](#reporting-bugs)
+- [Licence](#licence)
 
-## I Have a Question
+## Setup
 
-> If you want to ask a question, we assume that you have read the available [Documentation](https://github.com/djdembeck/audnexus).
+[Bun](https://bun.sh/) 1.3.9+, then `bun install`. Storage is either MongoDB
+(`MONGODB_URI`) or SQLite (`DB_BACKEND=sqlite`, `SQLITE_PATH`). Redis is optional to
+boot but several features are inert without it — see the README's environment section,
+which lists what each variable actually decides.
 
-Before you ask a question, it is best to search for existing [Issues](https://github.com/djdembeck/audnexus/issues) that might help you. In case you have found a suitable issue and still need clarification, you can write your question in this issue. It is also advisable to search the internet for answers first.
-
-If you then still feel the need to ask a question and need clarification, we recommend the following:
-
-- Open an [Issue](https://github.com/djdembeck/audnexus/issues/new).
-- Provide as much context as you can about what you're running into.
-- Provide project and platform versions (nodejs, npm, etc), depending on what seems relevant.
-
-We will then take care of the issue as soon as possible.
-
-<!--
-You might want to create a separate issue tag for questions and include it in this description. People should then tag their issues accordingly.
-
-Depending on how large the project is, you may want to outsource the questioning, e.g. to Stack Overflow or Gitter. You may add additional contact and information possibilities:
-- IRC
-- Slack
-- Gitter
-- Stack Overflow tag
-- Blog
-- FAQ
-- Roadmap
-- E-Mail List
-- Forum
--->
-
-## I Want To Contribute
-
-> ### Legal Notice <!-- omit in toc -->
->
-> When contributing to this project, you must agree that you have authored 100% of the content, that you have the necessary rights to the content and that the content you contribute may be provided under the project license.
-
-### Reporting Bugs
-
-<!-- omit in toc -->
-
-#### Before Submitting a Bug Report
-
-A good bug report shouldn't leave others needing to chase you up for more information. Therefore, we ask you to investigate carefully, collect information and describe the issue in detail in your report. Please complete the following steps in advance to help us fix any potential bug as fast as possible.
-
-- Make sure that you are using the latest version.
-- Determine if your bug is really a bug and not an error on your side e.g. using incompatible environment components/versions (Make sure that you have read the [documentation](https://github.com/djdembeck/audnexus). If you are looking for support, you might want to check [this section](#i-have-a-question)).
-- To see if other users have experienced (and potentially already solved) the same issue you are having, check if there is not already a bug report existing for your bug or error in the [bug tracker](https://github.com/djdembeck/audnexus/issues?q=label%3Abug).
-- Also make sure to search the internet (including Stack Overflow) to see if users outside of the GitHub community have discussed the issue.
-- Collect information about the bug:
-  - Stack trace (Traceback)
-  - OS, Platform and Version (Windows, Linux, macOS, x86, ARM)
-  - Version of the interpreter, compiler, SDK, runtime environment, package manager, depending on what seems relevant.
-  - Possibly your input and the output
-  - Can you reliably reproduce the issue? And can you also reproduce it with older versions?
-
-<!-- omit in toc -->
-
-#### How Do I Submit a Good Bug Report?
-
-> You must never report security related issues, vulnerabilities or bugs to the issue tracker, or elsewhere in public. Instead sensitive bugs must be sent by email to <>.
-
-<!-- You may add a PGP key to allow the messages to be sent encrypted as well. -->
-
-We use GitHub issues to track bugs and errors. If you run into an issue with the project:
-
-- Open an [Issue](https://github.com/djdembeck/audnexus/issues/new). (Since we can't be sure at this point whether it is a bug or not, we ask you not to talk about a bug yet and not to label the issue.)
-- Explain the behavior you would expect and the actual behavior.
-- Please provide as much context as possible and describe the _reproduction steps_ that someone else can follow to recreate the issue on their own. This usually includes your code. For good bug reports you should isolate the problem and create a reduced test case.
-- Provide the information you collected in the previous section.
-
-Once it's filed:
-
-- The project team will label the issue accordingly.
-- A team member will try to reproduce the issue with your provided steps. If there are no reproduction steps or no obvious way to reproduce the issue, the team will ask you for those steps and mark the issue as `needs-repro`. Bugs with the `needs-repro` tag will not be addressed until they are reproduced.
-- If the team is able to reproduce the issue, it will be marked `needs-fix`, as well as possibly other tags (such as `critical`), and the issue will be left to be [implemented by someone](#your-first-code-contribution).
-
-<!-- You might want to create an issue template for bugs and errors that can be used as a guide and that defines the structure of the information to be included. If you do so, reference it here in the description. -->
-
-### Suggesting Enhancements
-
-This section guides you through submitting an enhancement suggestion for audnexus, **including completely new features and minor improvements to existing functionality**. Following these guidelines will help maintainers and the community to understand your suggestion and find related suggestions.
-
-<!-- omit in toc -->
-
-#### Before Submitting an Enhancement
-
-- Make sure that you are using the latest version.
-- Read the [documentation](https://github.com/djdembeck/audnexus) carefully and find out if the functionality is already covered, maybe by an individual configuration.
-- Perform a [search](https://github.com/djdembeck/audnexus/issues) to see if the enhancement has already been suggested. If it has, add a comment to the existing issue instead of opening a new one.
-- Find out whether your idea fits with the scope and aims of the project. It's up to you to make a strong case to convince the project's developers of the merits of this feature. Keep in mind that we want features that will be useful to the majority of our users and not just a small subset. If you're just targeting a minority of users, consider writing an add-on/plugin library.
-
-<!-- omit in toc -->
-
-#### How Do I Submit a Good Enhancement Suggestion?
-
-Enhancement suggestions are tracked as [GitHub issues](https://github.com/djdembeck/audnexus/issues).
-
-- Use a **clear and descriptive title** for the issue to identify the suggestion.
-- Provide a **step-by-step description of the suggested enhancement** in as many details as possible.
-- **Describe the current behavior** and **explain which behavior you expected to see instead** and why. At this point you can also tell which alternatives do not work for you.
-- You may want to **include screenshots and animated GIFs** which help you demonstrate the steps or point out the part which the suggestion is related to. You can use [this tool](https://www.cockos.com/licecap/) to record GIFs on macOS and Windows, and [this tool](https://github.com/colinkeenan/silentcast) or [this tool](https://github.com/GNOME/byzanz) on Linux. <!-- this should only be included if the project has a GUI -->
-- **Explain why this enhancement would be useful** to most audnexus users. You may also want to point out the other projects that solved it better and which could serve as inspiration.
-
-<!-- You might want to create an issue template for enhancement suggestions that can be used as a guide and that defines the structure of the information to be included. If you do so, reference it here in the description. -->
-
-### Your First Code Contribution
-
-<!-- TODO
-include Setup of env, IDE and typical getting started instructions?
-
--->
-
-### Improving The Documentation
-
-<!-- TODO
-Updating, improving and correcting the documentation
-
--->
-
-## Bun Runtime
-
-Audnexus runs on [Bun](https://bun.sh/), a fast JavaScript runtime.
-
-### Running with Bun
-
-```bash
-# Install dependencies
-bun install
-
-# Start the server
-bun src/server.ts
-# OR
-bun run serve
-```
-
-### Testing
-
-Tests are run with Bun's built-in test runner:
+## Running the tests
 
 ```bash
 bun run test
 ```
 
-Some legacy tests use Jest-specific APIs and are being converted. New tests should use Bun's native mocking capabilities:
+**Use the script, not a bare `bun test`.** The script names the directories, sets the
+timeout and pins `--parallel=1`; running the whole tree yourself picks up suites that
+expect services and produces failures that are about your environment rather than your
+change.
 
-```typescript
-import { mock } from 'bun:test'
+Before opening a PR:
 
-const mockFetch = mock(() => Promise.resolve({ data: 'test' }))
+```bash
+bun run lint
 ```
 
-### Module Aliases
+That is prettier, `tsc --noEmit` and eslint together — the same combination CI runs.
 
-Bun uses the standard `package.json` `"imports"` field for module aliasing, which is already configured. Import using the `#` prefix:
+## Live tests are separate, and deliberately so
 
-```typescript
-import { ApiHelper } from '#helpers/audible/ApiHelper'
-```
+`tests/live/` talks to real providers, and is not part of the gate. It is
+`workflow_dispatch` only, and the reason is worth knowing before you put it back on a
+cron: Audible rate-limits the product pages. Measured 2026-08-12, three consecutive
+local runs from a residential IP degraded 13 → 12 → 11 passing as the throttle
+tightened, and from a GitHub runner's datacenter IP **every** fetch fails. So the daily
+job could only ever report failure — and did, every morning — while training the reader
+to ignore the one alert that would matter.
 
-## Styleguides
+If you touch a scraper, run the relevant live test by hand and say in the PR what you
+saw.
 
-### Commit Messages
+A live test that cannot reach its provider should **skip**, not fail — and it must not
+pass vacuously either. Assert something the response actually proves.
 
-This project uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/), and all PRs/contributions must use them as well.
+## Provider work: the two rules
 
-## Join The Project Team
+**Pace yourself.** Providers rate-limit, and being throttled does not merely slow things
+down, it silently costs data: a book served during a 429 window comes back with no
+genres, which is indistinguishable at the point of use from a book that has none. Use
+`createPacer` (`src/helpers/utils/pacer.ts`) rather than adding another private
+gap-and-cooldown. It takes a policy — `'wait'` to hold callers until a cooldown lifts,
+`'shed'` for a caller on a serve path with a time budget, which returns immediately and
+marks the result degraded.
 
-<!-- TODO -->
+**A degraded answer is not a miss.** If a lookup failed, was throttled or stood down,
+say so and do not cache the empty result as "this does not exist" — otherwise one bad
+minute pins a book to nothing for the whole TTL. Caching a genuine empty answer is
+correct and necessary; caching a failure is not.
 
-<!-- omit in toc -->
+## What a good change looks like here
 
-## Attribution
+- **Measure it.** The comments and commit messages in this repo carry numbers, because
+  a claim like "this is faster" or "this matches better" is checkable and worth
+  checking. Say what you ran it against.
+- **Mutate your fix.** Break it deliberately and confirm a test goes red. A green suite
+  proves nothing about a test that never constrained the code — more than one bug here
+  was found exactly that way, after shipping.
+- **Anything touching series or matching needs an A/B.** There is a harness
+  (`scripts/seriesHarness.ts`) that scores a golden corpus against required outcomes.
+  Run each arm at least twice: it talks to a live mirror, and the first cold run against
+  a fresh one reports failures that do not reproduce.
+- **A test that mirrors is not a guard.** Asserting the value the code currently
+  produces locks in behaviour without describing it. Assert the invariant, so the test
+  still means something after a refactor.
 
-This guide is based on the **contributing-gen**. [Make your own](https://github.com/bttger/contributing-gen)!
+## Reporting bugs
+
+Open an issue at
+[Healzangels/incipit-api/issues](https://github.com/Healzangels/incipit-api/issues).
+
+Useful to include: the ASIN or search that misbehaved, the response you got and the one
+you expected, which providers are enabled, and whether Redis is configured — a
+surprising number of "feature does nothing" reports come down to that last one.
+
+Please do not file security issues publicly — raise them privately with the maintainer
+through GitHub instead.
+
+## Licence
+
+By contributing you agree your work is provided under this project's licence (GPL-3.0),
+inherited from [audnexus](https://github.com/djdembeck/audnexus).
