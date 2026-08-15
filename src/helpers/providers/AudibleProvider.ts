@@ -3,6 +3,7 @@ import type { FastifyBaseLogger } from 'fastify'
 import type { BookProvider, BookSearchQuery, FetchBookOptions, ProviderCandidate } from './types'
 
 import { abridgedFrom } from '#helpers/providers/abridged'
+import { isUnreleased } from '#helpers/providers/released'
 import fetch from '#helpers/utils/fetchPlus'
 import { normalizeLanguage } from '#helpers/utils/language'
 import { regions } from '#static/regions'
@@ -40,6 +41,14 @@ interface AudibleProduct {
 	 * already requests. It was on the wire and unread until 2026-08-09.
 	 */
 	format_type?: string
+	/**
+	 * Publication date, from the product_desc group RESPONSE_GROUPS already
+	 * requests — the third field found on the wire and unread, after
+	 * `format_type` and `subtitle`. Read only to drop pre-orders from search;
+	 * `issue_date` mirrors the fallback order `ApiHelper.getReleaseDate` uses.
+	 */
+	release_date?: string
+	issue_date?: string
 }
 
 /** Transport for an Audible catalog search; injectable so tests need no network. */
@@ -191,7 +200,23 @@ export default class AudibleProvider implements BookProvider {
 			logger?.debug({ count: products.length }, 'audible: keyword fallback returned')
 		}
 
-		return products
+		// Drop PRE-ORDERS. Filtered here, after both fetches, so the fallback above
+		// still triggers on a genuinely empty structured search rather than on one
+		// this guard emptied — the retry costs a request and exists for a different
+		// failure (an author-string mismatch), so it must not fire for this one.
+		//
+		// Deliberately NOT applied in fetchCandidateByAsin: that resolves an ASIN the
+		// caller named, and a pin must still resolve even when it names a pre-order.
+		const now = new Date()
+		const released = products.filter((p) => !isUnreleased(p.release_date ?? p.issue_date, now))
+		if (released.length !== products.length) {
+			logger?.debug(
+				{ dropped: products.length - released.length },
+				'audible: dropped unreleased (pre-order) products from search'
+			)
+		}
+
+		return released
 			.filter((p) => p.asin)
 			.map((p) => ({
 				provider: AUDIBLE_NAME,

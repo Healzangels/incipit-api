@@ -161,4 +161,74 @@ describe('AudibleProvider fetchCandidateByAsin', () => {
 		const p = new AudibleProvider({ fetchProducts: async () => [husk] })
 		expect(await p.fetchCandidateByAsin!('B08WF9JR2P', { region: 'us' })).toBeNull()
 	})
+
+	// A PIN must resolve even when it names a pre-order. The search guard exists to
+	// stop an unpublished listing WINNING a competition it was never eligible for;
+	// it must not stop the caller resolving an ASIN they named outright. Same split
+	// ApiHelper.getReleaseDate documents for the fetch path.
+	test('still resolves a pre-order when the caller names its ASIN', async () => {
+		const preorder = {
+			asin: 'B0GD8N9VDJ',
+			title: 'Confessions of a Crap Artist',
+			runtime_length_min: 450,
+			release_date: '2099-01-01'
+		}
+		const p = new AudibleProvider({ fetchProducts: async () => [preorder] })
+		const out = await p.fetchCandidateByAsin!('B0GD8N9VDJ', { region: 'us' })
+		expect(out?.asin).toBe('B0GD8N9VDJ')
+	})
+})
+
+describe('AudibleProvider pre-order exclusion', () => {
+	// Prod 2026-08-14: this album sat matched to a record five weeks from release.
+	// The bundle's check_if_preorder never fired because the incipit-api candidate
+	// path sends no date, so the guard has to live here.
+	const preorder = {
+		asin: 'B0GD8N9VDJ',
+		title: 'Project Hail Mary',
+		runtime_length_min: 450,
+		authors: [{ name: 'Andy Weir' }],
+		narrators: [{ name: 'Someone Else' }],
+		release_date: '2099-01-01'
+	}
+
+	test('drops a future-dated product from search results', async () => {
+		const p = new AudibleProvider({ fetchProducts: async () => [preorder, phmProduct] })
+		const out = await p.search(q)
+		expect(out.map((c) => c.asin)).toEqual(['B08G9PRS1K'])
+	})
+
+	test('keeps a released product', async () => {
+		const released = { ...preorder, release_date: '2021-05-04' }
+		const p = new AudibleProvider({ fetchProducts: async () => [released] })
+		const out = await p.search(q)
+		expect(out.map((c) => c.asin)).toEqual(['B0GD8N9VDJ'])
+	})
+
+	test('keeps a product with no date at all — the guard fails open', async () => {
+		// phmProduct carries no release_date, which is the common case; a missing
+		// date must never be read as "future" or the whole catalog disappears.
+		const p = new AudibleProvider({ fetchProducts: async () => [phmProduct] })
+		expect(await p.search(q)).toHaveLength(1)
+	})
+
+	test('falls back to issue_date when release_date is absent', async () => {
+		const noRelease = { ...preorder, release_date: undefined, issue_date: '2099-01-01' }
+		const p = new AudibleProvider({ fetchProducts: async () => [noRelease] })
+		expect(await p.search(q)).toEqual([])
+	})
+
+	test('does NOT trigger the keyword retry when the guard emptied the results', async () => {
+		// The retry costs a request and exists for a different failure (an author
+		// string Audible does not match). Filtering before the fallback check would
+		// make every all-pre-order search pay for a second query it cannot use.
+		const urls: string[] = []
+		const fetchProducts: AudibleFetch = async (url) => {
+			urls.push(url)
+			return [preorder]
+		}
+		const out = await new AudibleProvider({ fetchProducts }).search(q)
+		expect(urls).toHaveLength(1)
+		expect(out).toEqual([])
+	})
 })
