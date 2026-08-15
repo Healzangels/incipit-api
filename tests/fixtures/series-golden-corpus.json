@@ -20183,17 +20183,23 @@
    },
    "required": {
     "outcome": "SERIES",
-    "series": "Millennium: Sylvain Runberg's Adaptation",
+    "series": "Millennium",
     "position": "1",
-    "secondaryNote": "current secondary acceptable as tag",
-    "expectedSortPrefix": "Millennium: Sylvain Runberg's Adaptation, Book 1 - "
+    "secondaryNote": "'Millennium: Sylvain Runberg's Adaptation' may remain a tag; never the shelf",
+    "expectedSortPrefix": "Millennium, Book 1 - "
    },
    "specRule": [
-    "R1"
+    "R4"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Census 2026-07-29 dual-series row, verdict 'dual-ok' (shard 2): the current answer is the required answer (assignment: 82-of-93 parent-primary-correct class).",
-   "group": "census-dual"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "CORRECTED 2026-08-15. Was 'current-correct-default' from the 2026-07-29 census, which BULK-ASSIGNED the then-current answer as required across the 82-of-93 parent-primary-correct class -- it was never a judged decision about this row. Sylvain Runberg wrote the GRAPHIC-NOVEL adaptation; this record is Stieg Larsson's novel. Its five siblings (#2 #3 #4 #5 #6) all shelve under Millennium, so the old required outcome split the shelf. Operator 2026-08-15: all six Millennium novels belong on one shelf named Millennium.",
+   "group": "named-millennium",
+   "note": "Superseded the census default. The correct series was ALREADY in this row's own servedNow.secondary -- the resolver had the right answer and ranked it second. The album is rk731152 in the current library (this row's ratingKey 155266 predates the rebuild); re-verified against live Audible + prod Plex + incipit-api 2026-08-15.",
+   "knownDefectNow": true,
+   "mintPin": true,
+   "inputsVerified": [
+    "re-verified 2026-08-15 (Audible series, prod titleSort, /books)"
+   ]
   },
   {
    "recordId": "B00R6OOUV8",
@@ -27672,6 +27678,61 @@
    "sourceOfTruth": "Operator 2026-08-15: the Magic Tree House shelf is filed under the GERMAN series name. Audible states publication_name 'Magic Tree House' for B002V0LWAE and series [{title: Magic Tree House, sequence: 8}]; GOODREADS_SERIES_AUTHORITY overwrote it with 'Das magische Baumhaus'. Positions were already correct and are unchanged.",
    "group": "named-magic-tree-house",
    "note": "LIVE DEFECT: both series slots are translated (German primary, French secondary) on an English book; the French slot even numbers differently (#7 vs #8). Library scan 2026-08-15: the ONLY non-English series name of 322 distinct series across 1475 shelved albums, so pinned rather than fixed in the resolver.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "live Audible probe 2026-08-15",
+    "prod Plex titleSort 2026-08-15",
+    "incipit-api /books 2026-08-15"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "B074CLGTFP",
+   "ratingKey": "731717",
+   "album": "The Girl Who Takes an Eye for an Eye",
+   "artist": "David Lagercrantz",
+   "inputs": {
+    "title": "The Girl Who Takes an Eye for an Eye",
+    "subtitle": null,
+    "author": "David Lagercrantz",
+    "providerSeries": {
+     "name": "Millennium Series",
+     "position": "5",
+     "asin": "B005NAT8KK"
+    },
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [
+     {
+      "title": "Millennium Series",
+      "sequence": "5"
+     }
+    ],
+    "inputSource": "live Audible catalog probe 2026-08-15 (asins=, response_groups incl. series)"
+   },
+   "servedNow": {
+    "primary": {
+     "asin": "B005NAT8KK",
+     "name": "Millennium Series",
+     "position": "5"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Millennium Series, Book 5 - The Girl Who Takes an Eye for an Eye",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Millennium",
+    "position": "5",
+    "expectedSortPrefix": "Millennium, Book 5 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-08-15: the Millennium shelf is split THREE ways in the library -- 'Millennium' (#2,#3,#4,#6), 'Millennium Series' (#5) and 'Millennium: Sylvain Runberg's Adaptation' (#1). All six are the Larsson/Lagercrantz novels and belong on one shelf named Millennium. Goodreads did NOT fire here -- the served series still carries the provider asin B005NAT8KK, so this is Audible's own 'Millennium Series' surviving. Siblings #2 and #4 have no asin and read 'Millennium'.",
+   "group": "named-millennium",
+   "note": "Shelf-fragmentation defect with TWO distinct causes across the same series: #1 is Goodreads choosing an adaptation series over the novels; #5 is Goodreads not answering at all, leaving the provider name. Library scan 2026-08-15: exactly ONE album carries an adaptation-marked series name, so this is pinned rather than ruled.",
    "knownDefectNow": true,
    "inputsVerified": [
     "live Audible probe 2026-08-15",
