@@ -9,6 +9,7 @@ Not to be confused with [`docs/spec/`](../spec/), which holds the OpenAPI docume
 | spec | status |
 |---|---|
 | [spec-edition-subtitle-arm.md](spec-edition-subtitle-arm.md) | **Closed — won't fix.** Kill switch passed, sizing failed: 4 books library-wide |
+| [spec-translated-series-pin.md](spec-translated-series-pin.md) | **Implemented as a pin.** A German series name, fixed as data rather than in the resolver |
 
 The closed one is the more useful read. Its first count said 311 albums qualified;
 the real number was **four books**, because 25 of the 28 hits were one split title

@@ -27527,6 +27527,158 @@
     "position": "1",
     "note": "Same split class, opposite direction: Lawhead's trilogy IS three books, 2 of 3 records already say 'The Dragon King Trilogy'; this OverDrive record alone says 'The Dragon King'. Unify on the majority/canonical Trilogy name. The 2026-08-07 offline A/B rejected a GENERAL Trilogy fold (12 of 16 affected names were canonical, e.g. Void/Kharkanas Trilogy) - pins are the sanctioned per-book tool. | recordId re-bound overdrive-565194 -> B08WJL3YG2 on 2026-08-11 (matched on the album title stem; the corpus name carries a \": <series>\" suffix the library title does not)."
    }
+  },
+  {
+   "recordId": "overdrive-192237",
+   "ratingKey": "741622",
+   "album": "Dinosaurs Before Dark",
+   "artist": "Mary Pope Osborne",
+   "inputs": {
+    "title": "Dinosaurs Before Dark",
+    "subtitle": null,
+    "author": "Mary Pope Osborne",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": null,
+    "inputSource": "matched record is an OverDrive edition; its provider series was NOT separately probed"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "Das magische Baumhaus",
+     "position": "1"
+    },
+    "secondary": {
+     "name": "La Cabane Magique",
+     "position": "1"
+    },
+    "plexSortTitleNow": "Das magische Baumhaus, Book 1 - Dinosaurs Before Dark",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Magic Tree House",
+    "position": "1",
+    "expectedSortPrefix": "Magic Tree House, Book 1 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-08-15: the Magic Tree House shelf is filed under the GERMAN series name. Audible states publication_name 'Magic Tree House' for B002V0LWAE and series [{title: Magic Tree House, sequence: 8}]; GOODREADS_SERIES_AUTHORITY overwrote it with 'Das magische Baumhaus'. Positions were already correct and are unchanged.",
+   "group": "named-magic-tree-house",
+   "note": "LIVE DEFECT: both series slots are translated (German primary, French secondary) on an English book; the French slot even numbers differently (#7 vs #8). Library scan 2026-08-15: the ONLY non-English series name of 322 distinct series across 1475 shelved albums, so pinned rather than fixed in the resolver.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "live Audible probe 2026-08-15",
+    "prod Plex titleSort 2026-08-15",
+    "incipit-api /books 2026-08-15"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "overdrive-192936",
+   "ratingKey": "741625",
+   "album": "Mummies in the Morning",
+   "artist": "Mary Pope Osborne",
+   "inputs": {
+    "title": "Mummies in the Morning",
+    "subtitle": null,
+    "author": "Mary Pope Osborne",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": null,
+    "inputSource": "matched record is an OverDrive edition; its provider series was NOT separately probed"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "Das magische Baumhaus",
+     "position": "3"
+    },
+    "secondary": {
+     "name": "La Cabane Magique",
+     "position": "3"
+    },
+    "plexSortTitleNow": "Das magische Baumhaus, Book 3 - Mummies in the Morning",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Magic Tree House",
+    "position": "3",
+    "expectedSortPrefix": "Magic Tree House, Book 3 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-08-15: the Magic Tree House shelf is filed under the GERMAN series name. Audible states publication_name 'Magic Tree House' for B002V0LWAE and series [{title: Magic Tree House, sequence: 8}]; GOODREADS_SERIES_AUTHORITY overwrote it with 'Das magische Baumhaus'. Positions were already correct and are unchanged.",
+   "group": "named-magic-tree-house",
+   "note": "LIVE DEFECT: both series slots are translated (German primary, French secondary) on an English book; the French slot even numbers differently (#7 vs #8). Library scan 2026-08-15: the ONLY non-English series name of 322 distinct series across 1475 shelved albums, so pinned rather than fixed in the resolver.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "live Audible probe 2026-08-15",
+    "prod Plex titleSort 2026-08-15",
+    "incipit-api /books 2026-08-15"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "B002V0LWAE",
+   "ratingKey": "741627",
+   "album": "Midnight on the Moon",
+   "artist": "Mary Pope Osborne",
+   "inputs": {
+    "title": "Midnight on the Moon",
+    "subtitle": null,
+    "author": "Mary Pope Osborne",
+    "providerSeries": {
+     "name": "Magic Tree House",
+     "position": "8"
+    },
+    "providerSeries2": null,
+    "publicationName": "Magic Tree House",
+    "audibleSeriesRaw": [
+     {
+      "title": "Magic Tree House",
+      "sequence": "8"
+     }
+    ],
+    "inputSource": "live Audible catalog probe 2026-08-15 (asins=, response_groups incl. series)"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "Das magische Baumhaus",
+     "position": "8"
+    },
+    "secondary": {
+     "name": "La Cabane Magique",
+     "position": "7"
+    },
+    "plexSortTitleNow": "Das magische Baumhaus, Book 8 - Midnight on the Moon",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Magic Tree House",
+    "position": "8",
+    "expectedSortPrefix": "Magic Tree House, Book 8 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-08-15: the Magic Tree House shelf is filed under the GERMAN series name. Audible states publication_name 'Magic Tree House' for B002V0LWAE and series [{title: Magic Tree House, sequence: 8}]; GOODREADS_SERIES_AUTHORITY overwrote it with 'Das magische Baumhaus'. Positions were already correct and are unchanged.",
+   "group": "named-magic-tree-house",
+   "note": "LIVE DEFECT: both series slots are translated (German primary, French secondary) on an English book; the French slot even numbers differently (#7 vs #8). Library scan 2026-08-15: the ONLY non-English series name of 322 distinct series across 1475 shelved albums, so pinned rather than fixed in the resolver.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "live Audible probe 2026-08-15",
+    "prod Plex titleSort 2026-08-15",
+    "incipit-api /books 2026-08-15"
+   ],
+   "mintPin": true
   }
  ]
 }
