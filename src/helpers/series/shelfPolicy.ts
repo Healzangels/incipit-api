@@ -138,7 +138,24 @@ export const SERIES_ALIASES: ReadonlyMap<string, string> = new Map([
 	['hannibal lecter series', 'Hannibal Lecter'],
 	['dragon king', 'Dragon King Trilogy'],
 	['jack ryan jr. novel', 'Jack Ryan, Jr.'],
-	['lighthouse trilogy', 'Lighthouse']
+	['lighthouse trilogy', 'Lighthouse'],
+	// TRANSLATED series names. Goodreads answers Magic Tree House in German, with
+	// French in the secondary slot, on English-language books — measured 2026-08-15,
+	// and it is the only series in the library that comes back translated.
+	//
+	// This started as three shelf PINS. That was the right size then (three albums)
+	// and the wrong shape: a pin covers one record, so every further book in the
+	// series arrived under the German name again. Aliasing the series covers the
+	// whole shelf, including books not yet added — the same reason naming one
+	// franchise umbrella retired twelve hand-written pins.
+	//
+	// BOTH translations map to the same canonical name deliberately. The French
+	// arrives in the secondary slot and numbers differently (#7 where the German
+	// says #8), so leaving it would keep a stray "Series: La Cabane Magique" tag.
+	// Aliased, the two slots become the same series and the duplicate rule below
+	// keeps the primary and clears the echo — dropping the wrong number with it.
+	['das magische baumhaus', 'Magic Tree House'],
+	['la cabane magique', 'Magic Tree House']
 ])
 
 /**

@@ -27573,14 +27573,14 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-08-15: the Magic Tree House shelf is filed under the GERMAN series name. Audible states publication_name 'Magic Tree House' for B002V0LWAE and series [{title: Magic Tree House, sequence: 8}]; GOODREADS_SERIES_AUTHORITY overwrote it with 'Das magische Baumhaus'. Positions were already correct and are unchanged.",
    "group": "named-magic-tree-house",
-   "note": "LIVE DEFECT: both series slots are translated (German primary, French secondary) on an English book; the French slot even numbers differently (#7 vs #8). Library scan 2026-08-15: the ONLY non-English series name of 322 distinct series across 1475 shelved albums, so pinned rather than fixed in the resolver.",
+   "note": "LIVE DEFECT: both series slots are translated (German primary, French secondary) on an English book; the French slot even numbers differently (#7 vs #8). Library scan 2026-08-15: the ONLY non-English series name of 322 distinct series across 1475 shelved albums, so pinned rather than fixed in the resolver. PIN RETIRED 2026-08-16: superseded by the SERIES_ALIASES entry 'das magische baumhaus' -> 'Magic Tree House', which covers every book in the series including ones not yet in the library. This row stays as a REGRESSION TEST for that alias.",
    "knownDefectNow": true,
    "inputsVerified": [
     "live Audible probe 2026-08-15",
     "prod Plex titleSort 2026-08-15",
     "incipit-api /books 2026-08-15"
    ],
-   "mintPin": true
+   "mintPin": false
   },
   {
    "recordId": "overdrive-192936",
@@ -27621,14 +27621,14 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-08-15: the Magic Tree House shelf is filed under the GERMAN series name. Audible states publication_name 'Magic Tree House' for B002V0LWAE and series [{title: Magic Tree House, sequence: 8}]; GOODREADS_SERIES_AUTHORITY overwrote it with 'Das magische Baumhaus'. Positions were already correct and are unchanged.",
    "group": "named-magic-tree-house",
-   "note": "LIVE DEFECT: both series slots are translated (German primary, French secondary) on an English book; the French slot even numbers differently (#7 vs #8). Library scan 2026-08-15: the ONLY non-English series name of 322 distinct series across 1475 shelved albums, so pinned rather than fixed in the resolver.",
+   "note": "LIVE DEFECT: both series slots are translated (German primary, French secondary) on an English book; the French slot even numbers differently (#7 vs #8). Library scan 2026-08-15: the ONLY non-English series name of 322 distinct series across 1475 shelved albums, so pinned rather than fixed in the resolver. PIN RETIRED 2026-08-16: superseded by the SERIES_ALIASES entry 'das magische baumhaus' -> 'Magic Tree House', which covers every book in the series including ones not yet in the library. This row stays as a REGRESSION TEST for that alias.",
    "knownDefectNow": true,
    "inputsVerified": [
     "live Audible probe 2026-08-15",
     "prod Plex titleSort 2026-08-15",
     "incipit-api /books 2026-08-15"
    ],
-   "mintPin": true
+   "mintPin": false
   },
   {
    "recordId": "B002V0LWAE",
@@ -27677,14 +27677,14 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-08-15: the Magic Tree House shelf is filed under the GERMAN series name. Audible states publication_name 'Magic Tree House' for B002V0LWAE and series [{title: Magic Tree House, sequence: 8}]; GOODREADS_SERIES_AUTHORITY overwrote it with 'Das magische Baumhaus'. Positions were already correct and are unchanged.",
    "group": "named-magic-tree-house",
-   "note": "LIVE DEFECT: both series slots are translated (German primary, French secondary) on an English book; the French slot even numbers differently (#7 vs #8). Library scan 2026-08-15: the ONLY non-English series name of 322 distinct series across 1475 shelved albums, so pinned rather than fixed in the resolver.",
+   "note": "LIVE DEFECT: both series slots are translated (German primary, French secondary) on an English book; the French slot even numbers differently (#7 vs #8). Library scan 2026-08-15: the ONLY non-English series name of 322 distinct series across 1475 shelved albums, so pinned rather than fixed in the resolver. PIN RETIRED 2026-08-16: superseded by the SERIES_ALIASES entry 'das magische baumhaus' -> 'Magic Tree House', which covers every book in the series including ones not yet in the library. This row stays as a REGRESSION TEST for that alias.",
    "knownDefectNow": true,
    "inputsVerified": [
     "live Audible probe 2026-08-15",
     "prod Plex titleSort 2026-08-15",
     "incipit-api /books 2026-08-15"
    ],
-   "mintPin": true
+   "mintPin": false
   },
   {
    "recordId": "B074CLGTFP",
