@@ -37,25 +37,48 @@ describe('isNearBestConfidence is a per-candidate key', () => {
 		// do NOT share a verdict, and that difference is what removes the cycle.
 	})
 
-	test('the derived ordering is transitive across a dense grid', () => {
-		// Exhaustive over a realistic score range: every triple must admit a
-		// consistent ordering. This is the property Array.sort requires and the
-		// pairwise version violated.
+	// THE PREVIOUS VERSION OF THIS TEST WAS VACUOUS, and it is worth saying why in
+	// full, because it looked like the strongest test in the file.
+	//
+	// It built `key = Number(!isNearBestConfidence(s, best))` over a dense grid and
+	// asserted, for every triple, `kx <= ky && ky <= kz  =>  kx <= kz`. But those
+	// are NUMBERS, and `<=` is transitive on numbers by arithmetic — so the
+	// assertion holds for ANY key function, including one that ignores its inputs.
+	// Proven 2026-08-16 by mutation: with isNearBestConfidence forced to `true`,
+	// forced to `false`, and fully INVERTED, that test passed all three times while
+	// its siblings failed. It could not fail, so it guarded nothing.
+	//
+	// Transitivity is not the testable part: a PER-CANDIDATE key is transitive by
+	// construction, and that construction was the fix. What is worth pinning is
+	// what the key must do to be a usable sort key at all.
+	test('the key is MONOTONIC in confidence — a better row is never ranked behind a worse one', () => {
+		// If a lower confidence could be "nearer best" while a higher one is not,
+		// ordering by this key would contradict ordering by confidence, and the
+		// sort would disagree with the evidence it is supposed to rank on.
 		const scores: number[] = []
 		for (let v = 0.5; v <= 1.0001; v += 0.01) scores.push(Math.round(v * 100) / 100)
 		const best = Math.max(...scores)
 		const key = (s: number) => Number(!isNearBestConfidence(s, best))
-		let checked = 0
-		for (const x of scores)
-			for (const y of scores)
-				for (const z of scores) {
-					const [kx, ky, kz] = [key(x), key(y), key(z)]
-					if (kx <= ky && ky <= kz) {
-						expect(kx).toBeLessThanOrEqual(kz)
-						checked++
-					}
-				}
-		expect(checked).toBeGreaterThan(1000)
+		let compared = 0
+		for (let i = 0; i < scores.length; i += 1)
+			for (let j = i + 1; j < scores.length; j += 1) {
+				// scores[i] < scores[j]: the higher score may never sort WORSE.
+				expect(key(scores[j])).toBeLessThanOrEqual(key(scores[i]))
+				compared += 1
+			}
+		expect(compared).toBeGreaterThan(1000)
+	})
+
+	test('the key DISCRIMINATES — it puts some rows in the band and some out', () => {
+		// A key that answers the same for every input is monotonic and transitive
+		// and completely useless: it collapses the whole pool into one tier and
+		// hands every decision to the arms below. Both verdicts must occur.
+		const scores: number[] = []
+		for (let v = 0.5; v <= 1.0001; v += 0.01) scores.push(Math.round(v * 100) / 100)
+		const best = Math.max(...scores)
+		const verdicts = new Set(scores.map((s) => isNearBestConfidence(s, best)))
+		expect(verdicts.has(true)).toBe(true)
+		expect(verdicts.has(false)).toBe(true)
 	})
 
 	test('a row can never be nearer-best than the best row itself', () => {
