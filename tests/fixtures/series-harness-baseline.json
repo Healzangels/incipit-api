@@ -1,5 +1,7 @@
 {
- "writtenAt": "2026-07-31T00:00:00Z",
- "rowCount": 504,
+ "writtenAt": "2026-08-19T00:49:27.902Z",
+ "rowCount": 518,
+ "assertableCount": 464,
+ "excludedCount": 54,
  "fails": []
 }

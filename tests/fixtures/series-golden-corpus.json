@@ -27740,6 +27740,348 @@
     "incipit-api /books 2026-08-15"
    ],
    "mintPin": true
+  },
+  {
+   "recordId": "B0G5PPTS4V",
+   "ratingKey": "742096",
+   "album": "Assassin's Apprentice",
+   "artist": "Robin Hobb",
+   "inputs": {
+    "title": "Assassin's Apprentice",
+    "subtitle": null,
+    "author": "Robin Hobb",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": null,
+    "inputSource": "live catalog probe 2026-08-18 returned no product (region-locked or delisted); provider inputs unknown"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "The Realm of the Elderlings",
+     "position": "1"
+    },
+    "secondary": {
+     "name": "L'Assassin royal",
+     "position": "1"
+    },
+    "plexSortTitleNow": "Realm of the Elderlings, Book 1 - Assassin's Apprentice",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Farseer Trilogy",
+    "position": "1",
+    "secondaryNote": "umbrella and translated listings never occupy either slot; pinned rows serve no tag",
+    "expectedSortPrefix": "Farseer Trilogy, Book 1 - "
+   },
+   "specRule": [
+    "U1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-08-18: 'Given our matching preferences I would think the trilogy would be how they are matched' -- the sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR series 54099, 25 members) and never a translated listing (L'Assassin royal 89770/25 members, Vatidico 174690/5, A Saga do Assassino 65022/5). PINNED rather than rule-fixed: excluding the umbrella by name at the ranking promotes L'Assassin royal (25) over The Farseer Trilogy (7) for the works that list it -- measured 2026-08-18, see docs/design/spec-franchise-umbrella-detection.md.",
+   "group": "named-umbrella-elderlings",
+   "note": "LIVE DEFECT: 2026 re-release; umbrella shelves it and the FRENCH publication series sits in the tag slot. GR work 171715 lists Farseer Trilogy #1.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-08-18",
+    "incipit-api GET /books 2026-08-18",
+    "GR mirror /work + /series member counts 2026-08-18",
+    "provider inputs NOT verified: live catalog probe 2026-08-18 returned no product"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "B003NYOBOQ",
+   "ratingKey": "742098",
+   "album": "Royal Assassin",
+   "artist": "Robin Hobb",
+   "inputs": {
+    "title": "Royal Assassin",
+    "subtitle": null,
+    "author": "Robin Hobb",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": null,
+    "inputSource": "live catalog probe 2026-08-18 returned no product (region-locked or delisted); provider inputs unknown"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "The Realm of the Elderlings",
+     "position": "2"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Realm of the Elderlings, Book 2 - Royal Assassin",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Farseer Trilogy",
+    "position": "2",
+    "secondaryNote": "umbrella and translated listings never occupy either slot; pinned rows serve no tag",
+    "expectedSortPrefix": "Farseer Trilogy, Book 2 - "
+   },
+   "specRule": [
+    "U1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-08-18: 'Given our matching preferences I would think the trilogy would be how they are matched' -- the sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR series 54099, 25 members) and never a translated listing (L'Assassin royal 89770/25 members, Vatidico 174690/5, A Saga do Assassino 65022/5). PINNED rather than rule-fixed: excluding the umbrella by name at the ranking promotes L'Assassin royal (25) over The Farseer Trilogy (7) for the works that list it -- measured 2026-08-18, see docs/design/spec-franchise-umbrella-detection.md.",
+   "group": "named-umbrella-elderlings",
+   "note": "LIVE DEFECT: umbrella shelves it, no secondary at all. GR work 4668002 lists Farseer Trilogy #2; the French listing does NOT carry this work.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-08-18",
+    "incipit-api GET /books 2026-08-18",
+    "GR mirror /work + /series member counts 2026-08-18",
+    "provider inputs NOT verified: live catalog probe 2026-08-18 returned no product"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "B003XWVC0E",
+   "ratingKey": "742092",
+   "album": "Assassin's Quest",
+   "artist": "Robin Hobb",
+   "inputs": {
+    "title": "Assassin's Quest",
+    "subtitle": null,
+    "author": "Robin Hobb",
+    "providerSeries": {
+     "name": "Realms of the Elderlings",
+     "position": "3"
+    },
+    "providerSeries2": {
+     "name": "Farseer Trilogy",
+     "position": "3"
+    },
+    "publicationName": "Farseer Trilogy",
+    "audibleSeriesRaw": [
+     {
+      "title": "Realms of the Elderlings",
+      "sequence": "3"
+     },
+     {
+      "title": "Farseer Trilogy",
+      "sequence": "3"
+     }
+    ],
+    "inputSource": "live Audible catalog probe 2026-08-18 (response_groups=series,product_attrs)"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "Farseer Trilogy",
+     "position": "3"
+    },
+    "secondary": {
+     "name": "Realms of the Elderlings",
+     "position": "3"
+    },
+    "plexSortTitleNow": "Farseer Trilogy, Book 3 - Assassin's Quest",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Farseer Trilogy",
+    "position": "3",
+    "secondaryNote": "umbrella and translated listings never occupy either slot; pinned rows serve no tag",
+    "expectedSortPrefix": "Farseer Trilogy, Book 3 - "
+   },
+   "specRule": [
+    "U1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-08-18: 'Given our matching preferences I would think the trilogy would be how they are matched' -- the sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR series 54099, 25 members) and never a translated listing (L'Assassin royal 89770/25 members, Vatidico 174690/5, A Saga do Assassino 65022/5). PINNED rather than rule-fixed: excluding the umbrella by name at the ranking promotes L'Assassin royal (25) over The Farseer Trilogy (7) for the works that list it -- measured 2026-08-18, see docs/design/spec-franchise-umbrella-detection.md.",
+   "group": "named-umbrella-elderlings",
+   "note": "CONTROL, currently CORRECT: provider primary already Farseer Trilogy. Pinned to LOCK it: at the ranking, L'Assassin royal (25 members) outranks Farseer (7) for GR work 503752 the moment the umbrella is excluded.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "live Audible catalog probe 2026-08-18",
+    "prod Plex titleSort 2026-08-18",
+    "incipit-api GET /books 2026-08-18",
+    "GR mirror /work + /series member counts 2026-08-18"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "B008Y4ZU3G",
+   "ratingKey": "742086",
+   "album": "Ship of Magic",
+   "artist": "Robin Hobb",
+   "inputs": {
+    "title": "Ship of Magic",
+    "subtitle": null,
+    "author": "Robin Hobb",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": null,
+    "inputSource": "live catalog probe 2026-08-18 returned no product (region-locked or delisted); provider inputs unknown"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "The Realm of the Elderlings",
+     "position": "4"
+    },
+    "secondary": {
+     "name": "The Liveship Traders",
+     "position": "1"
+    },
+    "plexSortTitleNow": "Realm of the Elderlings, Book 4 - Ship of Magic",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Liveship Traders",
+    "position": "1",
+    "secondaryNote": "umbrella and translated listings never occupy either slot; pinned rows serve no tag",
+    "expectedSortPrefix": "Liveship Traders, Book 1 - "
+   },
+   "specRule": [
+    "U1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-08-18: 'Given our matching preferences I would think the trilogy would be how they are matched' -- the sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR series 54099, 25 members) and never a translated listing (L'Assassin royal 89770/25 members, Vatidico 174690/5, A Saga do Assassino 65022/5). PINNED rather than rule-fixed: excluding the umbrella by name at the ranking promotes L'Assassin royal (25) over The Farseer Trilogy (7) for the works that list it -- measured 2026-08-18, see docs/design/spec-franchise-umbrella-detection.md.",
+   "group": "named-umbrella-elderlings",
+   "note": "LIVE DEFECT: umbrella shelves it at #4 while the correct sub-series sits in the tag slot at #1. GR work 1476156 lists The Liveship Traders #1.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-08-18",
+    "incipit-api GET /books 2026-08-18",
+    "GR mirror /work + /series member counts 2026-08-18",
+    "provider inputs NOT verified: live catalog probe 2026-08-18 returned no product"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "B0040F3GN4",
+   "ratingKey": "742088",
+   "album": "Ship of Destiny",
+   "artist": "Robin Hobb",
+   "inputs": {
+    "title": "Ship of Destiny",
+    "subtitle": null,
+    "author": "Robin Hobb",
+    "providerSeries": {
+     "name": "Liveship Traders",
+     "position": "3"
+    },
+    "providerSeries2": {
+     "name": "Realms of the Elderlings",
+     "position": "6"
+    },
+    "publicationName": "Liveship Traders",
+    "audibleSeriesRaw": [
+     {
+      "title": "Liveship Traders",
+      "sequence": "3"
+     },
+     {
+      "title": "Realms of the Elderlings",
+      "sequence": "6"
+     }
+    ],
+    "inputSource": "live Audible catalog probe 2026-08-18 (response_groups=series,product_attrs)"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "The Realm of the Elderlings",
+     "position": "6"
+    },
+    "secondary": {
+     "name": "Realms of the Elderlings",
+     "position": "6"
+    },
+    "plexSortTitleNow": "Realm of the Elderlings, Book 6 - Ship of Destiny",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Liveship Traders",
+    "position": "3",
+    "secondaryNote": "umbrella and translated listings never occupy either slot; pinned rows serve no tag",
+    "expectedSortPrefix": "Liveship Traders, Book 3 - "
+   },
+   "specRule": [
+    "U1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-08-18: 'Given our matching preferences I would think the trilogy would be how they are matched' -- the sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR series 54099, 25 members) and never a translated listing (L'Assassin royal 89770/25 members, Vatidico 174690/5, A Saga do Assassino 65022/5). PINNED rather than rule-fixed: excluding the umbrella by name at the ranking promotes L'Assassin royal (25) over The Farseer Trilogy (7) for the works that list it -- measured 2026-08-18, see docs/design/spec-franchise-umbrella-detection.md.",
+   "group": "named-umbrella-elderlings",
+   "note": "LIVE DEFECT: raw Audible carries the CORRECT Liveship Traders #3 as its lead series; the authority overwrote it with the umbrella. GR work 2501194 lists The Liveship Traders #3.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "live Audible catalog probe 2026-08-18",
+    "prod Plex titleSort 2026-08-18",
+    "incipit-api GET /books 2026-08-18",
+    "GR mirror /work + /series member counts 2026-08-18"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "B07BB3D7CR",
+   "ratingKey": "742090",
+   "album": "Blood of Dragons",
+   "artist": "Robin Hobb",
+   "inputs": {
+    "title": "Blood of Dragons",
+    "subtitle": null,
+    "author": "Robin Hobb",
+    "providerSeries": {
+     "name": "The Rain Wild Chronicles",
+     "position": "4"
+    },
+    "providerSeries2": {
+     "name": "Realms of the Elderlings",
+     "position": "13"
+    },
+    "publicationName": "The Rain Wild Chronicles",
+    "audibleSeriesRaw": [
+     {
+      "title": "The Rain Wild Chronicles",
+      "sequence": "4"
+     },
+     {
+      "title": "Realms of the Elderlings",
+      "sequence": "13"
+     }
+    ],
+    "inputSource": "live Audible catalog probe 2026-08-18 (response_groups=series,product_attrs)"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "The Realm of the Elderlings",
+     "position": "13"
+    },
+    "secondary": {
+     "name": "Realms of the Elderlings",
+     "position": "13"
+    },
+    "plexSortTitleNow": "Realm of the Elderlings, Book 13 - Blood of Dragons",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Rain Wild Chronicles",
+    "position": "4",
+    "secondaryNote": "umbrella and translated listings never occupy either slot; pinned rows serve no tag",
+    "expectedSortPrefix": "Rain Wild Chronicles, Book 4 - "
+   },
+   "specRule": [
+    "U1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-08-18: 'Given our matching preferences I would think the trilogy would be how they are matched' -- the sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR series 54099, 25 members) and never a translated listing (L'Assassin royal 89770/25 members, Vatidico 174690/5, A Saga do Assassino 65022/5). PINNED rather than rule-fixed: excluding the umbrella by name at the ranking promotes L'Assassin royal (25) over The Farseer Trilogy (7) for the works that list it -- measured 2026-08-18, see docs/design/spec-franchise-umbrella-detection.md.",
+   "group": "named-umbrella-elderlings",
+   "note": "LIVE DEFECT: raw Audible carries the CORRECT Rain Wild Chronicles #4 as its lead series; the authority overwrote it with the umbrella. GR work 18282611 lists Rain Wild Chronicles #4.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "live Audible catalog probe 2026-08-18",
+    "prod Plex titleSort 2026-08-18",
+    "incipit-api GET /books 2026-08-18",
+    "GR mirror /work + /series member counts 2026-08-18"
+   ],
+   "mintPin": true
   }
  ]
 }

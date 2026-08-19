@@ -11,6 +11,7 @@ Not to be confused with [`docs/spec/`](../spec/), which holds the OpenAPI docume
 | [spec-edition-subtitle-arm.md](spec-edition-subtitle-arm.md) | **Closed — won't fix.** Kill switch passed, sizing failed: 4 books library-wide |
 | [spec-translated-series-pin.md](spec-translated-series-pin.md) | **Implemented as a pin.** A German series name, fixed as data rather than in the resolver |
 | [spec-millennium-shelf-split.md](spec-millennium-shelf-split.md) | **Implemented as pins.** One shelf split three ways, by two opposite causes |
+| [spec-franchise-umbrella-detection.md](spec-franchise-umbrella-detection.md) | **Proposal rejected, fixed as pins.** Three general rules refuted by measurement; the safe one is a future spec |
 
 The two pin specs are worth reading together: between them, Goodreads series authority
 is caught overwriting a name that was already right, choosing the wrong one of two
