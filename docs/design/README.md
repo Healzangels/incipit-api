@@ -13,6 +13,7 @@ Not to be confused with [`docs/spec/`](../spec/), which holds the OpenAPI docume
 | [spec-millennium-shelf-split.md](spec-millennium-shelf-split.md) | **Implemented as pins.** One shelf split three ways, by two opposite causes |
 | [spec-franchise-umbrella-detection.md](spec-franchise-umbrella-detection.md) | **Proposal rejected, fixed as pins.** Three general rules refuted by measurement; the safe one is a future spec |
 | [spec-edition-guard-freezes-stale-series.md](spec-edition-guard-freezes-stale-series.md) | **Shipped, narrowed by its own A/B.** A keep-guard that froze stale answers; one prediction falsified and the rule cut to where it is safe |
+| [spec-fresh-scan-match-ceiling.md](spec-fresh-scan-match-ceiling.md) | **Closed — won't fix.** The 0.85 fresh-scan ceiling is real; the sizing found ZERO near-misses, so the fix was not worth 1,706 albums of blast radius |
 
 The two pin specs are worth reading together: between them, Goodreads series authority
 is caught overwriting a name that was already right, choosing the wrong one of two
