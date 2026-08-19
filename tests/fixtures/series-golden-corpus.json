@@ -28185,6 +28185,55 @@
     "provider inputs NOT verified: live catalog probe returned no product"
    ],
    "mintPin": false
+  },
+  {
+   "recordId": "openlibrary-works-OL2707221W",
+   "ratingKey": "742318",
+   "album": "Mad Ship",
+   "artist": "Robin Hobb",
+   "inputs": {
+    "title": "Mad Ship",
+    "subtitle": null,
+    "author": "Robin Hobb",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": null,
+    "inputSource": "matched record is an OpenLibrary work (no Audible ASIN); provider series not separately probed"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "The Realm of the Elderlings",
+     "position": "5"
+    },
+    "secondary": {
+     "name": "The Liveship Traders",
+     "position": "2"
+    },
+    "plexSortTitleNow": "Realm of the Elderlings, Book 5 - Mad Ship",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Liveship Traders",
+    "position": "2",
+    "secondaryNote": "umbrella and translated listings never occupy either slot; pinned rows serve no tag",
+    "expectedSortPrefix": "Liveship Traders, Book 2 - "
+   },
+   "specRule": [
+    "U1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-08-18: 'Given our matching preferences I would think the trilogy would be how they are matched' -- the sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR series 54099, 25 members) and never a translated listing (L'Assassin royal 89770/25 members, Vatidico 174690/5, A Saga do Assassino 65022/5). PINNED rather than rule-fixed: excluding the umbrella by name at the ranking promotes L'Assassin royal (25) over The Farseer Trilogy (7) for the works that list it -- measured 2026-08-18, see docs/design/spec-franchise-umbrella-detection.md. | Mad Ship added 2026-08-18: same defect, same evidence -- umbrella primary, correct The Liveship Traders #2 in the secondary slot, GR work 2571145 lists Liveship #2. OpenLibrary-matched, so the pin is reachable only through the portable (title|author) key.",
+   "group": "named-umbrella-elderlings",
+   "note": "LIVE DEFECT (arrived after the first six were pinned): umbrella shelves it at #5 while the correct sub-series sits in the tag slot at #2. Record is openlibrary-works-OL2707221W -- NOT an ASIN -- so SHELF_PINS[recordId] is the exact key and the (title|author) alias is the portable one.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-08-18",
+    "incipit-api GET /books 2026-08-18",
+    "GR mirror /work 2026-08-18"
+   ],
+   "mintPin": true
   }
  ]
 }

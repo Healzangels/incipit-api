@@ -111,3 +111,23 @@ all 6 HEALED by name, gate PASS, no ALLOWLIST-UNCHANGED. 512 non-Hobb rows:
 zero movement in any of the four runs. `bun run test`: 2411 pass / 0 fail.
 Baseline re-written POST-fix (0 standing reds) so a future regression of
 these rows reads as NEW rather than standing.
+
+## 8. Addendum 2026-08-18 — Mad Ship, the seventh pin
+
+Mad Ship (rk742318, `openlibrary-works-OL2707221W` — an OpenLibrary work, NOT
+an Audible ASIN) was added to the library after the first six were pinned and
+arrived with the identical defect: umbrella primary `The Realm of the
+Elderlings #5`, the correct `The Liveship Traders #2` sitting in the secondary
+slot, GR work 2571145 agreeing. Pinned the same way; because the record id is
+not an ASIN the pin is reachable through the portable `(title|author)` key.
+
+Pre-pin cold recompute reproduced the umbrella from corpus inputs
+(WRONG_SERIES); post-pin gate ×2 = MATCH `Liveship Traders #2`, 0 reds, 0
+other movement. The harness printed `ALLOWLIST-UNCHANGED` for the row anyway:
+its reconciliation treats a row ABSENT from the baseline that now reads MATCH
+as "did not change" (`!before && now === 'MATCH'`), which is blind to a NEW row
+that was red only in a smoke run. Known gap in the harness, not in the pin;
+the three result files are the evidence.
+
+Blood of Dragons (B07BB3D7CR) was removed from the library by the operator the
+same evening; its pin stays, dormant, by design.
