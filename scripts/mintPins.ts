@@ -87,7 +87,9 @@ for (const rk of red) {
 	// one would be circular and would never match.
 	const k = pinKey(row.inputs?.title ?? row.album, row.inputs?.author)
 	if (!k) {
-		unkeyable.push(`${row.recordId} rk${rk} ${row.album} (author: ${JSON.stringify(row.inputs?.author)})`)
+		unkeyable.push(
+			`${row.recordId} rk${rk} ${row.album} (author: ${JSON.stringify(row.inputs?.author)})`
+		)
 		continue
 	}
 	const prior = keyed[k]
@@ -105,10 +107,16 @@ for (const rk of red) {
 	// the title and another library matched the same book to an edition that
 	// does not. Same collision gate: an alias that would claim another pin's key
 	// fails the mint rather than silently overwriting it.
-	for (const alias of pinKeyAliases(row.inputs?.title ?? row.album, row.inputs?.author, row.required.series)) {
+	for (const alias of pinKeyAliases(
+		row.inputs?.title ?? row.album,
+		row.inputs?.author,
+		row.required.series
+	)) {
 		const held = keyed[alias]
 		if (held && JSON.stringify(held) !== JSON.stringify(pins[row.recordId])) {
-			keyCollisions.push(`"${alias}" (alias of rk${rk} ${row.album}) already held by ${keyOwner[alias]}`)
+			keyCollisions.push(
+				`"${alias}" (alias of rk${rk} ${row.album}) already held by ${keyOwner[alias]}`
+			)
 			continue
 		}
 		keyed[alias] = pins[row.recordId]
@@ -141,7 +149,20 @@ export const SHELF_PINS_BY_KEY: Record<string, ShelfPin> = ${JSON.stringify(keye
  */
 export const SHELF_PIN_KEYS: Record<string, string[]> = ${JSON.stringify(keyByRecord, null, '\t')}
 `
-writeFileSync(join(import.meta.dir, '..', 'src', 'helpers', 'series', 'shelfPins.data.ts'), body)
+const outPath = join(import.meta.dir, '..', 'src', 'helpers', 'series', 'shelfPins.data.ts')
+writeFileSync(outPath, body)
+// Format the emitted file with the repo's own prettier config. JSON.stringify
+// output is not prettier-clean (quoted keys, no trailing commas), and `bun run
+// test` does not run the linter -- so a mint that passed every local gate
+// failed CI on prettier --check (78ba120, 2026-08-18). Formatting here makes
+// the generator's output identical to what a hand edit would have to be.
+Bun.spawnSync(
+	['bunx', 'prettier', '--config', join(import.meta.dir, '..', '.prettierrc'), '--write', outPath],
+	{
+		stdout: 'ignore',
+		stderr: 'inherit'
+	}
+)
 console.log(`minted ${Object.keys(pins).length} pins`)
 
 // A row the operator flagged mintPin that produced NO pin is a silent hole in
