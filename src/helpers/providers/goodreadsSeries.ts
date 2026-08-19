@@ -181,6 +181,29 @@ const TITLE_ACCEPT = 0.9
 // wrong answer for a product that is three books, not book one.
 const EDITION_MARKER_RE =
 	/\b(dramati[sz]ed|graphic\s?audio|audio\s?drama|adaptation|abridged|graphic\s+novel|omnibus|box(?:ed)?[\s-]?set|edition|trilogy|duology|anthology|collection)\b/i
+// A SERIES-SHAPED phrase: a collective noun followed by a volume number --
+// "Harper Hall Trilogy, Volume 2", "Kharkanas Trilogy, Book 1", "Icewind Dale
+// Trilogy, Book 3". That names a series and a volume; it is the strongest
+// possible evidence the row is ONE ordinary volume, the opposite of an edition
+// marker -- yet "trilogy" is in the vocabulary above for the bare-title omnibus
+// ("The Society of the Sword Trilogy"), and matched here it classed
+// Dragonsinger as a specific edition and froze a stale "Harper Hall of Pern
+// #19" that no recompute could ever correct. Measured over the golden corpus
+// 2026-08-18: 14 title/subtitle hits on trilogy|duology, 13 of them this shape
+// and all 13 ordinary series volumes; the one bare title is the real omnibus.
+// The shape splits them 13/1 exactly, so it is stripped BEFORE the marker test.
+const SERIES_SHAPED_RE =
+	/\b(?:trilogy|duology|quartet|quintet|saga|series|cycle|sequence|chronicles)\b\s*[,:-]?\s*(?:volume|vol\.?|book|part|#)\s*\d+(?:\.\d+)?\b/gi
+
+/**
+ * Whether a title or subtitle names a specific EDITION rather than a volume.
+ * @param {string | null | undefined} text the title or subtitle
+ * @returns {boolean} true when an edition marker survives the series-shape strip
+ */
+export function namesEdition(text: string | null | undefined): boolean {
+	if (!text) return false
+	return EDITION_MARKER_RE.test(text.replace(SERIES_SHAPED_RE, ' '))
+}
 
 /**
  * The title with a trailing subtitle removed, or null when there is nothing to
@@ -225,7 +248,7 @@ function titleAfterVolumePrefix(
 	// swallowed upstream (enrichment is best-effort), and the outcome is the same
 	// null. Documented rather than claimed as covered.
 	if (!providerSeries) return null
-	if (EDITION_MARKER_RE.test(title)) return null
+	if (namesEdition(title)) return null
 	// Roman numerals need 2+ characters: a lone I/V/X/L/C is far more likely a
 	// middle initial or a real word than a volume. Arabic 1-2 digits covers the
 	// rest without matching a year.
@@ -247,7 +270,7 @@ function titleWithoutSubtitle(title: string): string | null {
 	// An edition marker anywhere in the title disqualifies the retry: the bare
 	// stem is a DIFFERENT product, so a hit would be a confident wrong answer
 	// rather than the miss we started with.
-	if (EDITION_MARKER_RE.test(title)) return null
+	if (namesEdition(title)) return null
 	// The LAST colon, not the first. Provider titles stack segments as
 	// "Series: Title: Marketing" -- measured on Chaos Seeds, "The Land:
 	// Raiders: A LitRPG Saga" cut at the first colon retried as the bare
@@ -1066,10 +1089,18 @@ async function seriesEnriched<T extends SeriesEnrichable>(
 	// destroy, and a name beats none.
 	// Both fields: Audible splits title and subtitle, so the marker can live in
 	// either half.
-	const editionMarked =
-		EDITION_MARKER_RE.test(book.title) ||
-		Boolean(book.subtitle && EDITION_MARKER_RE.test(book.subtitle))
-	if (hadSeries && editionMarked) {
+	const editionMarked = namesEdition(book.title) || namesEdition(book.subtitle)
+	// ...but never preserve an incumbent the resolver itself would refuse to
+	// emit. An ORDERING in the provider slot ("Pern (Chronological Order) #15",
+	// "A Jack Ryan Novel (chronological order) #21") is not edition evidence, it
+	// is the very class isSeriesOrdering demotes; keeping it here makes a wrong
+	// answer permanent, because every later recompute lands on this same guard.
+	// Same doctrine as rescueWouldSpendItsOwnSubSeries: preservation is for
+	// answers worth preserving. Measured 2026-08-18: 23 corpus rows carry an
+	// ordering as their PROVIDER primary (21 Jack Ryan, 2 Narnia); every one is
+	// one resolver stumble away from being frozen on it.
+	const incumbentIsOrdering = isSeriesOrdering(book.seriesPrimary?.name)
+	if (hadSeries && editionMarked && !incumbentIsOrdering) {
 		logger?.debug(
 			{ title: book.title, subtitle: book.subtitle, keeping: book.seriesPrimary?.name },
 			'goodreads series: title names a specific edition, keeping the provider series'
@@ -1273,6 +1304,13 @@ async function seriesEnriched<T extends SeriesEnrichable>(
 		)
 		return book
 	}
+	// An ORDERING incumbent is deliberately NOT released here (unlike the
+	// edition guard above): the resolver's answer at this guard is by definition
+	// unshelvable, and shelf policy demotes a positionless primary to the TAG
+	// slot -- so releasing the ordering trades a positioned (if ugly) shelf for
+	// NO shelf. Measured on A Gift of Dragons 2026-08-18: the mirror's only clean
+	// listing carries free-text '16.5 + 4.5, 8.5 & 15.5', so nothing anywhere
+	// can number it; 'Pern (Chronological Order) #15' is the lesser harm.
 	if (hadSeries && !isShelvablePosition(result.primary.position)) {
 		logger?.debug(
 			{ title, goodreads: result.primary, kept: book.seriesPrimary },

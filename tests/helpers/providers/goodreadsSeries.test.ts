@@ -27,7 +27,9 @@ const {
 describe('sameSeriesName', () => {
 	test('sees through the spacing a provider puts around a colon', () => {
 		// Live 2026-08-11: Baneblade shipped these two as its shelf AND its tag.
-		expect(sameSeriesName('Warhammer 40,000 : Imperial Guard', 'Warhammer 40,000: Imperial Guard')).toBe(true)
+		expect(
+			sameSeriesName('Warhammer 40,000 : Imperial Guard', 'Warhammer 40,000: Imperial Guard')
+		).toBe(true)
 	})
 
 	test('still folds a leading article and case, as foldSeriesName does', () => {
@@ -2745,5 +2747,228 @@ describe('the mirror query drops a trailing edition qualifier', () => {
 	test('a title that is ONLY a qualifier keeps its raw form', () => {
 		// Never query an empty string.
 		expect(queryTitle('Unabridged')).toBe('Unabridged')
+	})
+})
+
+// ---------------------------------------------------------------------------
+// The edition-preservation guard must not FREEZE a stale provider series.
+//
+// Found on Pern 2026-08-18. Dragonsinger's stored subtitle is "Harper Hall
+// Trilogy, Volume 2"; "trilogy" is in EDITION_MARKER_RE for the bare-title
+// omnibus, so the row was classed as a specific edition and the guard kept the
+// stale "Harper Hall of Pern #19" (Chronological Order's number wearing Harper
+// Hall's name) on every recompute, forever. A cold lookup on the BARE book
+// returned the right Pern #4 -- the resolver was never the bug, the guard was.
+// A Gift of Dragons was the same shape one guard over: Goodreads returned a
+// positionless clean series, the not-shelvable guard kept the incumbent, and
+// the incumbent was a publication ORDERING the resolver itself never emits.
+// ---------------------------------------------------------------------------
+describe('namesEdition: a series-shaped subtitle is not an edition marker', () => {
+	test('"<Series> Trilogy, Volume N" is a volume, not an edition (13 of 14 corpus hits)', async () => {
+		const { namesEdition } = await import('#helpers/providers/goodreadsSeries')
+		for (const s of [
+			'Harper Hall Trilogy, Volume 2',
+			'Legend of Drizzt: Icewind Dale Trilogy, Book 3',
+			'Fall of Light: Kharkanas Trilogy, Book 2',
+			'The Southern Reach Trilogy, Book 3',
+			'Void Trilogy, Book 3',
+			'The Wandering Inn Duology, Part 1'
+		])
+			expect(namesEdition(s)).toBe(false)
+	})
+	test('a bare "...Trilogy" title is still an omnibus (the 1 of 14)', async () => {
+		const { namesEdition } = await import('#helpers/providers/goodreadsSeries')
+		expect(namesEdition('The Society of the Sword Trilogy')).toBe(true)
+		expect(namesEdition('The Complete Kharkanas Trilogy')).toBe(true)
+	})
+	test('the strip is the collective-noun set ONLY, never any word before a volume number', async () => {
+		// Mutation-found: a strip of \\b\\w+\\b before "Volume N" would silently
+		// un-mark real editions. "Dramatized Adaptation, Volume 2" is a specific
+		// edition AND a volume; the volume must not launder the marker.
+		const { namesEdition } = await import('#helpers/providers/goodreadsSeries')
+		expect(namesEdition('Dramatized Adaptation, Volume 2')).toBe(true)
+		expect(namesEdition('Abridged Edition, Book 1')).toBe(true)
+		expect(namesEdition('GraphicAudio, Part 3')).toBe(true)
+	})
+	test('every other marker is untouched by the shape strip', async () => {
+		const { namesEdition } = await import('#helpers/providers/goodreadsSeries')
+		for (const s of [
+			'Dune (Dramatized Adaptation)',
+			'Foundation: GraphicAudio',
+			'The Hobbit (Abridged)',
+			'Discworld Box Set',
+			'Mistborn: Omnibus Edition'
+		])
+			expect(namesEdition(s)).toBe(true)
+		expect(namesEdition(null)).toBe(false)
+		expect(namesEdition('')).toBe(false)
+	})
+})
+
+describe('the keep-guards never preserve an ORDERING incumbent', () => {
+	const fakeRedis = () => {
+		const store = new Map<string, string>()
+		return {
+			get: (k: string) => Promise.resolve(store.get(k) ?? null),
+			set: (k: string, v: string) => {
+				store.set(k, v)
+				return Promise.resolve('OK')
+			}
+		}
+	}
+	// Dragonsinger's live mirror shape (work 2971170), reduced: Harper Hall
+	// (3 members) and Pern (24 members) both position it; Pern wins on count.
+	const dragonsingerWork = () => ({
+		Title: 'Dragonsinger',
+		Series: [
+			{
+				Title: 'Harper Hall of Pern',
+				ForeignId: 43987,
+				LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '2' }]
+			},
+			{
+				Title: 'Pern ',
+				ForeignId: 50060,
+				LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '4' }]
+			}
+		]
+	})
+	const counts = () => [
+		{ LinkItems: Array.from({ length: 3 }, (_, i) => i) },
+		{ LinkItems: Array.from({ length: 24 }, (_, i) => i) }
+	]
+
+	test("Dragonsinger's exact record: series-shaped subtitle no longer freezes the stale #19", async () => {
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		respond([{ workId: 42 }], dragonsingerWork(), ...counts())
+		const book = {
+			title: 'Dragonsinger',
+			subtitle: 'Harper Hall Trilogy, Volume 2',
+			authors: [{ name: 'Anne McCaffrey' }],
+			seriesPrimary: { name: 'Harper Hall of Pern', position: '19' }
+		}
+		const out = await withGoodreadsSeries(book, fakeRedis())
+		expect(out.seriesPrimary).toEqual({ name: 'Pern', position: '4' })
+	})
+
+	test('a REAL edition marker still keeps a real provider series (the guard is not removed)', async () => {
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		respond([{ workId: 42 }], dragonsingerWork(), ...counts())
+		const book = {
+			title: 'Dragonsinger',
+			subtitle: 'Dramatized Adaptation',
+			authors: [{ name: 'Anne McCaffrey' }],
+			seriesPrimary: { name: 'Harper Hall of Pern', position: '2' }
+		}
+		const out = await withGoodreadsSeries(book, fakeRedis())
+		expect(out.seriesPrimary).toEqual({ name: 'Harper Hall of Pern', position: '2' })
+	})
+
+	test('edition guard: an ORDERING incumbent is not preserved even under a real marker', async () => {
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		respond([{ workId: 42 }], dragonsingerWork(), ...counts())
+		const book = {
+			title: 'Dragonsinger',
+			subtitle: 'Dramatized Adaptation',
+			authors: [{ name: 'Anne McCaffrey' }],
+			seriesPrimary: { name: 'Pern (Chronological Order)', position: '19' }
+		}
+		const out = await withGoodreadsSeries(book, fakeRedis())
+		expect(out.seriesPrimary).toEqual({ name: 'Pern', position: '4' })
+	})
+
+	test('not-shelvable guard: A Gift of Dragons KEEPS its positioned ORDERING over a positionless clean answer', async () => {
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		// The live shape: the only clean listing carries librarian free-text for a
+		// position ('16.5 + 4.5, 8.5 & 15.5'), so Goodreads answers positionless
+		// Pern. Shelf policy demotes a positionless primary to the TAG slot, so
+		// releasing the ordering here would mean NO shelf at all. A positioned
+		// ordering is the lesser harm; measured 2026-08-18 and chosen deliberately.
+		respond(
+			[{ workId: 92976 }],
+			{
+				Title: 'A Gift of Dragons',
+				Series: [
+					{
+						Title: 'Pern ',
+						ForeignId: 50060,
+						LinkItems: [{ ForeignWorkId: 92976, PositionInSeries: '16.5 + 4.5, 8.5 & 15.5' }]
+					},
+					{
+						Title: 'Pern (Chronological Order)',
+						ForeignId: 49339,
+						LinkItems: [{ ForeignWorkId: 92976, PositionInSeries: '15' }]
+					}
+				]
+			},
+			{ LinkItems: Array.from({ length: 24 }, (_, i) => i) }
+		)
+		const book = {
+			title: 'A Gift of Dragons',
+			authors: [{ name: 'Anne McCaffrey' }],
+			seriesPrimary: { name: 'Pern (Chronological Order)', position: '15' }
+		}
+		const out = await withGoodreadsSeries(book, fakeRedis())
+		expect(out.seriesPrimary).toEqual({ name: 'Pern (Chronological Order)', position: '15' })
+	})
+
+	test('variant-only guard: an ORDERING incumbent is KEPT when every candidate is itself a variant', async () => {
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		// Every mirror listing is an ordering, so the resolver's own answer is a
+		// fallback. Ordering-for-ordering buys the reader nothing and risks a
+		// worse number; the release rule applies ONLY where the resolver has a
+		// clean shelvable answer (the edition guard).
+		respond(
+			[{ workId: 7 }],
+			{
+				Title: 'Some Book',
+				Series: [
+					{
+						Title: 'Series X (Publication Order)',
+						ForeignId: 1,
+						LinkItems: [{ ForeignWorkId: 7, PositionInSeries: '3' }]
+					},
+					{
+						Title: 'Series X (Chronological Order)',
+						ForeignId: 2,
+						LinkItems: [{ ForeignWorkId: 7, PositionInSeries: '5' }]
+					}
+				]
+			},
+			{ LinkItems: Array.from({ length: 9 }, (_, i) => i) },
+			{ LinkItems: Array.from({ length: 4 }, (_, i) => i) }
+		)
+		const book = {
+			title: 'Some Book',
+			authors: [{ name: 'Someone' }],
+			seriesPrimary: { name: 'Series X (Chronological Order)', position: '99' }
+		}
+		const out = await withGoodreadsSeries(book, fakeRedis())
+		expect(out.seriesPrimary).toEqual({ name: 'Series X (Chronological Order)', position: '99' })
+	})
+
+	test('not-shelvable guard: a REAL provider series is still kept over a positionless answer', async () => {
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		respond(
+			[{ workId: 92976 }],
+			{
+				Title: 'A Gift of Dragons',
+				Series: [
+					{
+						Title: 'Pern ',
+						ForeignId: 50060,
+						LinkItems: [{ ForeignWorkId: 92976, PositionInSeries: '' }]
+					}
+				]
+			},
+			{ LinkItems: Array.from({ length: 24 }, (_, i) => i) }
+		)
+		const book = {
+			title: 'A Gift of Dragons',
+			authors: [{ name: 'Anne McCaffrey' }],
+			seriesPrimary: { name: 'Pern', position: '16.5' }
+		}
+		const out = await withGoodreadsSeries(book, fakeRedis())
+		expect(out.seriesPrimary).toEqual({ name: 'Pern', position: '16.5' })
 	})
 })

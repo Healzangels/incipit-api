@@ -25189,16 +25189,17 @@
    },
    "required": {
     "outcome": "SERIES",
-    "series": "Void Trilogy",
+    "series": "Void",
     "position": "3",
-    "expectedSortPrefix": "Void Trilogy, Book 3 - "
+    "expectedSortPrefix": "Void, Book 3 - "
    },
    "specRule": [
     "R6"
    ],
    "pinType": "current-correct-default",
-   "sourceOfTruth": "Random-sample no-change row (seed 42): single series, provider rebuilt, cold recompute identical to served. Current answer is correct-by-default; any change here is a regression by definition.",
-   "group": "random-single-nochange"
+   "sourceOfTruth": "Random-sample no-change row (seed 42): single series, provider rebuilt, cold recompute identical to served. Current answer is correct-by-default; any change here is a regression by definition. | RE-REQUIRED 2026-08-18: 'Void Trilogy' was captured from a FROZEN serving (subtitle 'Void Trilogy, Book 3' tripped the edition guard). Cold recompute of ALL THREE Void books (incl. The Dreaming Void, never frozen) resolves to Goodreads' 'Void'; prod's uniform 'Void Trilogy' is warm cache. Goodreads authority is the declared policy; the shelf converges on 'Void'.",
+   "group": "random-single-nochange",
+   "note": " [2026-08-18: required series changed Void Trilogy -> Void after the edition-guard fix unfroze this row; see spec-edition-guard-freezes-stale-series.md s7]"
   },
   {
    "recordId": "B01FR5OEZ4",
@@ -28082,6 +28083,108 @@
     "GR mirror /work + /series member counts 2026-08-18"
    ],
    "mintPin": true
+  },
+  {
+   "recordId": "B000TMD8C6",
+   "ratingKey": "742104",
+   "album": "Dragonsinger",
+   "artist": "Anne McCaffrey",
+   "inputs": {
+    "title": "Dragonsinger",
+    "subtitle": "Harper Hall Trilogy, Volume 2",
+    "author": "Anne McCaffrey",
+    "providerSeries": {
+     "name": "Harper Hall of Pern",
+     "position": "19"
+    },
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": null,
+    "inputSource": "as stored by incipit-api 2026-08-18; live catalog probe returned no product"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "Harper Hall of Pern",
+     "position": "19"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Harper Hall of Pern, Book 19 - Dragonsinger",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Pern",
+    "position": "4",
+    "secondaryNote": "an ORDERING never occupies either slot",
+    "expectedSortPrefix": "Pern, Book 4 - "
+   },
+   "specRule": [
+    "G1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-08-18: 'instead of Pern, Book N' -- the 19 sibling albums sit on Pern, Book N and these must too. NOT pinned: the defect is CODE (the edition-preservation guard freezing a stale provider series -- docs/design/spec-edition-guard-freezes-stale-series.md), so these rows must go green from the fix alone; a pin here would hide the guard.",
+   "group": "named-pern-edition-guard",
+   "note": "LIVE DEFECT: subtitle 'Harper Hall Trilogy, Volume 2' trips EDITION_MARKER_RE on 'trilogy'; the guard keeps the stale #19 (Chronological Order's number wearing Harper Hall's name) on every recompute. Bare cold lookup = Pern #4 (GR work 2971170).",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-08-18",
+    "incipit-api GET /books 2026-08-18 (title/subtitle/seriesPrimary as stored)",
+    "GR mirror /work + /series 2026-08-18",
+    "cold withGoodreadsSeries isolation 2026-08-18",
+    "provider inputs NOT verified: live catalog probe returned no product"
+   ],
+   "mintPin": false
+  },
+  {
+   "recordId": "B00007K45E",
+   "ratingKey": "742133",
+   "album": "A Gift of Dragons",
+   "artist": "Anne McCaffrey",
+   "inputs": {
+    "title": "A Gift of Dragons",
+    "subtitle": null,
+    "author": "Anne McCaffrey",
+    "providerSeries": {
+     "name": "Pern (Chronological Order)",
+     "position": "15"
+    },
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": null,
+    "inputSource": "as stored by incipit-api 2026-08-18; live catalog probe returned no product"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "Pern (Chronological Order)",
+     "position": "15"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Pern (Chronological Order), Book 15 - A Gift of Dragons",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Pern (Chronological Order)",
+    "position": "15",
+    "secondaryNote": "the ONLY positioned answer that exists; positionless Pern is demoted to the tag slot by shelf policy",
+    "expectedSortPrefix": "Pern (Chronological Order), Book 15 - "
+   },
+   "specRule": [
+    "G1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-08-18: 'instead of Pern, Book N' -- the 19 sibling albums sit on Pern, Book N and these must too. NOT pinned: the defect is CODE (the edition-preservation guard freezing a stale provider series -- docs/design/spec-edition-guard-freezes-stale-series.md), so these rows must go green from the fix alone; a pin here would hide the guard.",
+   "group": "named-pern-edition-guard",
+   "note": "LIVE DEFECT: GR returns positionless Pern (the only clean listing carries free-text '16.5 + 4.5, 8.5 & 15.5'); the not-shelvable guard keeps the incumbent, which is a publication ORDERING the resolver never emits. Required: positionless Pern (folder numbers it). GR work 92976. [2026-08-18 REVISED: no source has a shelvable position (mirror free-text '16.5 + 4.5, 8.5 & 15.5'); shelf policy demotes positionless primary to TAG, so 'Pern' would mean NO shelf. Keeping the positioned ordering is the lesser harm; R2 withdrawn at the not-shelvable/variant guards for exactly this reason.]",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-08-18",
+    "incipit-api GET /books 2026-08-18 (title/subtitle/seriesPrimary as stored)",
+    "GR mirror /work + /series 2026-08-18",
+    "cold withGoodreadsSeries isolation 2026-08-18",
+    "provider inputs NOT verified: live catalog probe returned no product"
+   ],
+   "mintPin": false
   }
  ]
 }
