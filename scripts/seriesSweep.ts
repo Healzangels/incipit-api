@@ -23,6 +23,13 @@
  *   bun scripts/seriesSweep.ts             # diff; exit 1 when a review is due
  *   bun scripts/seriesSweep.ts --accept    # fold NEW+CHANGED into the ledger
  *
+ * --accept RE-READS each row before folding it and holds back any that moved
+ * between the two reads, or that the api could not answer the second time. The
+ * sweep samples a live system: 3 of the 36 primary changes on 2026-08-20 did not
+ * reproduce, and one would have overwritten a CORRECT baseline with a transient.
+ * The confirm runs after the full pass, not inline -- elapsed time is what makes
+ * the second read an independent sample of a warm cache. See sweepConfirm.
+ *
  * Run it from a host listed in the api's RATE_LIMIT_ALLOWLIST. Without that the
  * sweep trips the 100/min bucket and every 429 costs a backoff wait — correct
  * (nothing is scored as missing) but far slower than it needs to be.
@@ -30,6 +37,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 
+import { confirmAccepts, type UnstableRow } from '#helpers/series/sweepConfirm'
 import {
 	fetchBoxGuids,
 	fetchServedAnswer,
@@ -121,6 +129,10 @@ async function main(): Promise<void> {
 	const flaps: string[] = []
 	const resolved: { id: string; is: Answer }[] = []
 	const changed: { id: string; was: Answer; is: Answer }[] = []
+	// Rows an --accept WOULD fold. Collected rather than written inline so the
+	// confirm pass can run after the whole sweep -- see the elapsed-time note in
+	// helpers/series/sweepConfirm.
+	const toAccept: { id: string; swept: Answer & { available: boolean } }[] = []
 	const queue = [...records.entries()]
 	let done = 0
 	const worker = async (): Promise<void> => {
@@ -156,7 +168,7 @@ async function main(): Promise<void> {
 						is: now_
 					})
 					if (accept && (!only || only.has(id))) {
-						ledger[id] = { ...prior, ...now_, reviewedAt: now }
+						toAccept.push({ id, swept: { ...now_ } })
 					}
 				} else if (prior.primary !== now_.primary || prior.secondary !== now_.secondary) {
 					// BOTH slots. Comparing only the primary left the tag slot undiffed
@@ -169,7 +181,7 @@ async function main(): Promise<void> {
 						is: now_
 					})
 					if (accept && (!only || only.has(id))) {
-						ledger[id] = { ...prior, ...now_, reviewedAt: now }
+						toAccept.push({ id, swept: { ...now_ } })
 					}
 				}
 			}
@@ -178,6 +190,24 @@ async function main(): Promise<void> {
 		}
 	}
 	await Promise.all(Array.from({ length: 6 }, () => worker()))
+
+	// Re-read every row before folding it into the reviewed baseline. Verifying
+	// the 2026-08-20 sweep by hand found 3 of 36 primary changes did not
+	// reproduce -- and one of those, Joyland, would have overwritten a CORRECT
+	// baseline of "no series" with a transient. The ledger is what every later
+	// sweep diffs against, so a bad fold re-bases drift detection for that record.
+	let unstable: UnstableRow[] = []
+	let unreadable: string[] = []
+	if (accept && toAccept.length) {
+		console.log(`\nconfirming ${toAccept.length} row(s) by re-read before folding...`)
+		const verdict = await confirmAccepts(toAccept, served)
+		unstable = verdict.unstable
+		unreadable = verdict.unreadable
+		for (const c of toAccept) {
+			if (!verdict.confirmed.has(c.id)) continue
+			ledger[c.id] = { ...ledger[c.id], ...c.swept, reviewedAt: now }
+		}
+	}
 
 	const gone = Object.keys(ledger).filter((id) => !records.has(id))
 	console.log(`\nNEW (auto-baselined): ${fresh.length}`)
@@ -195,6 +225,22 @@ async function main(): Promise<void> {
 			console.log(`      tag: ${c.was.secondary ?? 'NONE'}  ->  ${c.is.secondary ?? 'NONE'}`)
 	}
 	console.log(`GONE (in ledger, in no library): ${gone.length}`)
+	if (accept) {
+		console.log(
+			`\nACCEPTED (re-read still agrees): ${toAccept.length - unstable.length - unreadable.length}`
+		)
+		if (unstable.length) {
+			console.log(`HELD BACK — moved between reads (${unstable.length}):`)
+			for (const u of unstable)
+				console.log(
+					`  ${u.id}  swept ${u.swept.primary ?? 'NONE'}  ->  re-read ${u.reread.primary ?? 'NONE'}`
+				)
+		}
+		if (unreadable.length) {
+			console.log(`HELD BACK — api could not answer the re-read (${unreadable.length}):`)
+			for (const id of unreadable) console.log(`  ${id}`)
+		}
+	}
 
 	if (init || accept || fresh.length || resolved.length) {
 		writeFileSync(LEDGER, JSON.stringify(ledger, null, 1))
