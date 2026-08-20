@@ -1974,6 +1974,10 @@ async function lookupByTitle(
 		let variantOnly = false
 		let rescuedOver: string[] | undefined
 		let countProbe: LookupState | undefined
+		// Set when the count tiebreak was decided against an UNKNOWN count. Flushed
+		// at the return path like countProbe, not here: a candidate the volume veto
+		// discards below must not cap an answer it never influenced.
+		let rankedOnUnknownCount = false
 		let rescuedOverSeries: WorkSeries[] | undefined
 		// The declarations are read off the POOL, never off `all`.
 		// seriesRecord is memoized and the count probe below already fetches every
@@ -2056,6 +2060,25 @@ async function lookupByTitle(
 			ranked = [...pool].sort(
 				(x, y) => positioned(y) - positioned(x) || (counts.get(y) ?? 0) - (counts.get(x) ?? 0)
 			)
+			// A pooled series our work DECLARES membership in cannot genuinely have
+			// zero members -- our book is one of them. So a 0 here is MISSING
+			// EVIDENCE, never an empty series, and a tiebreak decided against one
+			// was decided on a guess. Only when the loser TIED on `positioned`:
+			// a series that lost on placement lost on real evidence, whatever its
+			// count, and capping there would cap most of the library.
+			//
+			// The answer still applies -- with the parent's size unknown the sub-arc
+			// really is the best available read. What is bounded is how long it may
+			// be KEPT. Without this, one 404 on a parent's /series id pins the
+			// narrower shelf for the 30-day hit TTL: the same 'one series, two
+			// shelves' split the memo refusal in seriesRecord prevents in-process,
+			// reproduced through redis instead.
+			const winner = ranked[0]
+			rankedOnUnknownCount =
+				winner !== undefined &&
+				pool.some(
+					(s) => s !== winner && positioned(s) === positioned(winner) && (counts.get(s) ?? 0) === 0
+				)
 		}
 
 		const toSeries = (s: WorkSeries): ProviderBookSeries => {
@@ -2197,6 +2220,9 @@ async function lookupByTitle(
 		// Flush the count probe onto the shared state now -- a discarded candidate's
 		// count failure died with it a few lines above.
 		if (countProbe?.degraded && state) state.degraded = true
+		// Same reasoning, weaker consequence: a missing count did not make the
+		// answer untrustworthy, only unproven. Apply it, cap the TTL.
+		if (rankedOnUnknownCount && state) state.uncacheable = true
 		if (pendingDegradation && state) state.recoveredOverFailure = true
 		logger?.debug({ workId, series: result }, 'goodreads series: resolved')
 		return result

@@ -283,6 +283,82 @@ describe('parent-series preference', () => {
 		expect(fetchMock.mock.calls.length).toBe(3)
 	})
 
+	test('a 404 on the parent count caps the answer rather than pinning it for 30 days', async () => {
+		// The test above accepts the sub-arc winning while the parent's count is
+		// unknown -- "correct and unavoidable on the evidence available". That is
+		// right about the ANSWER and wrong about its LIFETIME. A 404 is classified as
+		// the mirror ANSWERING, so nothing sets `degraded`, and the guess is written
+		// under the 30-day hit TTL: one 404 on a parent's /series id pins the
+		// narrower shelf for a MONTH. That is the same "one series, two shelves"
+		// split the memo refusal above prevents in-process, reproduced through redis.
+		//
+		// A series our work DECLARES membership in cannot genuinely have zero members
+		// -- our book is one of them. So a 0 here is always MISSING EVIDENCE, never an
+		// empty series, and an answer ranked against it must be re-asked soon rather
+		// than trusted for a month.
+		//
+		// FIVE responses, and the fifth is a REAL 404. That distinction is the whole
+		// test. The alias pass re-asks the parent (its 404 kept it out of the memo),
+		// and an EXHAUSTED bun mock rejects with a plain Error -- no status -> not
+		// "answered" -> degraded -> uncacheable gets set BY ACCIDENT and this test
+		// passes while proving nothing. Production returns a genuine 404 there, which
+		// IS classified as answering, so nothing is set. Queue it explicitly.
+		const state = { degraded: false }
+		respond([{ workId: 42 }], multi(210), members(6), status(404), status(404))
+		const out = await fetchGoodreadsSeries('The Grief of Stones', null, undefined, state)
+		// UNCHANGED: this bounds a guess, it does not re-rank. The sub-arc is still the
+		// best answer available while the parent's size is unknown.
+		expect(out?.primary).toEqual({ name: 'The Cemeteries of Amalo', position: '2' })
+		// Sound enough to apply...
+		expect(state.degraded).toBe(false)
+		// ...but not sound enough to KEEP: capped at the short TTL.
+		expect((state as { uncacheable?: boolean }).uncacheable).toBe(true)
+		// All five queued -- no unqueued call smuggled in a degradation.
+		expect(fetchMock.mock.calls.length).toBe(5)
+	})
+
+	test('healthy counts leave the answer fully cacheable', async () => {
+		// The cap above must not fire on every multi-series book: a lookup whose
+		// counts all came back is ranked on real evidence and keeps the long hit TTL.
+		// Without this, "cap it" degenerates into "never cache a multi-series book".
+		const state = { degraded: false }
+		respond([{ workId: 42 }], multi(220), members(6), members(9))
+		const out = await fetchGoodreadsSeries('The Grief of Stones', null, undefined, state)
+		expect(out?.primary).toEqual({ name: 'The Chronicles of Osreth', position: '3' })
+		expect((state as { uncacheable?: boolean }).uncacheable).toBeUndefined()
+		expect(fetchMock.mock.calls.length).toBe(4)
+	})
+
+	test('an UNPOSITIONED series with an unknown count does not cap the TTL', async () => {
+		// The cap is narrowed to competitors that TIED on `positioned`. A series that
+		// lost on PLACEMENT lost on real evidence -- its count never entered the
+		// decision -- so an unknown count there is not a guess and must not shorten
+		// the TTL. Without the narrowing this shape is common and the cap would fire
+		// across most of the library, turning "cap a guess" into "stop caching".
+		const state = { degraded: false }
+		respond(
+			[{ workId: 42 }],
+			{
+				Title: 'The Grief of Stones',
+				Series: [
+					{
+						Title: 'The Chronicles of Osreth',
+						ForeignId: 231,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '3' }]
+					},
+					{ Title: 'Some Unnumbered Shelf', ForeignId: 232, LinkItems: [{ ForeignWorkId: 42 }] }
+				]
+			},
+			members(9),
+			status(404),
+			// the alias pass re-asks the 404'd series: a zero is never memoized
+			status(404)
+		)
+		const out = await fetchGoodreadsSeries('The Grief of Stones', null, undefined, state)
+		expect(out?.primary).toEqual({ name: 'The Chronicles of Osreth', position: '3' })
+		expect((state as { uncacheable?: boolean }).uncacheable).toBeUndefined()
+	})
+
 	test('a REAL empty series is still memoized-free but ranks last, not first', async () => {
 		// Refusing to memoize a zero costs one re-ask per book for a genuinely
 		// empty series; it must not change the ranking outcome.
@@ -2420,6 +2496,47 @@ describe('a persistently failing leg must not re-run the full lookup per serve',
 			primary: { name: 'Tintenwelt', position: '1' }
 		})
 		// The SHORT ttl, not the 30-day hit TTL: the alias must be re-asked soon.
+		expect(redis.expires.get(key as string)).toBe(UNCACHEABLE_TTL)
+	})
+
+	test('a ranking decided against an UNKNOWN count is cached under the SHORT TTL', async () => {
+		// End-to-end proof of the count-zero cap. The unit test in
+		// 'parent-series preference' asserts the FLAG; this asserts the CONSEQUENCE,
+		// which is the whole point of the fix: a shelf chosen while the parent's
+		// member count was unknown is bounded to hours instead of the 30-day hit TTL.
+		// Before the cap this key was written with 2592000.
+		const redis = fakeRedis()
+		respond(
+			[{ workId: 42 }],
+			{
+				Title: 'The Grief of Stones',
+				Series: [
+					{
+						Title: 'The Cemeteries of Amalo',
+						ForeignId: 241,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '2' }]
+					},
+					{
+						Title: 'The Chronicles of Osreth',
+						ForeignId: 242,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '3' }]
+					}
+				]
+			},
+			{ LinkItems: [1, 2, 3, 4, 5, 6] },
+			// the PARENT's count is unavailable, twice: ranking, then the alias pass
+			// (a zero is never memoized, so it is re-asked)
+			status(404),
+			status(404)
+		)
+		const out = await withGoodreadsSeries(
+			{ title: 'The Grief of Stones', authors: [{ name: 'Katherine Addison' }] },
+			redis
+		)
+		// The sub-arc still wins -- the cap bounds a guess, it does not re-rank.
+		expect(out.seriesPrimary).toEqual({ name: 'The Cemeteries of Amalo', position: '2' })
+		const key = [...redis.store.keys()].find((k) => k.startsWith('grseries:v6:'))
+		expect(key).toBeDefined()
 		expect(redis.expires.get(key as string)).toBe(UNCACHEABLE_TTL)
 	})
 
