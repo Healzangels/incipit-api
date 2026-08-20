@@ -138,7 +138,7 @@
     "Q2": 31,
     "OPERATOR-REVIEW": 19
    },
-   "knownDefectsNow": 35
+   "knownDefectsNow": 0
   },
   "corrections": [
    {
@@ -212,6 +212,64 @@
     "rows": [
      "families"
     ]
+   },
+   {
+    "date": "2026-08-20",
+    "what": "cleared knownDefectNow on all 52 flagged rows - re-measured against the live mirror, 51 now MATCH and the 52nd (The Sunlit Man, rk153334) is not a defect either: its inputs are UNKNOWN-not-rebuildable so the harness drives it without provider input and gets NONE, while the api serves exactly the required Secret Projects #4. The flag only drives --smoke and a display label, never the gate, so stale trues made the fast loop useless (52 rows, 51 passing) rather than unsafe. counts.knownDefectsNow was separately stale at 35.",
+    "rows": [
+     "157923",
+     "154668",
+     "154666",
+     "154892",
+     "154869",
+     "154871",
+     "154875",
+     "154873",
+     "154877",
+     "154863",
+     "152841",
+     "155442",
+     "155144",
+     "154213",
+     "154748",
+     "155498",
+     "155490",
+     "155506",
+     "155504",
+     "155496",
+     "155492",
+     "155242",
+     "155240",
+     "155238",
+     "153334",
+     "153336",
+     "152838",
+     "155315",
+     "152773",
+     "153857",
+     "153988",
+     "154090",
+     "155066",
+     "155343",
+     "153851",
+     "155060",
+     "155266",
+     "734419",
+     "734423",
+     "734421",
+     "730500",
+     "741622",
+     "741625",
+     "741627",
+     "731717",
+     "742096",
+     "742098",
+     "742086",
+     "742088",
+     "742090",
+     "742104",
+     "742318"
+    ]
    }
   ],
   "decisions": [
@@ -283,7 +341,7 @@
    "sourceOfTruth": "Operator: 'The Emperor's Soul -> Elantris #2, never The Cosmere Universe #7.5'. Mirror 2026-07-30: work 19161502 lists Elantris (no position) + The Cosmere Universe #7.5; position 2 is Audible's (R4: number from provider when Goodreads abstains).",
    "group": "named-emperors-soul",
    "note": "LIVE DEFECT on fb058d2: served = The Cosmere Universe #7.5 (rescuedOver fired on this exact row; Gate C inert behind grseries:v4). Cold recompute already yields Elantris #2.",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "inputsVerified": [
     "live mirror /work probe 2026-07-30",
     "final2 sweep"
@@ -1156,7 +1214,7 @@
    "sourceOfTruth": "Mirror 2026-07-30 work 25332937: Companions Codex #1 + The Legend of Drizzt #28. R1 picks the parent.",
    "group": "named-drizzt",
    "note": "API serves NO series today (apple-audiobook record, no provider series); the Plex sort still shows a stale \"Companions Codex, Book 1\" shelf from an earlier build - the R1 violation a redesign should clear. Resolving to the parent requires a lookup that currently is not reached for this record class.",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
    ],
@@ -1200,7 +1258,7 @@
    "sourceOfTruth": "Mirror 2026-07-30 work 26755835: Companions Codex #2 + The Legend of Drizzt #29.",
    "group": "named-drizzt",
    "note": "Same class as rk 154668; stale \"Companions Codex, Book 2\" sort in Plex today.",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
    ],
@@ -4690,7 +4748,7 @@
    "sourceOfTruth": "v5 bump-cost assessment: the cold answers 16-22 'unify onto one taxonomy beside the existing #24' = improvement (10-improvement set). Provider (Audible) supplies 16-22; the mirror still carries the stale 12-18 numbering (probe: Legacies work 88941467 = Galaxy's Edge #12). One numbering authority per shelf = the provider's, anchored by The Betrayed already shelved at Audible's #24.",
    "group": "named-galaxys-edge",
    "note": "Served today = the OLD 12-18 taxonomy (v4 cache); required = provider taxonomy 16-22.",
-   "knownDefectNow": true
+   "knownDefectNow": false
   },
   {
    "recordId": "1039403808",
@@ -4745,7 +4803,7 @@
    "sourceOfTruth": "v5 bump-cost assessment: the cold answers 16-22 'unify onto one taxonomy beside the existing #24' = improvement (10-improvement set). Provider (Audible) supplies 16-22; the mirror still carries the stale 12-18 numbering (probe: Legacies work 88941467 = Galaxy's Edge #12). One numbering authority per shelf = the provider's, anchored by The Betrayed already shelved at Audible's #24.",
    "group": "named-galaxys-edge",
    "note": "Served today = the OLD 12-18 taxonomy (v4 cache); required = provider taxonomy 16-22.",
-   "knownDefectNow": true
+   "knownDefectNow": false
   },
   {
    "recordId": "B09DDJ8KDC",
@@ -4800,7 +4858,7 @@
    "sourceOfTruth": "v5 bump-cost assessment: the cold answers 16-22 'unify onto one taxonomy beside the existing #24' = improvement (10-improvement set). Provider (Audible) supplies 16-22; the mirror still carries the stale 12-18 numbering (probe: Legacies work 88941467 = Galaxy's Edge #12). One numbering authority per shelf = the provider's, anchored by The Betrayed already shelved at Audible's #24.",
    "group": "named-galaxys-edge",
    "note": "Served today = the OLD 12-18 taxonomy (v4 cache); required = provider taxonomy 16-22.",
-   "knownDefectNow": true
+   "knownDefectNow": false
   },
   {
    "recordId": "B09NB1FTD3",
@@ -4855,7 +4913,7 @@
    "sourceOfTruth": "v5 bump-cost assessment: the cold answers 16-22 'unify onto one taxonomy beside the existing #24' = improvement (10-improvement set). Provider (Audible) supplies 16-22; the mirror still carries the stale 12-18 numbering (probe: Legacies work 88941467 = Galaxy's Edge #12). One numbering authority per shelf = the provider's, anchored by The Betrayed already shelved at Audible's #24.",
    "group": "named-galaxys-edge",
    "note": "Served today = the OLD 12-18 taxonomy (v4 cache); required = provider taxonomy 16-22.",
-   "knownDefectNow": true
+   "knownDefectNow": false
   },
   {
    "recordId": "B09V1VZ312",
@@ -4910,7 +4968,7 @@
    "sourceOfTruth": "v5 bump-cost assessment: the cold answers 16-22 'unify onto one taxonomy beside the existing #24' = improvement (10-improvement set). Provider (Audible) supplies 16-22; the mirror still carries the stale 12-18 numbering (probe: Legacies work 88941467 = Galaxy's Edge #12). One numbering authority per shelf = the provider's, anchored by The Betrayed already shelved at Audible's #24.",
    "group": "named-galaxys-edge",
    "note": "Served today = the OLD 12-18 taxonomy (v4 cache); required = provider taxonomy 16-22.",
-   "knownDefectNow": true
+   "knownDefectNow": false
   },
   {
    "recordId": "B0B8LDB4W3",
@@ -4965,7 +5023,7 @@
    "sourceOfTruth": "v5 bump-cost assessment: the cold answers 16-22 'unify onto one taxonomy beside the existing #24' = improvement (10-improvement set). Provider (Audible) supplies 16-22; the mirror still carries the stale 12-18 numbering (probe: Legacies work 88941467 = Galaxy's Edge #12). One numbering authority per shelf = the provider's, anchored by The Betrayed already shelved at Audible's #24.",
    "group": "named-galaxys-edge",
    "note": "Served today = the OLD 12-18 taxonomy (v4 cache); required = provider taxonomy 16-22.",
-   "knownDefectNow": true
+   "knownDefectNow": false
   },
   {
    "recordId": "B0BMSRGPQW",
@@ -5020,7 +5078,7 @@
    "sourceOfTruth": "v5 bump-cost assessment: the cold answers 16-22 'unify onto one taxonomy beside the existing #24' = improvement (10-improvement set). Provider (Audible) supplies 16-22; the mirror still carries the stale 12-18 numbering (probe: Legacies work 88941467 = Galaxy's Edge #12). One numbering authority per shelf = the provider's, anchored by The Betrayed already shelved at Audible's #24.",
    "group": "named-galaxys-edge",
    "note": "Served today = the OLD 12-18 taxonomy (v4 cache); required = provider taxonomy 16-22.",
-   "knownDefectNow": true
+   "knownDefectNow": false
   },
   {
    "recordId": "1774242834",
@@ -6052,7 +6110,7 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
    "group": "jackryan-pub-order",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
    ],
@@ -6112,7 +6170,7 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-07-31: 'go option 1' \u2014 ONE unified Jack Ryan shelf in publication order, positions measured from mirror /series/171704 (Jack Ryan Universe (Publication Order), 49 members). Display name 'Jack Ryan'; sub-line identities (Jr., Clark) survive as tags. Supersedes the per-gap #13/#14/#17.5 proposal and today's Jr-shelf pins.",
    "group": "jackryan-pub-order",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
    ],
@@ -7802,7 +7860,7 @@
    "pinType": "measured-hard",
    "sourceOfTruth": "LIVE R6 violation: served/provider name \"Hannibal Lecter Series\" sorts as its own shelf (\"Hannibal Lecter Series, Book 2\") beside \"Hannibal Lecter, Book 1/3/4\". Mirror work 22533: Hannibal Lecter #2. One shelf.",
    "group": "named-lecter",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
    ],
@@ -7934,7 +7992,7 @@
    "sourceOfTruth": "v5 bump-cost: dropping the self-named positionless 'Fahrenheit 451' mood tag scored an IMPROVEMENT (standalone novel; a cold lookup no longer reproduces the tag).",
    "group": "named-f451",
    "note": "Shelf outcome was already none (positionless never built a prefix); required = no series at all.",
-   "knownDefectNow": true
+   "knownDefectNow": false
   },
   {
    "recordId": "B0071D0SOM",
@@ -8032,7 +8090,7 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "v5: The Law #17.2 -> #17.5 scored an IMPROVEMENT ('matches its own subtitle'). Provider and cold agree on 17.5; the served 17.2 is a stale v4-cache value.",
    "group": "named-dresden",
-   "knownDefectNow": true
+   "knownDefectNow": false
   },
   {
    "recordId": "B0G4XLYP38",
@@ -8399,7 +8457,7 @@
    "sourceOfTruth": "Census TIER A (\"strict Elantris signature\"): \"Riyria\" is the combined-universe container; the library already shelves Riyria Revelations AND The Riyria Chronicles as their own primaries (Winter's Daughter #4), so these rows sit on the container shelf while their sub-series shelf exists - and the Chronicles shelf is SPLIT 6-vs-1 today. Mirror (Drumindor work 59577640, Crown Tower 21821161): both listings exist; provider supplies The Riyria Chronicles #N. Emperor's-Soul-shaped: provider's specific series displaced by the broader container.",
    "group": "named-riyria",
    "note": "reviewNeeded: operator has stated the R5 identity pair (Riyria != The Riyria Chronicles) but not explicitly ruled this family; the alternative reading (Riyria as an R1 parent like Drizzt) would instead require re-shelving Winter's Daughter onto Riyria. Either way the 6-vs-1 split violates R6.",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
    ],
@@ -8461,7 +8519,7 @@
    "sourceOfTruth": "Census TIER A (\"strict Elantris signature\"): \"Riyria\" is the combined-universe container; the library already shelves Riyria Revelations AND The Riyria Chronicles as their own primaries (Winter's Daughter #4), so these rows sit on the container shelf while their sub-series shelf exists - and the Chronicles shelf is SPLIT 6-vs-1 today. Mirror (Drumindor work 59577640, Crown Tower 21821161): both listings exist; provider supplies The Riyria Chronicles #N. Emperor's-Soul-shaped: provider's specific series displaced by the broader container.",
    "group": "named-riyria",
    "note": "reviewNeeded: operator has stated the R5 identity pair (Riyria != The Riyria Chronicles) but not explicitly ruled this family; the alternative reading (Riyria as an R1 parent like Drizzt) would instead require re-shelving Winter's Daughter onto Riyria. Either way the 6-vs-1 split violates R6.",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "mintPin": true
   },
   {
@@ -8520,7 +8578,7 @@
    "sourceOfTruth": "Census TIER A (\"strict Elantris signature\"): \"Riyria\" is the combined-universe container; the library already shelves Riyria Revelations AND The Riyria Chronicles as their own primaries (Winter's Daughter #4), so these rows sit on the container shelf while their sub-series shelf exists - and the Chronicles shelf is SPLIT 6-vs-1 today. Mirror (Drumindor work 59577640, Crown Tower 21821161): both listings exist; provider supplies The Riyria Chronicles #N. Emperor's-Soul-shaped: provider's specific series displaced by the broader container.",
    "group": "named-riyria",
    "note": "reviewNeeded: operator has stated the R5 identity pair (Riyria != The Riyria Chronicles) but not explicitly ruled this family; the alternative reading (Riyria as an R1 parent like Drizzt) would instead require re-shelving Winter's Daughter onto Riyria. Either way the 6-vs-1 split violates R6.",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "mintPin": true
   },
   {
@@ -8579,7 +8637,7 @@
    "sourceOfTruth": "Census TIER A (\"strict Elantris signature\"): \"Riyria\" is the combined-universe container; the library already shelves Riyria Revelations AND The Riyria Chronicles as their own primaries (Winter's Daughter #4), so these rows sit on the container shelf while their sub-series shelf exists - and the Chronicles shelf is SPLIT 6-vs-1 today. Mirror (Drumindor work 59577640, Crown Tower 21821161): both listings exist; provider supplies The Riyria Chronicles #N. Emperor's-Soul-shaped: provider's specific series displaced by the broader container.",
    "group": "named-riyria",
    "note": "reviewNeeded: operator has stated the R5 identity pair (Riyria != The Riyria Chronicles) but not explicitly ruled this family; the alternative reading (Riyria as an R1 parent like Drizzt) would instead require re-shelving Winter's Daughter onto Riyria. Either way the 6-vs-1 split violates R6.",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "mintPin": true
   },
   {
@@ -8639,7 +8697,7 @@
    "sourceOfTruth": "Census TIER A (\"strict Elantris signature\"): \"Riyria\" is the combined-universe container; the library already shelves Riyria Revelations AND The Riyria Chronicles as their own primaries (Winter's Daughter #4), so these rows sit on the container shelf while their sub-series shelf exists - and the Chronicles shelf is SPLIT 6-vs-1 today. Mirror (Drumindor work 59577640, Crown Tower 21821161): both listings exist; provider supplies The Riyria Chronicles #N. Emperor's-Soul-shaped: provider's specific series displaced by the broader container.",
    "group": "named-riyria",
    "note": "reviewNeeded: operator has stated the R5 identity pair (Riyria != The Riyria Chronicles) but not explicitly ruled this family; the alternative reading (Riyria as an R1 parent like Drizzt) would instead require re-shelving Winter's Daughter onto Riyria. Either way the 6-vs-1 split violates R6.",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "mintPin": true
   },
   {
@@ -8699,7 +8757,7 @@
    "sourceOfTruth": "Census TIER A (\"strict Elantris signature\"): \"Riyria\" is the combined-universe container; the library already shelves Riyria Revelations AND The Riyria Chronicles as their own primaries (Winter's Daughter #4), so these rows sit on the container shelf while their sub-series shelf exists - and the Chronicles shelf is SPLIT 6-vs-1 today. Mirror (Drumindor work 59577640, Crown Tower 21821161): both listings exist; provider supplies The Riyria Chronicles #N. Emperor's-Soul-shaped: provider's specific series displaced by the broader container.",
    "group": "named-riyria",
    "note": "reviewNeeded: operator has stated the R5 identity pair (Riyria != The Riyria Chronicles) but not explicitly ruled this family; the alternative reading (Riyria as an R1 parent like Drizzt) would instead require re-shelving Winter's Daughter onto Riyria. Either way the 6-vs-1 split violates R6.",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
    ],
@@ -11263,7 +11321,7 @@
    "pinType": "measured-hard",
    "sourceOfTruth": "Served TODAY on \"Shannara - Terry's Suggested Order for New Readers\" (an ordering - R3 defect; census shard 3 flagged it as the one ordering-primary). Mirror work 877015: The Original Shannara Trilogy #1 exists alongside four ordering listings. Provider series is the edition-marked junk \"The Sword of Shannara (Unabridged) #N\" (no lookup-bypass credit).",
    "group": "named-shannara",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
    ],
@@ -11323,7 +11381,7 @@
    "pinType": "measured-hard",
    "sourceOfTruth": "Served TODAY on \"Shannara - Terry's Suggested Order for New Readers\" (an ordering - R3 defect; census shard 3 flagged it as the one ordering-primary). Mirror work 877015: The Original Shannara Trilogy #1 exists alongside four ordering listings. Provider series is the edition-marked junk \"The Sword of Shannara (Unabridged) #N\" (no lookup-bypass credit).",
    "group": "named-shannara",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "mintPin": true
   },
   {
@@ -11380,7 +11438,7 @@
    "pinType": "measured-hard",
    "sourceOfTruth": "Served TODAY on \"Shannara - Terry's Suggested Order for New Readers\" (an ordering - R3 defect; census shard 3 flagged it as the one ordering-primary). Mirror work 877015: The Original Shannara Trilogy #1 exists alongside four ordering listings. Provider series is the edition-marked junk \"The Sword of Shannara (Unabridged) #N\" (no lookup-bypass credit).",
    "group": "named-shannara",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "mintPin": true
   },
   {
@@ -12233,7 +12291,7 @@
    "sourceOfTruth": "Census shard 1 \"definite\": primary \"The Cosmere\" #32 is the franchise umbrella (same container as the operator-banned Cosmere Universe shelf on The Emperor's Soul); Secret Projects #4 is the real positioned publishing series, consistent with Tress #1 / Yumi #3 secondaries.",
    "group": "census-umbrella-fix",
    "note": "operator decision 2026-08-12: Secret Projects STAYS the shelf for the two rows that are not part of Hoid's Travails. The Sunlit Man already serves Secret Projects #4 from the resolver, so the shelf exists either way and the only question was whether Isles joined it or the pair dropped it. Reviewed and settled -- do not re-open as reviewNeeded.",
-   "knownDefectNow": true
+   "knownDefectNow": false
   },
   {
    "recordId": "B0F4RTHZV5",
@@ -12280,7 +12338,7 @@
    "sourceOfTruth": "Census shard 2 \"STRONG\": primary \"The Cosmere\" #34 is the umbrella that mis-shelves The Emperor's Soul. Fresh mirror (work 216518815) lists ONLY The Cosmere Universe #21 - the umbrella position itself drifts (34 vs 21), reinforcing that a franchise index is not a shelf.",
    "group": "census-umbrella-fix",
    "note": "operator decision 2026-08-12: Secret Projects STAYS the shelf for the two rows that are not part of Hoid's Travails. The Sunlit Man already serves Secret Projects #4 from the resolver, so the shelf exists either way and the only question was whether Isles joined it or the pair dropped it. Reviewed and settled -- do not re-open as reviewNeeded.",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
    ],
@@ -12354,7 +12412,7 @@
    "pinType": "census-verdict",
    "sourceOfTruth": "Census shard 0 TIER B: primary is positionless cross-author franchise \"Warhammer 40,000\"; the secondary \"Warhammer 40,000 : Imperial Guard\" #1 is a real positioned sub-series. R2 + a positioned sub-listing = the sub shelves; today the album has NO shelf prefix at all.",
    "group": "census-umbrella-fix",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "mintPin": true
   },
   {
@@ -13456,7 +13514,7 @@
    "pinType": "measured-hard",
    "sourceOfTruth": "Album \"Diablo: the Sin War - Book Two\" (subtitle \"Scales of the Serpent\") serves Diablo #1 TODAY - wrong on both taxonomies. Provider: \"Diablo: The Sin War Series #2\"; mirror work 31314 (Scales of the Serpent): Diablo: The Sin War #2 + Diablo #6. Two independent streams corroborate Sin War #2 (C1); the served #1 is a wrong-work adoption of the Ahriman class (title carries the series name; Book-Two marker ignored).",
    "group": "named-diablo",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
    ],
@@ -16838,7 +16896,7 @@
    "pinType": "current-correct-default",
    "sourceOfTruth": "Census 2026-07-29 dual-series row, verdict 'dual-ok' (shard 1): the current answer is the required answer (assignment: 82-of-93 parent-primary-correct class).",
    "group": "census-dual",
-   "knownDefectNow": true
+   "knownDefectNow": false
   },
   {
    "recordId": "B07VYV6X1X",
@@ -17364,7 +17422,7 @@
    "pinType": "current-correct-default",
    "sourceOfTruth": "Census 2026-07-29 dual-series row, verdict 'dual-ok' (shard 1): the current answer is the required answer (assignment: 82-of-93 parent-primary-correct class).",
    "group": "census-dual",
-   "knownDefectNow": true
+   "knownDefectNow": false
   },
   {
    "recordId": "B002V5D08G",
@@ -17599,7 +17657,7 @@
    "pinType": "current-correct-default",
    "sourceOfTruth": "Census 2026-07-29 dual-series row, verdict 'dual-ok' (shard 1): the current answer is the required answer (assignment: 82-of-93 parent-primary-correct class).",
    "group": "census-dual",
-   "knownDefectNow": true
+   "knownDefectNow": false
   },
   {
    "recordId": "B09GHFMBRQ",
@@ -17645,7 +17703,7 @@
    "pinType": "current-correct-default",
    "sourceOfTruth": "Census 2026-07-29 dual-series row, verdict 'dual-ok' (shard 1): the current answer is the required answer (assignment: 82-of-93 parent-primary-correct class).",
    "group": "census-dual",
-   "knownDefectNow": true
+   "knownDefectNow": false
   },
   {
    "recordId": "B09HKYYT9Q",
@@ -18044,7 +18102,7 @@
    "pinType": "current-correct-default",
    "sourceOfTruth": "Census 2026-07-29 dual-series row, verdict 'dual-ok' (shard 1): the current answer is the required answer (assignment: 82-of-93 parent-primary-correct class).",
    "group": "census-dual",
-   "knownDefectNow": true
+   "knownDefectNow": false
   },
   {
    "recordId": "B011AZMLF0",
@@ -18225,7 +18283,7 @@
    "pinType": "current-correct-default",
    "sourceOfTruth": "Census 2026-07-29 dual-series row, verdict 'dual-ok' (shard 1): the current answer is the required answer (assignment: 82-of-93 parent-primary-correct class).",
    "group": "census-dual",
-   "knownDefectNow": true
+   "knownDefectNow": false
   },
   {
    "recordId": "B002VA9DO6",
@@ -19407,7 +19465,7 @@
    "pinType": "current-correct-default",
    "sourceOfTruth": "Census 2026-07-29 dual-series row, verdict 'dual-ok' (shard 2): the current answer is the required answer (assignment: 82-of-93 parent-primary-correct class).",
    "group": "census-dual",
-   "knownDefectNow": true
+   "knownDefectNow": false
   },
   {
    "recordId": "B002V0K6D8",
@@ -20004,7 +20062,7 @@
    "pinType": "current-correct-default",
    "sourceOfTruth": "Census 2026-07-29 dual-series row, verdict 'dual-ok' (shard 2): the current answer is the required answer (assignment: 82-of-93 parent-primary-correct class).",
    "group": "census-dual",
-   "knownDefectNow": true
+   "knownDefectNow": false
   },
   {
    "recordId": "B00I5PWN20",
@@ -20195,7 +20253,7 @@
    "sourceOfTruth": "CORRECTED 2026-08-15. Was 'current-correct-default' from the 2026-07-29 census, which BULK-ASSIGNED the then-current answer as required across the 82-of-93 parent-primary-correct class -- it was never a judged decision about this row. Sylvain Runberg wrote the GRAPHIC-NOVEL adaptation; this record is Stieg Larsson's novel. Its five siblings (#2 #3 #4 #5 #6) all shelve under Millennium, so the old required outcome split the shelf. Operator 2026-08-15: all six Millennium novels belong on one shelf named Millennium.",
    "group": "named-millennium",
    "note": "Superseded the census default. The correct series was ALREADY in this row's own servedNow.secondary -- the resolver had the right answer and ranked it second. The album is rk731152 in the current library (this row's ratingKey 155266 predates the rebuild); re-verified against live Audible + prod Plex + incipit-api 2026-08-15.",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "mintPin": true,
    "inputsVerified": [
     "re-verified 2026-08-15 (Audible series, prod titleSort, /books)"
@@ -27189,7 +27247,7 @@
    "mintPin": true,
    "sourceOfTruth": "mirror /series/49134 LinkItems: work 11076657 at position 23; same class as the test-box apple pair (LoD #28/#29)",
    "group": "salvatore-apple-prod",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "note": "operator 2026-07-30: display title shortened \u2014 the record bakes ': Legend of Drizzt...' into its title while every sibling uses the short name"
   },
   {
@@ -27227,7 +27285,7 @@
    "mintPin": true,
    "sourceOfTruth": "mirror /series/49134 LinkItems: work 43492207 at position 31; same class as the test-box apple pair (LoD #28/#29)",
    "group": "salvatore-apple-prod",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "note": "operator 2026-07-30: display title shortened \u2014 the record bakes ': Legend of Drizzt...' into its title while every sibling uses the short name"
   },
   {
@@ -27265,7 +27323,7 @@
    "mintPin": true,
    "sourceOfTruth": "mirror /series/49134: work 15201053 'Neverwinter' at position 24",
    "group": "salvatore-apple-prod",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "note": "operator 2026-07-30: display title shortened \u2014 the record bakes ': Legend of Drizzt...' into its title while every sibling uses the short name"
   },
   {
@@ -27300,7 +27358,7 @@
    "mintPin": true,
    "sourceOfTruth": "Operator 2026-07-30: 'Based on Goodreads looks like it should be Book 17.1' (goodreads.com/book/58734999; mirror work 85291724 Dresden listing '17.1 - Little Things'). Operator states the number the free-text position carries \u2014 R4's escape hatch, first anthology-shape use.",
    "group": "anthology-host-universe",
-   "knownDefectNow": true
+   "knownDefectNow": false
   },
   {
    "recordId": "1800266421",
@@ -27575,7 +27633,7 @@
    "sourceOfTruth": "Operator 2026-08-15: the Magic Tree House shelf is filed under the GERMAN series name. Audible states publication_name 'Magic Tree House' for B002V0LWAE and series [{title: Magic Tree House, sequence: 8}]; GOODREADS_SERIES_AUTHORITY overwrote it with 'Das magische Baumhaus'. Positions were already correct and are unchanged.",
    "group": "named-magic-tree-house",
    "note": "LIVE DEFECT: both series slots are translated (German primary, French secondary) on an English book; the French slot even numbers differently (#7 vs #8). Library scan 2026-08-15: the ONLY non-English series name of 322 distinct series across 1475 shelved albums, so pinned rather than fixed in the resolver. PIN RETIRED 2026-08-16: superseded by the SERIES_ALIASES entry 'das magische baumhaus' -> 'Magic Tree House', which covers every book in the series including ones not yet in the library. This row stays as a REGRESSION TEST for that alias.",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "inputsVerified": [
     "live Audible probe 2026-08-15",
     "prod Plex titleSort 2026-08-15",
@@ -27623,7 +27681,7 @@
    "sourceOfTruth": "Operator 2026-08-15: the Magic Tree House shelf is filed under the GERMAN series name. Audible states publication_name 'Magic Tree House' for B002V0LWAE and series [{title: Magic Tree House, sequence: 8}]; GOODREADS_SERIES_AUTHORITY overwrote it with 'Das magische Baumhaus'. Positions were already correct and are unchanged.",
    "group": "named-magic-tree-house",
    "note": "LIVE DEFECT: both series slots are translated (German primary, French secondary) on an English book; the French slot even numbers differently (#7 vs #8). Library scan 2026-08-15: the ONLY non-English series name of 322 distinct series across 1475 shelved albums, so pinned rather than fixed in the resolver. PIN RETIRED 2026-08-16: superseded by the SERIES_ALIASES entry 'das magische baumhaus' -> 'Magic Tree House', which covers every book in the series including ones not yet in the library. This row stays as a REGRESSION TEST for that alias.",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "inputsVerified": [
     "live Audible probe 2026-08-15",
     "prod Plex titleSort 2026-08-15",
@@ -27679,7 +27737,7 @@
    "sourceOfTruth": "Operator 2026-08-15: the Magic Tree House shelf is filed under the GERMAN series name. Audible states publication_name 'Magic Tree House' for B002V0LWAE and series [{title: Magic Tree House, sequence: 8}]; GOODREADS_SERIES_AUTHORITY overwrote it with 'Das magische Baumhaus'. Positions were already correct and are unchanged.",
    "group": "named-magic-tree-house",
    "note": "LIVE DEFECT: both series slots are translated (German primary, French secondary) on an English book; the French slot even numbers differently (#7 vs #8). Library scan 2026-08-15: the ONLY non-English series name of 322 distinct series across 1475 shelved albums, so pinned rather than fixed in the resolver. PIN RETIRED 2026-08-16: superseded by the SERIES_ALIASES entry 'das magische baumhaus' -> 'Magic Tree House', which covers every book in the series including ones not yet in the library. This row stays as a REGRESSION TEST for that alias.",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "inputsVerified": [
     "live Audible probe 2026-08-15",
     "prod Plex titleSort 2026-08-15",
@@ -27734,7 +27792,7 @@
    "sourceOfTruth": "Operator 2026-08-15: the Millennium shelf is split THREE ways in the library -- 'Millennium' (#2,#3,#4,#6), 'Millennium Series' (#5) and 'Millennium: Sylvain Runberg's Adaptation' (#1). All six are the Larsson/Lagercrantz novels and belong on one shelf named Millennium. Goodreads did NOT fire here -- the served series still carries the provider asin B005NAT8KK, so this is Audible's own 'Millennium Series' surviving. Siblings #2 and #4 have no asin and read 'Millennium'.",
    "group": "named-millennium",
    "note": "Shelf-fragmentation defect with TWO distinct causes across the same series: #1 is Goodreads choosing an adaptation series over the novels; #5 is Goodreads not answering at all, leaving the provider name. Library scan 2026-08-15: exactly ONE album carries an adaptation-marked series name, so this is pinned rather than ruled.",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "inputsVerified": [
     "live Audible probe 2026-08-15",
     "prod Plex titleSort 2026-08-15",
@@ -27783,7 +27841,7 @@
    "sourceOfTruth": "Operator 2026-08-18: 'Given our matching preferences I would think the trilogy would be how they are matched' -- the sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR series 54099, 25 members) and never a translated listing (L'Assassin royal 89770/25 members, Vatidico 174690/5, A Saga do Assassino 65022/5). PINNED rather than rule-fixed: excluding the umbrella by name at the ranking promotes L'Assassin royal (25) over The Farseer Trilogy (7) for the works that list it -- measured 2026-08-18, see docs/design/spec-franchise-umbrella-detection.md.",
    "group": "named-umbrella-elderlings",
    "note": "LIVE DEFECT: 2026 re-release; umbrella shelves it and the FRENCH publication series sits in the tag slot. GR work 171715 lists Farseer Trilogy #1.",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "inputsVerified": [
     "prod Plex titleSort 2026-08-18",
     "incipit-api GET /books 2026-08-18",
@@ -27830,7 +27888,7 @@
    "sourceOfTruth": "Operator 2026-08-18: 'Given our matching preferences I would think the trilogy would be how they are matched' -- the sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR series 54099, 25 members) and never a translated listing (L'Assassin royal 89770/25 members, Vatidico 174690/5, A Saga do Assassino 65022/5). PINNED rather than rule-fixed: excluding the umbrella by name at the ranking promotes L'Assassin royal (25) over The Farseer Trilogy (7) for the works that list it -- measured 2026-08-18, see docs/design/spec-franchise-umbrella-detection.md.",
    "group": "named-umbrella-elderlings",
    "note": "LIVE DEFECT: umbrella shelves it, no secondary at all. GR work 4668002 lists Farseer Trilogy #2; the French listing does NOT carry this work.",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "inputsVerified": [
     "prod Plex titleSort 2026-08-18",
     "incipit-api GET /books 2026-08-18",
@@ -27945,7 +28003,7 @@
    "sourceOfTruth": "Operator 2026-08-18: 'Given our matching preferences I would think the trilogy would be how they are matched' -- the sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR series 54099, 25 members) and never a translated listing (L'Assassin royal 89770/25 members, Vatidico 174690/5, A Saga do Assassino 65022/5). PINNED rather than rule-fixed: excluding the umbrella by name at the ranking promotes L'Assassin royal (25) over The Farseer Trilogy (7) for the works that list it -- measured 2026-08-18, see docs/design/spec-franchise-umbrella-detection.md.",
    "group": "named-umbrella-elderlings",
    "note": "LIVE DEFECT: umbrella shelves it at #4 while the correct sub-series sits in the tag slot at #1. GR work 1476156 lists The Liveship Traders #1.",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "inputsVerified": [
     "prod Plex titleSort 2026-08-18",
     "incipit-api GET /books 2026-08-18",
@@ -28010,7 +28068,7 @@
    "sourceOfTruth": "Operator 2026-08-18: 'Given our matching preferences I would think the trilogy would be how they are matched' -- the sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR series 54099, 25 members) and never a translated listing (L'Assassin royal 89770/25 members, Vatidico 174690/5, A Saga do Assassino 65022/5). PINNED rather than rule-fixed: excluding the umbrella by name at the ranking promotes L'Assassin royal (25) over The Farseer Trilogy (7) for the works that list it -- measured 2026-08-18, see docs/design/spec-franchise-umbrella-detection.md.",
    "group": "named-umbrella-elderlings",
    "note": "LIVE DEFECT: raw Audible carries the CORRECT Liveship Traders #3 as its lead series; the authority overwrote it with the umbrella. GR work 2501194 lists The Liveship Traders #3.",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "inputsVerified": [
     "live Audible catalog probe 2026-08-18",
     "prod Plex titleSort 2026-08-18",
@@ -28075,7 +28133,7 @@
    "sourceOfTruth": "Operator 2026-08-18: 'Given our matching preferences I would think the trilogy would be how they are matched' -- the sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR series 54099, 25 members) and never a translated listing (L'Assassin royal 89770/25 members, Vatidico 174690/5, A Saga do Assassino 65022/5). PINNED rather than rule-fixed: excluding the umbrella by name at the ranking promotes L'Assassin royal (25) over The Farseer Trilogy (7) for the works that list it -- measured 2026-08-18, see docs/design/spec-franchise-umbrella-detection.md.",
    "group": "named-umbrella-elderlings",
    "note": "LIVE DEFECT: raw Audible carries the CORRECT Rain Wild Chronicles #4 as its lead series; the authority overwrote it with the umbrella. GR work 18282611 lists Rain Wild Chronicles #4.",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "inputsVerified": [
     "live Audible catalog probe 2026-08-18",
     "prod Plex titleSort 2026-08-18",
@@ -28125,7 +28183,7 @@
    "sourceOfTruth": "Operator 2026-08-18: 'instead of Pern, Book N' -- the 19 sibling albums sit on Pern, Book N and these must too. NOT pinned: the defect is CODE (the edition-preservation guard freezing a stale provider series -- docs/design/spec-edition-guard-freezes-stale-series.md), so these rows must go green from the fix alone; a pin here would hide the guard.",
    "group": "named-pern-edition-guard",
    "note": "LIVE DEFECT: subtitle 'Harper Hall Trilogy, Volume 2' trips EDITION_MARKER_RE on 'trilogy'; the guard keeps the stale #19 (Chronological Order's number wearing Harper Hall's name) on every recompute. Bare cold lookup = Pern #4 (GR work 2971170).",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "inputsVerified": [
     "prod Plex titleSort 2026-08-18",
     "incipit-api GET /books 2026-08-18 (title/subtitle/seriesPrimary as stored)",
@@ -28227,7 +28285,7 @@
    "sourceOfTruth": "Operator 2026-08-18: 'Given our matching preferences I would think the trilogy would be how they are matched' -- the sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR series 54099, 25 members) and never a translated listing (L'Assassin royal 89770/25 members, Vatidico 174690/5, A Saga do Assassino 65022/5). PINNED rather than rule-fixed: excluding the umbrella by name at the ranking promotes L'Assassin royal (25) over The Farseer Trilogy (7) for the works that list it -- measured 2026-08-18, see docs/design/spec-franchise-umbrella-detection.md. | Mad Ship added 2026-08-18: same defect, same evidence -- umbrella primary, correct The Liveship Traders #2 in the secondary slot, GR work 2571145 lists Liveship #2. OpenLibrary-matched, so the pin is reachable only through the portable (title|author) key.",
    "group": "named-umbrella-elderlings",
    "note": "LIVE DEFECT (arrived after the first six were pinned): umbrella shelves it at #5 while the correct sub-series sits in the tag slot at #2. Record is openlibrary-works-OL2707221W -- NOT an ASIN -- so SHELF_PINS[recordId] is the exact key and the (title|author) alias is the portable one.",
-   "knownDefectNow": true,
+   "knownDefectNow": false,
    "inputsVerified": [
     "prod Plex titleSort 2026-08-18",
     "incipit-api GET /books 2026-08-18",
