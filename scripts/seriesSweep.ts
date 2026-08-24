@@ -133,6 +133,11 @@ async function main(): Promise<void> {
 	// confirm pass can run after the whole sweep -- see the elapsed-time note in
 	// helpers/series/sweepConfirm.
 	const toAccept: { id: string; swept: Answer & { available: boolean } }[] = []
+	const freshPending: {
+		id: string
+		swept: Answer & { available: boolean }
+		boxes: string[]
+	}[] = []
 	const queue = [...records.entries()]
 	let done = 0
 	const worker = async (): Promise<void> => {
@@ -143,8 +148,13 @@ async function main(): Promise<void> {
 			const now_ = await served(id)
 			const prior = ledger[id]
 			if (!prior) {
-				fresh.push(id)
-				ledger[id] = { ...now_, firstSeen: now, reviewedAt: now, boxes: [...boxes] }
+				// NOT baselined here. A first-seen row is captured from ONE read of a
+				// live system, and that read can be a transient -- the same failure the
+				// confirm pass stops on CHANGED rows. It is worse here in one way: this
+				// path runs on a PLAIN sweep with no flags, so a wrong baseline lands
+				// with no operator involved, and every later sweep then measures drift
+				// against it. Confirmed below like everything else.
+				freshPending.push({ id, swept: { ...now_ }, boxes: [...boxes] })
 			} else {
 				prior.boxes = [...boxes]
 				const priorUnavailable = Boolean(prior.primary?.startsWith('UNAVAILABLE'))
@@ -198,19 +208,41 @@ async function main(): Promise<void> {
 	// sweep diffs against, so a bad fold re-bases drift detection for that record.
 	let unstable: UnstableRow[] = []
 	let unreadable: string[] = []
-	if (accept && toAccept.length) {
-		console.log(`\nconfirming ${toAccept.length} row(s) by re-read before folding...`)
-		const verdict = await confirmAccepts(toAccept, served)
+	const freshHeld: string[] = []
+	// ONE confirm pass for both, so a sweep never pays two round trips for the
+	// same protection. Accept candidates exist only under --accept; fresh rows
+	// are always present, which is why this is no longer gated on the flag.
+	const pending = [...freshPending, ...(accept ? toAccept : [])]
+	if (pending.length) {
+		console.log(`\nconfirming ${pending.length} row(s) by re-read before writing...`)
+		const verdict = await confirmAccepts(pending, served)
 		unstable = verdict.unstable
 		unreadable = verdict.unreadable
-		for (const c of toAccept) {
-			if (!verdict.confirmed.has(c.id)) continue
-			ledger[c.id] = { ...ledger[c.id], ...c.swept, reviewedAt: now }
+		for (const c of freshPending) {
+			if (!verdict.confirmed.has(c.id)) {
+				// Held, not lost: with no ledger entry the row is simply first-seen
+				// again on the next sweep and gets another read.
+				freshHeld.push(c.id)
+				continue
+			}
+			fresh.push(c.id)
+			ledger[c.id] = { ...c.swept, firstSeen: now, reviewedAt: now, boxes: [...c.boxes] }
+		}
+		if (accept) {
+			for (const c of toAccept) {
+				if (!verdict.confirmed.has(c.id)) continue
+				ledger[c.id] = { ...ledger[c.id], ...c.swept, reviewedAt: now }
+			}
 		}
 	}
 
 	const gone = Object.keys(ledger).filter((id) => !records.has(id))
 	console.log(`\nNEW (auto-baselined): ${fresh.length}`)
+	if (freshHeld.length) {
+		console.log(`NEW HELD BACK - moved or unreadable on re-read (${freshHeld.length}):`)
+		for (const id of freshHeld.slice(0, 20)) console.log(`  ${id}`)
+		if (freshHeld.length > 20) console.log(`  ... and ${freshHeld.length - 20} more`)
+	}
 	console.log(`UNSERVABLE (api cannot answer; not queued): ${flaps.length}`)
 	for (const id of flaps.slice(0, 20)) console.log(`  ${id}`)
 	if (flaps.length > 20) console.log(`  ... and ${flaps.length - 20} more`)
@@ -226,19 +258,27 @@ async function main(): Promise<void> {
 	}
 	console.log(`GONE (in ledger, in no library): ${gone.length}`)
 	if (accept) {
+		// Count and list only the ACCEPT candidates. `unstable`/`unreadable` now
+		// cover the fresh rows too, so subtracting their raw lengths understated
+		// the accepted total and printed first-seen ids under an accept heading.
+		const acceptIds = new Set(toAccept.map((c) => c.id))
+		const acceptUnstable = unstable.filter((u) => acceptIds.has(u.id))
+		const acceptUnreadable = unreadable.filter((id) => acceptIds.has(id))
 		console.log(
-			`\nACCEPTED (re-read still agrees): ${toAccept.length - unstable.length - unreadable.length}`
+			`\nACCEPTED (re-read still agrees): ${
+				toAccept.length - acceptUnstable.length - acceptUnreadable.length
+			}`
 		)
-		if (unstable.length) {
-			console.log(`HELD BACK — moved between reads (${unstable.length}):`)
-			for (const u of unstable)
+		if (acceptUnstable.length) {
+			console.log(`HELD BACK — moved between reads (${acceptUnstable.length}):`)
+			for (const u of acceptUnstable)
 				console.log(
 					`  ${u.id}  swept ${u.swept.primary ?? 'NONE'}  ->  re-read ${u.reread.primary ?? 'NONE'}`
 				)
 		}
-		if (unreadable.length) {
-			console.log(`HELD BACK — api could not answer the re-read (${unreadable.length}):`)
-			for (const id of unreadable) console.log(`  ${id}`)
+		if (acceptUnreadable.length) {
+			console.log(`HELD BACK — api could not answer the re-read (${acceptUnreadable.length}):`)
+			for (const id of acceptUnreadable) console.log(`  ${id}`)
 		}
 	}
 

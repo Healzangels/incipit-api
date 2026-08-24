@@ -32,7 +32,11 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 
-import { foldSeriesName, sameSeriesName, withGoodreadsSeries } from '#helpers/providers/goodreadsSeries'
+import {
+	foldSeriesName,
+	sameSeriesName,
+	withGoodreadsSeries
+} from '#helpers/providers/goodreadsSeries'
 import { applyPins } from '#helpers/series/shelfPins'
 import { applyShelfPolicy } from '#helpers/series/shelfPolicy'
 import { replayStats } from '#helpers/utils/fetchPlus'
@@ -259,6 +263,22 @@ async function evaluate(row: CorpusRow): Promise<RowResult> {
 }
 
 async function main(): Promise<void> {
+	// --smoke SUBSETS; it must not also stand in for gating. The gate diffs
+	// against a baseline recorded over the FULL corpus, so gating a subset
+	// compares a handful of rows to all of them and reports PASS for every row
+	// it never ran. It is worst when the subset is empty: with the
+	// knownDefectNow flags cleared (dda605a) `--smoke --gate` runs 0 rows and
+	// prints "gate PASS", exit 0, having asserted literally nothing. Same class
+	// as the --gate --baseline cancellation below, found the same way.
+	if (flag('--smoke') && flag('--gate')) {
+		console.error(
+			'refusing --gate with --smoke: the baseline covers the full corpus, so gating a ' +
+				'subset passes on every row it did not run (and passes vacuously when the subset ' +
+				'is empty). Run --smoke for the fast loop, --gate on its own to gate.'
+		)
+		process.exit(2)
+	}
+
 	const smoke = flag('--smoke')
 	const rows = smoke ? corpus.rows.filter((r) => r.knownDefectNow) : corpus.rows
 	console.log(
