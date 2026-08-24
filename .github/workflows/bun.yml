@@ -25,8 +25,15 @@ jobs:
         run: bun install
       - name: Run linter
         run: bun lint
+      # test:gate, NOT test: the difference is tests/audible, which makes LIVE
+      # calls to api.audible.com and asserts toEqual against a stored fixture.
+      # That suite cannot tell "our parser broke" from "the publisher edited a
+      # blurb", so it must never decide whether a commit merges. Measured
+      # 2026-08-22: green at 2431/0 in the morning, red the same afternoon with
+      # NO code change, because Audible rewrote the Harry Potter description.
+      # It still runs -- see the audible-live job below.
       - name: Run tests
-        run: bun run test
+        run: bun run test:gate
       - name: Run build
         run: bun run build
 
@@ -80,3 +87,40 @@ jobs:
           MONGODB_URI: mongodb://localhost:27017/?directConnection=true
           SQLITE_PATH: /tmp/migrate-smoke.db
         run: bun scripts/migrateToSqlite.ts --smoke
+
+  # THE LIVE THIRD-PARTY SUITE, deliberately non-blocking.
+  #
+  # tests/audible drives a real StitchHelper against api.audible.com and compares
+  # the result to a fixture with toEqual. Publishers edit marketing copy whenever
+  # they like, so a red here means "the response changed", which is USEFUL to see
+  # and WRONG to gate on: on 2026-08-22 Audible rewrote the Harry Potter blurb
+  # ("A new era of Hogwarts begins...") and added a subtitle field, turning the
+  # repo's gate red with nothing committed.
+  #
+  # continue-on-error, so drift is surfaced as a signal rather than a block. When
+  # this job is red, read the diff before assuming a regression: a failure named
+  # "returned the correct data" is a fixture-vs-live CONTENT diff, and running the
+  # helper directly (new StitchHelper(asin,'us').process()) will succeed. Note also
+  # that a REGION_UNAVAILABLE error from ApiHelper.parseResponse is the
+  # fall-through after baseShape.safeParse fails -- it usually means our schema
+  # missed a field, not that the product is region-locked.
+  #
+  # Separate job, not just a separate step: like the integration job, this keeps it
+  # out of a process where the unit run's file-scope mock.module calls leak.
+  audible-live:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    name: Audible live (non-blocking drift check)
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.14
+      - name: Install dependencies
+        run: bun install
+      - name: Run live Audible tests
+        run: bun run test:audible
