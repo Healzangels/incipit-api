@@ -102,6 +102,15 @@ export interface ChaptarrEdition {
 	chapters?: ChaptarrChapter[]
 	hasChapters?: boolean
 	providerIdsAll?: { az?: string[] }
+	// The Audible multipart family. Unused by enrichment on purpose -- it says
+	// nothing about what a book IS, only about how Audible ships it. The
+	// duration oracle reads it to turn "this file is short" into "this file
+	// holds k of N parts", which names the remedy instead of leaving it to be
+	// guessed. See docs/design/spec-chaptarr-duration-oracle.md.
+	chapterCount?: number | null
+	audibleParts?: { asin?: string; title?: string }[]
+	isAudibleExpectedMultipart?: boolean
+	audibleContentDeliveryType?: string | null
 }
 
 export interface ChaptarrWork {
