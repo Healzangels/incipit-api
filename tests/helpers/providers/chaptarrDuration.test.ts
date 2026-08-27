@@ -51,11 +51,13 @@ describe('durationVerdict', () => {
 	})
 
 	describe('banding at the boundaries', () => {
+		// SHORT values throughout: since the flag band is short-only, a long
+		// boundary table would silently test nothing but the report path.
 		test.each([
-			[1020, 'agree'],
-			[1021, 'report'],
-			[1100, 'report'],
-			[1101, 'flag']
+			[980, 'agree'],
+			[979, 'report'],
+			[900, 'report'],
+			[899, 'flag']
 		])('%ds against 1000s expected -> %s', (plexSec, band) => {
 			expect(durationVerdict((plexSec as number) * 1000, ed(), 'B0041HJKKY').band).toBe(band)
 		})
@@ -84,10 +86,46 @@ describe('durationVerdict', () => {
 			// editionForAsin resolves through providerIdsAll.az, so a regional asin
 			// can return the PARENT edition whose duration legitimately differs.
 			// This is the main false-positive source and is capped at report.
-			const got = durationVerdict(hours(2), ed({ asin: 'B00PARENT1' }), 'B00HYG9KMC')
+			// Must drift SHORT, or it never reaches the flag band this cap exists to
+			// intercept and the test passes without exercising anything.
+			const got = durationVerdict(100_000, ed({ asin: 'B00PARENT1' }), 'B00HYG9KMC')
 			expect(got.exactAsin).toBe(false)
 			expect(got.band).toBe('report')
 			expect(got.reason).toContain('variant')
+		})
+	})
+
+	describe('direction matters: only SHORT means missing content', () => {
+		// Measured on the first live run: a pirateaba Wandering Inn volume came back
+		// 42.38h against an expected 38.25h -- 10.8% LONG -- while Chaptarr's own
+		// record was internally inconsistent about it. Over-length is an edition
+		// difference or bonus material, not damage. Flagging it trains the operator
+		// to ignore flags, and an ignored flag is the same as no oracle.
+		test('a file 10.8% LONGER reports, never flags', () => {
+			const got = durationVerdict(hours(42.38), ed({ durationSeconds: 38.25 * 3600 }), 'B0041HJKKY')
+			expect(got.direction).toBe('long')
+			expect(got.band).toBe('report')
+			expect(got.reason).toContain('not damage')
+		})
+
+		test('the SAME drift the other way FLAGS', () => {
+			// Identical magnitude, opposite verdict -- 892s and 1108s are both 10.8%
+			// off 1000s. My first attempt at this compared 38.25h to 42.38h and
+			// called it "the same drift", which is 9.7% and under the threshold:
+			// the percentage depends on which side is the denominator.
+			const long = durationVerdict(1108 * 1000, ed(), 'B0041HJKKY')
+			const short = durationVerdict(892 * 1000, ed(), 'B0041HJKKY')
+			expect(long.driftPct?.toFixed(1)).toBe(short.driftPct?.toFixed(1))
+			expect(long.band).toBe('report')
+			expect(short.band).toBe('flag')
+		})
+
+		test('a hugely LONG file still only reports', () => {
+			// Even two books merged into one file is not the failure this catches, and
+			// a truncation oracle that shouts about over-length is a worse oracle.
+			expect(
+				durationVerdict(hours(40), ed({ durationSeconds: 10 * 3600 }), 'B0041HJKKY').band
+			).toBe('report')
 		})
 	})
 

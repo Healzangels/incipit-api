@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 
-import { fetchBoxGuids, fetchServedAnswer, parsePlexBoxes } from '#helpers/series/sweepFetch'
+import {
+	fetchBoxGuids,
+	fetchServedAnswer,
+	parsePlexBoxes,
+	tracksWithDurations
+} from '#helpers/series/sweepFetch'
 
 // The drift sweep reads every library record through the api. It runs from an
 // operator workstation, which is NOT in RATE_LIMIT_ALLOWLIST, so its own
@@ -187,5 +192,80 @@ describe('fetchBoxGuids', () => {
 		await expect(
 			fetchBoxGuids(box, 'tok', async () => new Response('<MediaContainer/>', { status: 200 }))
 		).rejects.toThrow(/ZERO incipit records/)
+	})
+})
+
+describe('tracksWithDurations', () => {
+	// The PART duration is the analysed one and the only authoritative figure --
+	// `mvhd` lies (Shadows Linger's header claimed 1412.69 min for a 635 min book).
+	// The Track element carries its own `duration` attribute too, so a bare regex
+	// reads the wrong number and looks perfectly healthy doing it.
+	const track = (attrs: string, part: string) =>
+		`<Track ${attrs}><Media><Part ${part}/></Media></Track>`
+
+	test('reads the PART duration, not the Track element own duration', () => {
+		const xml = track(
+			'guid="com.plexapp.agents.incipit://B0041HJKKY_us/-1/-1?lang=en" title="Soldiers Live" duration="999"',
+			'duration="70164000" audioProfile="lc" file="/x.m4b"'
+		)
+		expect(tracksWithDurations(xml)).toEqual([
+			{ asin: 'B0041HJKKY', durationMs: 70164000, title: 'Soldiers Live' }
+		])
+	})
+
+	test('finds the duration whether it is the first Part attribute or a later one', () => {
+		const first = track(
+			'guid="com.plexapp.agents.incipit://B0041HJKKY_us?lang=en" title="A"',
+			'duration="1000" file="/a.m4b"'
+		)
+		const later = track(
+			'guid="com.plexapp.agents.incipit://B0041HJKKY_us?lang=en" title="A"',
+			'file="/a.m4b" audioProfile="lc" duration="1000"'
+		)
+		expect(tracksWithDurations(first)[0].durationMs).toBe(1000)
+		expect(tracksWithDurations(later)[0].durationMs).toBe(1000)
+	})
+
+	test('takes the track title, never parentTitle or grandparentTitle', () => {
+		const xml = track(
+			'guid="com.plexapp.agents.incipit://B0041HJKKY_us?lang=en" grandparentTitle="Glen Cook" parentTitle="The Black Company" title="Soldiers Live"',
+			'duration="1000"'
+		)
+		expect(tracksWithDurations(xml)[0].title).toBe('Soldiers Live')
+	})
+
+	test('drops ids that cannot resolve against an ASIN-keyed service', () => {
+		// overdrive-… and ISBN guids are UNCOVERED, not failures. Dropping them here
+		// keeps them out of the lookup-error count, where they would read as an
+		// outage rather than as a known blind spot.
+		const xml =
+			track(
+				'guid="com.plexapp.agents.incipit://overdrive-2923812_us?lang=en" title="Arcanum"',
+				'duration="1000"'
+			) +
+			track(
+				'guid="com.plexapp.agents.incipit://1774240327_us?lang=en" title="ISBN thing"',
+				'duration="1000"'
+			) +
+			track(
+				'guid="com.plexapp.agents.incipit://B0041HJKKY_us?lang=en" title="Real"',
+				'duration="1000"'
+			)
+		expect(tracksWithDurations(xml).map((t) => t.asin)).toEqual(['B0041HJKKY'])
+	})
+
+	test('skips a track with no analysed duration rather than reporting zero', () => {
+		// A zero here would become 100% drift downstream -- an alarm built out of
+		// missing data, on a library where analysis is not guaranteed to have run.
+		const xml = track(
+			'guid="com.plexapp.agents.incipit://B0041HJKKY_us?lang=en" title="A"',
+			'file="/a.m4b"'
+		)
+		expect(tracksWithDurations(xml)).toEqual([])
+		expect(
+			tracksWithDurations(
+				track('guid="com.plexapp.agents.incipit://B0041HJKKY_us?lang=en"', 'duration="0"')
+			)
+		).toEqual([])
 	})
 })

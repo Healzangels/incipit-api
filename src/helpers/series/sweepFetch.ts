@@ -135,6 +135,52 @@ export function parsePlexBoxes(raw: string | undefined): PlexBox[] {
 	})
 }
 
+/** One track's ASIN and the duration Plex ANALYSED for it. */
+export interface PlexTrackDuration {
+	asin: string
+	durationMs: number
+	title: string
+}
+
+/**
+ * Every track that carries an ASIN guid AND an analysed duration.
+ *
+ * Two regex traps this deliberately avoids, both of which return plausible
+ * garbage rather than failing:
+ *  - a bare `duration="` matches the TRACK element's own duration as well as the
+ *    PART's. The Part's is the analysed one and the only authoritative figure
+ *    (`mvhd` lies), so this anchors on `<Part `.
+ *  - a bare `title="` would also match `parentTitle=` / `grandparentTitle=` on a
+ *    case-insensitive read; anchoring on a leading space keeps it to the track's
+ *    own title.
+ *
+ * ASIN-shaped ids only. An `overdrive-…` or ISBN guid cannot resolve against an
+ * ASIN-keyed service, so those are dropped HERE rather than being counted as
+ * lookup failures later — the caller reports them as uncovered instead.
+ * @param {string} xml a Plex `?type=10` section listing
+ * @returns {PlexTrackDuration[]} one row per usable track
+ */
+export function tracksWithDurations(xml: string): PlexTrackDuration[] {
+	const out: PlexTrackDuration[] = []
+	for (const block of xml.split('<Track ').slice(1)) {
+		const guid = /guid="com\.plexapp\.agents\.incipit:\/\/([^_"]+)_/.exec(block)
+		if (!guid) continue
+		const asin = guid[1].toUpperCase()
+		// An ISBN-10 is ALSO ten alphanumeric characters, so length alone does not
+		// separate it from an ASIN -- "1774240327" passed a length-only test and
+		// would have been counted as a lookup failure against an ASIN-keyed
+		// service. Requiring a letter drops all-digit ISBNs and keeps ASINs.
+		if (!/^[A-Z0-9]{10}$/.test(asin) || !/[A-Z]/.test(asin)) continue
+		const dur = /<Part (?:[^>]*?\s)?duration="(\d+)"/.exec(block)
+		if (!dur) continue
+		const ms = Number(dur[1])
+		if (!(ms > 0)) continue
+		const title = /\stitle="([^"]*)"/.exec(block)
+		out.push({ asin, durationMs: ms, title: title ? title[1] : '' })
+	}
+	return out
+}
+
 /** The incipit agent guids a Plex library-section listing carries. */
 export function incipitGuids(xml: string): string[] {
 	return [...xml.matchAll(/guid="com\.plexapp\.agents\.incipit:\/\/([^_"]+)_/g)].map((m) => m[1])

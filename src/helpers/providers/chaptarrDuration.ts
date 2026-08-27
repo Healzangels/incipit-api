@@ -30,6 +30,8 @@ export type DurationBand = 'agree' | 'report' | 'flag' | 'skip'
 
 export interface DurationVerdict {
 	band: DurationBand
+	/** Which way it differs. Only `short` can flag -- see the band logic. */
+	direction: 'short' | 'long' | 'exact'
 	/** |plex - expected| / expected, as a percentage. Null when skipped. */
 	driftPct: number | null
 	expectedSeconds: number | null
@@ -42,6 +44,7 @@ export interface DurationVerdict {
 
 const skip = (reason: string): DurationVerdict => ({
 	band: 'skip',
+	direction: 'exact',
 	driftPct: null,
 	expectedSeconds: null,
 	exactAsin: false,
@@ -102,13 +105,24 @@ export function durationVerdict(
 	const driftPct = (Math.abs(plexSeconds - expected) / expected) * 100
 	const exactAsin = (edition.asin ?? '').toUpperCase() === askedAsin.toUpperCase()
 
+	const direction = plexSeconds < expected ? 'short' : plexSeconds > expected ? 'long' : 'exact'
+
+	// ASYMMETRIC ON PURPOSE. Only a SHORT file means missing content, which is the
+	// failure this exists to catch -- Soldiers Live was a third of its book. A file
+	// LONGER than expected is almost always an edition difference or bonus
+	// material, not damage: the first live run flagged a pirateaba Wandering Inn
+	// volume at 42.38h against an expected 38.25h, where Chaptarr's own record was
+	// internally inconsistent (isAudibleExpectedMultipart false, yet four parts
+	// listed). Treating that as damage trains the operator to ignore the flag, and
+	// an ignored flag is the same as no oracle.
 	let band: DurationBand = 'agree'
-	if (driftPct > FLAG_PCT) band = 'flag'
+	if (driftPct > FLAG_PCT) band = direction === 'short' ? 'flag' : 'report'
 	else if (driftPct > AGREE_PCT) band = 'report'
 
 	if (band === 'flag' && !exactAsin) {
 		return {
 			band: 'report',
+			direction,
 			driftPct,
 			expectedSeconds: expected,
 			exactAsin,
@@ -123,6 +137,7 @@ export function durationVerdict(
 
 	return {
 		band,
+		direction,
 		driftPct,
 		expectedSeconds: expected,
 		exactAsin,
@@ -130,8 +145,10 @@ export function durationVerdict(
 			band === 'agree'
 				? 'within tolerance'
 				: band === 'report'
-					? 'differs, but inside the edition-difference band'
-					: 'short or long enough to be damage',
+					? direction === 'long' && driftPct > FLAG_PCT
+						? 'longer than the edition: usually a different edition or bonus content, not damage'
+						: 'differs, but inside the edition-difference band'
+					: 'short enough to be missing content',
 		...(diagnosis ? { diagnosis } : {})
 	}
 }
