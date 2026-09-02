@@ -8,8 +8,10 @@ import type {
 	ProviderCandidate
 } from './types'
 
+import { envInt } from '#helpers/utils/env'
 import fetch from '#helpers/utils/fetchPlus'
 import { normalizeLanguage } from '#helpers/utils/language'
+import { createPacer } from '#helpers/utils/pacer'
 
 /**
  * Chaptarr metadata service (api2.chaptarr.com) — the aggregation server behind
@@ -54,6 +56,51 @@ const BASE = 'https://api2.chaptarr.com'
  */
 const TIMEOUT_MS = 15000
 const NO_RETRIES = 3
+
+/**
+ * Chaptarr's own pacing. ONE pacer for the whole transport, so the search leg,
+ * the three enrichment legs and the duration audit queue together rather than
+ * each discovering the rate limit separately -- the same shape as
+ * hardcoverPacer, and for the same reason. The duration audit first carried a
+ * pacer of its own, which paced only ITS calls while the serving path kept
+ * hitting the same free host unpaced from the same egress; neither side saw the
+ * other's push-back. api2.chaptarr.com 403'd a ~50-request burst while that
+ * design was being sized.
+ *
+ * 'shed', not 'wait': three of the callers sit on a serve path with a time
+ * budget, and a request queued when a push-back lands would sleep out the whole
+ * cooldown and blow it. A batch caller that CAN afford to wait consults
+ * chaptarrStandingDown()/chaptarrStandDownMs() and sleeps on its own terms.
+ *
+ * envInt, not a hand-rolled Number(): it is the one place that decides an empty
+ * string is NOT zero. `CHAPTARR_MIN_GAP_MS=` left dangling in a compose file
+ * would otherwise read as "no pacing at all", and a typo like `350ms` is NaN --
+ * which defeats the gap AND the cooldown outright (measured: waits [] with
+ * standingDown true).
+ */
+const chaptarrPacer = createPacer({
+	minGapMs: () => envInt(process.env.CHAPTARR_MIN_GAP_MS, 350, 0, 60_000),
+	cooldownMs: () => envInt(process.env.CHAPTARR_COOLDOWN_MS, 60_000, 0, 3_600_000),
+	onPushBack: 'shed'
+})
+
+/** Whether the service has pushed back and a cooldown is in force. */
+export const chaptarrStandingDown = (): boolean => chaptarrPacer.standingDown()
+/** Milliseconds until that cooldown lifts, 0 when not standing down. */
+export const chaptarrStandDownMs = (): number => chaptarrPacer.standDownRemainingMs()
+/** Tests only: a module-level pacer otherwise leaks one suite's cooldown into the next. */
+export const resetChaptarrPacer = (): void => chaptarrPacer.reset()
+
+/**
+ * Which statuses are the host telling us to back off? 429 obviously; 503 as
+ * the Goodreads leg already treats it; and 403, because that is the status this
+ * host ACTUALLY sent when it blocked a burst. A cooldown that only arms on 429
+ * fires the next eight requests 350ms apart into a host that has just said no.
+ */
+const isPushBack = (err: unknown): boolean => {
+	const status = (err as { status?: number })?.status
+	return status === 429 || status === 403 || status === 503
+}
 
 /**
  * The CHAPTARR_ENABLED kill-switch, read at CALL time.
@@ -102,15 +149,13 @@ export interface ChaptarrEdition {
 	chapters?: ChaptarrChapter[]
 	hasChapters?: boolean
 	providerIdsAll?: { az?: string[] }
-	// The Audible multipart family. Unused by enrichment on purpose -- it says
-	// nothing about what a book IS, only about how Audible ships it. The
-	// duration oracle reads it to turn "this file is short" into "this file
-	// holds k of N parts", which names the remedy instead of leaving it to be
-	// guessed. See docs/design/spec-chaptarr-duration-oracle.md.
-	chapterCount?: number | null
+	// The Audible multipart pair the duration oracle reads to turn "this file is
+	// short" into "this file holds k of N parts" -- which names the remedy. The
+	// wire body is cast, not validated, so an UNREAD field here is documentation
+	// that can drift from the payload with nothing noticing; only what is
+	// consumed is declared. See docs/design/spec-chaptarr-duration-oracle.md.
 	audibleParts?: { asin?: string; title?: string }[]
 	isAudibleExpectedMultipart?: boolean
-	audibleContentDeliveryType?: string | null
 }
 
 export interface ChaptarrWork {
@@ -163,12 +208,19 @@ function nullOn404(err: unknown): null {
  * @returns {Promise<unknown>} the response body, or null when there is no such record
  */
 export async function chaptarrGet(url: string): Promise<unknown> {
-	const res = await fetch(
-		url,
-		{ headers: { Accept: 'application/json' }, timeout: TIMEOUT_MS },
-		NO_RETRIES
-	).catch(nullOn404)
-	return res?.data ?? null
+	await chaptarrPacer.take()
+	try {
+		const res = await fetch(
+			url,
+			{ headers: { Accept: 'application/json' }, timeout: TIMEOUT_MS },
+			NO_RETRIES
+		).catch(nullOn404)
+		return res?.data ?? null
+	} catch (err) {
+		// A push-back starts a cooldown for EVERY caller, not just this one.
+		if (isPushBack(err)) chaptarrPacer.pushBack()
+		throw err
+	}
 }
 
 export const defaultMatchFetch: ChaptarrMatchFetch = async (q, tags) => {
@@ -244,15 +296,24 @@ export function editionForAsin(
 	asin: string
 ): ChaptarrEdition | null {
 	if (!editions) return null
+	const upper = asin.toUpperCase()
+	// TWO passes, exact first. A single first-match pass let an edition that
+	// merely LISTS the asked ASIN in providerIdsAll.az shadow a later edition
+	// whose own asin IS it -- the parent winning over the child by list order.
+	// The duration oracle then measured the child's file against the parent's
+	// length, read the mismatch as a variant match, and capped a real truncation
+	// to "report". Exact identity is a stronger claim than a variant listing and
+	// must win regardless of where the service put it in the array.
+	for (const e of editions) {
+		if (isAudiobookEdition(e) && (e.asin ?? '').toUpperCase() === upper) return e
+	}
 	// Uppercase BOTH sides wholesale: the service writes the namespace prefix
 	// lowercase ("az:") while ASINs are uppercase, so a one-sided fold
 	// mismatches on the prefix — caught by this file's own first test run.
-	const wanted = `AZ:${asin.toUpperCase()}`
+	const wanted = `AZ:${upper}`
 	for (const e of editions) {
 		if (!isAudiobookEdition(e)) continue
-		if ((e.asin ?? '').toUpperCase() === asin.toUpperCase()) return e
-		const variants = e.providerIdsAll?.az ?? []
-		for (const v of variants) {
+		for (const v of e.providerIdsAll?.az ?? []) {
 			if (v.toUpperCase() === wanted) return e
 		}
 	}

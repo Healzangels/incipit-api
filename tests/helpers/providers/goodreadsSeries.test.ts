@@ -359,6 +359,34 @@ describe('parent-series preference', () => {
 		expect((state as { uncacheable?: boolean }).uncacheable).toBeUndefined()
 	})
 
+	test('a competitor with NO ForeignId is unknowable, not unknown, and does not cap', () => {
+		// seriesRecord returns count 0 for a non-numeric ForeignId WITHOUT asking
+		// the mirror. Reading that as "missing evidence" would mark the lookup
+		// uncacheable on every recompute forever -- a paced /search + /work + one
+		// /series per pool member, every 6h, to learn nothing new. Only an asked-and-
+		// zero count is a guess worth re-checking.
+		const state = { degraded: false }
+		respond(
+			[{ workId: 42 }],
+			{
+				Title: 'The Grief of Stones',
+				Series: [
+					{
+						Title: 'The Chronicles of Osreth',
+						ForeignId: 251,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '3' }]
+					},
+					{ Title: 'Unkeyed Shelf', LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '1' }] }
+				]
+			},
+			members(9)
+		)
+		return fetchGoodreadsSeries('The Grief of Stones', null, undefined, state).then((out) => {
+			expect(out?.primary).toEqual({ name: 'The Chronicles of Osreth', position: '3' })
+			expect((state as { uncacheable?: boolean }).uncacheable).toBeUndefined()
+		})
+	})
+
 	test('a REAL empty series is still memoized-free but ranks last, not first', async () => {
 		// Refusing to memoize a zero costs one re-ask per book for a genuinely
 		// empty series; it must not change the ranking outcome.

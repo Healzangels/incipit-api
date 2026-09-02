@@ -19,19 +19,26 @@
  */
 import type { ChaptarrEdition } from '#helpers/providers/ChaptarrProvider'
 
-/** Agreement ceiling. All three measured matches land under 0.4%. */
+/** Below this is agreement. All three measured matches land under 0.4%. */
 export const AGREE_PCT = 2
-/** Above this it is damage, not an edition difference. */
+/** Above this, a SHORT file is damage rather than an edition difference. */
 export const FLAG_PCT = 10
-/** How close k/N must be to count as "holds k of N parts". */
+/**
+ * How far a file may sit from a k/N boundary, in units of ONE PART. Measured in
+ * part units the windows can never overlap, so nearest-k and first-fit coincide
+ * and an ambiguous shortfall yields no diagnosis rather than a confident wrong
+ * one. A tolerance relative to k*part widened with k and, past four parts, let
+ * "4 of 8" win over a nearer "5 of 8".
+ */
 const PART_TOLERANCE = 0.15
 
 export type DurationBand = 'agree' | 'report' | 'flag' | 'skip'
+export type DurationDirection = 'short' | 'long' | 'exact'
 
 export interface DurationVerdict {
 	band: DurationBand
 	/** Which way it differs. Only `short` can flag -- see the band logic. */
-	direction: 'short' | 'long' | 'exact'
+	direction: DurationDirection
 	/** |plex - expected| / expected, as a percentage. Null when skipped. */
 	driftPct: number | null
 	expectedSeconds: number | null
@@ -65,22 +72,34 @@ const skip = (reason: string): DurationVerdict => ({
  */
 function partDiagnosis(plexSeconds: number, expected: number, parts: number): string | undefined {
 	if (parts < 2 || expected <= 0) return undefined
-	for (let k = 1; k < parts; k += 1) {
-		const want = (expected * k) / parts
-		if (Math.abs(plexSeconds - want) / want <= PART_TOLERANCE) {
-			return `looks like ${k} of ${parts} part(s)`
-		}
-	}
-	return undefined
+	const part = expected / parts
+	// Nearest k, then a window measured in part units -- never first-fit.
+	const k = Math.round(plexSeconds / part)
+	if (k < 1 || k >= parts) return undefined
+	if (Math.abs(plexSeconds - k * part) > PART_TOLERANCE * part) return undefined
+	return `looks like ${k} of ${parts} part(s)`
 }
 
 /**
  * Compare a file's analysed duration against what Chaptarr says the edition is.
  *
- * ⚠️ A VARIANT match never flags. `editionForAsin` resolves through
- * `providerIdsAll.az`, so asking for a regional ASIN can return the PARENT
- * edition -- whose duration may legitimately differ. That is the main
- * false-positive source, so those rows are capped at `report` however far they
+ * Bands are decided on CROSS-MULTIPLIED integers, not on a divided percentage:
+ * `(a / b) * 100` is float-noisy at exactly 2% and 10%, landing either side
+ * depending on `b` (a file exactly 2% short of 60s reads 1.9999…, of 70308s
+ * reads 2.0000…5). The spec says `< 2%` agrees and `> 10%` flags; this is that,
+ * exactly.
+ *
+ * ASYMMETRIC ON PURPOSE. Only a SHORT file means missing content, which is the
+ * failure this exists to catch -- Soldiers Live was a third of its book. A file
+ * LONGER than expected is almost always an edition difference or bonus
+ * material, not damage: the first live run flagged a pirateaba Wandering Inn
+ * volume at 42.38h against an expected 38.25h, where Chaptarr's own record was
+ * internally inconsistent. Treating that as damage trains the operator to
+ * ignore the flag, and an ignored flag is the same as no oracle.
+ *
+ * ⚠️ A VARIANT match never flags. `editionForAsin` prefers an exact asin but can
+ * still resolve through `providerIdsAll.az` to a PARENT edition whose duration
+ * legitimately differs. Those rows are capped at `report` however far they
  * drift. A false alarm here is exactly what cost a file once already.
  * @param {number} plexMs analysed Part duration in milliseconds
  * @param {ChaptarrEdition | null} edition the resolved edition, or null
@@ -102,32 +121,35 @@ export function durationVerdict(
 	if (!(plexMs > 0)) return skip('no analysed duration on the file')
 
 	const plexSeconds = plexMs / 1000
-	const driftPct = (Math.abs(plexSeconds - expected) / expected) * 100
+	const expectedMs = expected * 1000
+	const diffMs = Math.abs(plexMs - expectedMs)
+	const driftPct = (diffMs / expectedMs) * 100
+	const direction: DurationDirection =
+		plexMs < expectedMs ? 'short' : plexMs > expectedMs ? 'long' : 'exact'
 	const exactAsin = (edition.asin ?? '').toUpperCase() === askedAsin.toUpperCase()
+	// diff/expected >= pct/100  <=>  diff*100 >= pct*expected, all integers-ish.
+	const atLeast = (pct: number) => diffMs * 100 >= pct * expectedMs
+	const over = (pct: number) => diffMs * 100 > pct * expectedMs
 
-	const direction = plexSeconds < expected ? 'short' : plexSeconds > expected ? 'long' : 'exact'
-
-	// ASYMMETRIC ON PURPOSE. Only a SHORT file means missing content, which is the
-	// failure this exists to catch -- Soldiers Live was a third of its book. A file
-	// LONGER than expected is almost always an edition difference or bonus
-	// material, not damage: the first live run flagged a pirateaba Wandering Inn
-	// volume at 42.38h against an expected 38.25h, where Chaptarr's own record was
-	// internally inconsistent (isAudibleExpectedMultipart false, yet four parts
-	// listed). Treating that as damage trains the operator to ignore the flag, and
-	// an ignored flag is the same as no oracle.
-	let band: DurationBand = 'agree'
-	if (driftPct > FLAG_PCT) band = direction === 'short' ? 'flag' : 'report'
-	else if (driftPct > AGREE_PCT) band = 'report'
-
-	if (band === 'flag' && !exactAsin) {
-		return {
-			band: 'report',
-			direction,
-			driftPct,
-			expectedSeconds: expected,
-			exactAsin,
-			reason: 'matched via an az variant, so the parent edition may differ; not flagged'
-		}
+	// ONE ordered chain producing band and reason together, so a threshold or
+	// direction rule can never be changed in one and not the other.
+	let band: DurationBand
+	let reason: string
+	if (!atLeast(AGREE_PCT)) {
+		band = 'agree'
+		reason = 'within tolerance'
+	} else if (!over(FLAG_PCT)) {
+		band = 'report'
+		reason = 'differs, but inside the edition-difference band'
+	} else if (direction === 'long') {
+		band = 'report'
+		reason = 'longer than the edition: usually a different edition or bonus content, not damage'
+	} else if (!exactAsin) {
+		band = 'report'
+		reason = 'matched via an az variant, so the parent edition may differ; not flagged'
+	} else {
+		band = 'flag'
+		reason = 'short enough to be missing content'
 	}
 
 	const diagnosis =
@@ -141,14 +163,7 @@ export function durationVerdict(
 		driftPct,
 		expectedSeconds: expected,
 		exactAsin,
-		reason:
-			band === 'agree'
-				? 'within tolerance'
-				: band === 'report'
-					? direction === 'long' && driftPct > FLAG_PCT
-						? 'longer than the edition: usually a different edition or bonus content, not damage'
-						: 'differs, but inside the edition-difference band'
-					: 'short enough to be missing content',
+		reason,
 		...(diagnosis ? { diagnosis } : {})
 	}
 }

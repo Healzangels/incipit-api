@@ -79,3 +79,5 @@ docker-compose.env
 # Python bytecode (scripts/)
 __pycache__/
 *.pyc
+# duration audit per-ASIN cache
+.cache/

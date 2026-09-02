@@ -28,7 +28,7 @@
  * then. This narrows the window; it does not close it. A row that is wrong for
  * longer than one sweep still needs a human to reject it.
  */
-import type { Answer, ServedAnswer } from '#helpers/series/sweepFetch'
+import { type Answer, answerOf, sameAnswer, type ServedAnswer } from '#helpers/series/sweepFetch'
 
 /** A row the sweep would fold, plus the answer it actually read. */
 export interface ConfirmCandidate {
@@ -51,9 +51,6 @@ export interface ConfirmResult {
 	unreadable: string[]
 }
 
-const same = (a: Answer, b: Answer): boolean =>
-	a.primary === b.primary && a.secondary === b.secondary
-
 /**
  * Re-read every candidate and report which ones still agree with the sweep.
  *
@@ -71,20 +68,34 @@ const same = (a: Answer, b: Answer): boolean =>
  */
 export async function confirmAccepts(
 	candidates: ConfirmCandidate[],
-	reread: (id: string) => Promise<ServedAnswer>
+	reread: (id: string) => Promise<ServedAnswer>,
+	concurrency = 1
 ): Promise<ConfirmResult> {
 	const confirmed = new Set<string>()
 	const unstable: UnstableRow[] = []
 	const unreadable: string[] = []
-	for (const c of candidates) {
-		const now = await reread(c.id)
-		if (!now.available) {
-			unreadable.push(c.id)
-			continue
+	// Pooled, not serial. The independence argument only needs the re-read to
+	// happen AFTER the sweep, not one at a time: a serial pass over --init's
+	// ~1,700 fresh rows was ~7 minutes on a ~70s sweep. Results are recorded in
+	// candidate order regardless of completion order, so output is stable.
+	const queue = [...candidates]
+	const worker = async (): Promise<void> => {
+		for (;;) {
+			const c = queue.shift()
+			if (!c) return
+			const now = await reread(c.id)
+			if (!now.available) {
+				unreadable.push(c.id)
+				continue
+			}
+			const seen = answerOf(now)
+			if (sameAnswer(c.swept, seen)) confirmed.add(c.id)
+			else unstable.push({ id: c.id, swept: c.swept, reread: seen })
 		}
-		const seen: Answer = { primary: now.primary, secondary: now.secondary }
-		if (same(c.swept, seen)) confirmed.add(c.id)
-		else unstable.push({ id: c.id, swept: c.swept, reread: seen })
 	}
+	await Promise.all(Array.from({ length: Math.max(1, concurrency) }, () => worker()))
+	const order = new Map(candidates.map((c, i) => [c.id, i]))
+	unstable.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
+	unreadable.sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0))
 	return { confirmed, unstable, unreadable }
 }

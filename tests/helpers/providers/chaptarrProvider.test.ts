@@ -133,6 +133,25 @@ describe('fetchBookByAsin (the rescue path)', () => {
 		expect(editionForAsin(editions, 'b00hyg9kmc')?.asin).toBe('B00HYGYN5Q')
 		expect(editionForAsin(editions, 'B0ABSENT99')).toBeNull()
 	})
+
+	test('an EXACT asin beats a variant listing regardless of list order', () => {
+		// A parent edition that merely LISTS the child's asin in providerIdsAll.az
+		// sat earlier in the array and shadowed the child's own edition. The
+		// duration oracle then measured the child's file against the PARENT's
+		// length, saw a variant match, and capped a real truncation to "report".
+		const editions = [
+			{
+				asin: 'B00PARENT1',
+				formatType: 'audiobook',
+				durationSeconds: 70000,
+				providerIdsAll: { az: ['az:B00PARENT1', 'az:B00CHILD01'] }
+			},
+			{ asin: 'B00CHILD01', formatType: 'audiobook', durationSeconds: 35000 }
+		]
+		expect(editionForAsin(editions, 'B00CHILD01')?.asin).toBe('B00CHILD01')
+		// The variant path still works when there is no exact edition at all.
+		expect(editionForAsin(editions.slice(0, 1), 'B00CHILD01')?.asin).toBe('B00PARENT1')
+	})
 })
 
 /**

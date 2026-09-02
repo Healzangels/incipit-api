@@ -49,10 +49,18 @@ describe('the test gate covers every test directory', () => {
 	const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
 		scripts: Record<string, string>
 	}
-	const gated = pkg.scripts.test
+	// Every script CI actually RUNS: the blocking gate (`test`) plus the
+	// non-blocking live job (`test:audible`). A directory is governed when either
+	// names it, an ancestor of it, or a FILE inside it -- the gate now names the
+	// two hermetic Audible scrape suites by file so their live siblings can run
+	// unblocked. This guard once read only `test` while CI ran `test:gate`, and
+	// so certified a script CI no longer executed.
+	const tokens = [pkg.scripts.test, pkg.scripts['test:audible'] ?? '']
+		.join(' ')
 		.split(/\s+/)
 		.filter((token) => token.startsWith('tests/'))
 		.map((token) => token.replace(/\/$/, ''))
+	const gated = tokens.map((t) => (t.endsWith('.test.ts') ? t.replace(/\/[^/]+$/, '') : t))
 
 	test('the gate names at least the directories it always has', () => {
 		// Guards against the list being emptied or the script being rewritten into
@@ -70,9 +78,12 @@ describe('the test gate covers every test directory', () => {
 				!covered(d) &&
 				!Object.keys(INTENTIONALLY_UNGATED).some((a) => d === a || d.startsWith(`${a}/`))
 		)
-		expect({ ungoverned, hint: 'add to package.json "test" or to INTENTIONALLY_UNGATED' }).toEqual({
+		expect({
+			ungoverned,
+			hint: 'add to package.json "test" (or "test:audible" for live suites) or to INTENTIONALLY_UNGATED'
+		}).toEqual({
 			ungoverned: [],
-			hint: 'add to package.json "test" or to INTENTIONALLY_UNGATED'
+			hint: 'add to package.json "test" (or "test:audible" for live suites) or to INTENTIONALLY_UNGATED'
 		})
 	})
 

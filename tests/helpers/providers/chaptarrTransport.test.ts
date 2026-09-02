@@ -14,10 +14,17 @@ import { afterEach, describe, expect, mock, test } from 'bun:test'
 const fetchMock = mock()
 mock.module('#helpers/utils/fetchPlus', () => ({ default: fetchMock }))
 
+// Pacing is read at CALL time, so this zeroes the gap for the whole file: the
+// transport now paces every call, and 350ms between each assertion here would
+// only measure the clock.
+process.env.CHAPTARR_MIN_GAP_MS = '0'
+
 const {
 	default: ChaptarrProvider,
 	chaptarrGet,
-	fetchChaptarrWork
+	chaptarrStandingDown,
+	fetchChaptarrWork,
+	resetChaptarrPacer
 } = await import('#helpers/providers/ChaptarrProvider')
 const { chaptarrAuthorInfo } = await import('#helpers/providers/chaptarrAuthor')
 
@@ -26,7 +33,11 @@ function httpError(status: number): Error & { status: number } {
 	return Object.assign(new Error(`Request failed with status ${status}`), { status })
 }
 
-afterEach(() => fetchMock.mockReset())
+afterEach(() => {
+	fetchMock.mockReset()
+	// The pacer is module-level; one test's push-back must not stand the next down.
+	resetChaptarrPacer()
+})
 
 describe('the match leg', () => {
 	// The work leg has always wrapped its errors; the match leg did not. A 404
@@ -115,5 +126,30 @@ describe('every leg is bounded', () => {
 		fetchMock.mockImplementationOnce(() => Promise.resolve({ data: { ok: 1 } }))
 		expect(await chaptarrGet('https://api2.chaptarr.test/x')).toEqual({ ok: 1 })
 		bounded(fetchMock.mock.calls[0])
+	})
+})
+
+describe('the transport pacer', () => {
+	// ONE pacer for every caller of api2.chaptarr.com. A first version of the
+	// duration audit paced only itself while the serving path stayed unpaced
+	// from the same egress; neither saw the other's push-back.
+	test.each([429, 403, 503])('a %d arms a cooldown for EVERY caller', async (status) => {
+		fetchMock.mockImplementationOnce(() => Promise.reject(httpError(status)))
+		await expect(chaptarrGet('https://api2.chaptarr.com/api/v5/book/az:B1')).rejects.toThrow()
+		// 403 is the status this host ACTUALLY sent when it blocked a burst; a
+		// cooldown that armed only on 429 fired the next eight requests into it.
+		expect(chaptarrStandingDown()).toBe(true)
+	})
+
+	test('a 404 is an answer, not a push-back', async () => {
+		fetchMock.mockImplementationOnce(() => Promise.reject(httpError(404)))
+		expect(await chaptarrGet('https://api2.chaptarr.com/api/v5/book/az:B1')).toBeNull()
+		expect(chaptarrStandingDown()).toBe(false)
+	})
+
+	test('a 500 rejects without arming a cooldown', async () => {
+		fetchMock.mockImplementationOnce(() => Promise.reject(httpError(500)))
+		await expect(chaptarrGet('https://api2.chaptarr.com/api/v5/book/az:B1')).rejects.toThrow()
+		expect(chaptarrStandingDown()).toBe(false)
 	})
 })

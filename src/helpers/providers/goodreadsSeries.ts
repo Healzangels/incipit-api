@@ -2073,11 +2073,19 @@ async function lookupByTitle(
 			// narrower shelf for the 30-day hit TTL: the same 'one series, two
 			// shelves' split the memo refusal in seriesRecord prevents in-process,
 			// reproduced through redis instead.
+			// Only a competitor that was ASKED and came back 0 is "unknown". A
+			// series with no numeric ForeignId gets count 0 by construction, without
+			// a request -- it is unknowABLE, not unknown, and capping on it would
+			// re-pay the whole paced lookup every 6h forever with no possible
+			// resolution. `ranked.slice(1)`: every tied loser, never the winner.
 			const winner = ranked[0]
-			rankedOnUnknownCount =
-				winner !== undefined &&
-				pool.some(
-					(s) => s !== winner && positioned(s) === positioned(winner) && (counts.get(s) ?? 0) === 0
+			rankedOnUnknownCount = ranked
+				.slice(1)
+				.some(
+					(s) =>
+						typeof s.ForeignId === 'number' &&
+						positioned(s) === positioned(winner) &&
+						(counts.get(s) ?? 0) === 0
 				)
 		}
 

@@ -270,6 +270,13 @@ async function main(): Promise<void> {
 	// knownDefectNow flags cleared (dda605a) `--smoke --gate` runs 0 rows and
 	// prints "gate PASS", exit 0, having asserted literally nothing. Same class
 	// as the --gate --baseline cancellation below, found the same way.
+	if (flag('--smoke') && flag('--baseline')) {
+		console.error(
+			'refusing --baseline with --smoke: a subset run must never overwrite the full-corpus ' +
+				'reviewed baseline (with the flags cleared it would write rowCount 0, fails []).'
+		)
+		process.exit(2)
+	}
 	if (flag('--smoke') && flag('--gate')) {
 		console.error(
 			'refusing --gate with --smoke: the baseline covers the full corpus, so gating a ' +
@@ -281,6 +288,13 @@ async function main(): Promise<void> {
 
 	const smoke = flag('--smoke')
 	const rows = smoke ? corpus.rows.filter((r) => r.knownDefectNow) : corpus.rows
+	if (smoke && !rows.length) {
+		console.log(
+			'series harness: --smoke selected 0 rows (no knownDefectNow flags are set). Nothing ran.'
+		)
+		// Not a pass. A smoke run that runs nothing must not exit 0 and read as green.
+		process.exit(3)
+	}
 	console.log(
 		`series harness: ${rows.length} rows (${smoke ? 'smoke: knownDefectNow' : 'full corpus'}), mirror=${process.env.GOODREADS_SERIES_URL}`
 	)
@@ -418,7 +432,30 @@ async function main(): Promise<void> {
 			console.error('no baseline; run --baseline first')
 			process.exit(2)
 		}
-		const baseline = JSON.parse(readFileSync(BASELINE_PATH, 'utf8')) as { fails: RowResult[] }
+		const baseline = JSON.parse(readFileSync(BASELINE_PATH, 'utf8')) as {
+			fails: RowResult[]
+			rowCount?: number
+		}
+		// THE invariant the two pairwise refusals above are cases of: the gate and
+		// the baseline must be computed over the same row set. A gate over FEWER
+		// rows than the baseline passes on every row it never ran -- vacuously.
+		// More rows is fine (a new corpus row can only add a NEW failure), so warn
+		// rather than refuse; a baseline older than the corpus is worth knowing.
+		if (typeof baseline.rowCount === 'number') {
+			if (rows.length < baseline.rowCount) {
+				console.error(
+					`refusing to gate ${rows.length} rows against a baseline recorded over ` +
+						`${baseline.rowCount}: a subset gate passes vacuously on every row it did not run.`
+				)
+				process.exit(2)
+			}
+			if (rows.length > baseline.rowCount) {
+				console.log(
+					`  note: corpus has ${rows.length} rows, baseline was recorded over ${baseline.rowCount} ` +
+						'-- re-run --baseline after reviewing the new rows.'
+				)
+			}
+		}
 		// New failures key by ROW, not row|class: an already-red album drifting
 		// between red classes (junk name removed -> MISSING instead of WRONG) is
 		// progress to report, not a fresh regression to block on.

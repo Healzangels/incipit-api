@@ -1,9 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+	albumsFromListing,
 	fetchBoxGuids,
+	fetchBoxXml,
 	fetchServedAnswer,
 	parsePlexBoxes,
+	sameAnswer,
 	tracksWithDurations
 } from '#helpers/series/sweepFetch'
 
@@ -267,5 +270,110 @@ describe('tracksWithDurations', () => {
 				track('guid="com.plexapp.agents.incipit://B0041HJKKY_us?lang=en"', 'duration="0"')
 			)
 		).toEqual([])
+	})
+})
+
+describe('albumsFromListing', () => {
+	const track = (attrs: string, part: string) =>
+		`<Track ${attrs}><Media><Part ${part}/></Media></Track>`
+	const g = 'guid="com.plexapp.agents.incipit://B0041HJKKY_us/-1/-1?lang=en"'
+
+	test('groups tracks by ALBUM and names the album, not the first track', () => {
+		const xml =
+			track(
+				`${g} parentRatingKey="700" parentTitle="Soldiers Live" title="Part 1"`,
+				'duration="1000"'
+			) +
+			track(
+				`${g} parentRatingKey="700" parentTitle="Soldiers Live" title="Part 2"`,
+				'duration="2000"'
+			)
+		const [album] = albumsFromListing(xml)
+		expect(album).toEqual({
+			key: '700',
+			asin: 'B0041HJKKY',
+			title: 'Soldiers Live',
+			tracks: [{ durationMs: 1000 }, { durationMs: 2000 }]
+		})
+	})
+
+	test('keeps two albums matched to ONE asin as two albums', () => {
+		// The twin shape this library mints. Summed together, a consolidated copy
+		// plus a truncated fragment reads as "long, not damage" and the fragment
+		// is masked. Kept apart, the fragment is judged on its own.
+		const xml =
+			track(`${g} parentRatingKey="700" parentTitle="Soldiers Live"`, 'duration="70000000"') +
+			track(`${g} parentRatingKey="701" parentTitle="Soldiers Live"`, 'duration="23600000"')
+		const albums = albumsFromListing(xml)
+		expect(albums.map((a) => a.key)).toEqual(['700', '701'])
+		expect(albums.every((a) => a.asin === 'B0041HJKKY')).toBe(true)
+	})
+
+	test('records an UNANALYSED track as null instead of dropping it', () => {
+		// Dropping it is how two analysed tracks of three summed to 2/3 and read as
+		// a truncation. The caller must see that the album is incomplete.
+		const xml =
+			track(`${g} parentRatingKey="700" parentTitle="X"`, 'duration="1000"') +
+			track(`${g} parentRatingKey="700" parentTitle="X"`, 'file="/b.m4b"') +
+			track(`${g} parentRatingKey="700" parentTitle="X"`, 'duration="0"')
+		expect(albumsFromListing(xml)[0].tracks).toEqual([
+			{ durationMs: 1000 },
+			{ durationMs: null },
+			{ durationMs: null }
+		])
+	})
+
+	test('decodes XML entities in the title', () => {
+		const xml = track(
+			`${g} parentRatingKey="700" parentTitle="Harry Potter and the Philosopher&#39;s Stone &amp; more"`,
+			'duration="1"'
+		)
+		expect(albumsFromListing(xml)[0].title).toBe("Harry Potter and the Philosopher's Stone & more")
+	})
+
+	test('drops non-ASIN ids and tracks with no incipit guid', () => {
+		const xml =
+			track(
+				'guid="com.plexapp.agents.incipit://overdrive-1_us?lang=en" parentRatingKey="1"',
+				'duration="1"'
+			) +
+			track(
+				'guid="com.plexapp.agents.incipit://1774240327_us?lang=en" parentRatingKey="2"',
+				'duration="1"'
+			) +
+			track('guid="local://3" parentRatingKey="3"', 'duration="1"')
+		expect(albumsFromListing(xml)).toEqual([])
+	})
+})
+
+describe('fetchBoxXml', () => {
+	const box = { host: '10.0.0.2', section: '6', name: 'prod' }
+	test('throws on a non-OK response instead of handing back an error page', async () => {
+		// `await (await fetch(url)).text()` with no status check let an expired
+		// token read as an empty library and a CLEAN audit.
+		const fetchImpl = (async () =>
+			new Response('<html>unauthorized</html>', { status: 401 })) as typeof fetch
+		await expect(fetchBoxXml(box, 'tok', 10, fetchImpl)).rejects.toThrow(/HTTP 401/)
+	})
+	test('asks for the requested type and returns the body on 200', async () => {
+		let url = ''
+		const fetchImpl = (async (u: string | URL | Request) => {
+			url = String(u)
+			return new Response('<MediaContainer/>', { status: 200 })
+		}) as typeof fetch
+		expect(await fetchBoxXml(box, 'tok', 10, fetchImpl)).toBe('<MediaContainer/>')
+		expect(url).toContain('type=10')
+		expect(url).toContain('/library/sections/6/all')
+	})
+})
+
+describe('sameAnswer', () => {
+	test('compares BOTH slots', () => {
+		expect(
+			sameAnswer({ primary: 'A #1', secondary: null }, { primary: 'A #1', secondary: null })
+		).toBe(true)
+		expect(
+			sameAnswer({ primary: 'A #1', secondary: 'B #2' }, { primary: 'A #1', secondary: null })
+		).toBe(false)
 	})
 })

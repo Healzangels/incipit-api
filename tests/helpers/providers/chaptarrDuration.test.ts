@@ -53,9 +53,12 @@ describe('durationVerdict', () => {
 	describe('banding at the boundaries', () => {
 		// SHORT values throughout: since the flag band is short-only, a long
 		// boundary table would silently test nothing but the report path.
+		// Per the spec: `< 2%` agrees (so exactly 2% reports), `> 10%` flags (so
+		// exactly 10% reports). Decided on cross-multiplied integers, because
+		// (a / b) * 100 lands either side of 2 depending on b.
 		test.each([
-			[980, 'agree'],
-			[979, 'report'],
+			[981, 'agree'],
+			[980, 'report'],
 			[900, 'report'],
 			[899, 'flag']
 		])('%ds against 1000s expected -> %s', (plexSec, band) => {
@@ -63,12 +66,30 @@ describe('durationVerdict', () => {
 		})
 	})
 
+	test('the boundary holds for an awkward denominator, not just 1000', () => {
+		// 60s and 70308s (Soldiers Live's own length) both put (a/b)*100 a hair off
+		// 2 and 10; integer cross-multiplication does not.
+		for (const expected of [60, 70308, 12345]) {
+			expect(
+				durationVerdict(expected * 0.98 * 1000, ed({ durationSeconds: expected }), 'B0041HJKKY')
+					.band
+			).toBe('report')
+			expect(
+				durationVerdict(expected * 0.9 * 1000, ed({ durationSeconds: expected }), 'B0041HJKKY').band
+			).toBe('report')
+			expect(
+				durationVerdict(expected * 0.899 * 1000, ed({ durationSeconds: expected }), 'B0041HJKKY')
+					.band
+			).toBe('flag')
+		}
+	})
+
 	describe('what must never produce an alarm', () => {
 		test('a missing durationSeconds is a SKIP, not 100% drift', () => {
 			// Absent is not zero. Reading it as zero builds an alarm out of missing
 			// data and would flag every edition Chaptarr has not measured.
 			for (const bad of [undefined, null, 0]) {
-				const got = durationVerdict(hours(10), ed({ durationSeconds: bad as never }), 'B0041HJKKY')
+				const got = durationVerdict(hours(10), ed({ durationSeconds: bad }), 'B0041HJKKY')
 				expect(got.band).toBe('skip')
 				expect(got.driftPct).toBeNull()
 			}
@@ -149,6 +170,51 @@ describe('durationVerdict', () => {
 					durationSeconds: 3 * 3600,
 					isAudibleExpectedMultipart: true,
 					audibleParts: [{ asin: 'a' }, { asin: 'b' }, { asin: 'c' }]
+				}),
+				'B0041HJKKY'
+			)
+			expect(got.band).toBe('flag')
+			expect(got.diagnosis).toBeUndefined()
+		})
+
+		test('names the NEAREST k, measured in part units', () => {
+			// 19.6h of a 24h six-part title: 0.4h from the 5-of-6 boundary (20h),
+			// inside a 0.15-part (0.6h) window.
+			const six = Array.from({ length: 6 }, (_, i) => ({ asin: String(i) }))
+			const got = durationVerdict(
+				hours(19.6),
+				ed({ durationSeconds: 24 * 3600, isAudibleExpectedMultipart: true, audibleParts: six }),
+				'B0041HJKKY'
+			)
+			expect(got.diagnosis).toBe('looks like 5 of 6 part(s)')
+		})
+
+		test('the first-fit trap: a value inside the OLD k=4 window gets NO diagnosis now', () => {
+			// 18.24h of 24h across 6 parts. A tolerance relative to k*part put this
+			// inside the k=4 window [13.6h, 18.4h] and printed "4 of 6", though 5 of 6
+			// (20h) is nearer. In part units it is 1.76h from the nearest boundary
+			// against a 0.6h window: ambiguous, so say nothing rather than name a
+			// wrong number of missing parts.
+			const six = Array.from({ length: 6 }, (_, i) => ({ asin: String(i) }))
+			const got = durationVerdict(
+				hours(18.24),
+				ed({ durationSeconds: 24 * 3600, isAudibleExpectedMultipart: true, audibleParts: six }),
+				'B0041HJKKY'
+			)
+			expect(got.band).toBe('flag')
+			expect(got.diagnosis).toBeUndefined()
+		})
+
+		test('an ambiguous shortfall between two k yields NO diagnosis', () => {
+			// 570 of 1000 across 8 parts (125 each) is 4.56 parts -- nearer 5 (625)
+			// but 55s off it, past a 0.15-part window of 18.75s. Say nothing rather
+			// than name a wrong number of missing parts.
+			const got = durationVerdict(
+				570 * 1000,
+				ed({
+					durationSeconds: 1000,
+					isAudibleExpectedMultipart: true,
+					audibleParts: Array.from({ length: 8 }, (_, i) => ({ asin: String(i) }))
 				}),
 				'B0041HJKKY'
 			)
