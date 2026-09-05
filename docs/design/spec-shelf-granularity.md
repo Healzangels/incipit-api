@@ -1,8 +1,12 @@
 # Spec — shelf granularity: which of a work's competing series is the shelf
 
-Status: **SHIPPED 2026-09-05 — A/B complete, seven pins retired at the operator's direction, all gates green.** Supersedes `spec-franchise-umbrella-detection.md`
-(2026-08-18), whose §6 named member-set containment as "the one viable general
-design" — §4.1 below refutes that with full member sets. Nothing implemented.
+Status: **SHIPPED AND LIVE 2026-09-05 — A/B complete, ten pins retired at the
+operator's direction (seven Hobb, three Bill Hodges), all gates green, deployed
+to prod as `6910735` and verified by digest.** Supersedes
+`spec-franchise-umbrella-detection.md` (2026-08-18), whose §6 named member-set
+containment as "the one viable general design" — §4.1 below refutes that with
+full member sets. §§1–5 are the problem statement and measurements as they stood
+before the change; §§6–10 are the design, the A/B, the release and its checks.
 
 Operator framing, verbatim: *"I feel like this could be the crux of the whole
 project with proper series as it ruins the sorting/series order within plex."*
