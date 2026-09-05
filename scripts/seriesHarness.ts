@@ -106,6 +106,8 @@ if (DETERMINISM) process.env.GOODREADS_DEGRADED_COOLDOWN_MS = '0'
 
 const args = process.argv.slice(2)
 const flag = (name: string) => args.includes(name)
+/** Run with both pin tables empty — the A/B arm switch. See the resolve site. */
+const NO_PINS = args.includes('--no-pins')
 const opt = (name: string): string | undefined => {
 	const i = args.indexOf(name)
 	return i >= 0 ? args[i + 1] : undefined
@@ -194,8 +196,15 @@ async function evaluate(row: CorpusRow): Promise<RowResult> {
 	try {
 		// Model the FULL serve pipeline: the route applies the shelf policy after
 		// enrichment, so the harness must too or it scores an output nobody serves.
+		// NO_PINS runs the pipeline with both pin tables empty. A pin MASKS the
+		// resolver: with pins on, a row can read MATCH because an operator answered
+		// it by hand, which is exactly what an A/B for a resolver change must not
+		// score. Arm A with --no-pins is the honest statement of what the resolver
+		// does unaided; a fix is only proved when those rows heal WITHOUT pins.
 		const out = applyShelfPolicy(
-			applyPins(await withGoodreadsSeries(book, null), row.recordId)
+			NO_PINS
+				? await withGoodreadsSeries(book, null)
+				: applyPins(await withGoodreadsSeries(book, null), row.recordId)
 		) as {
 			seriesPrimary?: CorpusSeries
 			seriesSecondary?: CorpusSeries
@@ -296,7 +305,7 @@ async function main(): Promise<void> {
 		process.exit(3)
 	}
 	console.log(
-		`series harness: ${rows.length} rows (${smoke ? 'smoke: knownDefectNow' : 'full corpus'}), mirror=${process.env.GOODREADS_SERIES_URL}`
+		`series harness: ${rows.length} rows (${smoke ? 'smoke: knownDefectNow' : 'full corpus'}), mirror=${process.env.GOODREADS_SERIES_URL}${NO_PINS ? ', PINS DISABLED (--no-pins)' : ''}`
 	)
 	const results: RowResult[] = []
 	const queue = [...rows]

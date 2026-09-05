@@ -1,6 +1,9 @@
 # Spec — franchise umbrellas that carry no `-verse` tell
 
-Status: **PROPOSAL REJECTED after measurement, 2026-08-18.** The defect is real;
+Status: **PROPOSAL REJECTED after measurement, 2026-08-18.**
+**§6 SUPERSEDED 2026-09-05** — member-set containment is refuted over FULL member
+sets (it holds in no pair, and cannot separate a true parent from an umbrella).
+See `spec-shelf-granularity.md`, which replaces this document as the live design. The defect is real;
 the proposed general rule is not safe. The six affected books were fixed by
 OPERATOR PINS (corpus group `named-umbrella-elderlings`, mintPin: true). The
 only viable general design found is documented in §6 and is deliberately NOT

@@ -27840,7 +27840,7 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-08-18: 'Given our matching preferences I would think the trilogy would be how they are matched' -- the sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR series 54099, 25 members) and never a translated listing (L'Assassin royal 89770/25 members, Vatidico 174690/5, A Saga do Assassino 65022/5). PINNED rather than rule-fixed: excluding the umbrella by name at the ranking promotes L'Assassin royal (25) over The Farseer Trilogy (7) for the works that list it -- measured 2026-08-18, see docs/design/spec-franchise-umbrella-detection.md.",
    "group": "named-umbrella-elderlings",
-   "note": "LIVE DEFECT: 2026 re-release; umbrella shelves it and the FRENCH publication series sits in the tag slot. GR work 171715 lists Farseer Trilogy #1.",
+   "note": "LIVE DEFECT: 2026 re-release; umbrella shelves it and the FRENCH publication series sits in the tag slot. GR work 171715 lists Farseer Trilogy #1. | PIN RETIRED 2026-09-05: UMBRELLA_SERIES {54099} + parallel-listing deny make it redundant (A/B: 10 healed / 0 broke with pins off); row kept as a regression test for the rule.",
    "knownDefectNow": false,
    "inputsVerified": [
     "prod Plex titleSort 2026-08-18",
@@ -27848,7 +27848,7 @@
     "GR mirror /work + /series member counts 2026-08-18",
     "provider inputs NOT verified: live catalog probe 2026-08-18 returned no product"
    ],
-   "mintPin": true
+   "mintPin": false
   },
   {
    "recordId": "B003NYOBOQ",
@@ -27887,7 +27887,7 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-08-18: 'Given our matching preferences I would think the trilogy would be how they are matched' -- the sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR series 54099, 25 members) and never a translated listing (L'Assassin royal 89770/25 members, Vatidico 174690/5, A Saga do Assassino 65022/5). PINNED rather than rule-fixed: excluding the umbrella by name at the ranking promotes L'Assassin royal (25) over The Farseer Trilogy (7) for the works that list it -- measured 2026-08-18, see docs/design/spec-franchise-umbrella-detection.md.",
    "group": "named-umbrella-elderlings",
-   "note": "LIVE DEFECT: umbrella shelves it, no secondary at all. GR work 4668002 lists Farseer Trilogy #2; the French listing does NOT carry this work.",
+   "note": "LIVE DEFECT: umbrella shelves it, no secondary at all. GR work 4668002 lists Farseer Trilogy #2; the French listing does NOT carry this work. | PIN RETIRED 2026-09-05: UMBRELLA_SERIES {54099} + parallel-listing deny make it redundant (A/B: 10 healed / 0 broke with pins off); row kept as a regression test for the rule.",
    "knownDefectNow": false,
    "inputsVerified": [
     "prod Plex titleSort 2026-08-18",
@@ -27895,7 +27895,7 @@
     "GR mirror /work + /series member counts 2026-08-18",
     "provider inputs NOT verified: live catalog probe 2026-08-18 returned no product"
    ],
-   "mintPin": true
+   "mintPin": false
   },
   {
    "recordId": "B003XWVC0E",
@@ -27952,7 +27952,7 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-08-18: 'Given our matching preferences I would think the trilogy would be how they are matched' -- the sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR series 54099, 25 members) and never a translated listing (L'Assassin royal 89770/25 members, Vatidico 174690/5, A Saga do Assassino 65022/5). PINNED rather than rule-fixed: excluding the umbrella by name at the ranking promotes L'Assassin royal (25) over The Farseer Trilogy (7) for the works that list it -- measured 2026-08-18, see docs/design/spec-franchise-umbrella-detection.md.",
    "group": "named-umbrella-elderlings",
-   "note": "CONTROL, currently CORRECT: provider primary already Farseer Trilogy. Pinned to LOCK it: at the ranking, L'Assassin royal (25 members) outranks Farseer (7) for GR work 503752 the moment the umbrella is excluded.",
+   "note": "CONTROL, currently CORRECT: provider primary already Farseer Trilogy. Pinned to LOCK it: at the ranking, L'Assassin royal (25 members) outranks Farseer (7) for GR work 503752 the moment the umbrella is excluded. | PIN RETIRED 2026-09-05: UMBRELLA_SERIES {54099} + parallel-listing deny make it redundant (A/B: 10 healed / 0 broke with pins off); row kept as a regression test for the rule.",
    "knownDefectNow": false,
    "inputsVerified": [
     "live Audible catalog probe 2026-08-18",
@@ -27960,7 +27960,7 @@
     "incipit-api GET /books 2026-08-18",
     "GR mirror /work + /series member counts 2026-08-18"
    ],
-   "mintPin": true
+   "mintPin": false
   },
   {
    "recordId": "B008Y4ZU3G",
@@ -28002,7 +28002,7 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-08-18: 'Given our matching preferences I would think the trilogy would be how they are matched' -- the sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR series 54099, 25 members) and never a translated listing (L'Assassin royal 89770/25 members, Vatidico 174690/5, A Saga do Assassino 65022/5). PINNED rather than rule-fixed: excluding the umbrella by name at the ranking promotes L'Assassin royal (25) over The Farseer Trilogy (7) for the works that list it -- measured 2026-08-18, see docs/design/spec-franchise-umbrella-detection.md.",
    "group": "named-umbrella-elderlings",
-   "note": "LIVE DEFECT: umbrella shelves it at #4 while the correct sub-series sits in the tag slot at #1. GR work 1476156 lists The Liveship Traders #1.",
+   "note": "LIVE DEFECT: umbrella shelves it at #4 while the correct sub-series sits in the tag slot at #1. GR work 1476156 lists The Liveship Traders #1. | PIN RETIRED 2026-09-05: UMBRELLA_SERIES {54099} + parallel-listing deny make it redundant (A/B: 10 healed / 0 broke with pins off); row kept as a regression test for the rule.",
    "knownDefectNow": false,
    "inputsVerified": [
     "prod Plex titleSort 2026-08-18",
@@ -28010,7 +28010,7 @@
     "GR mirror /work + /series member counts 2026-08-18",
     "provider inputs NOT verified: live catalog probe 2026-08-18 returned no product"
    ],
-   "mintPin": true
+   "mintPin": false
   },
   {
    "recordId": "B0040F3GN4",
@@ -28067,7 +28067,7 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-08-18: 'Given our matching preferences I would think the trilogy would be how they are matched' -- the sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR series 54099, 25 members) and never a translated listing (L'Assassin royal 89770/25 members, Vatidico 174690/5, A Saga do Assassino 65022/5). PINNED rather than rule-fixed: excluding the umbrella by name at the ranking promotes L'Assassin royal (25) over The Farseer Trilogy (7) for the works that list it -- measured 2026-08-18, see docs/design/spec-franchise-umbrella-detection.md.",
    "group": "named-umbrella-elderlings",
-   "note": "LIVE DEFECT: raw Audible carries the CORRECT Liveship Traders #3 as its lead series; the authority overwrote it with the umbrella. GR work 2501194 lists The Liveship Traders #3.",
+   "note": "LIVE DEFECT: raw Audible carries the CORRECT Liveship Traders #3 as its lead series; the authority overwrote it with the umbrella. GR work 2501194 lists The Liveship Traders #3. | PIN RETIRED 2026-09-05: UMBRELLA_SERIES {54099} + parallel-listing deny make it redundant (A/B: 10 healed / 0 broke with pins off); row kept as a regression test for the rule.",
    "knownDefectNow": false,
    "inputsVerified": [
     "live Audible catalog probe 2026-08-18",
@@ -28075,7 +28075,7 @@
     "incipit-api GET /books 2026-08-18",
     "GR mirror /work + /series member counts 2026-08-18"
    ],
-   "mintPin": true
+   "mintPin": false
   },
   {
    "recordId": "B07BB3D7CR",
@@ -28132,7 +28132,7 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-08-18: 'Given our matching preferences I would think the trilogy would be how they are matched' -- the sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR series 54099, 25 members) and never a translated listing (L'Assassin royal 89770/25 members, Vatidico 174690/5, A Saga do Assassino 65022/5). PINNED rather than rule-fixed: excluding the umbrella by name at the ranking promotes L'Assassin royal (25) over The Farseer Trilogy (7) for the works that list it -- measured 2026-08-18, see docs/design/spec-franchise-umbrella-detection.md.",
    "group": "named-umbrella-elderlings",
-   "note": "LIVE DEFECT: raw Audible carries the CORRECT Rain Wild Chronicles #4 as its lead series; the authority overwrote it with the umbrella. GR work 18282611 lists Rain Wild Chronicles #4.",
+   "note": "LIVE DEFECT: raw Audible carries the CORRECT Rain Wild Chronicles #4 as its lead series; the authority overwrote it with the umbrella. GR work 18282611 lists Rain Wild Chronicles #4. | PIN RETIRED 2026-09-05: UMBRELLA_SERIES {54099} + parallel-listing deny make it redundant (A/B: 10 healed / 0 broke with pins off); row kept as a regression test for the rule.",
    "knownDefectNow": false,
    "inputsVerified": [
     "live Audible catalog probe 2026-08-18",
@@ -28140,7 +28140,7 @@
     "incipit-api GET /books 2026-08-18",
     "GR mirror /work + /series member counts 2026-08-18"
    ],
-   "mintPin": true
+   "mintPin": false
   },
   {
    "recordId": "B000TMD8C6",
@@ -28284,14 +28284,210 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-08-18: 'Given our matching preferences I would think the trilogy would be how they are matched' -- the sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR series 54099, 25 members) and never a translated listing (L'Assassin royal 89770/25 members, Vatidico 174690/5, A Saga do Assassino 65022/5). PINNED rather than rule-fixed: excluding the umbrella by name at the ranking promotes L'Assassin royal (25) over The Farseer Trilogy (7) for the works that list it -- measured 2026-08-18, see docs/design/spec-franchise-umbrella-detection.md. | Mad Ship added 2026-08-18: same defect, same evidence -- umbrella primary, correct The Liveship Traders #2 in the secondary slot, GR work 2571145 lists Liveship #2. OpenLibrary-matched, so the pin is reachable only through the portable (title|author) key.",
    "group": "named-umbrella-elderlings",
-   "note": "LIVE DEFECT (arrived after the first six were pinned): umbrella shelves it at #5 while the correct sub-series sits in the tag slot at #2. Record is openlibrary-works-OL2707221W -- NOT an ASIN -- so SHELF_PINS[recordId] is the exact key and the (title|author) alias is the portable one.",
+   "note": "LIVE DEFECT (arrived after the first six were pinned): umbrella shelves it at #5 while the correct sub-series sits in the tag slot at #2. Record is openlibrary-works-OL2707221W -- NOT an ASIN -- so SHELF_PINS[recordId] is the exact key and the (title|author) alias is the portable one. | PIN RETIRED 2026-09-05: UMBRELLA_SERIES {54099} + parallel-listing deny make it redundant (A/B: 10 healed / 0 broke with pins off); row kept as a regression test for the rule.",
    "knownDefectNow": false,
    "inputsVerified": [
     "prod Plex titleSort 2026-08-18",
     "incipit-api GET /books 2026-08-18",
     "GR mirror /work 2026-08-18"
    ],
-   "mintPin": true
+   "mintPin": false
+  },
+  {
+   "recordId": "B00MMQR6GQ",
+   "ratingKey": "747873",
+   "album": "Fool's Fate",
+   "artist": "Robin Hobb",
+   "inputs": {
+    "title": "Fool's Fate",
+    "subtitle": null,
+    "author": "Robin Hobb",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [],
+    "inputSource": "live Audible catalog probe 2026-09-05 (response_groups=series,product_attrs): product present (asin, asset_details, is_vvab) but NO series field and no format keys -- a thin/restricted shape, unlike Skyshade/HP which return series. Provider series unknown; the row drives the Goodreads lookup from title+author only"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "The Realm of the Elderlings",
+     "position": "9"
+    },
+    "secondary": {
+     "name": "The Tawny Man",
+     "position": "3"
+    },
+    "plexSortTitleNow": "Realm of the Elderlings, Book 9 - Fool's Fate",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "The Tawny Man",
+    "position": "3",
+    "secondaryNote": "umbrella and translated listings never occupy either slot",
+    "expectedSortPrefix": "Tawny Man, Book 3 - "
+   },
+   "specRule": [
+    "U1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-05: 'new books being added and split into seperate series -- Rain Wild Chronicles, Book N and Realm of the Elderlings, Book N ... dragon haven coming in as Realm of the Elderlings, Book 11 - Dragon Haven instead of Rain Wild Chronicles, Book 2'. The sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR 54099). RULE-FIXED, not pinned: UMBRELLA_SERIES {54099} + parallel-listing deny, A/B 2026-09-05 = 10 healed / 0 broke with pins off -- see docs/design/spec-shelf-granularity.md.",
+   "group": "named-umbrella-elderlings",
+   "note": "LIVE DEFECT 2026-09-05, prod rk 747873: shelf read 'Realm of the Elderlings, Book 9' with the correct 'The Tawny Man #3' stranded in the secondary slot (API /books). GR work 2960725. NOT a corpus row until now -- added after the census, so the 2026-09-05 A/B never scored it; this row makes the rule gate-protected.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-05",
+    "incipit-api GET /books 2026-09-05",
+    "GR mirror /work + /series 2026-09-05"
+   ],
+   "mintPin": false
+  },
+  {
+   "recordId": "B07YGNTWP1",
+   "ratingKey": "747883",
+   "album": "Dragon Keeper",
+   "artist": "Robin Hobb",
+   "inputs": {
+    "title": "Dragon Keeper",
+    "subtitle": null,
+    "author": "Robin Hobb",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [],
+    "inputSource": "live Audible catalog probe 2026-09-05 (response_groups=series,product_attrs): product present (asin, asset_details, is_vvab) but NO series field and no format keys -- a thin/restricted shape, unlike Skyshade/HP which return series. Provider series unknown; the row drives the Goodreads lookup from title+author only"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "The Realm of the Elderlings",
+     "position": "10"
+    },
+    "secondary": {
+     "name": "Rain Wild Chronicles",
+     "position": "1"
+    },
+    "plexSortTitleNow": "Realm of the Elderlings, Book 10 - Dragon Keeper",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Rain Wild Chronicles",
+    "position": "1",
+    "secondaryNote": "umbrella and translated listings never occupy either slot",
+    "expectedSortPrefix": "Rain Wild Chronicles, Book 1 - "
+   },
+   "specRule": [
+    "U1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-05: 'new books being added and split into seperate series -- Rain Wild Chronicles, Book N and Realm of the Elderlings, Book N ... dragon haven coming in as Realm of the Elderlings, Book 11 - Dragon Haven instead of Rain Wild Chronicles, Book 2'. The sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR 54099). RULE-FIXED, not pinned: UMBRELLA_SERIES {54099} + parallel-listing deny, A/B 2026-09-05 = 10 healed / 0 broke with pins off -- see docs/design/spec-shelf-granularity.md.",
+   "group": "named-umbrella-elderlings",
+   "note": "LIVE DEFECT 2026-09-05, prod rk 747883: shelf read 'Realm of the Elderlings, Book 10' with the correct 'Rain Wild Chronicles #1' stranded in the secondary slot (API /books). GR work 4767778. NOT a corpus row until now -- added after the census, so the 2026-09-05 A/B never scored it; this row makes the rule gate-protected.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-05",
+    "incipit-api GET /books 2026-09-05",
+    "GR mirror /work + /series 2026-09-05"
+   ],
+   "mintPin": false
+  },
+  {
+   "recordId": "B07YGSL9Y2",
+   "ratingKey": "747877",
+   "album": "Dragon Haven",
+   "artist": "Robin Hobb",
+   "inputs": {
+    "title": "Dragon Haven",
+    "subtitle": null,
+    "author": "Robin Hobb",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [],
+    "inputSource": "live Audible catalog probe 2026-09-05 (response_groups=series,product_attrs): product present (asin, asset_details, is_vvab) but NO series field and no format keys -- a thin/restricted shape, unlike Skyshade/HP which return series. Provider series unknown; the row drives the Goodreads lookup from title+author only"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "The Realm of the Elderlings",
+     "position": "11"
+    },
+    "secondary": {
+     "name": "Rain Wild Chronicles",
+     "position": "2"
+    },
+    "plexSortTitleNow": "Realm of the Elderlings, Book 11 - Dragon Haven",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Rain Wild Chronicles",
+    "position": "2",
+    "secondaryNote": "umbrella and translated listings never occupy either slot",
+    "expectedSortPrefix": "Rain Wild Chronicles, Book 2 - "
+   },
+   "specRule": [
+    "U1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-05: 'new books being added and split into seperate series -- Rain Wild Chronicles, Book N and Realm of the Elderlings, Book N ... dragon haven coming in as Realm of the Elderlings, Book 11 - Dragon Haven instead of Rain Wild Chronicles, Book 2'. The sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR 54099). RULE-FIXED, not pinned: UMBRELLA_SERIES {54099} + parallel-listing deny, A/B 2026-09-05 = 10 healed / 0 broke with pins off -- see docs/design/spec-shelf-granularity.md.",
+   "group": "named-umbrella-elderlings",
+   "note": "LIVE DEFECT 2026-09-05, prod rk 747877: shelf read 'Realm of the Elderlings, Book 11' with the correct 'Rain Wild Chronicles #2' stranded in the secondary slot (API /books). GR work 21457174. NOT a corpus row until now -- added after the census, so the 2026-09-05 A/B never scored it; this row makes the rule gate-protected.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-05",
+    "incipit-api GET /books 2026-09-05",
+    "GR mirror /work + /series 2026-09-05"
+   ],
+   "mintPin": false
+  },
+  {
+   "recordId": "B0076G2BSU",
+   "ratingKey": "747869",
+   "album": "City of Dragons",
+   "artist": "Robin Hobb",
+   "inputs": {
+    "title": "City of Dragons",
+    "subtitle": null,
+    "author": "Robin Hobb",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [],
+    "inputSource": "live Audible catalog probe 2026-09-05 (response_groups=series,product_attrs): product present (asin, asset_details, is_vvab) but NO series field and no format keys -- a thin/restricted shape, unlike Skyshade/HP which return series. Provider series unknown; the row drives the Goodreads lookup from title+author only"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "The Realm of the Elderlings",
+     "position": "12"
+    },
+    "secondary": {
+     "name": "Rain Wild Chronicles",
+     "position": "3"
+    },
+    "plexSortTitleNow": "Realm of the Elderlings, Book 12 - City of Dragons",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Rain Wild Chronicles",
+    "position": "3",
+    "secondaryNote": "umbrella and translated listings never occupy either slot",
+    "expectedSortPrefix": "Rain Wild Chronicles, Book 3 - "
+   },
+   "specRule": [
+    "U1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-05: 'new books being added and split into seperate series -- Rain Wild Chronicles, Book N and Realm of the Elderlings, Book N ... dragon haven coming in as Realm of the Elderlings, Book 11 - Dragon Haven instead of Rain Wild Chronicles, Book 2'. The sub-trilogy is the shelf, never The Realm of the Elderlings umbrella (GR 54099). RULE-FIXED, not pinned: UMBRELLA_SERIES {54099} + parallel-listing deny, A/B 2026-09-05 = 10 healed / 0 broke with pins off -- see docs/design/spec-shelf-granularity.md.",
+   "group": "named-umbrella-elderlings",
+   "note": "LIVE DEFECT 2026-09-05, prod rk 747869: shelf read 'Realm of the Elderlings, Book 12' with the correct 'Rain Wild Chronicles #3' stranded in the secondary slot (API /books). GR work 16754534. NOT a corpus row until now -- added after the census, so the 2026-09-05 A/B never scored it; this row makes the rule gate-protected.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-05",
+    "incipit-api GET /books 2026-09-05",
+    "GR mirror /work + /series 2026-09-05"
+   ],
+   "mintPin": false
   }
  ]
 }

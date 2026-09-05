@@ -1,5 +1,6 @@
 import type { FastifyBaseLogger } from 'fastify'
 
+import { parallelListingIds } from '#helpers/providers/goodreadsParallelListings'
 import { normalizeTitle, sim } from '#helpers/providers/matchScorer'
 import type { ProviderBookSeries } from '#helpers/providers/types'
 import { isSameAuthor } from '#helpers/utils/authorNameMatch'
@@ -643,8 +644,33 @@ function isOrdering(series: WorkSeries): boolean {
 	return isSeriesOrdering(series.Title)
 }
 
+/**
+ * Franchise umbrellas declared by Goodreads series ID -- the ones that carry no
+ * name tell. Umbrella-ness is not inferable from the series graph (a franchise
+ * umbrella and a legitimate parent are graph-isomorphic: same member counts, same
+ * partial overlaps, same positions -- measured 2026-09-05, see
+ * docs/design/spec-shelf-granularity.md §4-5), so it is stated, once per
+ * franchise, by id. Keying on the id is exact, language-independent and survives
+ * a librarian rename; one entry covers every book of the franchise including the
+ * ones not yet in the library, which is the property a pin lacks.
+ *
+ * Declared umbrellas take the SAME path as a -verse umbrella: dropped from the
+ * clean pool, RESCUED when nothing clean can position the book. So an umbrella
+ * that is a book's only series still shelves it (Holly Gibney shelves The
+ * Outsider) while a book with a real sub-series gets the sub-series (Bill Hodges
+ * 1-3, Farseer 1-3). Demoted, never removed -- the shelf-layer CONTAINER list
+ * cannot make that guarantee, which is what blanked three books in August.
+ */
+const UMBRELLA_SERIES: ReadonlySet<number> = new Set([
+	54099, // The Realm of the Elderlings -- operator-stated 2026-09-05 (Hobb)
+	318697 // Holly Gibney -- umbrellas the Bill Hodges trilogy; corpus requires Bill Hodges 1-3
+])
+
 /** A franchise umbrella: demoted, but eligible to be rescued. */
 function isUmbrella(series: WorkSeries): boolean {
+	// An operator declaration wins over every name heuristic below, including
+	// the ordering exemption: a declared umbrella is an umbrella whatever it is called.
+	if (typeof series.ForeignId === 'number' && UMBRELLA_SERIES.has(series.ForeignId)) return true
 	if (isOrdering(series)) return false
 	// A HYPHEN-joined coinage first: \w cannot cross a hyphen, so "Spider-Verse"
 	// tokenizes to the bare word "Verse", which the stopword list (rightly) holds
@@ -2060,6 +2086,24 @@ async function lookupByTitle(
 			ranked = [...pool].sort(
 				(x, y) => positioned(y) - positioned(x) || (counts.get(y) ?? 0) - (counts.get(x) ?? 0)
 			)
+			// PARALLEL LISTINGS out of the ranking, not just out of the secondary slot.
+			// A translation or renumbering carries a big member count and no name
+			// tell, and demoting an umbrella EXPOSES it: with The Realm of the
+			// Elderlings gone, L'Assassin royal (25) beats Farseer (7). The librarians
+			// link re-listings from the canonical series' own description, and only
+			// the phrasings that carry the "re-listing of me" DIRECTION are read --
+			// parents and children link each other too, and taking every link denied
+			// Farseer, Legend of Drizzt and Malazan in the dry-run. Never empties the
+			// ranking: a denied-only pool keeps its order, a worse answer beats none.
+			{
+				const parallel = new Set<number>()
+				for (const desc of descById.values())
+					for (const id of parallelListingIds(desc)) parallel.add(id)
+				const kept = ranked.filter(
+					(s) => !(typeof s.ForeignId === 'number' && parallel.has(s.ForeignId))
+				)
+				if (kept.length) ranked = kept
+			}
 			// A pooled series our work DECLARES membership in cannot genuinely have
 			// zero members -- our book is one of them. So a 0 here is MISSING
 			// EVIDENCE, never an empty series, and a tiebreak decided against one
