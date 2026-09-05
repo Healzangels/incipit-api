@@ -13180,8 +13180,8 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-07-31: Gibney/Hodges family = B ('1) B'): the trilogy under its real name, If It Bleeds stays Gibney",
    "group": "census-family-gibney",
-   "note": "Census: TIER C borderline-inverted / borderline.",
-   "mintPin": true
+   "note": "Census: TIER C borderline-inverted / borderline. | PIN RETIRED 2026-09-05: UMBRELLA_SERIES {318697 Holly Gibney} makes it redundant (A/B: healed with pins off, 0 broke); row kept as a regression test for the rule.",
+   "mintPin": false
   },
   {
    "recordId": "B00U7U0CJW",
@@ -13238,8 +13238,8 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-07-31: Gibney/Hodges family = B ('1) B'): the trilogy under its real name, If It Bleeds stays Gibney",
    "group": "census-family-gibney",
-   "note": "Census: TIER C borderline-inverted / borderline.",
-   "mintPin": true
+   "note": "Census: TIER C borderline-inverted / borderline. | PIN RETIRED 2026-09-05: UMBRELLA_SERIES {318697 Holly Gibney} makes it redundant (A/B: healed with pins off, 0 broke); row kept as a regression test for the rule.",
+   "mintPin": false
   },
   {
    "recordId": "B018RE0APU",
@@ -13296,8 +13296,8 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-07-31: Gibney/Hodges family = B ('1) B'): the trilogy under its real name, If It Bleeds stays Gibney",
    "group": "census-family-gibney",
-   "note": "Census: TIER C borderline-inverted / borderline.",
-   "mintPin": true
+   "note": "Census: TIER C borderline-inverted / borderline. | PIN RETIRED 2026-09-05: UMBRELLA_SERIES {318697 Holly Gibney} makes it redundant (A/B: healed with pins off, 0 broke); row kept as a regression test for the rule.",
+   "mintPin": false
   },
   {
    "recordId": "1797104802",

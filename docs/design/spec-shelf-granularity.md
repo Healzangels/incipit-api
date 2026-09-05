@@ -418,8 +418,34 @@ refuse to record a degraded row as standing.
 / 54 excluded.** The transient did not reproduce. This is the baseline
 committed with the change.
 
-**Outcome: the umbrella is now a rule, not data.** Seven pins retired, eleven
-books protected by corpus rows, zero regressions at every step.
+**Bill Hodges pins retired too (operator-directed, 2026-09-05):** the pre-release
+check found Mr. Mercedes / Finders Keepers / End of Watch held on prod by three
+operator-stated pins the rule (318697) had made redundant — arm B1 healed them
+with pins off. Same workflow: rows flipped to `mintPin: false` and kept, re-mint
+`91 pins / 98 portable keys` with no COLLISION or SKIPPED, semantic diff against
+HEAD removed exactly the three ids and their three `title|author` keys (0 added,
+0 changed), unit gate 2,478 / 0, pins-ON `--gate` **PASS (0 → 0)** with all three rows MATCH via the rule.
+
+**Live on prod, 2026-09-05 20:27Z.** `454d72f` deployed to the single API on .99
+(`:nightly`, digest `2e0f24ac…`, verified by digest); cold-cache `/books` answers
+correct for all four reported books; `refresh?force=1` on rk 747873/747883/
+747877/747869 converged in 20 s to `Tawny Man, Book 3` and `Rain Wild
+Chronicles, Book 1/2/3`, snapshot taken first, four posters byte-identical. The
+Hobb shelf is now thirteen albums under five sub-trilogy prefixes with no
+`Realm of the Elderlings` anywhere. No bundle change was needed on either box.
+
+**Side effect confirmed:** Dragon Keeper and Dragon Haven carry the mood
+`Series: Les cités des Anciens` beside `Series: Rain Wild Chronicles` — the
+French listing is a positionless secondary the deny cannot reach (Rain Wild's
+alias block is plain text, no hrefs). Precedented fix: one `SERIES_ALIASES`
+entry `['les cités des anciens', 'Rain Wild Chronicles']` (key keeps the é —
+`foldSeriesName` does not fold diacritics and strips only English articles); the
+duplicate rule then clears the echo and the bundle retires the stale mood on the
+next forced refresh. Spec-first; not done.
+
+**Outcome: the umbrella is now a rule, not data.** Ten pins retired (seven Hobb,
+three Bill Hodges), fourteen books protected by corpus rows, zero regressions at
+every step, and the reported defect closed on prod.
 
 Per the standing series directive, spec **and** full A/B before shipping.
 

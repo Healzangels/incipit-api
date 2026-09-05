@@ -21,6 +21,8 @@
  *   bun scripts/seriesHarness.ts --gate             # full run, diff vs baseline
  *   ... --allow <file.json>                         # rows predicted to change
  *   ... --out <results.json>
+ *   ... --no-pins   run with both pin tables EMPTY: the A/B arm switch. A pin masks the
+ *                   resolver, so a fix is proved only when rows heal without pins.
  *
  * The mirror is nondeterministic infrastructure (429s under load, librarian
  * edits between runs). Until the Phase-2 recorder lands, treat single-row
