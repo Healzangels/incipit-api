@@ -443,9 +443,37 @@ entry `['les cités des anciens', 'Rain Wild Chronicles']` (key keeps the é —
 duplicate rule then clears the echo and the bundle retires the stale mood on the
 next forced refresh. Spec-first; not done.
 
+## 10. Pre-release double check — whole-library old-vs-new diff (2026-09-05)
+
+The corpus A/B covers 525 rows; the library has 1,724 albums. Before promoting,
+the `314fa00` resolver with its 101-pin table and the shipped resolver with its
+current table were run side by side, through the route's own pipeline
+(resolve → pins → shelf policy), over **every prod album**.
+
+* **Primary movers, whole library: only the Hobb books this change targets** —
+  Fool's Fate, Dragon Keeper, Dragon Haven, City of Dragons (umbrella → sub-
+  trilogy) — plus Fool's Assassin, whose old-arm `Elderlings #14` is an artefact
+  of the harness omitting the Audible provider series (prod served
+  `Fitz and the Fool #1` under old code because Audible supplied it; the shipped
+  code reaches it unaided). **Zero regressions.**
+* **Tag-only movers, all benign:** the Elderlings umbrella, Holly Gibney and
+  `L'Assassin royal` leaving secondary slots; one Hobb book gaining a Finnish
+  `Elolaivat` tag (same class as `Les cités des Anciens`).
+* **Three traps the first pass hit, all resolved by re-running the movers:** the
+  fed listing was captured before the seven newest albums (the four reported
+  Hobb books among them) and had to be refreshed; 105 titles carry numeric HTML
+  entities the first decoder missed (`&#8217;`), which broke the new arm's search
+  where the old arm was rescued by a pin; and the old arm always runs first
+  against a cold mirror record, so transients bias onto one arm — five reported
+  "movers" vanished on a warm re-run. Rule for next time: decode every entity,
+  re-check every mover warm, and diff against a listing pulled the same hour.
+* Coverage: 1,717 + 7 missed = 1,724 albums; 105 entity-titled rows re-checked on
+  correct input; 0 errors.
+
 **Outcome: the umbrella is now a rule, not data.** Ten pins retired (seven Hobb,
 three Bill Hodges), fourteen books protected by corpus rows, zero regressions at
-every step, and the reported defect closed on prod.
+every step including a whole-library diff, and the reported defect closed on
+prod.
 
 Per the standing series directive, spec **and** full A/B before shipping.
 
