@@ -604,3 +604,10 @@ seven harness-only rows as before. The gate asked for the baseline to be
 re-recorded over 529 rows; done with the same discipline as §7 — one sample,
 kept only if it carries no standing reds. **It did: rowCount 529, 0 standing
 reds, 475 assertable / 54 excluded.**
+
+**Live on prod, 2026-09-06 21:09Z.** `5ec047e` deployed to the API on .99
+(`:nightly`, digest `677bdf2d…`, verified by digest); the restart cleared the
+cached `#15`; cold answers `The Tawny Man #1` and `Fitz and the Fool #2`;
+`refresh?force=1` on rk 748846 and 748848 converged in 20 s to `Tawny Man, Book
+1 - Fool's Errand` and `Fitz and the Fool, Book 2 - Fool's Quest`, snapshot taken
+first, both posters byte-identical.
