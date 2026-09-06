@@ -1,6 +1,10 @@
 import type { FastifyBaseLogger } from 'fastify'
 
-import { parallelListingIds } from '#helpers/providers/goodreadsParallelListings'
+import {
+	foldListingName,
+	parallelListingIds,
+	parallelListingNames
+} from '#helpers/providers/goodreadsParallelListings'
 import { normalizeTitle, sim } from '#helpers/providers/matchScorer'
 import type { ProviderBookSeries } from '#helpers/providers/types'
 import { isSameAuthor } from '#helpers/utils/authorNameMatch'
@@ -193,8 +197,15 @@ const EDITION_MARKER_RE =
 // 2026-08-18: 14 title/subtitle hits on trilogy|duology, 13 of them this shape
 // and all 13 ordinary series volumes; the one bare title is the real omnibus.
 // The shape splits them 13/1 exactly, so it is stripped BEFORE the marker test.
+// ...and the same phrase written the other way round: "Book II of the Fitz and the
+// Fool trilogy", "Volume 3 of the Kharkanas Trilogy". Same meaning -- a series and a
+// volume -- so it is stripped for the same reason. Roman numerals are allowed
+// because that is how Audible writes this form. Measured 2026-09-06: the forward
+// form alone let "Book II of the Fitz and the Fool trilogy" reach the marker test,
+// "trilogy" read as an edition, and the guard froze Audible's wrong "Fitz and the
+// Fool #15" on Fool's Quest with no recompute able to correct it (spec section 11.2).
 const SERIES_SHAPED_RE =
-	/\b(?:trilogy|duology|quartet|quintet|saga|series|cycle|sequence|chronicles)\b\s*[,:-]?\s*(?:volume|vol\.?|book|part|#)\s*\d+(?:\.\d+)?\b/gi
+	/\b(?:trilogy|duology|quartet|quintet|saga|series|cycle|sequence|chronicles)\b\s*[,:-]?\s*(?:volume|vol\.?|book|part|#)\s*\d+(?:\.\d+)?\b|\b(?:volume|vol\.?|book|part)\s+(?:\d+(?:\.\d+)?|[ivxlcdm]+)\s+of\s+(?:the\s+)?(?:[\w'\u2019&-]+\s+){1,8}?(?:trilogy|duology|quartet|quintet|saga|series|cycle|sequence|chronicles)\b/gi
 
 /**
  * Whether a title or subtitle names a specific EDITION rather than a volume.
@@ -2097,10 +2108,21 @@ async function lookupByTitle(
 			// ranking: a denied-only pool keeps its order, a worse answer beats none.
 			{
 				const parallel = new Set<number>()
-				for (const desc of descById.values())
+				// The NAME too, folded: Goodreads duplicates translated listings, and the
+				// librarians link ONE of them. Fool's Errand (2026-09-06): Tawny Man links
+				// "O Regresso do Assassino" as 65016; the work carried 311441 under the same
+				// name, the id deny missed it, and it won on count. The href slug and the
+				// anchor text both name the listing, so a candidate with that folded name
+				// is the same re-listing whatever id it was minted under (spec section 11.1).
+				const parallelNames = new Set<string>()
+				for (const desc of descById.values()) {
 					for (const id of parallelListingIds(desc)) parallel.add(id)
+					for (const name of parallelListingNames(desc)) parallelNames.add(name)
+				}
 				const kept = ranked.filter(
-					(s) => !(typeof s.ForeignId === 'number' && parallel.has(s.ForeignId))
+					(s) =>
+						!(typeof s.ForeignId === 'number' && parallel.has(s.ForeignId)) &&
+						!parallelNames.has(foldListingName(String(s.Title ?? '')))
 				)
 				if (kept.length) ranked = kept
 			}

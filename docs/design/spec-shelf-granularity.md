@@ -520,3 +520,87 @@ Per the standing series directive, spec **and** full A/B before shipping.
   already use) — self-reinforcing and order-dependent: it locks in whichever
   answer happened to land first, and cannot bootstrap a correct shelf for a new
   author.
+
+## 11. Two of the four predicted arrivals failed (2026-09-06) — diagnosis
+
+The operator added Fool's Errand, Golden Fool, Fool's Quest and Assassin's Fate.
+Golden Fool → `Tawny Man, Book 2` and Assassin's Fate → `Fitz and the Fool, Book 3`
+landed correctly. The other two did not, and **neither is the umbrella class §6
+covers** — the claim in §1 that the rule "covers the four not yet added" was half
+wrong. Both root causes were reproduced by driving the shipped resolver with the
+route's inputs (`.cache/trace2.ts`), not inferred.
+
+### 11.1 Fool's Errand → `O Regresso do Assassino, Book 1` (should be The Tawny Man, Book 1)
+
+Tawny Man's own description links the Portuguese re-listing — and
+`parallelListingIds` extracts it correctly — as **id 65016**. But the work carries
+a *second* Goodreads listing with the same name, **id 311441** (5 members, one
+per split volume), and that is the candidate in the pool. The deny is exact-id,
+so the duplicate is never denied and wins on member count, 5 to 4; the provider's
+`Realm of the Elderlings #7` then survives as the tag. Goodreads duplicating a
+translated listing is ordinary librarian drift, so an id-only deny will recur.
+
+**Fix (D2): deny by the linked NAME as well as the id.** The href slug
+(`65016-o-regresso-do-assassino`) and the anchor text both carry the listing's
+name; fold both sides (diacritics, punctuation, case) and deny any candidate
+whose folded title equals a linked re-listing's folded name. Direction is
+unchanged — the same headings and the same anchored phrase decide *which* links
+count — so the mutual parent/child guard from §6.3 still holds.
+
+### 11.2 Fool's Quest → `Fitz and the Fool, Book 15` (should be Book 2)
+
+The name is right and the number is the umbrella's. The mirror never says 15:
+every search hit resolves to work 42704733, where `Fitz and the Fool` places the
+book at 2. The number comes from the **provider**: Audible carries the
+Elderlings ordinal under the trilogy's name for this edition (the public
+catalog returns a thin product for this ASIN; the sibling Assassin's Fate shows
+the shape, `Fitz and the Fool #3` + `Realm of the Elderlings #16`). The
+**edition guard** then freezes it: the stored subtitle is *"Book II of the Fitz
+and the Fool trilogy"*, and `namesEdition` strips series-shaped phrases of the
+form `<name> trilogy, Book N` before its marker test — the August R1 fix — but
+this subtitle is the **reversed form with a Roman numeral**, `Book II of the
+<name> trilogy`, which the strip does not match. `trilogy` survives, reads as an
+edition marker, and the guard returns the provider series untouched before any
+lookup runs. `?update=1` cannot help; the guard is upstream of it. Trace: the
+same inputs without the subtitle resolve to `#2` and log "replaced an
+inconsistent provider series".
+
+**Fix (R1′): extend the series-shape strip to the reversed form** —
+`(book|volume|part) <N or Roman> of (the) <name> (trilogy|…)` — so an ordinary
+volume subtitle written that way is not an edition marker. This is the same
+narrow shape-based approach R1 took, not a change to the guard's semantics;
+Assassin's Fate carries the identical subtitle shape and resolves to `#3` either
+way. Corpus census: the guard fires on 11 of 525 rows, 8 with a provider series
+(anniversary editions, dramatized adaptations, anthologies, omnibuses) — none of
+that reversed shape, so the expected corpus movement is zero.
+
+### 11.3 Measurement
+
+The four books joined the corpus as regression rows 526–529 (`mintPin: false`;
+provider inputs for three are inferred from the sibling's Audible shape and
+proved by the trace that reproduces the served answer — recorded in each row's
+`inputSource`). **Arm A, today's code, pins off, 529 rows:** MATCH 479, 39 reds;
+the four rows read exactly the live state — Fool's Quest WRONG_POSITION
+(`Fitz and the Fool #15`), Fool's Errand WRONG_SERIES (`O Regresso do Assassino
+#1`), Golden Fool and Assassin's Fate MATCH. Arm B = R1′ + D2, pins off, twice;
+the two must heal, the two must hold, everything else unmoved.
+
+**Arm B, R1′ + D2, pins off, two runs, byte-identical:** MATCH 479 → **481**,
+WRONG_POSITION 16 → 15, WRONG_SERIES 24 → 23. **HEALED exactly 2** — Fool's
+Errand `O Regresso do Assassino #1 → The Tawny Man #1`, Fool's Quest `Fitz and
+the Fool #15 → #2`. **BROKE 0, other movement 0** across all 529 rows: Golden
+Fool and Assassin's Fate hold, the 306 competing-secondary records and the
+eleven edition-guard rows are untouched. Unit tests: five reversed-shape cases
+in the `namesEdition` suite, five extraction/fold tests, two ranking wiring
+tests (duplicate-id heals; control where the linked name differs does not),
+four suites 164 / 0.
+
+**Mutations, each red with source restored byte-identical:** R1′ alternative
+removed → 1 red; D2 name clause dropped → 1 red; fold without diacritics → 1
+red; phrase-form names ignored → 2 red. **Hermetic gate: 2,485 pass / 0 fail.**
+**Pins-on `--gate` against the reviewed baseline: PASS, 0 → 0**, all four new
+rows MATCH; totals 522 MATCH / 1 WRONG_POSITION / 6 MISSING_SERIES, the same
+seven harness-only rows as before. The gate asked for the baseline to be
+re-recorded over 529 rows; done with the same discipline as §7 — one sample,
+kept only if it carries no standing reds. **It did: rowCount 529, 0 standing
+reds, 475 assertable / 54 excluded.**

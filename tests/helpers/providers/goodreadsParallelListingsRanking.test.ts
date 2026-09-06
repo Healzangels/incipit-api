@@ -103,4 +103,70 @@ describe('parallel listings are denied in the RANKING, not only in the secondary
 		expect(out?.primary).toBeDefined()
 		expect(['Series A', 'Series B']).toContain(out?.primary?.name)
 	})
+
+	test('a DUPLICATED re-listing (same name, different id than the one linked) is denied by name', async () => {
+		// Fool's Errand, 2026-09-06: Tawny Man links O Regresso do Assassino as 65016; the
+		// work carried 311441 under the same name. Fresh ids per test (process memo).
+		const TAWNY = 345182
+		const DUP = 311441
+		respond(
+			[{ workId: 2406151 }],
+			{
+				Title: "Fool's Errand",
+				Series: [
+					{
+						Title: 'The Tawny Man',
+						ForeignId: TAWNY,
+						LinkItems: [{ ForeignWorkId: 2406151, PositionInSeries: '1' }]
+					},
+					{
+						Title: 'O Regresso do Assassino',
+						ForeignId: DUP,
+						LinkItems: [{ ForeignWorkId: 2406151, PositionInSeries: '1' }]
+					}
+				]
+			},
+			{
+				LinkItems: members(4),
+				Description:
+					'This trilogy has also been published with a different numbering in Portuguese, under the name: <a href="http://www.goodreads.com/series/65016-o-regresso-do-assassino">O Regresso do Assassino</a>'
+			},
+			{ LinkItems: members(5) }
+		)
+		const out = await fetchGoodreadsSeries("Fool's Errand", 'Robin Hobb')
+		expect(out?.primary).toEqual({ name: 'The Tawny Man', position: '1' })
+		expect(fetchMock.mock.calls.length).toBe(4)
+	})
+
+	test('CONTROL: when the linked name is a DIFFERENT listing, the duplicate is not denied and wins on count', async () => {
+		const TAWNY = 445182
+		const DUP = 411441
+		respond(
+			[{ workId: 3406151 }],
+			{
+				Title: "Fool's Errand",
+				Series: [
+					{
+						Title: 'The Tawny Man',
+						ForeignId: TAWNY,
+						LinkItems: [{ ForeignWorkId: 3406151, PositionInSeries: '1' }]
+					},
+					{
+						Title: 'O Regresso do Assassino',
+						ForeignId: DUP,
+						LinkItems: [{ ForeignWorkId: 3406151, PositionInSeries: '1' }]
+					}
+				]
+			},
+			{
+				LinkItems: members(4),
+				Description:
+					'Also known as: <a href="/series/65099-something-else-entirely">Something Else Entirely</a>'
+			},
+			{ LinkItems: members(5) }
+		)
+		const out = await fetchGoodreadsSeries("Fool's Errand", 'Robin Hobb')
+		expect(out?.primary?.name).toBe('O Regresso do Assassino')
+		expect(fetchMock.mock.calls.length).toBe(4)
+	})
 })

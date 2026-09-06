@@ -28488,6 +28488,254 @@
     "GR mirror /work + /series 2026-09-05"
    ],
    "mintPin": false
+  },
+  {
+   "recordId": "B00B89DUKY",
+   "ratingKey": "748846",
+   "album": "Fool's Errand",
+   "artist": "Robin Hobb",
+   "inputs": {
+    "title": "Fool's Errand",
+    "subtitle": null,
+    "author": "Robin Hobb",
+    "providerSeries": {
+     "name": "Tawny Man",
+     "position": "1"
+    },
+    "providerSeries2": {
+     "name": "Realm of the Elderlings",
+     "position": "7"
+    },
+    "publicationName": null,
+    "audibleSeriesRaw": [
+     {
+      "title": "Tawny Man",
+      "sequence": "1"
+     },
+     {
+      "title": "Realm of the Elderlings",
+      "sequence": "7"
+     }
+    ],
+    "inputSource": "provider series INFERRED 2026-09-06 (the public catalog returns a thin product for this ASIN); pattern from the sibling Assassin's Fate (sub-series + Realm of the Elderlings ordinal) and CONFIRMED by trace2.ts reproducing the served answer from exactly these inputs"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "O Regresso do Assassino",
+     "position": "1"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "O Regresso do Assassino, Book 1 - Fool's Errand",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "The Tawny Man",
+    "position": "1",
+    "secondaryNote": "umbrella and translated listings never occupy either slot",
+    "expectedSortPrefix": "Tawny Man, Book 1 - "
+   },
+   "specRule": [
+    "U1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-06: 'two newly added books not with the right sort title' -- Fool's Quest shelved 'Fitz and the Fool, Book 15' and Fool's Errand 'O Regresso do Assassino, Book 1'. Diagnosed by trace (docs/design/spec-shelf-granularity.md section 11): Fool's Quest = edition-guard freeze of Audible's wrong position (subtitle 'Book II of the ... trilogy' is the reversed series-shape the strip misses); Fool's Errand = duplicate Goodreads listing (65016 linked, 311441 on the work) slipping an exact-id deny.",
+   "group": "named-umbrella-elderlings",
+   "note": "LIVE DEFECT 2026-09-06 prod rk 748846 (GR work 2406151). DEFECT: duplicate Portuguese listing id 311441 (Tawny Man links 65016) beats The Tawny Man 5>4 on count; exact-id deny misses it (D2).",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-06",
+    "incipit-api GET /books 2026-09-06 (title, subtitle)",
+    "GR mirror /search + /work + /series 2026-09-06",
+    "trace2.ts reproduction 2026-09-06"
+   ],
+   "mintPin": false
+  },
+  {
+   "recordId": "B01B96TUSQ",
+   "ratingKey": "748850",
+   "album": "Golden Fool",
+   "artist": "Robin Hobb",
+   "inputs": {
+    "title": "Golden Fool",
+    "subtitle": "The Tawny Man Trilogy, Book 2",
+    "author": "Robin Hobb",
+    "providerSeries": {
+     "name": "Tawny Man",
+     "position": "2"
+    },
+    "providerSeries2": {
+     "name": "Realm of the Elderlings",
+     "position": "8"
+    },
+    "publicationName": null,
+    "audibleSeriesRaw": [
+     {
+      "title": "Tawny Man",
+      "sequence": "2"
+     },
+     {
+      "title": "Realm of the Elderlings",
+      "sequence": "8"
+     }
+    ],
+    "inputSource": "provider series INFERRED 2026-09-06 (the public catalog returns a thin product for this ASIN); pattern from the sibling Assassin's Fate (sub-series + Realm of the Elderlings ordinal) and CONFIRMED by trace2.ts reproducing the served answer from exactly these inputs"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "The Tawny Man",
+     "position": "2"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Tawny Man, Book 2 - Golden Fool",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "The Tawny Man",
+    "position": "2",
+    "secondaryNote": "umbrella and translated listings never occupy either slot",
+    "expectedSortPrefix": "Tawny Man, Book 2 - "
+   },
+   "specRule": [
+    "U1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-06: 'two newly added books not with the right sort title' -- Fool's Quest shelved 'Fitz and the Fool, Book 15' and Fool's Errand 'O Regresso do Assassino, Book 1'. Diagnosed by trace (docs/design/spec-shelf-granularity.md section 11): Fool's Quest = edition-guard freeze of Audible's wrong position (subtitle 'Book II of the ... trilogy' is the reversed series-shape the strip misses); Fool's Errand = duplicate Goodreads listing (65016 linked, 311441 on the work) slipping an exact-id deny.",
+   "group": "named-umbrella-elderlings",
+   "note": "LIVE DEFECT 2026-09-06 prod rk 748850 (GR work 2960727). correct today; regression row for the rule (German 'Die zweiten Chroniken...' survives as tag).",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-06",
+    "incipit-api GET /books 2026-09-06 (title, subtitle)",
+    "GR mirror /search + /work + /series 2026-09-06",
+    "trace2.ts reproduction 2026-09-06"
+   ],
+   "mintPin": false
+  },
+  {
+   "recordId": "B079KJCC2W",
+   "ratingKey": "748848",
+   "album": "Fool's Quest",
+   "artist": "Robin Hobb",
+   "inputs": {
+    "title": "Fool's Quest",
+    "subtitle": "Book II of the Fitz and the Fool trilogy",
+    "author": "Robin Hobb",
+    "providerSeries": {
+     "name": "Fitz and the Fool",
+     "position": "15"
+    },
+    "providerSeries2": {
+     "name": "Realm of the Elderlings",
+     "position": "15"
+    },
+    "publicationName": null,
+    "audibleSeriesRaw": [
+     {
+      "title": "Fitz and the Fool",
+      "sequence": "15"
+     },
+     {
+      "title": "Realm of the Elderlings",
+      "sequence": "15"
+     }
+    ],
+    "inputSource": "provider series INFERRED 2026-09-06 (the public catalog returns a thin product for this ASIN); pattern from the sibling Assassin's Fate (sub-series + Realm of the Elderlings ordinal) and CONFIRMED by trace2.ts reproducing the served answer from exactly these inputs"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "Fitz and the Fool",
+     "position": "15"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Fitz and the Fool, Book 15 - Fool's Quest",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Fitz and the Fool",
+    "position": "2",
+    "secondaryNote": "umbrella and translated listings never occupy either slot",
+    "expectedSortPrefix": "Fitz and the Fool, Book 2 - "
+   },
+   "specRule": [
+    "U1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-06: 'two newly added books not with the right sort title' -- Fool's Quest shelved 'Fitz and the Fool, Book 15' and Fool's Errand 'O Regresso do Assassino, Book 1'. Diagnosed by trace (docs/design/spec-shelf-granularity.md section 11): Fool's Quest = edition-guard freeze of Audible's wrong position (subtitle 'Book II of the ... trilogy' is the reversed series-shape the strip misses); Fool's Errand = duplicate Goodreads listing (65016 linked, 311441 on the work) slipping an exact-id deny.",
+   "group": "named-umbrella-elderlings",
+   "note": "LIVE DEFECT 2026-09-06 prod rk 748848 (GR work 42704733). DEFECT: edition guard freezes Audible's wrong #15 -- 'Book II of the ... trilogy' is the reversed series-shape SERIES_SHAPED_RE does not strip, so 'trilogy' reads as an edition marker (R1').",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-06",
+    "incipit-api GET /books 2026-09-06 (title, subtitle)",
+    "GR mirror /search + /work + /series 2026-09-06",
+    "trace2.ts reproduction 2026-09-06"
+   ],
+   "mintPin": false
+  },
+  {
+   "recordId": "B06XDWTBVZ",
+   "ratingKey": "748844",
+   "album": "Assassin's Fate",
+   "artist": "Robin Hobb",
+   "inputs": {
+    "title": "Assassin's Fate",
+    "subtitle": "Book III of the Fitz and the Fool trilogy",
+    "author": "Robin Hobb",
+    "providerSeries": {
+     "name": "Fitz and the Fool",
+     "position": "3"
+    },
+    "providerSeries2": {
+     "name": "Realm of the Elderlings",
+     "position": "16"
+    },
+    "publicationName": null,
+    "audibleSeriesRaw": [
+     {
+      "title": "Fitz and the Fool",
+      "sequence": "3"
+     },
+     {
+      "title": "Realm of the Elderlings",
+      "sequence": "16"
+     }
+    ],
+    "inputSource": "live Audible catalog probe 2026-09-06 (response_groups=series,product_desc,product_attrs)"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "Fitz and the Fool",
+     "position": "3"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Fitz and the Fool, Book 3 - Assassin's Fate",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Fitz and the Fool",
+    "position": "3",
+    "secondaryNote": "umbrella and translated listings never occupy either slot",
+    "expectedSortPrefix": "Fitz and the Fool, Book 3 - "
+   },
+   "specRule": [
+    "U1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-06: 'two newly added books not with the right sort title' -- Fool's Quest shelved 'Fitz and the Fool, Book 15' and Fool's Errand 'O Regresso do Assassino, Book 1'. Diagnosed by trace (docs/design/spec-shelf-granularity.md section 11): Fool's Quest = edition-guard freeze of Audible's wrong position (subtitle 'Book II of the ... trilogy' is the reversed series-shape the strip misses); Fool's Errand = duplicate Goodreads listing (65016 linked, 311441 on the work) slipping an exact-id deny.",
+   "group": "named-umbrella-elderlings",
+   "note": "LIVE DEFECT 2026-09-06 prod rk 748844 (GR work 44600531). correct today; same subtitle shape as Fool's Quest -- must stay #3 after R1' (Finnish 'Narri ja Naekijae' survives as tag).",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-06",
+    "incipit-api GET /books 2026-09-06 (title, subtitle)",
+    "GR mirror /search + /work + /series 2026-09-06",
+    "trace2.ts reproduction 2026-09-06"
+   ],
+   "mintPin": false
   }
  ]
 }

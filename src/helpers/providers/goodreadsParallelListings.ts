@@ -30,6 +30,8 @@
  * shelves; the naive form denied Farseer, Legend of Drizzt and Malazan.
  */
 
+import { foldDiacritics } from '#helpers/utils/foldDiacritics'
+
 /** Section headings whose following block lists re-listings of this series. */
 export const PARALLEL_LISTING_HEADINGS: readonly RegExp[] = [
 	/also\s+known\s+as\s*:?/i,
@@ -56,14 +58,70 @@ export const PARALLEL_LISTING_PHRASE =
  * @returns {number[]} the linked Goodreads series ids, de-duplicated, in order found
  */
 export function parallelListingIds(description: string | null | undefined): number[] {
-	if (!description) return []
+	return parallelListings(description).ids
+}
+
+/**
+ * The NAMES of those same re-listings, folded with foldListingName, or [].
+ *
+ * Goodreads duplicates translated listings and the librarians link one of them;
+ * the href slug ("65016-o-regresso-do-assassino") and the anchor text both carry
+ * the name, so a candidate under a DIFFERENT id but the same name is still the
+ * re-listing the description declares. Both sources are read: a slug can be
+ * truncated, an anchor can be styled.
+ * @param {string | null | undefined} description the /series record's Description
+ * @returns {string[]} folded names, de-duplicated, in order found
+ */
+export function parallelListingNames(description: string | null | undefined): string[] {
+	return parallelListings(description).names
+}
+
+/**
+ * One fold for both sides of the name comparison: NFD, strip combining marks,
+ * lowercase, and reduce everything that is not a letter or digit to a single
+ * space. A slug's hyphens, an anchor's apostrophes and a Title's diacritics all
+ * collapse to the same string ("l-assassin-royal" == "L'Assassin royal").
+ * @param {string} name a series title, slug or anchor text
+ * @returns {string} the folded name
+ */
+export function foldListingName(name: string): string {
+	return foldDiacritics(name)
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, ' ')
+		.trim()
+}
+
+/** A link's id and every name it carries: the slug after the id, and the anchor text. */
+const LINK_RE = /\/series\/(\d+)(?:-([a-z0-9-]+))?[^>]*>([^<]*)</gi
+
+function parallelListings(description: string | null | undefined): {
+	ids: number[]
+	names: string[]
+} {
+	if (!description) return { ids: [], names: [] }
 	const ids = new Set<number>()
+	const names = new Set<string>()
+	const take = (text: string) => {
+		for (const hit of text.matchAll(LINK_RE)) {
+			ids.add(Number(hit[1]))
+			for (const raw of [hit[2], hit[3]]) {
+				const folded = raw ? foldListingName(raw) : ''
+				if (folded) names.add(folded)
+			}
+		}
+	}
 	for (const heading of PARALLEL_LISTING_HEADINGS) {
 		const match = heading.exec(description)
 		if (!match) continue
-		const block = description.slice(match.index + match[0].length).split(/\n\s*\n/)[0] ?? ''
-		for (const hit of block.matchAll(/\/series\/(\d+)/g)) ids.add(Number(hit[1]))
+		take(description.slice(match.index + match[0].length).split(/\n\s*\n/)[0] ?? '')
 	}
-	for (const hit of description.matchAll(PARALLEL_LISTING_PHRASE)) ids.add(Number(hit[1]))
-	return [...ids]
+	// The phrase form: the anchored link only. PARALLEL_LISTING_PHRASE yields the
+	// id; re-scan from the phrase for the slug and anchor of that same link.
+	for (const hit of description.matchAll(PARALLEL_LISTING_PHRASE)) {
+		ids.add(Number(hit[1]))
+		const from = description.slice(hit.index ?? 0)
+		const link = from.match(LINK_RE)
+		if (link) take(link[0])
+	}
+	return { ids: [...ids], names: [...names] }
 }

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'bun:test'
 
 import {
 	PARALLEL_LISTING_PHRASE,
-	parallelListingIds
+	foldListingName,
+	parallelListingIds,
+	parallelListingNames
 } from '#helpers/providers/goodreadsParallelListings'
 
 // Structurally faithful excerpts of LIVE descriptions, mirror 10.0.1.99:8788,
@@ -103,5 +105,41 @@ Unrelated paragraph linking <a href="/series/20-b">B</a>.`
 		expect(a).toEqual([7])
 		expect(b).toEqual([8])
 		expect(PARALLEL_LISTING_PHRASE.global).toBe(true)
+	})
+})
+
+describe('foldListingName: one fold for slugs, anchors and titles', () => {
+	it('slug hyphens, anchor apostrophes and title diacritics collapse to one string', () => {
+		expect(foldListingName('l-assassin-royal')).toBe('l assassin royal')
+		expect(foldListingName("L'Assassin royal")).toBe('l assassin royal')
+		expect(foldListingName('Les cit\u00e9s des Anciens')).toBe('les cites des anciens')
+		expect(foldListingName('les-cites-des-anciens')).toBe('les cites des anciens')
+		expect(foldListingName('O Regresso do Assassino')).toBe('o regresso do assassino')
+	})
+})
+
+describe('parallelListingNames: the linked NAMES, so a duplicated listing is still denied', () => {
+	// The live Tawny Man sentence: the Portuguese re-listing is linked as 65016, but the
+	// work Fool's Errand carried a duplicate listing under 311441 with the same name.
+	const TAWNY = `This trilogy has also been published with a different numbering (each book is split into two separately numbered parts, with the exception of the first book) in Portuguese, under the name: <a href="http://www.goodreads.com/series/65016-o-regresso-do-assassino">O Regresso do Assassino</a>`
+	it('the phrase form yields the slug AND the anchor text, folded', () => {
+		expect(parallelListingNames(TAWNY)).toEqual(['o regresso do assassino'])
+		expect(parallelListingIds(TAWNY)).toEqual([65016])
+	})
+	it('a heading block yields every linked name', () => {
+		const d = `Also known as:\n* <a href="/series/1-das-magische-baumhaus">Das magische Baumhaus</a>\n* <a href="/series/2-la-cabane-magique"><i>La Cabane Magique</i></a>\n\nUnrelated: <a href="/series/3-unrelated">x</a>`
+		expect(parallelListingNames(d)).toEqual(['das magische baumhaus', 'la cabane magique'])
+	})
+	it('a link with no slug still yields its anchor text; an empty anchor yields nothing', () => {
+		expect(parallelListingNames('Also known as: <a href="/series/9">Plain Name</a>')).toEqual([
+			'plain name'
+		])
+		expect(parallelListingNames('Also known as: <a href="/series/9"></a>')).toEqual([])
+	})
+	it('empty and undeclared descriptions yield []', () => {
+		expect(parallelListingNames('')).toEqual([])
+		expect(
+			parallelListingNames('Just prose with <a href="/series/5-x">a link</a> but no declaration.')
+		).toEqual([])
 	})
 })

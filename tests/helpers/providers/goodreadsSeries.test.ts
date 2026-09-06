@@ -2923,6 +2923,18 @@ describe('namesEdition: a series-shaped subtitle is not an edition marker', () =
 	})
 	test('a bare "...Trilogy" title is still an omnibus (the 1 of 14)', async () => {
 		const { namesEdition } = await import('#helpers/providers/goodreadsSeries')
+		// The REVERSED series-shape, Roman or Arabic: an ordinary volume, not an
+		// edition. Fool's Quest (2026-09-06) carried "Book II of the Fitz and the
+		// Fool trilogy" and the forward-only strip let "trilogy" read as a marker.
+		for (const s of [
+			'Book II of the Fitz and the Fool trilogy',
+			'Book III of the Fitz and the Fool trilogy',
+			'Volume 3 of the Kharkanas Trilogy',
+			'Book 1 of The Riyria Chronicles',
+			'Part IV of the Malazan Book of the Fallen series'
+		]) {
+			expect(namesEdition(s)).toBe(false)
+		}
 		expect(namesEdition('The Society of the Sword Trilogy')).toBe(true)
 		expect(namesEdition('The Complete Kharkanas Trilogy')).toBe(true)
 	})
