@@ -287,4 +287,35 @@ record, which is the route sweep that
 
 ## 8. Release
 
-_To be filled._
+**SHIPPED AND LIVE on prod 2026-09-08.** `1fa81b0` on `nightly`, CI green (Bun +
+Docker), deployed to the single API on 10.0.1.99 and verified by digest, not by
+the word "Started":
+
+```
+ghcr :nightly            sha256:bee782c031ae4b8917d5790f2b01b6515f14b5efca24af68c00a7df429463088
+deployed on .99          sha256:bee782c031ae4b8917d5790f2b01b6515f14b5efca24af68c00a7df429463088
+/health uptime           0s  (a fresh container, so the in-process cache is empty --
+                             which also cleared the answers poisoned by the 2026-09-07 route sweep)
+```
+
+Refresh of the eleven albums (`scratchpad/hornblower-refresh.sh`), which refuses
+to touch Plex unless the API already serves the unified answer for every id:
+
+* deploy guard: **11/11 OK** cold, `Hornblower Saga: Chronological Order #1..#11`
+* snapshot captured for undo before any write
+* `PUT /library/metadata/{rk}/refresh?force=1` -> HTTP 200 on all eleven
+* converged in **20 seconds**; re-read of the artist's children afterwards:
+  **11 albums, 1 distinct shelf name, positions 1-11 in order**
+* covers: **11/11 byte-identical** (md5 before vs after) -- the standing rule is
+  that covers are hand-curated and never bulk-written
+
+Before -> after, the three shelves collapse to one:
+
+| was | albums |
+| --- | --- |
+| `Horatio Hornblower (chronological order)` (Audible) | 7 -> 0 |
+| `Hornblower Saga - Chronological Order` (folder) | 1 -> 0 |
+| `Hornblower Saga: Chronological Order` (Goodreads) | 3 -> **11** |
+
+Undo, if it is ever wanted:
+`python3 scripts/shelfSnapshot.py restore --host 10.0.1.98 --token <token> --snap scratchpad/hornblower-snap.json`
