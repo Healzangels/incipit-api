@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'bun:test'
 
 import {
-	PARALLEL_LISTING_PHRASE,
 	foldListingName,
+	PARALLEL_LISTING_PHRASE,
 	parallelListingIds,
 	parallelListingNames
 } from '#helpers/providers/goodreadsParallelListings'

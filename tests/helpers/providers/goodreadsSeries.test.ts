@@ -3069,12 +3069,27 @@ describe('the keep-guards never preserve an ORDERING incumbent', () => {
 		expect(out.seriesPrimary).toEqual({ name: 'Pern (Chronological Order)', position: '15' })
 	})
 
-	test('variant-only guard: an ORDERING incumbent is KEPT when every candidate is itself a variant', async () => {
+	test('variant-only guard: an ORDERING incumbent is RELEASED when every candidate is itself a variant', async () => {
 		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
-		// Every mirror listing is an ordering, so the resolver's own answer is a
-		// fallback. Ordering-for-ordering buys the reader nothing and risks a
-		// worse number; the release rule applies ONLY where the resolver has a
-		// clean shelvable answer (the edition guard).
+		// REVERSED 2026-09-08, deliberately. This test used to assert the opposite,
+		// reasoning that "ordering-for-ordering buys the reader nothing and risks a
+		// worse number". The first half was refuted by measurement: it buys nothing
+		// for ONE book and everything for a SHELF, because which name a book gets
+		// depends on whether its provider happens to know it. C. S. Forester on prod
+		// had eleven albums on three shelves for exactly this reason -- Goodreads
+		// offers only reading orders for Hornblower, Audible knows eight of the
+		// eleven and names its own order, and the other three took the Goodreads
+		// name. That is the same argument AUTHORITY MODE is built on: one taxonomy
+		// for the whole series beats a locally defensible name per book.
+		// The second half -- "risks a worse number" -- is still honoured, by the
+		// not-shelvable guard below, which is downstream of the release: an ordering
+		// incumbent is released only for an answer that can actually number the
+		// book. See docs/design/spec-ordering-only-shelf-split.md.
+		//
+		// Note what wins here: with two orderings the ranking prefers the one with
+		// more members, so this fixture answers Publication Order #3 (9 members)
+		// over Chronological Order #5 (4). On the real Hornblower records the
+		// bigger listing IS the chronological one (31 vs 12).
 		respond(
 			[{ workId: 7 }],
 			{
@@ -3101,7 +3116,7 @@ describe('the keep-guards never preserve an ORDERING incumbent', () => {
 			seriesPrimary: { name: 'Series X (Chronological Order)', position: '99' }
 		}
 		const out = await withGoodreadsSeries(book, fakeRedis())
-		expect(out.seriesPrimary).toEqual({ name: 'Series X (Chronological Order)', position: '99' })
+		expect(out.seriesPrimary).toEqual({ name: 'Series X (Publication Order)', position: '3' })
 	})
 
 	test('not-shelvable guard: a REAL provider series is still kept over a positionless answer', async () => {

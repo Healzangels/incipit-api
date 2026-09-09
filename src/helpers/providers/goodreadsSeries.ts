@@ -1334,7 +1334,26 @@ async function seriesEnriched<T extends SeriesEnrichable>(
 		)
 		return book
 	}
-	if (hadSeries && result.variantOnly) {
+	// ...unless the incumbent is an ORDERING too. The refusal above protects a
+	// CLEAN provider shelf from a demoted answer; an ordering in the provider slot
+	// is not one, it is the same class the demotion exists to keep off a shelf, so
+	// the refusal has nothing left to protect and only picks a winner by coin
+	// flip. Which side of the flip a book lands on is whether its provider happens
+	// to know it -- so ONE continuum splits across two names, which is the damage.
+	// Measured 2026-09-08 on C. S. Forester: Goodreads has no plain Hornblower
+	// series, only two reading orders (49812 chronological, 49813 publication), so
+	// every book is variantOnly; Audible knows eight of the eleven and calls the
+	// series "Horatio Hornblower (chronological order)"; the other three reach here
+	// with no provider series and take the Goodreads name. Three shelves, one
+	// numbering, everything out of order in Plex.
+	//
+	// Same doctrine, same predicate, as the edition guard above
+	// (`incumbentIsOrdering`) and as rescueWouldSpendItsOwnSubSeries: preservation
+	// is for answers worth preserving. The shelvable-position guard below is
+	// deliberately left downstream of this, so an ordering incumbent is still kept
+	// when the answer cannot number the book (A Gift of Dragons).
+	// See docs/design/spec-ordering-only-shelf-split.md.
+	if (hadSeries && result.variantOnly && !incumbentIsOrdering) {
 		logger?.debug(
 			{ title, goodreads: result.primary, kept: book.seriesPrimary },
 			'goodreads series: every candidate was a variant listing, keeping the provider series'
@@ -1855,7 +1874,23 @@ async function lookupByTitle(
 	let pendingDegradation = false
 	// Only the first few: /search is relevance-ordered, and walking deeper trades
 	// a real risk of a same-universe false accept for a vanishing chance of a hit.
-	for (const hit of hits.slice(0, 3)) {
+	//
+	// FIVE, not three, since 2026-09-08. The window is a budget on /work fetches,
+	// and the loop RETURNS as soon as a hit is adopted -- so a deeper window costs
+	// nothing on a book that resolves early, and only spends its extra calls on
+	// the books that are currently answering NONE. What fills the window when it
+	// is wasted is not same-universe near misses but junk records: Goodreads
+	// carries "<Title> by <Author> l Summary & Study Guide" works and omnibus
+	// editions whose position is free text ("5-7 omnibus"), and its relevance
+	// order puts them first. Measured on C. S. Forester: the real work is 5th for
+	// A Ship of the Line (2924, #7) and 4th for Hornblower in the West Indies
+	// (3658697, #11), so both books lost their series to three junk records and
+	// one of them fell through to its folder name -- a third shelf on an
+	// eleven-album series. Three gates stand behind this window and none of them
+	// was relaxed: the title-similarity gate, the positive author-credit gate,
+	// and "a work with no series says nothing about the ones behind it".
+	// See docs/design/spec-ordering-only-shelf-split.md.
+	for (const hit of hits.slice(0, 5)) {
 		if (pendingDegradation) {
 			if (state) state.degraded = true
 			pendingDegradation = false

@@ -28736,6 +28736,588 @@
     "trace2.ts reproduction 2026-09-06"
    ],
    "mintPin": false
+  },
+  {
+   "recordId": "B00CFRZGX2",
+   "ratingKey": "749552",
+   "album": "Mr Midshipman Hornblower",
+   "artist": "C. S. Forester",
+   "inputs": {
+    "title": "Mr Midshipman Hornblower",
+    "subtitle": null,
+    "author": "C. S. Forester",
+    "providerSeries": {
+     "name": "Horatio Hornblower (chronological order)",
+     "position": "1"
+    },
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [
+     {
+      "title": "Horatio Hornblower (chronological order)",
+      "sequence": "1"
+     }
+    ],
+    "inputSource": "live Audible catalog probe 2026-09-08"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "Horatio Hornblower (chronological order)",
+     "position": "1"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Horatio Hornblower (chronological order), Book 1 - Mr Midshipman Hornblower",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Hornblower Saga: Chronological Order",
+    "position": "1",
+    "secondaryNote": "the publication-order listing is a reading order and stays out of both slots",
+    "expectedSortPrefix": "Hornblower Saga: Chronological Order, Book 1 - "
+   },
+   "specRule": [
+    "O1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-08: 'this is a classic case of a new series being added and it being match onto different series or onto similar series but not the exact same so ends up out of order', and on the winner: 'I think prefer goodreads ... added more and they added to Hornblower Saga: Chronological Order, Book N so I think goodreads makes sense'. Goodreads carries NO plain Hornblower series -- only two reading orders (49812 chronological, 49813 publication) -- so every candidate is demoted and the answer is variantOnly; Audible names its own reading order 'Horatio Hornblower (chronological order)' for the 8 books it knows and the rest take the Goodreads name. RULE-FIXED, not pinned: O1 releases an ORDERING incumbent, O2 widens the work window past the study guides. See docs/design/spec-ordering-only-shelf-split.md.",
+   "group": "ordering-only-hornblower",
+   "note": "LIVE DEFECT 2026-09-08, prod rk 749552: shelved \"Horatio Hornblower (chronological order), Book 1\" while siblings sit on \"Hornblower Saga: Chronological Order\". The provider incumbent is itself a reading order, so O1 releases it.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-08 (section 6, artist rk 749447)",
+    "live Audible catalog probe 2026-09-08 (response_groups=product_desc,product_attrs,series)",
+    "incipit-api GET /books 2026-09-08 for the Hardcover-id rows",
+    "GR mirror /search + /work + /series 2026-09-08",
+    "in-process reproduction with and without the provider incumbent (.cache/hb2.ts)"
+   ],
+   "mintPin": false
+  },
+  {
+   "recordId": "B005HF366S",
+   "ratingKey": "749463",
+   "album": "Lieutenant Hornblower",
+   "artist": "C. S. Forester",
+   "inputs": {
+    "title": "Lieutenant Hornblower",
+    "subtitle": null,
+    "author": "C. S. Forester",
+    "providerSeries": {
+     "name": "Horatio Hornblower (chronological order)",
+     "position": "2"
+    },
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [
+     {
+      "title": "Horatio Hornblower (chronological order)",
+      "sequence": "2"
+     }
+    ],
+    "inputSource": "live Audible catalog probe 2026-09-08"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "Horatio Hornblower (chronological order)",
+     "position": "2"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Horatio Hornblower (chronological order), Book 2 - Lieutenant Hornblower",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Hornblower Saga: Chronological Order",
+    "position": "2",
+    "secondaryNote": "the publication-order listing is a reading order and stays out of both slots",
+    "expectedSortPrefix": "Hornblower Saga: Chronological Order, Book 2 - "
+   },
+   "specRule": [
+    "O1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-08: 'this is a classic case of a new series being added and it being match onto different series or onto similar series but not the exact same so ends up out of order', and on the winner: 'I think prefer goodreads ... added more and they added to Hornblower Saga: Chronological Order, Book N so I think goodreads makes sense'. Goodreads carries NO plain Hornblower series -- only two reading orders (49812 chronological, 49813 publication) -- so every candidate is demoted and the answer is variantOnly; Audible names its own reading order 'Horatio Hornblower (chronological order)' for the 8 books it knows and the rest take the Goodreads name. RULE-FIXED, not pinned: O1 releases an ORDERING incumbent, O2 widens the work window past the study guides. See docs/design/spec-ordering-only-shelf-split.md.",
+   "group": "ordering-only-hornblower",
+   "note": "LIVE DEFECT 2026-09-08, prod rk 749463: shelved \"Horatio Hornblower (chronological order), Book 2\" while siblings sit on \"Hornblower Saga: Chronological Order\". The provider incumbent is itself a reading order, so O1 releases it.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-08 (section 6, artist rk 749447)",
+    "live Audible catalog probe 2026-09-08 (response_groups=product_desc,product_attrs,series)",
+    "incipit-api GET /books 2026-09-08 for the Hardcover-id rows",
+    "GR mirror /search + /work + /series 2026-09-08",
+    "in-process reproduction with and without the provider incumbent (.cache/hb2.ts)"
+   ],
+   "mintPin": false
+  },
+  {
+   "recordId": "hardcover-edition-31747222",
+   "ratingKey": "749448",
+   "album": "Hornblower and the Hotspur",
+   "artist": "C. S. Forester",
+   "inputs": {
+    "title": "Hornblower and the Hotspur",
+    "subtitle": null,
+    "author": "C. S. Forester",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [],
+    "inputSource": "live Audible catalog probe 2026-09-08 returned an empty product echo (B006QM78OW) or the album is matched to a Hardcover id, so NO provider series reaches the resolver; the served answer is Goodreads-derived (its secondary is the publication-order listing)"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "Hornblower Saga: Chronological Order",
+     "position": "3"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Hornblower Saga: Chronological Order, Book 3 - Hornblower and the Hotspur",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Hornblower Saga: Chronological Order",
+    "position": "3",
+    "secondaryNote": "the publication-order listing is a reading order and stays out of both slots",
+    "expectedSortPrefix": "Hornblower Saga: Chronological Order, Book 3 - "
+   },
+   "specRule": [
+    "O1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-08: 'this is a classic case of a new series being added and it being match onto different series or onto similar series but not the exact same so ends up out of order', and on the winner: 'I think prefer goodreads ... added more and they added to Hornblower Saga: Chronological Order, Book N so I think goodreads makes sense'. Goodreads carries NO plain Hornblower series -- only two reading orders (49812 chronological, 49813 publication) -- so every candidate is demoted and the answer is variantOnly; Audible names its own reading order 'Horatio Hornblower (chronological order)' for the 8 books it knows and the rest take the Goodreads name. RULE-FIXED, not pinned: O1 releases an ORDERING incumbent, O2 widens the work window past the study guides. See docs/design/spec-ordering-only-shelf-split.md.",
+   "group": "ordering-only-hornblower",
+   "note": "Correct today, prod rk 749448: no provider series reaches the resolver, so the variant-only Goodreads answer is applied. This row pins that O1 does not disturb the side that is already right.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-08 (section 6, artist rk 749447)",
+    "live Audible catalog probe 2026-09-08 (response_groups=product_desc,product_attrs,series)",
+    "incipit-api GET /books 2026-09-08 for the Hardcover-id rows",
+    "GR mirror /search + /work + /series 2026-09-08",
+    "in-process reproduction with and without the provider incumbent (.cache/hb2.ts)"
+   ],
+   "mintPin": false
+  },
+  {
+   "recordId": "B0044WH28S",
+   "ratingKey": "749454",
+   "album": "Hornblower and the Crisis",
+   "artist": "C. S. Forester",
+   "inputs": {
+    "title": "Hornblower and the Crisis",
+    "subtitle": null,
+    "author": "C. S. Forester",
+    "providerSeries": {
+     "name": "Horatio Hornblower (chronological order)",
+     "position": "4"
+    },
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [
+     {
+      "title": "Horatio Hornblower (chronological order)",
+      "sequence": "4"
+     }
+    ],
+    "inputSource": "live Audible catalog probe 2026-09-08"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "Horatio Hornblower (chronological order)",
+     "position": "4"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Horatio Hornblower (chronological order), Book 4 - Hornblower and the Crisis",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Hornblower Saga: Chronological Order",
+    "position": "4",
+    "secondaryNote": "the publication-order listing is a reading order and stays out of both slots",
+    "expectedSortPrefix": "Hornblower Saga: Chronological Order, Book 4 - "
+   },
+   "specRule": [
+    "O1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-08: 'this is a classic case of a new series being added and it being match onto different series or onto similar series but not the exact same so ends up out of order', and on the winner: 'I think prefer goodreads ... added more and they added to Hornblower Saga: Chronological Order, Book N so I think goodreads makes sense'. Goodreads carries NO plain Hornblower series -- only two reading orders (49812 chronological, 49813 publication) -- so every candidate is demoted and the answer is variantOnly; Audible names its own reading order 'Horatio Hornblower (chronological order)' for the 8 books it knows and the rest take the Goodreads name. RULE-FIXED, not pinned: O1 releases an ORDERING incumbent, O2 widens the work window past the study guides. See docs/design/spec-ordering-only-shelf-split.md.",
+   "group": "ordering-only-hornblower",
+   "note": "LIVE DEFECT 2026-09-08, prod rk 749454: shelved \"Horatio Hornblower (chronological order), Book 4\" while siblings sit on \"Hornblower Saga: Chronological Order\". The provider incumbent is itself a reading order, so O1 releases it.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-08 (section 6, artist rk 749447)",
+    "live Audible catalog probe 2026-09-08 (response_groups=product_desc,product_attrs,series)",
+    "incipit-api GET /books 2026-09-08 for the Hardcover-id rows",
+    "GR mirror /search + /work + /series 2026-09-08",
+    "in-process reproduction with and without the provider incumbent (.cache/hb2.ts)"
+   ],
+   "mintPin": false
+  },
+  {
+   "recordId": "B006QM78OW",
+   "ratingKey": "749469",
+   "album": "Hornblower and the Atropos",
+   "artist": "C. S. Forester",
+   "inputs": {
+    "title": "Hornblower and the Atropos",
+    "subtitle": null,
+    "author": "C. S. Forester",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [],
+    "inputSource": "live Audible catalog probe 2026-09-08 returned an empty product echo (B006QM78OW) or the album is matched to a Hardcover id, so NO provider series reaches the resolver; the served answer is Goodreads-derived (its secondary is the publication-order listing)"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "Hornblower Saga: Chronological Order",
+     "position": "5"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Hornblower Saga: Chronological Order, Book 5 - Hornblower and the Atropos",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Hornblower Saga: Chronological Order",
+    "position": "5",
+    "secondaryNote": "the publication-order listing is a reading order and stays out of both slots",
+    "expectedSortPrefix": "Hornblower Saga: Chronological Order, Book 5 - "
+   },
+   "specRule": [
+    "O1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-08: 'this is a classic case of a new series being added and it being match onto different series or onto similar series but not the exact same so ends up out of order', and on the winner: 'I think prefer goodreads ... added more and they added to Hornblower Saga: Chronological Order, Book N so I think goodreads makes sense'. Goodreads carries NO plain Hornblower series -- only two reading orders (49812 chronological, 49813 publication) -- so every candidate is demoted and the answer is variantOnly; Audible names its own reading order 'Horatio Hornblower (chronological order)' for the 8 books it knows and the rest take the Goodreads name. RULE-FIXED, not pinned: O1 releases an ORDERING incumbent, O2 widens the work window past the study guides. See docs/design/spec-ordering-only-shelf-split.md.",
+   "group": "ordering-only-hornblower",
+   "note": "Correct today, prod rk 749469: no provider series reaches the resolver, so the variant-only Goodreads answer is applied. This row pins that O1 does not disturb the side that is already right.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-08 (section 6, artist rk 749447)",
+    "live Audible catalog probe 2026-09-08 (response_groups=product_desc,product_attrs,series)",
+    "incipit-api GET /books 2026-09-08 for the Hardcover-id rows",
+    "GR mirror /search + /work + /series 2026-09-08",
+    "in-process reproduction with and without the provider incumbent (.cache/hb2.ts)"
+   ],
+   "mintPin": false
+  },
+  {
+   "recordId": "B0045T93UU",
+   "ratingKey": "749457",
+   "album": "The Happy Return",
+   "artist": "C. S. Forester",
+   "inputs": {
+    "title": "The Happy Return",
+    "subtitle": null,
+    "author": "C. S. Forester",
+    "providerSeries": {
+     "name": "Horatio Hornblower (chronological order)",
+     "position": "6"
+    },
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [
+     {
+      "title": "Horatio Hornblower (chronological order)",
+      "sequence": "6"
+     }
+    ],
+    "inputSource": "live Audible catalog probe 2026-09-08"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "Horatio Hornblower (chronological order)",
+     "position": "6"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Horatio Hornblower (chronological order), Book 6 - The Happy Return",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Hornblower Saga: Chronological Order",
+    "position": "6",
+    "secondaryNote": "the publication-order listing is a reading order and stays out of both slots",
+    "expectedSortPrefix": "Hornblower Saga: Chronological Order, Book 6 - "
+   },
+   "specRule": [
+    "O1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-08: 'this is a classic case of a new series being added and it being match onto different series or onto similar series but not the exact same so ends up out of order', and on the winner: 'I think prefer goodreads ... added more and they added to Hornblower Saga: Chronological Order, Book N so I think goodreads makes sense'. Goodreads carries NO plain Hornblower series -- only two reading orders (49812 chronological, 49813 publication) -- so every candidate is demoted and the answer is variantOnly; Audible names its own reading order 'Horatio Hornblower (chronological order)' for the 8 books it knows and the rest take the Goodreads name. RULE-FIXED, not pinned: O1 releases an ORDERING incumbent, O2 widens the work window past the study guides. See docs/design/spec-ordering-only-shelf-split.md.",
+   "group": "ordering-only-hornblower",
+   "note": "LIVE DEFECT 2026-09-08, prod rk 749457: shelved \"Horatio Hornblower (chronological order), Book 6\" while siblings sit on \"Hornblower Saga: Chronological Order\". The provider incumbent is itself a reading order, so O1 releases it.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-08 (section 6, artist rk 749447)",
+    "live Audible catalog probe 2026-09-08 (response_groups=product_desc,product_attrs,series)",
+    "incipit-api GET /books 2026-09-08 for the Hardcover-id rows",
+    "GR mirror /search + /work + /series 2026-09-08",
+    "in-process reproduction with and without the provider incumbent (.cache/hb2.ts)"
+   ],
+   "mintPin": false
+  },
+  {
+   "recordId": "B0045USA58",
+   "ratingKey": "749460",
+   "album": "A Ship of the Line",
+   "artist": "C. S. Forester",
+   "inputs": {
+    "title": "A Ship of the Line",
+    "subtitle": null,
+    "author": "C. S. Forester",
+    "providerSeries": {
+     "name": "Horatio Hornblower (chronological order)",
+     "position": "7"
+    },
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [
+     {
+      "title": "Horatio Hornblower (chronological order)",
+      "sequence": "7"
+     }
+    ],
+    "inputSource": "live Audible catalog probe 2026-09-08"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "Horatio Hornblower (chronological order)",
+     "position": "7"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Horatio Hornblower (chronological order), Book 7 - A Ship of the Line",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Hornblower Saga: Chronological Order",
+    "position": "7",
+    "secondaryNote": "the publication-order listing is a reading order and stays out of both slots",
+    "expectedSortPrefix": "Hornblower Saga: Chronological Order, Book 7 - "
+   },
+   "specRule": [
+    "O1",
+    "O2"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-08: 'this is a classic case of a new series being added and it being match onto different series or onto similar series but not the exact same so ends up out of order', and on the winner: 'I think prefer goodreads ... added more and they added to Hornblower Saga: Chronological Order, Book N so I think goodreads makes sense'. Goodreads carries NO plain Hornblower series -- only two reading orders (49812 chronological, 49813 publication) -- so every candidate is demoted and the answer is variantOnly; Audible names its own reading order 'Horatio Hornblower (chronological order)' for the 8 books it knows and the rest take the Goodreads name. RULE-FIXED, not pinned: O1 releases an ORDERING incumbent, O2 widens the work window past the study guides. See docs/design/spec-ordering-only-shelf-split.md.",
+   "group": "ordering-only-hornblower",
+   "note": "LIVE DEFECT 2026-09-08, prod rk 749460: the resolver answers NONE because the correct work (GR work 2924) ranks 5th in /search, behind The Ship, the Captain Hornblower R.N. omnibus (\"5-7 omnibus\") and a compilation -- outside the 3-work window. O2 widens it; without O2 this row stays on Horatio Hornblower (chronological order).",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-08 (section 6, artist rk 749447)",
+    "live Audible catalog probe 2026-09-08 (response_groups=product_desc,product_attrs,series)",
+    "incipit-api GET /books 2026-09-08 for the Hardcover-id rows",
+    "GR mirror /search + /work + /series 2026-09-08",
+    "in-process reproduction with and without the provider incumbent (.cache/hb2.ts)"
+   ],
+   "mintPin": false
+  },
+  {
+   "recordId": "B00450ETLW",
+   "ratingKey": "749466",
+   "album": "Flying Colours",
+   "artist": "C. S. Forester",
+   "inputs": {
+    "title": "Flying Colours",
+    "subtitle": null,
+    "author": "C. S. Forester",
+    "providerSeries": {
+     "name": "Horatio Hornblower (chronological order)",
+     "position": "8"
+    },
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [
+     {
+      "title": "Horatio Hornblower (chronological order)",
+      "sequence": "8"
+     }
+    ],
+    "inputSource": "live Audible catalog probe 2026-09-08"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "Horatio Hornblower (chronological order)",
+     "position": "8"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Horatio Hornblower (chronological order), Book 8 - Flying Colours",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Hornblower Saga: Chronological Order",
+    "position": "8",
+    "secondaryNote": "the publication-order listing is a reading order and stays out of both slots",
+    "expectedSortPrefix": "Hornblower Saga: Chronological Order, Book 8 - "
+   },
+   "specRule": [
+    "O1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-08: 'this is a classic case of a new series being added and it being match onto different series or onto similar series but not the exact same so ends up out of order', and on the winner: 'I think prefer goodreads ... added more and they added to Hornblower Saga: Chronological Order, Book N so I think goodreads makes sense'. Goodreads carries NO plain Hornblower series -- only two reading orders (49812 chronological, 49813 publication) -- so every candidate is demoted and the answer is variantOnly; Audible names its own reading order 'Horatio Hornblower (chronological order)' for the 8 books it knows and the rest take the Goodreads name. RULE-FIXED, not pinned: O1 releases an ORDERING incumbent, O2 widens the work window past the study guides. See docs/design/spec-ordering-only-shelf-split.md.",
+   "group": "ordering-only-hornblower",
+   "note": "LIVE DEFECT 2026-09-08, prod rk 749466: shelved \"Horatio Hornblower (chronological order), Book 8\" while siblings sit on \"Hornblower Saga: Chronological Order\". The provider incumbent is itself a reading order, so O1 releases it.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-08 (section 6, artist rk 749447)",
+    "live Audible catalog probe 2026-09-08 (response_groups=product_desc,product_attrs,series)",
+    "incipit-api GET /books 2026-09-08 for the Hardcover-id rows",
+    "GR mirror /search + /work + /series 2026-09-08",
+    "in-process reproduction with and without the provider incumbent (.cache/hb2.ts)"
+   ],
+   "mintPin": false
+  },
+  {
+   "recordId": "hardcover-book-1221594",
+   "ratingKey": "749612",
+   "album": "The Commodore",
+   "artist": "C. S. Forester",
+   "inputs": {
+    "title": "The Commodore",
+    "subtitle": null,
+    "author": "C. S. Forester",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [],
+    "inputSource": "live Audible catalog probe 2026-09-08 returned an empty product echo (B006QM78OW) or the album is matched to a Hardcover id, so NO provider series reaches the resolver; the served answer is Goodreads-derived (its secondary is the publication-order listing)"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "Hornblower Saga: Chronological Order",
+     "position": "9"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Hornblower Saga: Chronological Order, Book 9 - The Commodore",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Hornblower Saga: Chronological Order",
+    "position": "9",
+    "secondaryNote": "the publication-order listing is a reading order and stays out of both slots",
+    "expectedSortPrefix": "Hornblower Saga: Chronological Order, Book 9 - "
+   },
+   "specRule": [
+    "O1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-08: 'this is a classic case of a new series being added and it being match onto different series or onto similar series but not the exact same so ends up out of order', and on the winner: 'I think prefer goodreads ... added more and they added to Hornblower Saga: Chronological Order, Book N so I think goodreads makes sense'. Goodreads carries NO plain Hornblower series -- only two reading orders (49812 chronological, 49813 publication) -- so every candidate is demoted and the answer is variantOnly; Audible names its own reading order 'Horatio Hornblower (chronological order)' for the 8 books it knows and the rest take the Goodreads name. RULE-FIXED, not pinned: O1 releases an ORDERING incumbent, O2 widens the work window past the study guides. See docs/design/spec-ordering-only-shelf-split.md.",
+   "group": "ordering-only-hornblower",
+   "note": "Correct today, prod rk 749612: no provider series reaches the resolver, so the variant-only Goodreads answer is applied. This row pins that O1 does not disturb the side that is already right.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-08 (section 6, artist rk 749447)",
+    "live Audible catalog probe 2026-09-08 (response_groups=product_desc,product_attrs,series)",
+    "incipit-api GET /books 2026-09-08 for the Hardcover-id rows",
+    "GR mirror /search + /work + /series 2026-09-08",
+    "in-process reproduction with and without the provider incumbent (.cache/hb2.ts)"
+   ],
+   "mintPin": false
+  },
+  {
+   "recordId": "B0045072DE",
+   "ratingKey": "749451",
+   "album": "Lord Hornblower",
+   "artist": "C. S. Forester",
+   "inputs": {
+    "title": "Lord Hornblower",
+    "subtitle": null,
+    "author": "C. S. Forester",
+    "providerSeries": {
+     "name": "Horatio Hornblower (chronological order)",
+     "position": "10"
+    },
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [
+     {
+      "title": "Horatio Hornblower (chronological order)",
+      "sequence": "10"
+     }
+    ],
+    "inputSource": "live Audible catalog probe 2026-09-08"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "Horatio Hornblower (chronological order)",
+     "position": "10"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Horatio Hornblower (chronological order), Book 10 - Lord Hornblower",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Hornblower Saga: Chronological Order",
+    "position": "10",
+    "secondaryNote": "the publication-order listing is a reading order and stays out of both slots",
+    "expectedSortPrefix": "Hornblower Saga: Chronological Order, Book 10 - "
+   },
+   "specRule": [
+    "O1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-08: 'this is a classic case of a new series being added and it being match onto different series or onto similar series but not the exact same so ends up out of order', and on the winner: 'I think prefer goodreads ... added more and they added to Hornblower Saga: Chronological Order, Book N so I think goodreads makes sense'. Goodreads carries NO plain Hornblower series -- only two reading orders (49812 chronological, 49813 publication) -- so every candidate is demoted and the answer is variantOnly; Audible names its own reading order 'Horatio Hornblower (chronological order)' for the 8 books it knows and the rest take the Goodreads name. RULE-FIXED, not pinned: O1 releases an ORDERING incumbent, O2 widens the work window past the study guides. See docs/design/spec-ordering-only-shelf-split.md.",
+   "group": "ordering-only-hornblower",
+   "note": "LIVE DEFECT 2026-09-08, prod rk 749451: shelved \"Horatio Hornblower (chronological order), Book 10\" while siblings sit on \"Hornblower Saga: Chronological Order\". The provider incumbent is itself a reading order, so O1 releases it.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-08 (section 6, artist rk 749447)",
+    "live Audible catalog probe 2026-09-08 (response_groups=product_desc,product_attrs,series)",
+    "incipit-api GET /books 2026-09-08 for the Hardcover-id rows",
+    "GR mirror /search + /work + /series 2026-09-08",
+    "in-process reproduction with and without the provider incumbent (.cache/hb2.ts)"
+   ],
+   "mintPin": false
+  },
+  {
+   "recordId": "hardcover-book-1369573",
+   "ratingKey": "749476",
+   "album": "Hornblower in the West Indies",
+   "artist": "C. S. Forester",
+   "inputs": {
+    "title": "Hornblower in the West Indies",
+    "subtitle": null,
+    "author": "C. S. Forester",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [],
+    "inputSource": "live Audible catalog probe 2026-09-08 returned an empty product echo (B006QM78OW) or the album is matched to a Hardcover id, so NO provider series reaches the resolver; the served answer is Goodreads-derived (its secondary is the publication-order listing)"
+   },
+   "servedNow": {
+    "primary": null,
+    "secondary": null,
+    "plexSortTitleNow": "Hornblower Saga - Chronological Order, Book 11 - Hornblower in the West Indies",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Hornblower Saga: Chronological Order",
+    "position": "11",
+    "secondaryNote": "the publication-order listing is a reading order and stays out of both slots",
+    "expectedSortPrefix": "Hornblower Saga: Chronological Order, Book 11 - "
+   },
+   "specRule": [
+    "O2"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-08: 'this is a classic case of a new series being added and it being match onto different series or onto similar series but not the exact same so ends up out of order', and on the winner: 'I think prefer goodreads ... added more and they added to Hornblower Saga: Chronological Order, Book N so I think goodreads makes sense'. Goodreads carries NO plain Hornblower series -- only two reading orders (49812 chronological, 49813 publication) -- so every candidate is demoted and the answer is variantOnly; Audible names its own reading order 'Horatio Hornblower (chronological order)' for the 8 books it knows and the rest take the Goodreads name. RULE-FIXED, not pinned: O1 releases an ORDERING incumbent, O2 widens the work window past the study guides. See docs/design/spec-ordering-only-shelf-split.md.",
+   "group": "ordering-only-hornblower",
+   "note": "LIVE DEFECT 2026-09-08, prod rk 749476: the resolver answers NONE because the correct work (GR work 3658697) ranks 4th in /search, behind two \"... Summary & Study Guide\" works and Admiral Hornblower -- outside the 3-work window. O2 widens it; without O2 this row stays on its FOLDER name \"Hornblower Saga - Chronological Order\" (note the dash: the API answers null, so the bundle falls back to the folder).",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-08 (section 6, artist rk 749447)",
+    "live Audible catalog probe 2026-09-08 (response_groups=product_desc,product_attrs,series)",
+    "incipit-api GET /books 2026-09-08 for the Hardcover-id rows",
+    "GR mirror /search + /work + /series 2026-09-08",
+    "in-process reproduction with and without the provider incumbent (.cache/hb2.ts)"
+   ],
+   "mintPin": false
   }
  ]
 }
