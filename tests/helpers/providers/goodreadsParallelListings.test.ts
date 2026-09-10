@@ -57,6 +57,21 @@ describe('parallelListingIds', () => {
 		expect(parallelListingIds(one)).toEqual([89770])
 	})
 
+	it('never takes a name from a link the phrase did not point at', () => {
+		// A self-closed anchor carries no ">text<" tail, so the phrase regex treats it
+		// as a wrapper tag and captures the NEXT anchor's id -- while a scan for the
+		// first link from the phrase still lands on the self-closed one. Reading names
+		// off that link would put a series in the deny set on the strength of a phrase
+		// that never named it, and the deny is what decides which shelf a book keeps.
+		// The invariant: everything taken belongs to the link the phrase pointed at.
+		const desc = `under the name: <a href="/series/100-alpha"/><a href="/series/200-beta">Beta</a>`
+		const ids = parallelListingIds(desc)
+		const names = parallelListingNames(desc)
+		expect(ids).not.toContain(100)
+		expect(names).not.toContain('alpha')
+		expect(ids).toContain(200)
+	})
+
 	it('steps over inline tags between the colon and the anchor, but not over a second anchor', () => {
 		expect(
 			parallelListingIds(`under the name: <i><b><a href="/series/1234-x">X</a></b></i>`)

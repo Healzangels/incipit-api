@@ -3,7 +3,8 @@ import type { FastifyBaseLogger } from 'fastify'
 import {
 	foldListingName,
 	parallelListingIds,
-	parallelListingNames
+	parallelListingNames,
+	SERIES_AKA_HEADING
 } from '#helpers/providers/goodreadsParallelListings'
 import { normalizeTitle, sim } from '#helpers/providers/matchScorer'
 import type { ProviderBookSeries } from '#helpers/providers/types'
@@ -614,7 +615,6 @@ export function queryTitle(title: string): string {
 	return stripped || title
 }
 
-const SERIES_AKA_HEADING = /also\s+known\s+as\s*:?/i
 const SERIES_SUB_HEADING = /sub-?series\s*:?/i
 
 // SCRIPT ONLY -- deliberately not diacritics and not function words.
@@ -2150,9 +2150,25 @@ async function lookupByTitle(
 				// anchor text both name the listing, so a candidate with that folded name
 				// is the same re-listing whatever id it was minted under (spec section 11.1).
 				const parallelNames = new Set<string>()
-				for (const desc of descById.values()) {
-					for (const id of parallelListingIds(desc)) parallel.add(id)
-					for (const name of parallelListingNames(desc)) parallelNames.add(name)
+				// A description NEVER denies its own series. An "Also known as" block
+				// routinely lists every name the series goes by INCLUDING the canonical
+				// one it belongs to -- the live Rain Wild Chronicles description reads
+				// "Series also known as: * Rain Wild Chronicles * Cronache delle Giungle
+				// delle Piogge", and the only reason that costs nothing today is that
+				// those two entries carry no href. The moment a librarian links the
+				// first one, the id AND the folded name of the declaring series land in
+				// the deny set and the canonical shelf is dropped from its own ranking,
+				// handing the book to the translation this deny exists to remove. A
+				// declaration by a DIFFERENT candidate still denies it: only the
+				// self-reference is dropped.
+				const ownName = new Map<number, string>()
+				for (const s of pool)
+					if (typeof s.ForeignId === 'number')
+						ownName.set(s.ForeignId, foldListingName(String(s.Title ?? '')))
+				for (const [ownerId, desc] of descById) {
+					const mine = ownName.get(ownerId) ?? ''
+					for (const id of parallelListingIds(desc)) if (id !== ownerId) parallel.add(id)
+					for (const name of parallelListingNames(desc)) if (name !== mine) parallelNames.add(name)
 				}
 				const kept = ranked.filter(
 					(s) =>
@@ -2214,8 +2230,15 @@ async function lookupByTitle(
 			// shelves whose NAME declares nothing -- Les Annales de la Compagnie
 			// Noire is linked from The Chronicles of the Black Company.
 			const denied = new Set<number>()
-			for (const desc of descById.values()) {
-				for (const id of linkedSeriesIdsUnder(desc, SERIES_AKA_HEADING)) denied.add(id)
+			// A description never denies its OWN series -- the same rule the ranking
+			// deny above applies, for the same reason: an "Also known as" block lists
+			// every name the series goes by, the canonical one included, so reading a
+			// declaration back at its author removes a legitimate candidate on the
+			// strength of its own self-description. There it costs the SHELF; here it
+			// costs the TAG. A declaration by a DIFFERENT candidate still denies.
+			for (const [ownerId, desc] of descById) {
+				for (const id of linkedSeriesIdsUnder(desc, SERIES_AKA_HEADING))
+					if (id !== ownerId) denied.add(id)
 			}
 			// ALLOW: when the winning shelf declares its own arcs, a candidate that
 			// is not one of them is not a sub-arc of this shelf. Discworld lists

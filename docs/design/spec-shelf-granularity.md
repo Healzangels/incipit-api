@@ -611,3 +611,55 @@ cached `#15`; cold answers `The Tawny Man #1` and `Fitz and the Fool #2`;
 `refresh?force=1` on rk 748846 and 748848 converged in 20 s to `Tawny Man, Book
 1 - Fool's Errand` and `Fitz and the Fool, Book 2 - Fool's Quest`, snapshot taken
 first, both posters byte-identical.
+
+## 12. Review findings, 2026-09-10 — the deny could read its own declaration back
+
+A polish review of the shipped range found a **latent** defect in the deny this
+spec introduced, in both places it is applied. It changes no answer today; it
+would have changed one the moment a librarian edited a description.
+
+**A description must never deny its OWN series.** An "Also known as" block lists
+every name the series goes by, and that routinely includes the canonical one.
+The live Rain Wild Chronicles description reads *"Series also known as: * Rain
+Wild Chronicles * Cronache delle Giungle delle Piogge"* — the canonical shelf
+naming itself. Both entries are plain text today, which is the only reason the
+deny costs nothing: `parallelListingIds` and `linkedSeriesIdsUnder` read **links**.
+Link that first entry and the canonical series' own id and folded name land in
+the deny set, the shelf is dropped from its own ranking, and the book goes to the
+translation with the larger member count — precisely the outcome §11.1 added the
+deny to prevent.
+
+Fixed in both sites, and they are different damage:
+
+| site | filters | self-deny costs |
+| --- | --- | --- |
+| ranking deny (§11.1) | `ranked` | the **shelf** |
+| secondary deny | `ranked.slice(1)` | the **tag** |
+
+The review fixed only the first; the second was found by asking whether the fix
+had a sibling. Leaving one of them would have left the module stating a rule in
+one place and forgetting it in the other — the same shape as D1 in
+`spec-ordering-only-shelf-split.md`. A declaration by a **different** candidate
+still denies; only the self-reference is skipped.
+
+**Also fixed:** the phrase form took its names from the first link at or after
+the phrase without checking that it *was* the link the phrase named. A
+self-closed anchor carries no `>text<` tail, so the phrase regex treats it as a
+wrapper tag and captures the NEXT anchor's id while the scan lands on the
+self-closed one — putting an unrelated series' id and name into the deny set on
+the strength of a phrase that never mentioned it. Reachability was settled by
+probing both variants over eight malformed descriptions, not by argument: two of
+the eight differ.
+
+**A/B, three arms, each run twice and byte-identical (535 rows):**
+`A` = shipped `454f1cd`, `B` = the review's fixes, `C` = plus the secondary-slot
+fix. **A→B 0 movers, B→C 0 movers, A→C 0 movers** — which is the expected result
+for latent-bug fixes and the reason they can ship without a refresh. Hermetic
+gate **2,492 pass / 0 fail**; pins-on `--gate` **PASS 0 → 0**.
+
+**Tooling defect found in the same pass:** `--baseline --no-pins` wrote a
+pins-off baseline with no record of the arm, and a later pins-on `--gate` would
+then treat every pin-masked failure as a **standing red** — a gate that can never
+fail again. The baseline now records `noPins` and the harness refuses to compare
+across arms. Verified by negative control: marking the baseline pins-off and
+gating pins-on exits 2 with a message naming both arms.

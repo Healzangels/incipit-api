@@ -23,6 +23,9 @@
  *   ... --out <results.json>
  *   ... --no-pins   run with both pin tables EMPTY: the A/B arm switch. A pin masks the
  *                   resolver, so a fix is proved only when rows heal without pins.
+ *                   The arm is RECORDED in the baseline and the gate refuses to
+ *                   compare across arms — a pins-off baseline gated with pins on
+ *                   would launder every pin-masked failure into a standing red.
  *
  * The mirror is nondeterministic infrastructure (429s under load, librarian
  * edits between runs). Until the Phase-2 recorder lands, treat single-row
@@ -109,7 +112,7 @@ if (DETERMINISM) process.env.GOODREADS_DEGRADED_COOLDOWN_MS = '0'
 const args = process.argv.slice(2)
 const flag = (name: string) => args.includes(name)
 /** Run with both pin tables empty — the A/B arm switch. See the resolve site. */
-const NO_PINS = args.includes('--no-pins')
+const NO_PINS = flag('--no-pins')
 const opt = (name: string): string | undefined => {
 	const i = args.indexOf(name)
 	return i >= 0 ? args[i + 1] : undefined
@@ -296,6 +299,25 @@ async function main(): Promise<void> {
 		)
 		process.exit(2)
 	}
+	// The same invariant one axis over, and refused BEFORE the run rather than
+	// after it: the gate and its baseline must have been recorded on the same ARM.
+	// A pin masks the resolver, so a pins-off run has strictly more failures --
+	// gate pins-off against a pins-on baseline and every masked row reports as a
+	// NEW failure; record a baseline pins-off and gate pins-on and every masked
+	// row is laundered into a "standing failure" that can never fail again. A
+	// baseline written before this field existed was recorded with pins, so a
+	// missing `noPins` reads as false.
+	if (flag('--gate') && existsSync(BASELINE_PATH)) {
+		const arm = (JSON.parse(readFileSync(BASELINE_PATH, 'utf8')) as { noPins?: boolean }).noPins
+		if ((arm ?? false) !== NO_PINS) {
+			console.error(
+				`refusing to gate a ${NO_PINS ? 'pins-OFF' : 'pins-ON'} run against a baseline ` +
+					`recorded ${arm ? 'pins-OFF' : 'pins-ON'}: a pin masks the resolver, so the two ` +
+					'arms are not comparable. Re-record the baseline on this arm, or drop --no-pins.'
+			)
+			process.exit(2)
+		}
+	}
 
 	const smoke = flag('--smoke')
 	const rows = smoke ? corpus.rows.filter((r) => r.knownDefectNow) : corpus.rows
@@ -427,6 +449,12 @@ async function main(): Promise<void> {
 					writtenAt: new Date().toISOString(),
 					rowCount: rows.length,
 					assertableCount: assertable,
+					// WHICH ARM this was recorded on. A pin masks the resolver, so a
+					// pins-off run has strictly more failures; recording one without
+					// saying so and then gating WITH pins launders every pin-masked
+					// regression into a "standing failure" that can never fail the gate
+					// again. Same invariant as rowCount, stated the same way.
+					noPins: NO_PINS,
 					excludedCount: excluded.length,
 					fails
 				},

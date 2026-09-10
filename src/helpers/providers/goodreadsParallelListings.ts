@@ -32,9 +32,16 @@
 
 import { foldDiacritics } from '#helpers/utils/foldDiacritics'
 
+/**
+ * The "Also known as" heading, shared with the secondary-slot deny in
+ * goodreadsSeries -- one literal, so the two denies cannot drift apart. Not
+ * global, so `exec` is stateless and sharing the object is safe.
+ */
+export const SERIES_AKA_HEADING = /also\s+known\s+as\s*:?/i
+
 /** Section headings whose following block lists re-listings of this series. */
 export const PARALLEL_LISTING_HEADINGS: readonly RegExp[] = [
-	/also\s+known\s+as\s*:?/i,
+	SERIES_AKA_HEADING,
 	/editions?\s+with\s+(?:a\s+)?different\s+numbering\s*:?/i
 ]
 
@@ -93,6 +100,8 @@ export function foldListingName(name: string): string {
 
 /** A link's id and every name it carries: the slug after the id, and the anchor text. */
 const LINK_RE = /\/series\/(\d+)(?:-([a-z0-9-]+))?[^>]*>([^<]*)</gi
+/** The same pattern, FIRST match only: one exec instead of an array of every hit. */
+const FIRST_LINK_RE = new RegExp(LINK_RE.source, 'i')
 
 function parallelListings(description: string | null | undefined): {
 	ids: number[]
@@ -118,10 +127,16 @@ function parallelListings(description: string | null | undefined): {
 	// The phrase form: the anchored link only. PARALLEL_LISTING_PHRASE yields the
 	// id; re-scan from the phrase for the slug and anchor of that same link.
 	for (const hit of description.matchAll(PARALLEL_LISTING_PHRASE)) {
-		ids.add(Number(hit[1]))
-		const from = description.slice(hit.index ?? 0)
-		const link = from.match(LINK_RE)
-		if (link) take(link[0])
+		const id = Number(hit[1])
+		ids.add(id)
+		// The first link at or after the phrase is the anchored one ONLY when that
+		// anchor actually carries a ">text<" tail. An unclosed or self-closed anchor
+		// has none, and the first match then lands on a LATER, unrelated series link
+		// whose id and name would join the deny set on the strength of a phrase that
+		// never named it. So take the names only when the link found is the link the
+		// phrase pointed at.
+		const link = FIRST_LINK_RE.exec(description.slice(hit.index ?? 0))
+		if (link && Number(link[1]) === id) take(link[0])
 	}
 	return { ids: [...ids], names: [...names] }
 }

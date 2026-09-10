@@ -104,6 +104,90 @@ describe('parallel listings are denied in the RANKING, not only in the secondary
 		expect(['Series A', 'Series B']).toContain(out?.primary?.name)
 	})
 
+	test('a description never denies its OWN series, only the re-listings beside it', async () => {
+		// The live Rain Wild Chronicles description, mirror 2026-09-05, reads
+		// "Series also known as: * Rain Wild Chronicles * Cronache delle Giungle
+		// delle Piogge [Italian]" -- an AKA block routinely lists EVERY name the
+		// series goes by, the canonical one included. Those two entries carry no
+		// href today; the moment a librarian links them, a deny that reads its own
+		// declaration back drops the canonical shelf from its own ranking and hands
+		// the book to the translation with the bigger member count -- the exact
+		// outcome this deny exists to prevent.
+		const RAIN_WILD = 8001
+		const CRONACHE = 8002
+		respond(
+			[{ workId: 21457174 }],
+			{
+				Title: 'Dragon Haven',
+				Series: [
+					{
+						Title: 'Rain Wild Chronicles',
+						ForeignId: RAIN_WILD,
+						LinkItems: [{ ForeignWorkId: 21457174, PositionInSeries: '2' }]
+					},
+					{
+						Title: 'Cronache delle Giungle delle Piogge',
+						ForeignId: CRONACHE,
+						LinkItems: [{ ForeignWorkId: 21457174, PositionInSeries: '2' }]
+					}
+				]
+			},
+			{
+				LinkItems: members(7),
+				Description:
+					`Series also known as:\n* <a href="/series/${RAIN_WILD}-rain-wild-chronicles">Rain Wild Chronicles</a>\n` +
+					`* <a href="/series/${CRONACHE}-cronache-delle-giungle-delle-piogge">Cronache delle Giungle delle Piogge</a>`
+			},
+			{ LinkItems: members(12) }
+		)
+		const out = await fetchGoodreadsSeries('Dragon Haven', 'Robin Hobb')
+		expect(out?.primary).toEqual({ name: 'Rain Wild Chronicles', position: '2' })
+		expect(fetchMock.mock.calls.length).toBe(4)
+	})
+
+	test('the SECONDARY deny also ignores a description declaring itself', async () => {
+		// Same bug one slot over. The secondary deny filters ranked.slice(1) by the
+		// ids any description lists under "Also known as"; reading a series' own
+		// declaration back removes it from the TAG slot the way the ranking deny
+		// removed it from the SHELF. The sub-arc keeps its tag only if the deny
+		// skips the declaring series itself.
+		const PARENT = 8101
+		const ARC = 8102
+		respond(
+			[{ workId: 4242 }],
+			{
+				Title: 'A Book',
+				Series: [
+					{
+						Title: 'Parent Series',
+						ForeignId: PARENT,
+						LinkItems: [{ ForeignWorkId: 4242, PositionInSeries: '3' }]
+					},
+					{
+						Title: 'Inner Arc',
+						ForeignId: ARC,
+						LinkItems: [{ ForeignWorkId: 4242, PositionInSeries: '1' }]
+					}
+				]
+			},
+			// Parent wins the ranking on member count and declares the arc as its own
+			// sub-series, so the arc is allowed into the secondary slot...
+			{
+				LinkItems: members(20),
+				Description: `Sub-series: <a href="/series/${ARC}-inner-arc">Inner Arc</a>`
+			},
+			// ...while the arc's OWN description says "Also known as: Inner Arc".
+			{
+				LinkItems: members(4),
+				Description: `Also known as: <a href="/series/${ARC}-inner-arc">Inner Arc</a>`
+			}
+		)
+		const out = await fetchGoodreadsSeries('A Book', 'Someone')
+		expect(out?.primary).toEqual({ name: 'Parent Series', position: '3' })
+		expect(out?.secondary).toEqual({ name: 'Inner Arc', position: '1' })
+		expect(fetchMock.mock.calls.length).toBe(4)
+	})
+
 	test('a DUPLICATED re-listing (same name, different id than the one linked) is denied by name', async () => {
 		// Fool's Errand, 2026-09-06: Tawny Man links O Regresso do Assassino as 65016; the
 		// work carried 311441 under the same name. Fresh ids per test (process memo).
