@@ -700,7 +700,15 @@ function isOrdering(series: WorkSeries): boolean {
  */
 const UMBRELLA_SERIES: ReadonlySet<number> = new Set([
 	54099, // The Realm of the Elderlings -- operator-stated 2026-09-05 (Hobb)
-	318697 // Holly Gibney -- umbrellas the Bill Hodges trilogy; corpus requires Bill Hodges 1-3
+	318697, // Holly Gibney -- umbrellas the Bill Hodges trilogy; corpus requires Bill Hodges 1-3
+	// Banished Lands (Gwynne) -- 2026-09-24. Appeared in the live data under books
+	// already shelved by their sub-series; its own description reads "the world
+	// introduced in The Faithful and the Fallen series and continued in the Of Blood
+	// and Bone series", and its seven members are exactly those two series' books.
+	// At 7 members it outranks both (4 each), so without this line a forced refresh
+	// would move all seven prod albums onto one world shelf. Corpus requires Of
+	// Blood and Bone #3 (A Time of Courage); prod shelves zero albums on it.
+	449031
 ])
 
 /** A franchise umbrella: demoted, but eligible to be rescued. */

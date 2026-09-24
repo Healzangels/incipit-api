@@ -222,3 +222,34 @@ Tests: 16 new, every case a real prod folder or a named guard; seven mutations,
 all killed. One first SURVIVED: the short-name guard's test claimed "it" is
 inside "Twilight" (it is not), so it passed with the guard deleted; rewritten on
 "The Witcher", which does contain it.
+
+## 7. Follow-up: Banished Lands declared an umbrella (2026-09-24)
+
+The A/B surfaced it (section 5.4); this closes it with the mechanism
+`spec-shelf-granularity.md` established for exactly this class. Goodreads series
+449031 describes itself as "the world introduced in The Faithful and the Fallen
+series and continued in the Of Blood and Bone series", and its seven members are
+exactly those two series' books. At 7 members it outranks Of Blood and Bone (4),
+so the member-count ranking handed those books to the world shelf.
+
+Measured on every John Gwynne album on prod, HEAD `5420bae` against the
+declaration, in-process against the live mirror. A declared id can only affect
+works that list it, and all seven members are in the library, so this is its
+complete reach; the Bloodsworn Saga, another world, is the control:
+
+| albums | prod shelf | HEAD | with 449031 declared |
+| --- | --- | --- | --- |
+| A Time of Dread / Blood / Courage | Of Blood and Bone 1-3 | **Banished Lands #5, #6, #7** | Of Blood and Bone #1, #2, #3 |
+| Malice, Valour, Ruin, Wrath | Faithful and the Fallen 1-4 | The Faithful and the Fallen #1-4 | unchanged |
+| The Shadow / Hunger / Fury of the Gods | Bloodsworn Saga 1-3 | The Bloodsworn Saga #1-3 | unchanged |
+
+Prod's shelves were still right; the next forced refresh of the three Of Blood
+and Bone books would have moved them. One test (live work 72688467, with a
+call-count assertion that the umbrella is never counted); removing the id turns
+it red, and the source restored byte-identical.
+
+**Corpus defect flags corrected.** `knownDefectNow` means "a live defect right
+now". Five rows fixed today (Mushoku Tensei x2, Cemetery Dance, Fever Dream, A
+Time of Courage) and the eight Hornblower rows fixed on 2026-09-08 by O1/O2 --
+which had passed in every run since but were never unflagged -- now read false.
+The only live defect left in the corpus is The Adventures of Sherlock Holmes.

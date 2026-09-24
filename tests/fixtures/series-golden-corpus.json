@@ -22601,8 +22601,8 @@
    "pinType": "current-correct-default",
    "sourceOfTruth": "Random-sample no-change row (seed 42): single series, provider rebuilt, cold recompute identical to served. Current answer is correct-by-default; any change here is a regression by definition. Goodreads REPLACED an inconsistent provider series on this row (R8/C1-relevant input shape).",
    "group": "random-single-nochange",
-   "knownDefectNow": true,
-   "note": "KNOWN DEFECT 2026-09-24: Goodreads data moved under this row. Work 72688467 now lists BOTH 'Of Blood and Bone' (209484, 4 members, #3) and 'Banished Lands' (449031, 7 members, #7) -- Gwynne's whole world, spanning The Faithful and the Fallen and Of Blood and Bone. Both positioned, so the ranking takes the bigger one and answers 'Banished Lands #7'. Same class as The Realm of the Elderlings: an umbrella that is not inferable from the graph and must be DECLARED by id in UMBRELLA_SERIES. Identical in both A/B arms (HEAD and C1+N1) from their recordings, so not this change. Prod shelves (Faithful and the Fallen 1-4, Of Blood and Bone 1-3) are still correct; a forced refresh would move them."
+   "knownDefectNow": false,
+   "note": "KNOWN DEFECT 2026-09-24: Goodreads data moved under this row. Work 72688467 now lists BOTH 'Of Blood and Bone' (209484, 4 members, #3) and 'Banished Lands' (449031, 7 members, #7) -- Gwynne's whole world, spanning The Faithful and the Fallen and Of Blood and Bone. Both positioned, so the ranking takes the bigger one and answers 'Banished Lands #7'. Same class as The Realm of the Elderlings: an umbrella that is not inferable from the graph and must be DECLARED by id in UMBRELLA_SERIES. Identical in both A/B arms (HEAD and C1+N1) from their recordings, so not this change. Prod shelves (Faithful and the Fallen 1-4, Of Blood and Bone 1-3) are still correct; a forced refresh would move them. FIXED 2026-09-24 by UMBRELLA_SERIES 449031."
   },
   {
    "recordId": "1774246325",
@@ -28784,8 +28784,8 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-09-08: 'this is a classic case of a new series being added and it being match onto different series or onto similar series but not the exact same so ends up out of order', and on the winner: 'I think prefer goodreads ... added more and they added to Hornblower Saga: Chronological Order, Book N so I think goodreads makes sense'. Goodreads carries NO plain Hornblower series -- only two reading orders (49812 chronological, 49813 publication) -- so every candidate is demoted and the answer is variantOnly; Audible names its own reading order 'Horatio Hornblower (chronological order)' for the 8 books it knows and the rest take the Goodreads name. RULE-FIXED, not pinned: O1 releases an ORDERING incumbent, O2 widens the work window past the study guides. See docs/design/spec-ordering-only-shelf-split.md.",
    "group": "ordering-only-hornblower",
-   "note": "LIVE DEFECT 2026-09-08, prod rk 749552: shelved \"Horatio Hornblower (chronological order), Book 1\" while siblings sit on \"Hornblower Saga: Chronological Order\". The provider incumbent is itself a reading order, so O1 releases it.",
-   "knownDefectNow": true,
+   "note": "LIVE DEFECT 2026-09-08, prod rk 749552: shelved \"Horatio Hornblower (chronological order), Book 1\" while siblings sit on \"Hornblower Saga: Chronological Order\". The provider incumbent is itself a reading order, so O1 releases it. FIXED 2026-09-08 by O1/O2 (1fa81b0, live on prod); flag corrected 2026-09-24.",
+   "knownDefectNow": false,
    "inputsVerified": [
     "prod Plex titleSort 2026-09-08 (section 6, artist rk 749447)",
     "live Audible catalog probe 2026-09-08 (response_groups=product_desc,product_attrs,series)",
@@ -28840,8 +28840,8 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-09-08: 'this is a classic case of a new series being added and it being match onto different series or onto similar series but not the exact same so ends up out of order', and on the winner: 'I think prefer goodreads ... added more and they added to Hornblower Saga: Chronological Order, Book N so I think goodreads makes sense'. Goodreads carries NO plain Hornblower series -- only two reading orders (49812 chronological, 49813 publication) -- so every candidate is demoted and the answer is variantOnly; Audible names its own reading order 'Horatio Hornblower (chronological order)' for the 8 books it knows and the rest take the Goodreads name. RULE-FIXED, not pinned: O1 releases an ORDERING incumbent, O2 widens the work window past the study guides. See docs/design/spec-ordering-only-shelf-split.md.",
    "group": "ordering-only-hornblower",
-   "note": "LIVE DEFECT 2026-09-08, prod rk 749463: shelved \"Horatio Hornblower (chronological order), Book 2\" while siblings sit on \"Hornblower Saga: Chronological Order\". The provider incumbent is itself a reading order, so O1 releases it.",
-   "knownDefectNow": true,
+   "note": "LIVE DEFECT 2026-09-08, prod rk 749463: shelved \"Horatio Hornblower (chronological order), Book 2\" while siblings sit on \"Hornblower Saga: Chronological Order\". The provider incumbent is itself a reading order, so O1 releases it. FIXED 2026-09-08 by O1/O2 (1fa81b0, live on prod); flag corrected 2026-09-24.",
+   "knownDefectNow": false,
    "inputsVerified": [
     "prod Plex titleSort 2026-09-08 (section 6, artist rk 749447)",
     "live Audible catalog probe 2026-09-08 (response_groups=product_desc,product_attrs,series)",
@@ -28944,8 +28944,8 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-09-08: 'this is a classic case of a new series being added and it being match onto different series or onto similar series but not the exact same so ends up out of order', and on the winner: 'I think prefer goodreads ... added more and they added to Hornblower Saga: Chronological Order, Book N so I think goodreads makes sense'. Goodreads carries NO plain Hornblower series -- only two reading orders (49812 chronological, 49813 publication) -- so every candidate is demoted and the answer is variantOnly; Audible names its own reading order 'Horatio Hornblower (chronological order)' for the 8 books it knows and the rest take the Goodreads name. RULE-FIXED, not pinned: O1 releases an ORDERING incumbent, O2 widens the work window past the study guides. See docs/design/spec-ordering-only-shelf-split.md.",
    "group": "ordering-only-hornblower",
-   "note": "LIVE DEFECT 2026-09-08, prod rk 749454: shelved \"Horatio Hornblower (chronological order), Book 4\" while siblings sit on \"Hornblower Saga: Chronological Order\". The provider incumbent is itself a reading order, so O1 releases it.",
-   "knownDefectNow": true,
+   "note": "LIVE DEFECT 2026-09-08, prod rk 749454: shelved \"Horatio Hornblower (chronological order), Book 4\" while siblings sit on \"Hornblower Saga: Chronological Order\". The provider incumbent is itself a reading order, so O1 releases it. FIXED 2026-09-08 by O1/O2 (1fa81b0, live on prod); flag corrected 2026-09-24.",
+   "knownDefectNow": false,
    "inputsVerified": [
     "prod Plex titleSort 2026-09-08 (section 6, artist rk 749447)",
     "live Audible catalog probe 2026-09-08 (response_groups=product_desc,product_attrs,series)",
@@ -29048,8 +29048,8 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-09-08: 'this is a classic case of a new series being added and it being match onto different series or onto similar series but not the exact same so ends up out of order', and on the winner: 'I think prefer goodreads ... added more and they added to Hornblower Saga: Chronological Order, Book N so I think goodreads makes sense'. Goodreads carries NO plain Hornblower series -- only two reading orders (49812 chronological, 49813 publication) -- so every candidate is demoted and the answer is variantOnly; Audible names its own reading order 'Horatio Hornblower (chronological order)' for the 8 books it knows and the rest take the Goodreads name. RULE-FIXED, not pinned: O1 releases an ORDERING incumbent, O2 widens the work window past the study guides. See docs/design/spec-ordering-only-shelf-split.md.",
    "group": "ordering-only-hornblower",
-   "note": "LIVE DEFECT 2026-09-08, prod rk 749457: shelved \"Horatio Hornblower (chronological order), Book 6\" while siblings sit on \"Hornblower Saga: Chronological Order\". The provider incumbent is itself a reading order, so O1 releases it.",
-   "knownDefectNow": true,
+   "note": "LIVE DEFECT 2026-09-08, prod rk 749457: shelved \"Horatio Hornblower (chronological order), Book 6\" while siblings sit on \"Hornblower Saga: Chronological Order\". The provider incumbent is itself a reading order, so O1 releases it. FIXED 2026-09-08 by O1/O2 (1fa81b0, live on prod); flag corrected 2026-09-24.",
+   "knownDefectNow": false,
    "inputsVerified": [
     "prod Plex titleSort 2026-09-08 (section 6, artist rk 749447)",
     "live Audible catalog probe 2026-09-08 (response_groups=product_desc,product_attrs,series)",
@@ -29105,8 +29105,8 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-09-08: 'this is a classic case of a new series being added and it being match onto different series or onto similar series but not the exact same so ends up out of order', and on the winner: 'I think prefer goodreads ... added more and they added to Hornblower Saga: Chronological Order, Book N so I think goodreads makes sense'. Goodreads carries NO plain Hornblower series -- only two reading orders (49812 chronological, 49813 publication) -- so every candidate is demoted and the answer is variantOnly; Audible names its own reading order 'Horatio Hornblower (chronological order)' for the 8 books it knows and the rest take the Goodreads name. RULE-FIXED, not pinned: O1 releases an ORDERING incumbent, O2 widens the work window past the study guides. See docs/design/spec-ordering-only-shelf-split.md.",
    "group": "ordering-only-hornblower",
-   "note": "LIVE DEFECT 2026-09-08, prod rk 749460: the resolver answers NONE because the correct work (GR work 2924) ranks 5th in /search, behind The Ship, the Captain Hornblower R.N. omnibus (\"5-7 omnibus\") and a compilation -- outside the 3-work window. O2 widens it; without O2 this row stays on Horatio Hornblower (chronological order).",
-   "knownDefectNow": true,
+   "note": "LIVE DEFECT 2026-09-08, prod rk 749460: the resolver answers NONE because the correct work (GR work 2924) ranks 5th in /search, behind The Ship, the Captain Hornblower R.N. omnibus (\"5-7 omnibus\") and a compilation -- outside the 3-work window. O2 widens it; without O2 this row stays on Horatio Hornblower (chronological order). FIXED 2026-09-08 by O1/O2 (1fa81b0, live on prod); flag corrected 2026-09-24.",
+   "knownDefectNow": false,
    "inputsVerified": [
     "prod Plex titleSort 2026-09-08 (section 6, artist rk 749447)",
     "live Audible catalog probe 2026-09-08 (response_groups=product_desc,product_attrs,series)",
@@ -29161,8 +29161,8 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-09-08: 'this is a classic case of a new series being added and it being match onto different series or onto similar series but not the exact same so ends up out of order', and on the winner: 'I think prefer goodreads ... added more and they added to Hornblower Saga: Chronological Order, Book N so I think goodreads makes sense'. Goodreads carries NO plain Hornblower series -- only two reading orders (49812 chronological, 49813 publication) -- so every candidate is demoted and the answer is variantOnly; Audible names its own reading order 'Horatio Hornblower (chronological order)' for the 8 books it knows and the rest take the Goodreads name. RULE-FIXED, not pinned: O1 releases an ORDERING incumbent, O2 widens the work window past the study guides. See docs/design/spec-ordering-only-shelf-split.md.",
    "group": "ordering-only-hornblower",
-   "note": "LIVE DEFECT 2026-09-08, prod rk 749466: shelved \"Horatio Hornblower (chronological order), Book 8\" while siblings sit on \"Hornblower Saga: Chronological Order\". The provider incumbent is itself a reading order, so O1 releases it.",
-   "knownDefectNow": true,
+   "note": "LIVE DEFECT 2026-09-08, prod rk 749466: shelved \"Horatio Hornblower (chronological order), Book 8\" while siblings sit on \"Hornblower Saga: Chronological Order\". The provider incumbent is itself a reading order, so O1 releases it. FIXED 2026-09-08 by O1/O2 (1fa81b0, live on prod); flag corrected 2026-09-24.",
+   "knownDefectNow": false,
    "inputsVerified": [
     "prod Plex titleSort 2026-09-08 (section 6, artist rk 749447)",
     "live Audible catalog probe 2026-09-08 (response_groups=product_desc,product_attrs,series)",
@@ -29265,8 +29265,8 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-09-08: 'this is a classic case of a new series being added and it being match onto different series or onto similar series but not the exact same so ends up out of order', and on the winner: 'I think prefer goodreads ... added more and they added to Hornblower Saga: Chronological Order, Book N so I think goodreads makes sense'. Goodreads carries NO plain Hornblower series -- only two reading orders (49812 chronological, 49813 publication) -- so every candidate is demoted and the answer is variantOnly; Audible names its own reading order 'Horatio Hornblower (chronological order)' for the 8 books it knows and the rest take the Goodreads name. RULE-FIXED, not pinned: O1 releases an ORDERING incumbent, O2 widens the work window past the study guides. See docs/design/spec-ordering-only-shelf-split.md.",
    "group": "ordering-only-hornblower",
-   "note": "LIVE DEFECT 2026-09-08, prod rk 749451: shelved \"Horatio Hornblower (chronological order), Book 10\" while siblings sit on \"Hornblower Saga: Chronological Order\". The provider incumbent is itself a reading order, so O1 releases it.",
-   "knownDefectNow": true,
+   "note": "LIVE DEFECT 2026-09-08, prod rk 749451: shelved \"Horatio Hornblower (chronological order), Book 10\" while siblings sit on \"Hornblower Saga: Chronological Order\". The provider incumbent is itself a reading order, so O1 releases it. FIXED 2026-09-08 by O1/O2 (1fa81b0, live on prod); flag corrected 2026-09-24.",
+   "knownDefectNow": false,
    "inputsVerified": [
     "prod Plex titleSort 2026-09-08 (section 6, artist rk 749447)",
     "live Audible catalog probe 2026-09-08 (response_groups=product_desc,product_attrs,series)",
@@ -29310,8 +29310,8 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-09-08: 'this is a classic case of a new series being added and it being match onto different series or onto similar series but not the exact same so ends up out of order', and on the winner: 'I think prefer goodreads ... added more and they added to Hornblower Saga: Chronological Order, Book N so I think goodreads makes sense'. Goodreads carries NO plain Hornblower series -- only two reading orders (49812 chronological, 49813 publication) -- so every candidate is demoted and the answer is variantOnly; Audible names its own reading order 'Horatio Hornblower (chronological order)' for the 8 books it knows and the rest take the Goodreads name. RULE-FIXED, not pinned: O1 releases an ORDERING incumbent, O2 widens the work window past the study guides. See docs/design/spec-ordering-only-shelf-split.md.",
    "group": "ordering-only-hornblower",
-   "note": "LIVE DEFECT 2026-09-08, prod rk 749476: the resolver answers NONE because the correct work (GR work 3658697) ranks 4th in /search, behind two \"... Summary & Study Guide\" works and Admiral Hornblower -- outside the 3-work window. O2 widens it; without O2 this row stays on its FOLDER name \"Hornblower Saga - Chronological Order\" (note the dash: the API answers null, so the bundle falls back to the folder).",
-   "knownDefectNow": true,
+   "note": "LIVE DEFECT 2026-09-08, prod rk 749476: the resolver answers NONE because the correct work (GR work 3658697) ranks 4th in /search, behind two \"... Summary & Study Guide\" works and Admiral Hornblower -- outside the 3-work window. O2 widens it; without O2 this row stays on its FOLDER name \"Hornblower Saga - Chronological Order\" (note the dash: the API answers null, so the bundle falls back to the folder). FIXED 2026-09-08 by O1/O2 (1fa81b0, live on prod); flag corrected 2026-09-24.",
+   "knownDefectNow": false,
    "inputsVerified": [
     "prod Plex titleSort 2026-09-08 (section 6, artist rk 749447)",
     "live Audible catalog probe 2026-09-08 (response_groups=product_desc,product_attrs,series)",
@@ -29361,8 +29361,8 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-09-23: 'lets make sure all the titles are across the board', after the Mushoku Tensei shelf was found under its Japanese-script Goodreads name. A library-wide shelf-title audit (.cache/title-audit.py) then surfaced the co-author gate defect and a stale Sherlock shelf. See docs/design/spec-shelf-titles-across-the-board.md.",
    "group": "title-audit-2026-09-23",
-   "note": "LIVE DEFECT 2026-09-23, prod rk 749441: shelved under the Japanese-script name. Goodreads work 88793724 carries ONE series, 136942, titled \"<kanji> [<romanization>]\" with no \"Also known as\" alias. N1 displays the bracketed romanization.",
-   "knownDefectNow": true,
+   "note": "LIVE DEFECT 2026-09-23, prod rk 749441: shelved under the Japanese-script name. Goodreads work 88793724 carries ONE series, 136942, titled \"<kanji> [<romanization>]\" with no \"Also known as\" alias. N1 displays the bracketed romanization. FIXED 2026-09-24 by N1.",
+   "knownDefectNow": false,
    "inputsVerified": [
     "prod Plex titleSort 2026-09-23 (section 6)",
     "incipit-api GET /books 2026-09-23 (title, subtitle, authors in stored order, served series)",
@@ -29412,8 +29412,8 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-09-23: 'lets make sure all the titles are across the board', after the Mushoku Tensei shelf was found under its Japanese-script Goodreads name. A library-wide shelf-title audit (.cache/title-audit.py) then surfaced the co-author gate defect and a stale Sherlock shelf. See docs/design/spec-shelf-titles-across-the-board.md.",
    "group": "title-audit-2026-09-23",
-   "note": "LIVE DEFECT 2026-09-23, prod rk 749439: shelved under the Japanese-script name. Goodreads work 88793724 carries ONE series, 136942, titled \"<kanji> [<romanization>]\" with no \"Also known as\" alias. N1 displays the bracketed romanization.",
-   "knownDefectNow": true,
+   "note": "LIVE DEFECT 2026-09-23, prod rk 749439: shelved under the Japanese-script name. Goodreads work 88793724 carries ONE series, 136942, titled \"<kanji> [<romanization>]\" with no \"Also known as\" alias. N1 displays the bracketed romanization. FIXED 2026-09-24 by N1.",
+   "knownDefectNow": false,
    "inputsVerified": [
     "prod Plex titleSort 2026-09-23 (section 6)",
     "incipit-api GET /books 2026-09-23 (title, subtitle, authors in stored order, served series)",
@@ -29470,8 +29470,8 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-09-23: 'lets make sure all the titles are across the board', after the Mushoku Tensei shelf was found under its Japanese-script Goodreads name. A library-wide shelf-title audit (.cache/title-audit.py) then surfaced the co-author gate defect and a stale Sherlock shelf. See docs/design/spec-shelf-titles-across-the-board.md.",
    "group": "title-audit-2026-09-23",
-   "note": "LIVE DEFECT 2026-09-23, prod rk 730376: one of three names on the Pendergast shelf. The mirror credits GR work 2262692 to Douglas Preston alone; the author gate read only Lincoln Child and skipped the real work at hit 1.",
-   "knownDefectNow": true,
+   "note": "LIVE DEFECT 2026-09-23, prod rk 730376: one of three names on the Pendergast shelf. The mirror credits GR work 2262692 to Douglas Preston alone; the author gate read only Lincoln Child and skipped the real work at hit 1. FIXED 2026-09-24 by C1.",
+   "knownDefectNow": false,
    "inputsVerified": [
     "prod Plex titleSort 2026-09-23 (section 6)",
     "incipit-api GET /books 2026-09-23 (title, subtitle, authors in stored order, served series)",
@@ -29530,8 +29530,8 @@
    "pinType": "operator-stated",
    "sourceOfTruth": "Operator 2026-09-23: 'lets make sure all the titles are across the board', after the Mushoku Tensei shelf was found under its Japanese-script Goodreads name. A library-wide shelf-title audit (.cache/title-audit.py) then surfaced the co-author gate defect and a stale Sherlock shelf. See docs/design/spec-shelf-titles-across-the-board.md.",
    "group": "title-audit-2026-09-23",
-   "note": "LIVE DEFECT 2026-09-23, prod rk 729647: served as an Audible passthrough because the author gate skipped GR work 7383328 (credited to Preston alone). AudioSilo copy of the Audible record lists the authors Preston-first -- the order is not stable, so neither may the shelf depend on it.",
-   "knownDefectNow": true,
+   "note": "LIVE DEFECT 2026-09-23, prod rk 729647: served as an Audible passthrough because the author gate skipped GR work 7383328 (credited to Preston alone). AudioSilo copy of the Audible record lists the authors Preston-first -- the order is not stable, so neither may the shelf depend on it. FIXED 2026-09-24 by C1.",
+   "knownDefectNow": false,
    "inputsVerified": [
     "prod Plex titleSort 2026-09-23 (section 6)",
     "incipit-api GET /books 2026-09-23 (title, subtitle, authors in stored order, served series)",

@@ -1,21 +1,10 @@
 {
- "writtenAt": "2026-09-24T04:12:38.563Z",
+ "writtenAt": "2026-09-24T15:13:42.918Z",
  "rowCount": 545,
  "assertableCount": 491,
  "noPins": false,
  "excludedCount": 54,
  "fails": [
-  {
-   "ratingKey": "152813",
-   "album": "A Time of Courage",
-   "recordId": "1549150367",
-   "pinType": "current-correct-default",
-   "knownDefectNow": true,
-   "excluded": false,
-   "classification": "WRONG_SERIES",
-   "required": "Of Blood and Bone #3",
-   "got": "Banished Lands #7"
-  },
   {
    "ratingKey": "735035",
    "album": "The Adventures of Sherlock Holmes",

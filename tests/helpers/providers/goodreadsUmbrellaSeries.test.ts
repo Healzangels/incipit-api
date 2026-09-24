@@ -16,6 +16,7 @@ function respond(...bodies: unknown[]) {
 // Goodreads ids; a test that used made-up ids would exercise nothing.
 const ELDERLINGS = 54099 // The Realm of the Elderlings
 const HOLLY_GIBNEY = 318697 // Holly Gibney
+const BANISHED_LANDS = 449031 // Banished Lands (Gwynne's world)
 
 describe('UMBRELLA_SERIES: franchise umbrellas declared by Goodreads series id', () => {
 	afterEach(() => fetchMock.mockReset())
@@ -51,6 +52,37 @@ describe('UMBRELLA_SERIES: franchise umbrellas declared by Goodreads series id',
 		expect(out?.primary?.name).not.toBe('The Realm of the Elderlings')
 		// search + work + ONE /series call. A fourth call would mean the umbrella
 		// was still in the pool being counted.
+		expect(fetchMock.mock.calls.length).toBe(3)
+	})
+
+	test('Banished Lands, a world spanning two series, loses to the sub-series it contains', async () => {
+		// Live 2026-09-24, work 72688467 (A Time of Courage): Of Blood and Bone #3, 4
+		// members, beside Banished Lands #7, 7 members -- the world "introduced in The
+		// Faithful and the Fallen series and continued in the Of Blood and Bone
+		// series". Undeclared, the member count hands every one of its seven books to
+		// one world shelf.
+		respond(
+			[{ workId: 72688467 }],
+			{
+				Title: 'A Time of Courage',
+				Series: [
+					{
+						Title: 'Of Blood and Bone',
+						ForeignId: 209484,
+						LinkItems: [{ ForeignWorkId: 72688467, PositionInSeries: '3' }]
+					},
+					{
+						Title: 'Banished Lands',
+						ForeignId: BANISHED_LANDS,
+						LinkItems: [{ ForeignWorkId: 72688467, PositionInSeries: '7' }]
+					}
+				]
+			},
+			{ LinkItems: Array.from({ length: 4 }, (_, i) => ({ ForeignWorkId: i })) }
+		)
+		const out = await fetchGoodreadsSeries('A Time of Courage', 'John Gwynne')
+		expect(out?.primary).toEqual({ name: 'Of Blood and Bone', position: '3' })
+		// search + work + ONE /series call: the declared umbrella is never counted.
 		expect(fetchMock.mock.calls.length).toBe(3)
 	})
 
