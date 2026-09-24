@@ -429,10 +429,20 @@ interface SeriesResponse {
 	Description?: string
 }
 
-/** What the memo keeps per series: the member count and the alias source. */
+/** What the memo keeps per series: the member count, the alias source, the members. */
 interface SeriesRecordInfo {
 	count: number
 	description: string | null
+	// Which work sits at which position -- the listing itself. Read by the
+	// sibling-listing fallback (listingCandidates); it rides the fetch the count
+	// already pays for, so it costs nothing extra.
+	members: SeriesMember[]
+}
+
+/** One entry of a series listing. */
+interface SeriesMember {
+	workId: number
+	position: string | undefined
 }
 
 // Series records per Goodreads series id, memoized for the life of the process.
@@ -781,7 +791,7 @@ async function seriesRecord(
 	state?: LookupState,
 	logger?: FastifyBaseLogger
 ): Promise<SeriesRecordInfo> {
-	if (typeof foreignId !== 'number') return { count: 0, description: null }
+	if (typeof foreignId !== 'number') return { count: 0, description: null, members: [] }
 	const memoized = seriesRecordMemo.get(foreignId)
 	if (memoized !== undefined) return memoized
 	// A probe of THIS call's own, not the shared lookup state: the shared flag is
@@ -792,9 +802,11 @@ async function seriesRecord(
 	// impaired.
 	const probe = newLookupState()
 	const series = await getJson<SeriesResponse>(`/series/${foreignId}`, probe, logger)
+	const links = Array.isArray(series?.LinkItems) ? series.LinkItems : []
 	const info: SeriesRecordInfo = {
-		count: Array.isArray(series?.LinkItems) ? series.LinkItems.length : 0,
-		description: typeof series?.Description === 'string' ? series.Description : null
+		count: links.length,
+		description: typeof series?.Description === 'string' ? series.Description : null,
+		members: seriesMembers(links)
 	}
 	// Only memoize a record the mirror actually gave us. This memo has NO TTL, so
 	// a 0 recorded from a rate-limited or timed-out call would pin that series at
@@ -820,6 +832,119 @@ async function seriesRecord(
 	}
 	return info
 }
+
+/**
+ * The members of a /series listing that name a work: its id and position.
+ * @param {unknown[]} links the listing's LinkItems
+ * @returns {SeriesMember[]} one entry per linked work, in listing order
+ */
+function seriesMembers(links: unknown[]): SeriesMember[] {
+	const out: SeriesMember[] = []
+	for (const link of links) {
+		const l = link as {
+			ForeignWorkId?: unknown
+			PositionInSeries?: unknown
+			SeriesPosition?: unknown
+		}
+		if (typeof l?.ForeignWorkId !== 'number') continue
+		const position =
+			typeof l.PositionInSeries === 'string' && l.PositionInSeries.trim()
+				? l.PositionInSeries
+				: typeof l.SeriesPosition === 'number'
+					? String(l.SeriesPosition)
+					: undefined
+		out.push({ workId: l.ForeignWorkId, position })
+	}
+	return out
+}
+
+// S1: the sibling-listing fallback. When the title+author search adopts NOTHING,
+// the book is usually still in view -- one step away. Goodreads' relevance order
+// fills the window with junk records (reviews, "Book Review" by Expert Book
+// Reviews, BookBuddy companions) and the author's OTHER books, and the book
+// itself never comes back. Measured on King and Maxwell (Sean King & Michelle
+// Maxwell #6): "King and Maxwell David Baldacci" returns two review records, a
+// BookBuddy companion, Split Second (#1) and The Sixth Man (#5) -- never work
+// 24064758 -- so the book kept Audible's "King and Maxwell" beside siblings on
+// "Sean King & Michelle Maxwell". The siblings name the listing that holds it.
+//
+// So a work the TITLE gate turned away but that is POSITIVELY credited to our
+// author contributes its clean series; after the search is spent, the numbered
+// members of those listings are tried as candidates -- through the same author
+// gate, ranking and volume veto as any hit, under the STRICT full-title gate (a
+// listing is all siblings, so no relaxed arm may match a sibling's stem).
+// Bounded: the first pass only, only after a clean miss, at most two listings
+// and LISTING_WORK_BUDGET /work reads. A book that resolves today never reaches
+// it, so its fetches and answer are unchanged.
+// See docs/design/spec-shelf-titles-across-the-board.md, section 10.
+const LISTING_SERIES_MAX = 2
+const LISTING_WORK_BUDGET = 8
+
+/**
+ * Record the clean series of a work that is OURS by credit but not this book --
+ * a sibling the title gate turned away -- for the listing fallback.
+ * @param {WorkResponse} work the rejected hit's work record
+ * @param {readonly string[]} ours every author of the book being looked up
+ * @param {number[]} into the sibling series ids, in discovery order
+ */
+function noteSiblingSeries(work: WorkResponse, ours: readonly string[], into: number[]): void {
+	const credited = (Array.isArray(work.Authors) ? work.Authors : [])
+		.map((a) => a?.Name)
+		.filter((n): n is string => typeof n === 'string' && n.length > 0)
+	// POSITIVELY ours: a work with no author data proves nothing about whose
+	// listing it sits in.
+	if (!ours.length || !credited.some((n) => ours.some((a) => isSameAuthor(a, n)))) return
+	for (const s of Array.isArray(work.Series) ? work.Series : []) {
+		if (!s || typeof s.ForeignId !== 'number' || isOrdering(s) || isUmbrella(s)) continue
+		if (!into.includes(s.ForeignId)) into.push(s.ForeignId)
+	}
+}
+
+/**
+ * The numbered members of the sibling listings, as lookup candidates: the member
+ * at our own volume marker first when the title carries one, then by position.
+ * @param {readonly number[]} seriesIds the sibling series, in discovery order
+ * @param {Set<number>} seen works the search pass already examined
+ * @param {string | undefined} volumeHint the volume number in our own title
+ * @param {LookupState | undefined} state shared lookup state (a failed listing degrades it)
+ * @param {FastifyBaseLogger} logger optional logger
+ * @returns {Promise<ListingCandidate[]>} at most LISTING_WORK_BUDGET candidates
+ */
+async function listingCandidates(
+	seriesIds: readonly number[],
+	seen: Set<number>,
+	volumeHint: string | undefined,
+	state?: LookupState,
+	logger?: FastifyBaseLogger
+): Promise<ListingCandidate[]> {
+	const hint = volumeHint != null ? Number(volumeHint) : null
+	const out: ListingCandidate[] = []
+	for (const id of seriesIds.slice(0, LISTING_SERIES_MAX)) {
+		const record = await seriesRecord(id, state, logger)
+		const numbered = record.members
+			.filter((m) => !seen.has(m.workId) && isShelvablePosition(m.position))
+			.sort((x, y) => {
+				const px = Number(x.position)
+				const py = Number(y.position)
+				if (hint !== null && Number.isFinite(hint)) {
+					const byHint = Math.abs(px - hint) - Math.abs(py - hint)
+					if (byHint !== 0) return byHint
+				}
+				return px - py
+			})
+		for (const m of numbered)
+			if (!out.some((c) => c.workId === m.workId)) out.push({ workId: m.workId, fromListing: true })
+	}
+	if (out.length)
+		logger?.debug(
+			{ seriesIds, candidates: Math.min(out.length, LISTING_WORK_BUDGET) },
+			'goodreads series: no hit adopted, trying the listing of a sibling by our author'
+		)
+	return out.slice(0, LISTING_WORK_BUDGET)
+}
+
+/** A search hit, or a member of a sibling's listing (S1). */
+type ListingCandidate = SearchHit & { fromListing?: boolean }
 
 interface WorkResponse {
 	Title?: string
@@ -2070,7 +2195,26 @@ async function lookupByTitle(
 	// was relaxed: the title-similarity gate, the positive author-credit gate,
 	// and "a work with no series says nothing about the ones behind it".
 	// See docs/design/spec-ordering-only-shelf-split.md.
-	for (const hit of hits.slice(0, 5)) {
+	// Every author of the book, for the author gate and the sibling test (S1).
+	const ours = author ? [author, ...coAuthors] : [...coAuthors]
+	// Series of hits that are OUR author's but not this book -- see S1 above
+	// listingCandidates. Read only if the search adopts nothing.
+	const siblingSeries: number[] = []
+	const queue: ListingCandidate[] = hits.slice(0, 5)
+	let listingTried = false
+	for (let next = 0; ; next++) {
+		if (next === queue.length) {
+			// The search hits are spent and none was adopted. The first pass only
+			// (the stem and volume-prefix retries are their own second chances), and
+			// never on a degraded pass: a miss we could not see clearly is not a miss.
+			if (listingTried || strictGate || pendingDegradation || state?.degraded) break
+			listingTried = true
+			queue.push(
+				...(await listingCandidates(siblingSeries, seenWorkIds, volumeHint, state, logger))
+			)
+			if (next === queue.length) break
+		}
+		const hit = queue[next]
 		if (pendingDegradation) {
 			if (state) state.degraded = true
 			pendingDegradation = false
@@ -2163,12 +2307,14 @@ async function lookupByTitle(
 			// stem there, and the relaxed arms below would let it sibling-match --
 			// measured on Chaos Seeds, and reproducible on any "Series: Title"
 			// naming, where the stem equals every sibling's stem at 1.0.
-			if (strictGate) return sim(want, c)
+			// A listing member (S1) is strict too: the listing is all siblings.
+			if (strictGate || hit.fromListing) return sim(want, c)
 			const candStem = c.split(/\s*[:(]\s*/)[0].trim()
 			return Math.max(sim(want, c), sim(want, candStem), wantSubtitle ? sim(wantSubtitle, c) : 0)
 		}
 		const best = candidates.reduce((acc, t) => Math.max(acc, gate(t)), 0)
 		if (best < TITLE_ACCEPT) {
+			if (!hit.fromListing) noteSiblingSeries(work, ours, siblingSeries)
 			logger?.debug(
 				{ workId, best, want },
 				'goodreads series: work title too far from ours, not trusting its series'
@@ -2189,7 +2335,6 @@ async function lookupByTitle(
 		// ANY of our authors, not only the first: a co-author credited on the work
 		// is not "someone else". The positive-mismatch rule is otherwise unchanged
 		// -- a companion record credited to BookBuddy matches none of them.
-		const ours = author ? [author, ...coAuthors] : [...coAuthors]
 		if (
 			ours.length > 0 &&
 			credited.length > 0 &&

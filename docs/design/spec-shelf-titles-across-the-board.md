@@ -1,6 +1,6 @@
 # Spec — shelf titles across the board: non-Latin names and co-written books
 
-Status: **2026-09-24 — resolver rules (N1, C1, Q1, Q-author) gated and committed; bundle folder rule on `nightly`, awaiting the test box.** Two independent resolver
+Status: **2026-09-24 — N1, C1, Q1, Q-author LIVE on prod (`0c8b7e3`); S1 (section 10) gated on `nightly`; bundle folder rule on `nightly`, awaiting the test box.** Two independent resolver
 defects found by a library-wide shelf-title audit, fixed together because they share
 one A/B cycle. Operator framing, verbatim: *"lets make sure all the titles are
 across the board"*.
@@ -360,3 +360,81 @@ provider series; METAtropolis is a real C1 heal (#2 -> #1: Goodreads credits the
 anthology to its editor John Scalzi alone, fourth on Audible's list, so the old
 first-author gate skipped the right work); Fever Dream and Cemetery Dance are the
 expected C1 heals.
+
+## 10. S1: the sibling-listing fallback (2026-09-24)
+
+Found by check F (a sibling audit: albums off the shelf their series-folder
+siblings share; `.cache/sibling-audit.py`). King and Maxwell was matched to a
+delisted ABRIDGED "Part 1" (B00G2H2L5W, 450 min) against a 776.8-min file; the
+operator approved the re-match to the unabridged B00ELMWOJ8 (done: guid moved,
+the local-media poster selection the re-match displaced was restored, cover
+bytes identical). But the right edition still shelves as Audible's "King and
+Maxwell #6", beside Hour Game and First Family on "Sean King & Michelle Maxwell":
+
+| query | the five hits |
+| --- | --- |
+| "King and Maxwell David Baldacci" | REVIEW record (BookBuddy), "Book Review" (Expert Book Reviews), "King And Maxwell (King & Maxwell)" (BookBuddy), Split Second (#1), The Sixth Man (#5) |
+
+The book itself -- work 24064758 -- never comes back, so nothing is adopted and
+the provider series stands. The two siblings name the listing that holds it:
+series 43565 lists 24064758 at 6.
+
+**Rule (S1):** in the FIRST pass only, a hit the TITLE gate turns away that is
+POSITIVELY credited to one of our authors contributes its clean series (not an
+ordering, not an umbrella). If the pass then adopts nothing and was not degraded,
+the numbered members of up to two such listings become candidates -- the member
+at our own volume marker first, then by position, at most 8 /work reads -- and
+each faces the STRICT full-title gate (a listing is all siblings, so no relaxed
+arm may match a sibling's stem), the same author gate, ranking and volume veto as
+any hit. The listing rides `seriesRecord`'s memoized fetch (it now keeps the
+members too). A book whose first pass adopts a hit never reaches the fallback,
+so its fetches and answer are unchanged by construction.
+
+Not the stem retry: there the title is a bare stem, and a strict match on
+"Ahriman" adopts book 1 for "Ahriman: Exile" (tested). Not Sherlock: traced, it
+does not MISS -- it adopts a wrong work (1214700, "The Adventures of Sherlock
+Holmes" listed at 4), so the fallback never runs; it stays open as its own defect.
+
+**Pre-registered prediction** (written before either arm ran): corpus -- no row
+whose first pass adopts a hit can move; a mover is possible only where arm A
+answers from the provider or with none, and every one must be a heal; Sherlock
+unchanged. Library -- King and Maxwell (B00ELMWOJ8) moves to `Sean King &
+Michelle Maxwell #6`; any other mover is a book whose search misses today, and
+each is judged individually before any refresh.
+
+**Corpus A/B, measured.** Arm A = HEAD `0c8b7e3` replaying the umbrella gate's
+recording; arm B = S1, live and paced (600 ms), recorded. A strict replay of arm
+B is impossible by design -- the fallback adds requests (129 replay misses).
+The FIRST live arm B read "gate reds 1 -> 9" and was INVALID: 30 of 1,604
+recorded exchanges failed (`ok:false`, empty body; 24 consecutive, a ~30 s
+mirror outage). Every one of its 13 movers sat on a failed request, and each fell
+to its provider name. It is kept as `rec-s1B-INVALID-30fails.jsonl`. The rerun:
+**545/545 rows identical to arm A, gate reds 1 -> 1 (Sherlock), 0 movers**; 1,464
+URLs shared with arm A's recording, 1,427 identical (the rest are /search
+re-rankings that changed no answer); S1's own footprint on the corpus: 48 extra
+requests (1 listing, 47 member /work reads), nothing adopted. Its 4 failed
+exchanges are persistent mirror defects on two rows where S1 cannot act: On
+Target adopts a hit (Gray Man #2), and Duma Key's /work 217077255 answers HTTP
+500 every time, so its lookup is always degraded -- in both arms and in prod.
+
+**Library A/B, measured** (`.cache/s1LibraryAB.ts`): arm B over every album with
+a current Audible record (1,313), live and paced, recorded -- 3,715 exchanges, 2
+failed (Duma Key's permanently broken record again). The fallback ENGAGED on 28
+albums and adopted a listing member on 11 of them; arm A (HEAD) re-run on exactly
+those 28 (133 exchanges, 0 failed): **28/28 identical, 0 movers, every answer
+equal to its prod shelf.** Where S1 adopted, it found the Goodreads work agreeing
+with the provider's own name and number (The Beast Arises #1, The Expanse #3.5,
+Jurassic Park #2, Chaos Seeds #3, The Dark Tower #7, He Who Fights with Monsters
+#11/#12, ...), so no shelf moves; Sherlock is identical in both arms. King and
+Maxwell is outside that index (it held the delisted id); resolved from the API's
+stored record for B00ELMWOJ8 through both arms: A `King and Maxwell #6` -> B
+**`Sean King & Michelle Maxwell #6`** -- its siblings' shelf. The prediction
+held on every point.
+
+Tests: 11 (`goodreadsSiblingListing.test.ts`, a routing transport mock so each
+test pins exactly which requests a lookup makes). Mutations, each changing the
+file, all killed: fallback never runs; a sibling with no author data names a
+listing; listing members get the relaxed gate; runs on a degraded pass; no member
+budget; no volume-hint ordering; orderings/umbrellas name listings; a sibling
+credited to anyone names a listing; listing members skip the author gate; runs in
+the stem retry too.
