@@ -59,6 +59,13 @@ interface CorpusRow {
 		title?: string | null
 		subtitle?: string | null
 		author?: string | null
+		// EVERY author, in the order the PROVIDER stores them, when a row needs it.
+		// Preferred over `author`: a single string cannot express a co-author listed
+		// first, and that is precisely the shape that shelved Cemetery Dance and
+		// Fever Dream on provider names (spec-shelf-titles-across-the-board.md, C1).
+		// Every corpus row recorded before 2026-09-23 flattened authors to one
+		// string, which is why no gate run could see that defect.
+		authors?: string[] | null
 		providerSeries?: CorpusSeries | string | null
 		providerSeries2?: CorpusSeries | null
 	}
@@ -190,7 +197,12 @@ async function evaluate(row: CorpusRow): Promise<RowResult> {
 
 	const book: Record<string, unknown> = {
 		title: row.inputs.title ?? row.album,
-		authors: row.inputs.author ? [{ name: row.inputs.author }] : []
+		authors:
+			Array.isArray(row.inputs.authors) && row.inputs.authors.length
+				? row.inputs.authors.map((name) => ({ name }))
+				: row.inputs.author
+					? [{ name: row.inputs.author }]
+					: []
 	}
 	if (row.inputs.subtitle) book.subtitle = row.inputs.subtitle
 	if (provider?.name) book.seriesPrimary = { name: provider.name, position: provider.position }

@@ -22600,7 +22600,9 @@
    ],
    "pinType": "current-correct-default",
    "sourceOfTruth": "Random-sample no-change row (seed 42): single series, provider rebuilt, cold recompute identical to served. Current answer is correct-by-default; any change here is a regression by definition. Goodreads REPLACED an inconsistent provider series on this row (R8/C1-relevant input shape).",
-   "group": "random-single-nochange"
+   "group": "random-single-nochange",
+   "knownDefectNow": true,
+   "note": "KNOWN DEFECT 2026-09-24: Goodreads data moved under this row. Work 72688467 now lists BOTH 'Of Blood and Bone' (209484, 4 members, #3) and 'Banished Lands' (449031, 7 members, #7) -- Gwynne's whole world, spanning The Faithful and the Fallen and Of Blood and Bone. Both positioned, so the ranking takes the bigger one and answers 'Banished Lands #7'. Same class as The Realm of the Elderlings: an umbrella that is not inferable from the graph and must be DECLARED by id in UMBRELLA_SERIES. Identical in both A/B arms (HEAD and C1+N1) from their recordings, so not this change. Prod shelves (Faithful and the Fallen 1-4, Of Blood and Bone 1-3) are still correct; a forced refresh would move them."
   },
   {
    "recordId": "1774246325",
@@ -29316,6 +29318,282 @@
     "incipit-api GET /books 2026-09-08 for the Hardcover-id rows",
     "GR mirror /search + /work + /series 2026-09-08",
     "in-process reproduction with and without the provider incumbent (.cache/hb2.ts)"
+   ],
+   "mintPin": false
+  },
+  {
+   "recordId": "B0D2RWVBD2",
+   "ratingKey": "749441",
+   "album": "Mushoku Tensei: Jobless Reincarnation (Light Novel), Vol. 14",
+   "artist": "Rifujin na Magonote",
+   "inputs": {
+    "title": "Mushoku Tensei: Jobless Reincarnation (Light Novel), Vol. 14",
+    "subtitle": "Jobless Reincarnation (Light Novel)",
+    "author": "Rifujin na Magonote",
+    "providerSeries": null,
+    "providerSeries2": {
+     "name": "Mushoku Tensei Web Novel",
+     "position": "14"
+    },
+    "publicationName": null,
+    "audibleSeriesRaw": [],
+    "inputSource": "Audible public catalogue returns an EMPTY product for this ASIN in US/UK/CA/AU; the provider primary is unknowable, so providerSeries is null. The served tag \"Mushoku Tensei Web Novel\" reproduces only as a PROVIDER secondary, so it is recorded as one."
+   },
+   "servedNow": {
+    "primary": {
+     "name": "\u7121\u8077\u8ee2\u751f: \u7570\u4e16\u754c\u884c\u3063\u305f\u3089\u672c\u6c17\u3060\u3059 [Mushoku Tensei: Isekai Ittara Honki Dasu]",
+     "position": "14"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "\u7121\u8077\u8ee2\u751f: \u7570\u4e16\u754c\u884c\u3063\u305f\u3089\u672c\u6c17\u3060\u3059 [Mushoku Tensei: Isekai Ittara Honki Dasu], Book 14 - Mushoku Tensei: Jobless Reincarnation (Light Novel), Vol. 14",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Mushoku Tensei: Isekai Ittara Honki Dasu",
+    "position": "14",
+    "secondaryNote": "the tag slot is not asserted by these rows",
+    "expectedSortPrefix": "Mushoku Tensei: Isekai Ittara Honki Dasu, Book 14 - "
+   },
+   "specRule": [
+    "N1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-23: 'lets make sure all the titles are across the board', after the Mushoku Tensei shelf was found under its Japanese-script Goodreads name. A library-wide shelf-title audit (.cache/title-audit.py) then surfaced the co-author gate defect and a stale Sherlock shelf. See docs/design/spec-shelf-titles-across-the-board.md.",
+   "group": "title-audit-2026-09-23",
+   "note": "LIVE DEFECT 2026-09-23, prod rk 749441: shelved under the Japanese-script name. Goodreads work 88793724 carries ONE series, 136942, titled \"<kanji> [<romanization>]\" with no \"Also known as\" alias. N1 displays the bracketed romanization.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-23 (section 6)",
+    "incipit-api GET /books 2026-09-23 (title, subtitle, authors in stored order, served series)",
+    "live Audible catalog probe 2026-09-23 (US/UK/CA/AU)",
+    "GR mirror /search + /work + /series 2026-09-23",
+    "in-process reproduction (.cache/mushoku.ts, .cache/coauthor.ts, .cache/splitprobe.ts)"
+   ],
+   "mintPin": false
+  },
+  {
+   "recordId": "B0D2S1WSS3",
+   "ratingKey": "749439",
+   "album": "Mushoku Tensei: Jobless Reincarnation (Light Novel) Vol. 15",
+   "artist": "Rifujin na Magonote",
+   "inputs": {
+    "title": "Mushoku Tensei: Jobless Reincarnation (Light Novel) Vol. 15",
+    "subtitle": "Jobless Reincarnation (Light Novel)",
+    "author": "Rifujin na Magonote",
+    "providerSeries": null,
+    "providerSeries2": {
+     "name": "Mushoku Tensei Web Novel",
+     "position": "15"
+    },
+    "publicationName": null,
+    "audibleSeriesRaw": [],
+    "inputSource": "Audible public catalogue returns an EMPTY product for this ASIN in US/UK/CA/AU; the provider primary is unknowable, so providerSeries is null. The served tag \"Mushoku Tensei Web Novel\" reproduces only as a PROVIDER secondary, so it is recorded as one."
+   },
+   "servedNow": {
+    "primary": {
+     "name": "\u7121\u8077\u8ee2\u751f: \u7570\u4e16\u754c\u884c\u3063\u305f\u3089\u672c\u6c17\u3060\u3059 [Mushoku Tensei: Isekai Ittara Honki Dasu]",
+     "position": "15"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "\u7121\u8077\u8ee2\u751f: \u7570\u4e16\u754c\u884c\u3063\u305f\u3089\u672c\u6c17\u3060\u3059 [Mushoku Tensei: Isekai Ittara Honki Dasu], Book 15 - Mushoku Tensei: Jobless Reincarnation (Light Novel) Vol. 15",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Mushoku Tensei: Isekai Ittara Honki Dasu",
+    "position": "15",
+    "secondaryNote": "the tag slot is not asserted by these rows",
+    "expectedSortPrefix": "Mushoku Tensei: Isekai Ittara Honki Dasu, Book 15 - "
+   },
+   "specRule": [
+    "N1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-23: 'lets make sure all the titles are across the board', after the Mushoku Tensei shelf was found under its Japanese-script Goodreads name. A library-wide shelf-title audit (.cache/title-audit.py) then surfaced the co-author gate defect and a stale Sherlock shelf. See docs/design/spec-shelf-titles-across-the-board.md.",
+   "group": "title-audit-2026-09-23",
+   "note": "LIVE DEFECT 2026-09-23, prod rk 749439: shelved under the Japanese-script name. Goodreads work 88793724 carries ONE series, 136942, titled \"<kanji> [<romanization>]\" with no \"Also known as\" alias. N1 displays the bracketed romanization.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-23 (section 6)",
+    "incipit-api GET /books 2026-09-23 (title, subtitle, authors in stored order, served series)",
+    "live Audible catalog probe 2026-09-23 (US/UK/CA/AU)",
+    "GR mirror /search + /work + /series 2026-09-23",
+    "in-process reproduction (.cache/mushoku.ts, .cache/coauthor.ts, .cache/splitprobe.ts)"
+   ],
+   "mintPin": false
+  },
+  {
+   "recordId": "B0029TCG0C",
+   "ratingKey": "730376",
+   "album": "Cemetery Dance",
+   "artist": "Douglas Preston",
+   "inputs": {
+    "title": "Cemetery Dance",
+    "subtitle": null,
+    "author": "Lincoln Child",
+    "authors": [
+     "Lincoln Child",
+     "Douglas Preston"
+    ],
+    "providerSeries": {
+     "name": "Aloysius Pendergast",
+     "position": "9"
+    },
+    "providerSeries2": {
+     "name": "Pendergast Universe",
+     "position": "13"
+    },
+    "publicationName": null,
+    "audibleSeriesRaw": [],
+    "inputSource": "incipit-api stored record: authors [Lincoln Child, Douglas Preston] IN THAT ORDER; Audible public catalogue returns an empty product for this ASIN, so the provider series is what the API holds."
+   },
+   "servedNow": {
+    "primary": {
+     "name": "Aloysius Pendergast",
+     "position": "9"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Aloysius Pendergast, Book 9 - Cemetery Dance",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Pendergast",
+    "position": "9",
+    "secondaryNote": "the tag slot is not asserted by these rows",
+    "expectedSortPrefix": "Pendergast, Book 9 - "
+   },
+   "specRule": [
+    "C1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-23: 'lets make sure all the titles are across the board', after the Mushoku Tensei shelf was found under its Japanese-script Goodreads name. A library-wide shelf-title audit (.cache/title-audit.py) then surfaced the co-author gate defect and a stale Sherlock shelf. See docs/design/spec-shelf-titles-across-the-board.md.",
+   "group": "title-audit-2026-09-23",
+   "note": "LIVE DEFECT 2026-09-23, prod rk 730376: one of three names on the Pendergast shelf. The mirror credits GR work 2262692 to Douglas Preston alone; the author gate read only Lincoln Child and skipped the real work at hit 1.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-23 (section 6)",
+    "incipit-api GET /books 2026-09-23 (title, subtitle, authors in stored order, served series)",
+    "live Audible catalog probe 2026-09-23 (US/UK/CA/AU)",
+    "GR mirror /search + /work + /series 2026-09-23",
+    "in-process reproduction (.cache/mushoku.ts, .cache/coauthor.ts, .cache/splitprobe.ts)"
+   ],
+   "mintPin": false
+  },
+  {
+   "recordId": "B003GXDDYS",
+   "ratingKey": "729647",
+   "album": "Fever Dream",
+   "artist": "Douglas Preston",
+   "inputs": {
+    "title": "Fever Dream",
+    "subtitle": null,
+    "author": "Lincoln Child",
+    "authors": [
+     "Lincoln Child",
+     "Douglas Preston"
+    ],
+    "providerSeries": {
+     "name": "Agent Pendergast",
+     "position": "10"
+    },
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [
+     {
+      "title": "Agent Pendergast",
+      "sequence": "10"
+     }
+    ],
+    "inputSource": "incipit-api stored record: authors [Lincoln Child, Douglas Preston] IN THAT ORDER; Audible series Agent Pendergast #10 (live catalogue probe)."
+   },
+   "servedNow": {
+    "primary": {
+     "name": "Agent Pendergast",
+     "position": "10"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Agent Pendergast, Book 10 - Fever Dream",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Pendergast",
+    "position": "10",
+    "secondaryNote": "the tag slot is not asserted by these rows",
+    "expectedSortPrefix": "Pendergast, Book 10 - "
+   },
+   "specRule": [
+    "C1"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-23: 'lets make sure all the titles are across the board', after the Mushoku Tensei shelf was found under its Japanese-script Goodreads name. A library-wide shelf-title audit (.cache/title-audit.py) then surfaced the co-author gate defect and a stale Sherlock shelf. See docs/design/spec-shelf-titles-across-the-board.md.",
+   "group": "title-audit-2026-09-23",
+   "note": "LIVE DEFECT 2026-09-23, prod rk 729647: served as an Audible passthrough because the author gate skipped GR work 7383328 (credited to Preston alone). AudioSilo copy of the Audible record lists the authors Preston-first -- the order is not stable, so neither may the shelf depend on it.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-23 (section 6)",
+    "incipit-api GET /books 2026-09-23 (title, subtitle, authors in stored order, served series)",
+    "live Audible catalog probe 2026-09-23 (US/UK/CA/AU)",
+    "GR mirror /search + /work + /series 2026-09-23",
+    "in-process reproduction (.cache/mushoku.ts, .cache/coauthor.ts, .cache/splitprobe.ts)"
+   ],
+   "mintPin": false
+  },
+  {
+   "recordId": "B002V1CGGM",
+   "ratingKey": "735035",
+   "album": "The Adventures of Sherlock Holmes",
+   "artist": "Arthur Conan Doyle",
+   "inputs": {
+    "title": "The Adventures of Sherlock Holmes",
+    "subtitle": null,
+    "author": "Arthur Conan Doyle",
+    "providerSeries": {
+     "name": "Sherlock Holmes",
+     "position": "3"
+    },
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [
+     {
+      "title": "Sherlock Holmes",
+      "sequence": "3"
+     }
+    ],
+    "inputSource": "live Audible catalogue probe 2026-09-23"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "Sherlock Holmes",
+     "position": "3"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Adventures of Sherlock Holmes, Book 4 - The Adventures of Sherlock Holmes",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Sherlock Holmes",
+    "position": "3",
+    "secondaryNote": "the tag slot is not asserted by these rows",
+    "expectedSortPrefix": "Sherlock Holmes, Book 3 - "
+   },
+   "specRule": [
+    "O2-exposed"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-23: 'lets make sure all the titles are across the board', after the Mushoku Tensei shelf was found under its Japanese-script Goodreads name. A library-wide shelf-title audit (.cache/title-audit.py) then surfaced the co-author gate defect and a stale Sherlock shelf. See docs/design/spec-shelf-titles-across-the-board.md.",
+   "group": "title-audit-2026-09-23",
+   "note": "LIVE DEFECT, measured 2026-09-24 -- NOT the stale shelf first diagnosed. Goodreads' /search never returns the collection work in its top five for this title. The answer is decided by the FIFTH hit, which the widened window (O2, 1fa81b0) made reachable: when it is 8463213 'The Great Adventures of Sherlock Holmes' (no series listed) nothing is accepted and Audible's correct 'Sherlock Holmes #3' stands; when it is 1214700 'The Boscombe Valley Mystery - a Sherlock Holmes Short Story' (series 320780 'The Adventures of Sherlock Holmes' #4) that STORY is adopted. Proven by replaying HEAD and the C1+N1 fix against both recorded search orders: identical answers per order, zero replay misses. Prod rk 735035 carries the story's shelf. Needs a title-gate/window fix of its own (spec first).",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort 2026-09-23 (section 6)",
+    "incipit-api GET /books 2026-09-23 (title, subtitle, authors in stored order, served series)",
+    "live Audible catalog probe 2026-09-23 (US/UK/CA/AU)",
+    "GR mirror /search + /work + /series 2026-09-23",
+    "in-process reproduction (.cache/mushoku.ts, .cache/coauthor.ts, .cache/splitprobe.ts)"
    ],
    "mintPin": false
   }

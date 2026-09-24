@@ -247,6 +247,91 @@ describe('goodreads as series authority', () => {
 		expect(out.seriesPrimary?.name).toBe('Pendergast')
 	})
 
+	test('a CO-AUTHOR credited on the work is not "someone else"', async () => {
+		// Cemetery Dance, prod 2026-09-23: the provider stores the authors as
+		// [Lincoln Child, Douglas Preston] and the mirror credits the work to
+		// Preston alone. Reading only the first author, the gate skipped the real
+		// work at hit 1 and the shelf fell to a provider name, "Aloysius
+		// Pendergast", beside thirteen siblings on "Pendergast".
+		respond([{ workId: 42 }], work('Cemetery Dance', 'Pendergast', 9, { author: 'Douglas Preston' }))
+		const out = await withGoodreadsSeries(
+			book({
+				title: 'Cemetery Dance',
+				authors: [{ name: 'Lincoln Child' }, { name: 'Douglas Preston' }],
+				seriesPrimary: { name: 'Aloysius Pendergast', position: '9' }
+			}),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary).toEqual({ name: 'Pendergast', position: '9' })
+	})
+
+	test('a co-author changes the cache key, so a first-author-only miss cannot answer for it', async () => {
+		// The answer now depends on the co-authors, so they are part of what a
+		// cache entry means. Without them in the key, a lookup for "Cemetery
+		// Dance" by Lincoln Child alone caches a MISS under the same key the
+		// co-written record then reads -- and the fix never reaches the shelf.
+		const redis = fakeRedis()
+		respond(
+			[{ workId: 42 }],
+			work('Cemetery Dance', 'Pendergast', 9, { author: 'Douglas Preston' }),
+			[{ workId: 42 }],
+			work('Cemetery Dance', 'Pendergast', 9, { author: 'Douglas Preston' })
+		)
+		const alone = await withGoodreadsSeries(
+			book({
+				title: 'Cemetery Dance',
+				authors: [{ name: 'Lincoln Child' }],
+				seriesPrimary: { name: 'Aloysius Pendergast', position: '9' }
+			}),
+			redis
+		)
+		expect(alone.seriesPrimary).toEqual({ name: 'Aloysius Pendergast', position: '9' })
+		const cowritten = await withGoodreadsSeries(
+			book({
+				title: 'Cemetery Dance',
+				authors: [{ name: 'Lincoln Child' }, { name: 'Douglas Preston' }],
+				seriesPrimary: { name: 'Aloysius Pendergast', position: '9' }
+			}),
+			redis
+		)
+		expect(cowritten.seriesPrimary).toEqual({ name: 'Pendergast', position: '9' })
+	})
+
+	test('CONTROL: the gate still rejects when NONE of our authors is credited', async () => {
+		// Same fixture, the co-author removed: a work credited to Douglas Preston
+		// is someone else's to a book by Lincoln Child alone. Proves the co-author
+		// test above passes because of the co-author, not because the gate opened.
+		respond([{ workId: 42 }], work('Cemetery Dance', 'Pendergast', 9, { author: 'Douglas Preston' }))
+		const out = await withGoodreadsSeries(
+			book({
+				title: 'Cemetery Dance',
+				authors: [{ name: 'Lincoln Child' }],
+				seriesPrimary: { name: 'Aloysius Pendergast', position: '9' }
+			}),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary).toEqual({ name: 'Aloysius Pendergast', position: '9' })
+	})
+
+	test('CONTROL: a companion record is still skipped when the book has co-authors', async () => {
+		// The gate's reason to exist, re-run with two authors: BookBuddy matches
+		// neither, so the summary at hit 1 is skipped and the real work wins.
+		respond(
+			[{ workId: 7 }, { workId: 42 }],
+			work('White Fire', "A Summarizer's Companion Series", 4, { author: 'BookBuddy', workId: 7 }),
+			work('White Fire', 'Pendergast', 13, { author: 'Douglas Preston' })
+		)
+		const out = await withGoodreadsSeries(
+			book({
+				title: 'White Fire',
+				authors: [{ name: 'Lincoln Child' }, { name: 'Douglas Preston' }],
+				seriesPrimary: null
+			}),
+			fakeRedis()
+		)
+		expect(out.seriesPrimary).toEqual({ name: 'Pendergast', position: '13' })
+	})
+
 	test('a work with no author data is still trusted', async () => {
 		// The gate can only reject on a POSITIVE mismatch. The mirror omits
 		// Authors on some works, and treating absent as wrong would throw away

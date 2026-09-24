@@ -2016,6 +2016,42 @@ describe('Gate C must survive the shelf-language rename', () => {
 		expect(out.seriesPrimary).toEqual({ name: 'Inkworld', position: '4' })
 	})
 
+	test('a provider holding the ROMANIZED name is still protected', async () => {
+		// N1 of spec-shelf-titles-across-the-board.md, one site over. The display
+		// rename now also turns "<kanji> [<romanization>]" into the romanization, so
+		// a provider can hold THAT form -- and rescuedOver, filled from canonical
+		// titles, must carry it too or the umbrella takes the shelf Gate C protects.
+		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+		const JA = '無職転生: 異世界行ったら本気だす [Mushoku Tensei: Isekai Ittara Honki Dasu]'
+		respond(
+			[{ workId: 42 }],
+			{
+				Title: 'The Color of Revenge',
+				Series: [
+					{ Title: JA, ForeignId: 92201, LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '' }] },
+					{
+						Title: 'The Funke Universe',
+						ForeignId: 92202,
+						LinkItems: [{ ForeignWorkId: 42, PositionInSeries: '4' }]
+					}
+				]
+			},
+			{ Title: JA, Description: 'No alias declared.', LinkItems: [1, 2, 3] },
+			members(40),
+			{ Title: 'The Funke Universe', Description: 'TODO', LinkItems: [1, 2, 3] },
+			{ Title: JA, Description: 'No alias declared.', LinkItems: [1, 2, 3] }
+		)
+		const out = await withGoodreadsSeries(
+			{
+				title: 'The Color of Revenge',
+				authors: [{ name: 'Cornelia Funke' }],
+				seriesPrimary: { name: 'Mushoku Tensei: Isekai Ittara Honki Dasu', position: '4' }
+			},
+			fakeRedis()
+		)
+		expect(out.seriesPrimary).toEqual({ name: 'Mushoku Tensei: Isekai Ittara Honki Dasu', position: '4' })
+	})
+
 	test('a provider holding the CANONICAL name is still protected', async () => {
 		// The pre-existing arm must not regress while the alias arm is added.
 		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')

@@ -633,6 +633,32 @@ const SERIES_SUB_HEADING = /sub-?series\s*:?/i
 const NON_LATIN_SCRIPT = /[Ͱ-ϿЀ-ӿ֐-׿؀-ۿ぀-ヿ一-鿿가-힯]/
 
 /**
+ * The Latin-script name Goodreads librarians bracket after a non-Latin series
+ * title, or null when the name is not in that shape.
+ *
+ * The convention for manga and light novels is original title, then the
+ * romanization: "無職転生: 異世界行ったら本気だす [Mushoku Tensei: Isekai Ittara
+ * Honki Dasu]". With no "Also known as" alias declared, that bracket is the only
+ * Latin-script name the record carries -- and taking it keeps the answer inside
+ * the one Goodreads record (same id, same positions), so every volume lands on
+ * the same shelf. A provider's English name would not: provider names vary book
+ * to book, which is how one series ends up on several shelves.
+ *
+ * Narrow on purpose: the outside must contain non-Latin script, the bracket must
+ * close the name, and what it holds must be Latin with at least one letter. A
+ * Latin series that merely ends in brackets is left alone.
+ * See docs/design/spec-shelf-titles-across-the-board.md, N1.
+ * @param {string | null | undefined} name the series title as Goodreads gives it
+ * @returns {string | null} the bracketed romanization, or null
+ */
+export function bracketedRomanization(name: string | null | undefined): string | null {
+	if (!name || !NON_LATIN_SCRIPT.test(name)) return null
+	const inner = /\[([^[\]]+)\]\s*$/.exec(name)?.[1]?.trim()
+	if (!inner || NON_LATIN_SCRIPT.test(inner) || !/[A-Za-z]/.test(inner)) return null
+	return inner
+}
+
+/**
  * The series ids linked in the section under `heading`, or [].
  * @param {string | null} description the series record's Description
  * @param {RegExp} heading the section heading to read under
@@ -1036,7 +1062,8 @@ function cacheKey(
 	title: string,
 	author: string | null,
 	subtitle?: string | null,
-	providerSeriesName?: string | null
+	providerSeriesName?: string | null,
+	coAuthors: readonly string[] = []
 ): string {
 	// The RAW title, not normalizeTitle: the normalizer exists to score matches,
 	// and it strips exactly the ", Book N" marker that distinguishes one volume
@@ -1057,7 +1084,11 @@ function cacheKey(
 		'|' +
 		(providerSeriesName ? foldSeriesName(providerSeriesName) : '') +
 		'|' +
-		(preferredSeriesLanguage() ?? '')
+		(preferredSeriesLanguage() ?? '') +
+		// The co-authors change the answer now (the gate reads them), so they are
+		// part of what the entry means. Appended only when present, so a
+		// single-author book keeps the exact key it always had.
+		(coAuthors.length ? '|' + coAuthors.map((a) => a.toLowerCase()).join(',') : '')
 	)
 }
 
@@ -1147,7 +1178,20 @@ async function seriesEnriched<T extends SeriesEnrichable>(
 
 	const title = book.title
 	const author = book.authors?.[0]?.name ?? null
-	const key = cacheKey(title, author, book.subtitle, book.seriesPrimary?.name)
+	// EVERY author, for the author gate. The first still sharpens the search
+	// query; the gate must accept a work credited to ANY of them, or a co-written
+	// book is rejected whenever its provider happens to list the co-author first.
+	// Measured: Cemetery Dance and Fever Dream are stored [Lincoln Child, Douglas
+	// Preston], the mirror credits both works solely to Preston, and the real work
+	// came back as hit 1 and was skipped as "credited to someone else" -- so the
+	// shelf fell to a provider name. The ORDER is not even stable: another copy of
+	// Audible's record lists Fever Dream Preston-first. A shelf must not depend on
+	// it. See docs/design/spec-shelf-titles-across-the-board.md, C1.
+	const coAuthors = (book.authors ?? [])
+		.slice(1)
+		.map((a) => a?.name)
+		.filter((n): n is string => typeof n === 'string' && n.trim().length > 0)
+	const key = cacheKey(title, author, book.subtitle, book.seriesPrimary?.name, coAuthors)
 
 	let result: GoodreadsSeriesResult | null | undefined
 	if (redis) {
@@ -1196,7 +1240,8 @@ async function seriesEnriched<T extends SeriesEnrichable>(
 				logger,
 				probe,
 				book.subtitle,
-				book.seriesPrimary?.name
+				book.seriesPrimary?.name,
+				coAuthors
 			)
 			// Only cache an answer the mirror actually gave us. A null produced
 			// while rate-limited/unreachable would otherwise pin "no series" on
@@ -1657,9 +1702,10 @@ export async function fetchGoodreadsSeries(
 	logger?: FastifyBaseLogger,
 	state?: LookupState,
 	subtitle?: string | null,
-	providerSeries?: string | null
+	providerSeries?: string | null,
+	coAuthors: readonly string[] = []
 ): Promise<GoodreadsSeriesResult | null> {
-	const first = await lookupByTitle(title, author, logger, state, false, subtitle)
+	const first = await lookupByTitle(title, author, logger, state, false, subtitle, coAuthors)
 	if (first) return first
 
 	// A degraded miss is not a miss. A timed-out /work on pass 1 might have been
@@ -1685,7 +1731,8 @@ export async function fetchGoodreadsSeries(
 	// faces the same title and author gates, which is what keeps a generic stem
 	// ("Star Wars", "The Beginning") from adopting a stranger's series.
 	const base = titleWithoutSubtitle(title)
-	if (!base) return volumePrefixRetry(title, author, logger, state, subtitle, providerSeries)
+	if (!base)
+		return volumePrefixRetry(title, author, logger, state, subtitle, providerSeries, coAuthors)
 	logger?.debug({ title, base }, 'goodreads series: no hit, retrying without the subtitle')
 	// strictGate: a stripped stem must match a candidate's FULL title. The
 	// relaxed arms exist for full titles ("our subtitle half", "the candidate's
@@ -1694,7 +1741,7 @@ export async function fetchGoodreadsSeries(
 	// The subtitle rides along: stripping the marketing subtitle changes which
 	// TITLE we search for, not which volume the book is, so the veto must still
 	// hold the stem pass to our own volume number.
-	const stem = await lookupByTitle(base, author, logger, state, true, subtitle)
+	const stem = await lookupByTitle(base, author, logger, state, true, subtitle, coAuthors)
 	if (stem) {
 		markZeroInformationStemMatch(base, title, subtitle, stem, state, logger)
 		return stem
@@ -1702,7 +1749,7 @@ export async function fetchGoodreadsSeries(
 	// LAST resort, and only for the volume-prefix shape (see
 	// titleAfterVolumePrefix). Reached only when both passes above found nothing,
 	// which is what keeps it off every book that resolves today.
-	return volumePrefixRetry(title, author, logger, state, subtitle, providerSeries)
+	return volumePrefixRetry(title, author, logger, state, subtitle, providerSeries, coAuthors)
 }
 
 /**
@@ -1772,7 +1819,8 @@ async function volumePrefixRetry(
 	logger: FastifyBaseLogger | undefined,
 	state: LookupState | undefined,
 	subtitle: string | null | undefined,
-	providerSeries: string | null | undefined
+	providerSeries: string | null | undefined,
+	coAuthors: readonly string[] = []
 ): Promise<GoodreadsSeriesResult | null> {
 	if (state?.degraded) return null
 	const post = titleAfterVolumePrefix(title, providerSeries)
@@ -1781,7 +1829,7 @@ async function volumePrefixRetry(
 		{ title, post, providerSeries },
 		'goodreads series: no hit, retrying the half after the volume prefix'
 	)
-	const found = await lookupByTitle(post, author, logger, state, true, subtitle)
+	const found = await lookupByTitle(post, author, logger, state, true, subtitle, coAuthors)
 	if (!found?.primary?.name) return null
 	const got = foldSeriesTitle(found.primary.name)
 	const want = foldSeriesTitle(providerSeries ?? '')
@@ -1815,7 +1863,8 @@ async function lookupByTitle(
 	logger?: FastifyBaseLogger,
 	state?: LookupState,
 	strictGate = false,
-	subtitle?: string | null
+	subtitle?: string | null,
+	coAuthors: readonly string[] = []
 ): Promise<GoodreadsSeriesResult | null> {
 	const want = normalizeTitle(title)
 	if (!want) return null
@@ -2006,7 +2055,15 @@ async function lookupByTitle(
 		const credited = (Array.isArray(work.Authors) ? work.Authors : [])
 			.map((a) => a?.Name)
 			.filter((n): n is string => typeof n === 'string' && n.length > 0)
-		if (author && credited.length > 0 && !credited.some((n) => isSameAuthor(author, n))) {
+		// ANY of our authors, not only the first: a co-author credited on the work
+		// is not "someone else". The positive-mismatch rule is otherwise unchanged
+		// -- a companion record credited to BookBuddy matches none of them.
+		const ours = author ? [author, ...coAuthors] : [...coAuthors]
+		if (
+			ours.length > 0 &&
+			credited.length > 0 &&
+			!credited.some((n) => ours.some((a) => isSameAuthor(a, n)))
+		) {
 			logger?.debug(
 				{ workId, credited, author },
 				'goodreads series: work is credited to someone else, skipping it'
@@ -2320,11 +2377,18 @@ async function lookupByTitle(
 				const aliasProbe = newLookupState()
 				const info = await seriesRecord(chosen.ForeignId, aliasProbe, logger)
 				if (aliasProbe.degraded && state) state.uncacheable = true
-				const alias = seriesAliasFor(info.description, language)
+				// A declared alias first (the librarians said so), then the bracketed
+				// romanization of a non-Latin name (the record's only Latin-script
+				// form). The Gate C reconciliation below applies the SAME two steps:
+				// the display name is defined once, not per call site.
+				const declared = seriesAliasFor(info.description, language)
+				const alias = declared ?? bracketedRomanization(out.name)
 				if (!alias || alias === out.name) return out
 				logger?.debug(
 					{ workId, canonical: out.name, alias, language },
-					'goodreads series: renamed to the declared language alias'
+					declared
+						? 'goodreads series: renamed to the declared language alias'
+						: 'goodreads series: renamed to the bracketed romanization'
 				)
 				return { ...out, name: alias }
 			}
@@ -2342,7 +2406,13 @@ async function lookupByTitle(
 					const aliasProbe = newLookupState()
 					const info = await seriesRecord(chosen.ForeignId, aliasProbe, logger)
 					if (aliasProbe.degraded && state) state.uncacheable = true
-					const alias = seriesAliasFor(info.description, language)
+					const alias =
+						seriesAliasFor(info.description, language) ??
+						bracketedRomanization(
+							String(chosen.Title ?? '')
+								.replace(/\s+/g, ' ')
+								.trim()
+						)
 					if (alias && !result.rescuedOver.includes(alias)) aliases.push(alias)
 				}
 				if (aliases.length) result.rescuedOver = [...result.rescuedOver, ...aliases]
