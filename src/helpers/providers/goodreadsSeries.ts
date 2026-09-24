@@ -555,6 +555,16 @@ export function seriesAliasFor(description: string | null, language: string): st
 // provider name and can never converge. A false positive is worse than a miss.
 const SERIES_ORDERING_RE =
 	/\b(?:(?:publication|published|reading|preferred|suggested|recommended|release)\s+order|chronological|split[\s-]?volume|omnibus|box[\s-]?set|edition)\b/i
+// The EDITION half of that vocabulary -- a split or bundled printing, never a
+// reading order. Both halves are demoted from the ranking alike; what differs is
+// what happens when one of them is the ONLY answer. A reading order still names a
+// real series in reading sequence, and the operator chose to shelve by it
+// (Hornblower, spec-ordering-only-shelf-split.md). An edition listing names a
+// PRINTING: "Under the Dome Split-Volume" is a split edition of a standalone
+// novel, and shelving by it built "Under the Dome Split-Volume, Book 1 - Under
+// the Dome". Every term here must also be caught by SERIES_ORDERING_RE (a test
+// holds them together), or an edition listing could win the ranking outright.
+const EDITION_LISTING_RE = /\b(?:split[\s-]?volume|omnibus|box[\s-]?set|edition)\b/i
 const SERIES_UMBRELLA_RE = /\b\w*verse\b/gi
 // A franchise umbrella names itself with a coined "-verse" compound (Universe,
 // Enderverse, the Cosmere Universe). Matching "\w*verse" alone also caught
@@ -578,6 +588,16 @@ const SERIES_UMBRELLA_STOPWORDS =
  */
 export function isSeriesOrdering(name: string | null | undefined): boolean {
 	return SERIES_ORDERING_RE.test(name ?? '')
+}
+
+/**
+ * Whether a series name is an EDITION listing (split volume, omnibus, box set,
+ * "... Edition") rather than a reading order. See EDITION_LISTING_RE.
+ * @param {string | null | undefined} name the series title
+ * @returns {boolean} true for an edition listing
+ */
+export function isEditionListing(name: string | null | undefined): boolean {
+	return EDITION_LISTING_RE.test(name ?? '')
 }
 
 // The librarian sections in a series description LINK to the series they name,
@@ -1375,6 +1395,22 @@ async function seriesEnriched<T extends SeriesEnrichable>(
 	// the provider already named; a provider series the rescue did NOT step over is
 	// still overwritten, so Goodreads keeps its authority everywhere else. Measured
 	// over 1401 resolvable library records: 1 sets rescuedOver.
+	// An EDITION listing never shelves a book on its own (Q1, operator 2026-09-24:
+	// "fix the folder junk shelves too", said of the Split-Volume shelves). When
+	// every listing Goodreads offered was demoted and the one left names a PRINTING,
+	// the book keeps what it had -- its provider series, or none. Ahead of every
+	// other refusal on purpose: with no provider series none of them fires, which
+	// is exactly how Under the Dome was shelved by its split edition; and with an
+	// ORDERING provider series, O1 below would release it to this edition listing.
+	// A reading order is not an edition listing and still shelves (Hornblower).
+	// See docs/design/spec-shelf-titles-across-the-board.md, section 8.
+	if (result.variantOnly && isEditionListing(result.primary?.name)) {
+		logger?.debug(
+			{ title, goodreads: result.primary, kept: book.seriesPrimary ?? null },
+			'goodreads series: the only listing is an edition, not a series; not applying it'
+		)
+		return book
+	}
 	if (hadSeries && rescueWouldSpendItsOwnSubSeries(result, book.seriesPrimary?.name)) {
 		logger?.debug(
 			{

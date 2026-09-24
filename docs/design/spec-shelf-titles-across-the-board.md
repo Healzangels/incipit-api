@@ -253,3 +253,38 @@ now". Five rows fixed today (Mushoku Tensei x2, Cemetery Dance, Fever Dream, A
 Time of Courage) and the eight Hornblower rows fixed on 2026-09-08 by O1/O2 --
 which had passed in every run since but were never unflagged -- now read false.
 The only live defect left in the corpus is The Adventures of Sherlock Holmes.
+
+## 8. Q1 decided: an edition listing never shelves a book on its own (2026-09-24)
+
+A corpus question open since July ("Q1": when the only name Goodreads offers is
+an ordering or edition listing, does a name beat none?) was answered in two
+halves. On 2026-09-08 the operator chose Goodreads' reading ORDER for Hornblower,
+so an ordering-only answer shelves. On 2026-09-24, asked to "fix the folder junk
+shelves too" of a list naming the Split-Volume shelves, the other half: an
+EDITION listing does not.
+
+Under the Dome showed why the bundle rule alone could not finish the job: its
+"Under the Dome Split-Volume, Book 1" shelf came from the API, not the folder.
+The book's own work lists no series; a split-volume EDITION work lists "Under the
+Dome Split-Volume"; the ranking marks that answer variant-only, and with no
+provider series no apply-path refusal fired.
+
+**Rule:** a variant-only answer whose name is an edition listing (split volume,
+omnibus, box set, "... Edition" -- `EDITION_LISTING_RE`, the edition half of the
+ordering vocabulary, held to it by a test) is not applied. The book keeps its
+provider series, or none. It sits ahead of every other refusal, which also stops
+O1 from releasing an ORDERING provider series to an edition listing.
+
+**A/B by replay** of the umbrella gate's recording (the rule changes only the
+apply decision, so both arms consume every exchange): both arms stable 545/545;
+exactly **one** mover -- Under the Dome, `Under the Dome Split-Volume #1` -> no
+series. Its corpus row, CONDITIONAL since July, now requires no series. Five tests;
+four mutations (refusal removed; refusal on any variant-only answer, which kills
+the Hornblower control; vocabulary swallowing reading orders; vocabulary without
+word boundaries), each changed the file and was killed.
+
+Library reach: the shelf-title audit found one API-derived edition-listing shelf,
+Under the Dome. The other edition-marked shelves (Insomnia, Needful Things, Duma
+Key Split-Volume; The English Edition) come from folders and are the bundle
+rule's (section 6); if the API ever serves one of those listings, this rule
+refuses it and the bundle's edition rule refuses the folder, so the two agree.

@@ -11248,25 +11248,23 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
+    "outcome": "NONE",
     "series": null,
     "position": null,
-    "conditional": {
-     "on": "Q1",
-     "ifQ1_nameBeatsNone": "Under the Dome Split-Volume #1 may stand (current state)",
-     "ifQ1_orderingsNeverShelve": "NONE"
-    }
+    "secondaryNote": "Q1 decided 2026-09-24: an edition listing never shelves a book on its own",
+    "expectedSortPrefix": ""
    },
    "specRule": [
     "R3",
-    "Q1"
+    "Q1-decided"
    ],
-   "pinType": "conditional",
+   "pinType": "operator-stated",
    "sourceOfTruth": "Census-reported defect: standalone novel shelved as \"Under the Dome Split-Volume, Book 1\". Mirror 2026-07-30: the primary work (6760952) has NO series; only the split-volume edition-work (35554137) carries the listing. Provider: none. Gap-fill row where the only name is a split-volume listing = Q1.",
    "group": "named-underthedome",
    "inputsVerified": [
     "live mirror /work probe 2026-07-30"
-   ]
+   ],
+   "note": "Q1 DECIDED 2026-09-24 by the operator (\"fix the folder junk shelves too\", said of the Split-Volume shelves): an EDITION listing (split volume, omnibus, box set, '... Edition') never shelves a book on its own; a READING ORDER still does (Hornblower, 2026-09-08). Required: no series."
   },
   {
    "recordId": "B002UZKK2G",
