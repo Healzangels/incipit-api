@@ -1,6 +1,6 @@
 # Spec — shelf titles across the board: non-Latin names and co-written books
 
-Status: **2026-09-24 — resolver rules (N1, C1) gated and committed; bundle folder rule on `nightly`, awaiting the test box.** Two independent resolver
+Status: **2026-09-24 — resolver rules (N1, C1, Q1, Q-author) gated and committed; bundle folder rule on `nightly`, awaiting the test box.** Two independent resolver
 defects found by a library-wide shelf-title audit, fixed together because they share
 one A/B cycle. Operator framing, verbatim: *"lets make sure all the titles are
 across the board"*.
@@ -288,3 +288,75 @@ Under the Dome. The other edition-marked shelves (Insomnia, Needful Things, Duma
 Key Split-Volume; The English Edition) come from folders and are the bundle
 rule's (section 6); if the API ever serves one of those listings, this rule
 refuses it and the bundle's edition rule refuses the folder, so the two agree.
+
+## 9. Q-author: the lookup searches for a person (2026-09-24)
+
+Found by the co-author follow-up to C1 (section 3), which left the search query
+on the first credit. Re-resolving every co-written album from Audible's CURRENT
+record -- what the API's update sweep stores, at every container start
+(`runImmediately`) and every 30 days after, for any record older than 7 days --
+turned up a first credit that is not a person:
+
+| The Adversary (Tier One #9) | credits |
+| --- | --- |
+| stored by the API (live route, `1fa81b0`) | Brian Andrews, Jeffrey Wilson |
+| Audible today | **Andrews & Wilson**, Brian Andrews, Jeffrey Wilson |
+
+The mirror's `/search` is literal: "The Adversary Andrews & Wilson" returns ZERO
+hits; "The Adversary Brian Andrews" returns work 249535826, credited to "Brian
+Andrews", in Tier One at 9. With no hit the book keeps its provider series, "The
+Tier One Thrillers #9" -- beside nine siblings on "Tier One". No change of ours
+causes this: the old build does the same the moment its stored record is
+refreshed, and the next deploy's startup sweep refreshes it.
+
+**Survey** (every album on prod, Audible's current record through `ApiHelper`,
+paced, read-only; `.cache/audible-inputs.json`): 1,313 records, 430 skipped (365
+not available in the US, 65 OverDrive). Combined credits: 3, all Tier One, only
+The Adversary's first. Role suffixes: translator 22, introduction 7, editor 7,
+note 1, afterword 1; three lists put a role FIRST (Heroic Hearts, Nightmare at
+20,000 Feet, Dragonwriter). No corpus credit has either shape (0 of 549): they
+arrived with Audible's newer records.
+
+**Rule (`lookupAuthors`):** the lookup's people are the plain credits in provider
+order, then the person each WRITING role names (editor, contributor), the role
+cut off, once per person. Any other role (introduction, foreword, afterword,
+preface, note, translator, illustrator, narrator) is dropped, and so is a
+combined credit whose every part -- full name or surname -- is another credit on
+the list. The vocabulary is closed: an unknown suffix stays part of the name, as
+every suffix did before. A list with nothing to change comes back verbatim, so
+the query, the author gate and the cache key of every such book are
+byte-identical to before; a list in which no person survives also comes back as
+given. The first person is the query author, and all of them feed C1's gate.
+
+Why DROP the combined credit rather than move it last: every person it names is
+on the list already, and dropping it keeps the cache key of the record the API
+holds today -- the refetch cannot send the book through a fresh lookup at all
+(tested). Why keep editors: Goodreads credits an anthology to its editor
+(METAtropolis is John Scalzi's there). Dropping a non-writing role cannot move
+the gate: `isSameAuthor("Ken Liu - translator", ...)` never matched anyone.
+
+**Pre-registered prediction** (before either arm ran): the corpus is inert;
+across the library, exactly one mover, The Adversary, `The Tier One Thrillers #9`
+-> `Tier One #9`; the other rewritten lists unchanged.
+
+**A/B, measured.** Corpus arm by replay of the umbrella gate's recording, arm A
+= HEAD `80a62dd`, arm B = the rule: both arms consume it exactly (1,507 served, 0
+misses, 0 left), twice each, 545/545 identical, gate reds 1 -> 1 (Sherlock).
+Library arm, live and paced, over exactly the 31 albums whose credit list the
+rule rewrites (any other album sends the same query, gate list and cache key):
+both arms stable over two runs, **one mover -- The Adversary -> `Tier One #9`,
+its prod shelf** -- and the other 30 identical in both arms and equal to their
+prod shelves. Both arms re-run on the prettier-formatted bytes: identical.
+
+Tests: 12 (`goodreadsLookupAuthors.test.ts`). Mutations, each changing the file,
+all killed: combined credits never detected; no writing role; writers ahead of
+authors; every role kept; surname parts never match; call site on the raw list;
+no fallback; a writer duplicated when also credited plainly.
+
+**Also measured by this follow-up** (the new build over every co-written album
+with Audible's current record, `.cache/coauthor-real.json`): of the probe's 17
+movers, Galaxy's Edge x7 and Defiance of the Fall were artifacts of passing no
+provider series; METAtropolis is a real C1 heal (#2 -> #1: Goodreads credits the
+anthology to its editor John Scalzi alone, fourth on Audible's list, so the old
+first-author gate skipped the right work); Fever Dream and Cemetery Dance are the
+expected C1 heals.

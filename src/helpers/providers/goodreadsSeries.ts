@@ -1156,6 +1156,94 @@ export async function withGoodreadsSeries<T extends SeriesEnrichable>(
 	}
 }
 
+// Q-author: the lookup searches for, and gates on, PEOPLE. Audible's credit list
+// is not a list of people: beside the authors it carries ROLE credits, the role
+// appended to the name ("Jim Butcher - editor", "Stephen King - introduction"),
+// and COMBINED pen-name credits ("Andrews & Wilson"), and it lists either one
+// FIRST as readily as an author. The first credit is the /search query author,
+// and /search is literal. Measured on The Adversary (Tier One #9) once Audible
+// put "Andrews & Wilson" ahead of both authors: "The Adversary Andrews & Wilson"
+// returns ZERO hits where "The Adversary Brian Andrews" returns the work, and
+// with no hit the book falls to its provider's "The Tier One Thrillers" beside
+// nine siblings on "Tier One". The API stores that list on its next update
+// sweep, so the shelf was one refetch from splitting.
+// See docs/design/spec-shelf-titles-across-the-board.md, section 9.
+//
+// The role is Audible's " - <role>" suffix, matched against a CLOSED vocabulary:
+// every role the 2026-09-24 library survey found (translator 22, introduction 7,
+// editor 7, note 1, afterword 1 across 1313 current records) plus the standard
+// ones it did not. An unknown suffix is read as part of the name, which is what
+// happened to every suffix before. A WRITING role keeps its person -- Goodreads
+// credits an anthology to its editor (METAtropolis is John Scalzi's there). Any
+// other role names someone who did not write the book: no one to look it up by.
+const CREDIT_ROLE_RE =
+	/\s+-\s+(editor|editors|contributor|introduction|foreword|afterword|preface|notes?|translator|illustrator|narrator)\s*$/i
+const WRITING_ROLE_RE = /^(?:editor|editors|contributor)$/i
+// A combined credit's separators: ampersand, semicolon, or the word "and",
+// whitespace-bounded so "Anderson" and "Rand" stay whole. The bundle splits an
+// artist on the same set (MULTI_AUTHOR_PATTERN) plus the comma and slash, which
+// a single Audible credit does not use to join two people.
+const COMBINED_CREDIT_SPLIT_RE = /\s+&\s+|\s*;\s*|\s+and\s+/i
+
+/**
+ * The book's credits as the PEOPLE the Goodreads lookup searches for and gates
+ * on, first = the query author: the plain credits in provider order, then the
+ * person each writing role names (the role cut off, once per person). A
+ * non-writing role is dropped, and so is a combined credit whose every part is
+ * another credit on the list -- it names no one the list does not, and dropping
+ * it keeps the cache entry of a record Audible later adds one to. A list with
+ * nothing to change comes back VERBATIM, same names in the same order, so the
+ * query, the author gate and the cache key of every such book are what they
+ * were; so does a list in which no person survives.
+ * @param {ReadonlyArray<string | null | undefined>} names the provider's credits, in order
+ * @returns {string[]} the people to look the book up by
+ */
+export function lookupAuthors(names: ReadonlyArray<string | null | undefined>): string[] {
+	const credits = names.filter((n): n is string => typeof n === 'string' && n.trim().length > 0)
+	const people: string[] = []
+	const writers: string[] = []
+	for (const name of credits) {
+		const role = CREDIT_ROLE_RE.exec(name)
+		if (role) {
+			if (WRITING_ROLE_RE.test(role[1])) writers.push(name.slice(0, role.index).trim())
+		} else if (!isCombinedCredit(name, credits)) people.push(name)
+	}
+	for (const writer of writers)
+		if (!people.some((p) => isSameAuthor(p, writer))) people.push(writer)
+	return people.length ? people : credits
+}
+
+/**
+ * Whether a credit joins two or more people who are ALSO credited on the list.
+ * @param {string} name the credit
+ * @param {readonly string[]} credits every credit on the book
+ * @returns {boolean} true when each part names another credit
+ */
+function isCombinedCredit(name: string, credits: readonly string[]): boolean {
+	const parts = name
+		.split(COMBINED_CREDIT_SPLIT_RE)
+		.map((part) => part.trim())
+		.filter(Boolean)
+	if (parts.length < 2) return false
+	const others = credits.filter((c) => c !== name).map((c) => c.replace(CREDIT_ROLE_RE, '').trim())
+	return parts.every((part) =>
+		others.some((other) => isSameAuthor(part, other) || isSurnameOf(part, other))
+	)
+}
+
+/**
+ * Whether a one-word part is the LAST word of a credited name -- "Andrews" in
+ * "Andrews & Wilson" is Brian Andrews.
+ * @param {string} part one part of a combined credit
+ * @param {string} name another credit on the book
+ * @returns {boolean} true when the part is that credit's surname
+ */
+function isSurnameOf(part: string, name: string): boolean {
+	if (/\s/.test(part)) return false
+	const words = name.toLowerCase().split(/\s+/)
+	return words[words.length - 1] === part.toLowerCase()
+}
+
 async function seriesEnriched<T extends SeriesEnrichable>(
 	book: T,
 	redis: RedisLike | null,
@@ -1205,7 +1293,9 @@ async function seriesEnriched<T extends SeriesEnrichable>(
 	}
 
 	const title = book.title
-	const author = book.authors?.[0]?.name ?? null
+	// The PEOPLE on the credit list, not its raw first entry -- see lookupAuthors.
+	const people = lookupAuthors((book.authors ?? []).map((a) => a?.name))
+	const author = people[0] ?? null
 	// EVERY author, for the author gate. The first still sharpens the search
 	// query; the gate must accept a work credited to ANY of them, or a co-written
 	// book is rejected whenever its provider happens to list the co-author first.
@@ -1215,10 +1305,7 @@ async function seriesEnriched<T extends SeriesEnrichable>(
 	// shelf fell to a provider name. The ORDER is not even stable: another copy of
 	// Audible's record lists Fever Dream Preston-first. A shelf must not depend on
 	// it. See docs/design/spec-shelf-titles-across-the-board.md, C1.
-	const coAuthors = (book.authors ?? [])
-		.slice(1)
-		.map((a) => a?.name)
-		.filter((n): n is string => typeof n === 'string' && n.trim().length > 0)
+	const coAuthors = people.slice(1)
 	const key = cacheKey(title, author, book.subtitle, book.seriesPrimary?.name, coAuthors)
 
 	let result: GoodreadsSeriesResult | null | undefined
