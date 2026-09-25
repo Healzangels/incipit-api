@@ -75,6 +75,13 @@ export interface MatchDecision {
 	 * caught and the duration-corroborated edition won instead.
 	 */
 	pinDurationOverridden: number
+	/**
+	 * The sidecar pin named the recording by a regional id the store does not
+	 * sell, and was moved to the sibling listing it does (Ninth House: the
+	 * unsellable B07LH8GF23 -> audible.com's B07LHB5ZJ6). See
+	 * docs/design/spec-regional-pin-sibling.md.
+	 */
+	pinPromotedToSibling: boolean
 
 	/** At least one candidate survived the confidence floor. */
 	matched: boolean
@@ -129,6 +136,8 @@ export interface MatchMetrics {
 	/** Searches where at least one AI-narrated "Virtual Voice" edition was demoted. */
 	aiNarrationDemotedSearches: number
 	pinDurationOverriddenSearches: number
+	/** Searches whose regional pin moved to the store's sibling listing. */
+	pinPromotedToSiblingSearches: number
 	/**
 	 * Item lookups (/books/:asin) whose record language positively conflicts
 	 * with the request region's expected language. The early-warning for a
@@ -169,6 +178,7 @@ const store: {
 	volumeDemotedSearches: number
 	aiNarrationDemotedSearches: number
 	pinDurationOverriddenSearches: number
+	pinPromotedToSiblingSearches: number
 	languageMismatchedLookups: number
 	/** Upstream said the product was unavailable, but we held a record and served it. */
 	staleServedOnUpstreamUnavailable: number
@@ -192,6 +202,7 @@ const store: {
 	volumeDemotedSearches: 0,
 	aiNarrationDemotedSearches: 0,
 	pinDurationOverriddenSearches: 0,
+	pinPromotedToSiblingSearches: 0,
 	languageMismatchedLookups: 0,
 	staleServedOnUpstreamUnavailable: 0,
 	confidenceSum: 0,
@@ -240,6 +251,7 @@ export function recordMatchDecision(decision: MatchDecision): void {
 	if (decision.volumeDemoted > 0) store.volumeDemotedSearches += 1
 	if (decision.aiNarrationDemoted > 0) store.aiNarrationDemotedSearches += 1
 	if (decision.pinDurationOverridden > 0) store.pinDurationOverriddenSearches += 1
+	if (decision.pinPromotedToSibling) store.pinPromotedToSiblingSearches += 1
 
 	if (decision.matched && decision.confidence != null) {
 		store.confidenceSum += decision.confidence
@@ -275,6 +287,7 @@ export function getMatchMetrics(): MatchMetrics {
 		volumeDemotedSearches: store.volumeDemotedSearches,
 		aiNarrationDemotedSearches: store.aiNarrationDemotedSearches,
 		pinDurationOverriddenSearches: store.pinDurationOverriddenSearches,
+		pinPromotedToSiblingSearches: store.pinPromotedToSiblingSearches,
 		languageMismatchedLookups: store.languageMismatchedLookups,
 		staleServedOnUpstreamUnavailable: store.staleServedOnUpstreamUnavailable,
 		byConfidence: Object.fromEntries(store.byConfidence),
@@ -324,6 +337,7 @@ export function resetMatchMetrics(): void {
 	store.volumeDemotedSearches = 0
 	store.aiNarrationDemotedSearches = 0
 	store.pinDurationOverriddenSearches = 0
+	store.pinPromotedToSiblingSearches = 0
 	store.languageMismatchedLookups = 0
 	store.staleServedOnUpstreamUnavailable = 0
 	store.confidenceSum = 0

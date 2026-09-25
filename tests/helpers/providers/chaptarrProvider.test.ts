@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import ChaptarrProvider, {
 	type ChaptarrWorkResponse,
 	editionForAsin,
+	editionStoreIds,
 	workRouteFor
 } from '#helpers/providers/ChaptarrProvider'
 import type { FetchBookOptions } from '#helpers/providers/types'
@@ -298,5 +299,83 @@ describe('fetchCandidateByAsin (pinned-edition injection)', () => {
 		const c = await p.fetchCandidateByAsin('B00HYGYN5Q', OPTS)
 		expect(c?.audioSeconds).toBe(22260)
 		expect(c?.narrators).toEqual(['Carolyn McCormick'])
+	})
+})
+
+describe('regional store ids (spec-regional-pin-sibling)', () => {
+	/**
+	 * A TRIMMED LIVE CAPTURE of /api/v5/work/hc:427736, 2026-09-25: the wire now
+	 * spells the store ids `provider_ids_all` (snake_case) and adds a flat
+	 * `asins`, where the 2026-08-08 fixture above says `providerIdsAll`. The
+	 * edition's own asin, B07LH8GF23, is sold by no Audible region; B07LHB5ZJ6 in
+	 * the same list is what audible.com sells.
+	 */
+	const ninthHouse: ChaptarrWorkResponse = {
+		work: { id: 'hc:427736', title: 'Ninth House' },
+		authors: [{ name: 'Leigh Bardugo' }],
+		editions: [
+			{
+				asin: 'B07LH8GF23',
+				title: 'Ninth House',
+				readingFormatId: 2,
+				durationSeconds: 58920,
+				narratorNames: ['Lauren Fortgang', 'Michael David Axtell'],
+				asins: ['1250230918', 'B07LH8GF23', 'B07LHB5ZJ6'],
+				provider_ids_all: { az: ['az:1250230918', 'az:B07LH8GF23', 'az:B07LHB5ZJ6'] }
+			}
+		]
+	}
+
+	test('editionStoreIds reads the live snake_case ids and the flat list', () => {
+		expect(editionStoreIds(ninthHouse.editions![0])).toEqual([
+			'B07LH8GF23',
+			'1250230918',
+			'B07LHB5ZJ6'
+		])
+	})
+
+	test('editionStoreIds still reads the 2026-08-08 camelCase spelling', () => {
+		const audio = work.editions!.find((e) => e.asin === 'B00HYGYN5Q')!
+		expect(editionStoreIds(audio)).toEqual(['B00HYGYN5Q', 'B00HYG9KMC'])
+	})
+
+	test('editionStoreIds uppercases, strips the namespace and dedupes', () => {
+		expect(
+			editionStoreIds({
+				asin: 'b0aaaaaaaa',
+				asins: ['B0AAAAAAAA', ' b0bbbbbbbb ', 'b0eeeeeeee'],
+				provider_ids_all: { az: ['AZ:B0CCCCCCCC', 'az:b0bbbbbbbb', ''] },
+				providerIdsAll: { az: ['az:B0DDDDDDDD'] }
+			})
+		).toEqual(['B0AAAAAAAA', 'B0CCCCCCCC', 'B0BBBBBBBB', 'B0DDDDDDDD', 'B0EEEEEEEE'])
+	})
+
+	test("a search row carries its edition's OTHER store ids as asinAliases", async () => {
+		const p = provider({ matches: [{ work_id: 'hc:427736' }], works: { 'hc:427736': ninthHouse } })
+		const [c] = await p.search({ title: 'Ninth House', author: 'Leigh Bardugo', region: 'us' })
+		expect(c.asin).toBe('B07LH8GF23')
+		expect(c.asinAliases).toEqual(['1250230918', 'B07LHB5ZJ6'])
+	})
+
+	test('a rescue stamps the asked-for id and lists the rest, never itself', async () => {
+		// The fixture's variant pass still resolves through providerIdsAll.
+		const p = provider({ works: { 'az:B00HYG9KMC': work } })
+		const c = await p.fetchCandidateByAsin('B00HYG9KMC', OPTS)
+		expect(c?.asin).toBe('B00HYG9KMC')
+		expect(c?.asinAliases).toEqual(['B00HYGYN5Q'])
+	})
+
+	test('an edition with no other ids carries no alias list at all', async () => {
+		const lone: ChaptarrWorkResponse = {
+			...ninthHouse,
+			editions: [{ ...ninthHouse.editions![0], asins: ['B07LH8GF23'], provider_ids_all: undefined }]
+		}
+		const p = provider({ matches: [{ work_id: 'hc:427736' }], works: { 'hc:427736': lone } })
+		const [c] = await p.search({ title: 'Ninth House', author: 'Leigh Bardugo', region: 'us' })
+		expect(c.asinAliases).toBeUndefined()
+	})
+
+	test('the search cache is versioned: v1 rows carry no aliases', () => {
+		expect(new ChaptarrProvider().cacheVersion).toBe(2)
 	})
 })

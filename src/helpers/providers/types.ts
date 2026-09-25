@@ -85,6 +85,17 @@ export interface ProviderCandidate {
 	 * still win on that evidence. This only decides rows nothing else can.
 	 */
 	abridged?: boolean
+	/**
+	 * The OTHER store ids this same edition is filed under, uppercased — its
+	 * regional ASINs. Only a provider that groups one recording's listings
+	 * supplies it (Chaptarr); absent means "unknown", never "none".
+	 *
+	 * Matching evidence, not payload: BookSearchHelper reads it to move a sidecar
+	 * pin that names the recording by an id the store does not sell onto the id
+	 * it does (docs/design/spec-regional-pin-sibling.md), and strips it from the
+	 * search response.
+	 */
+	asinAliases?: string[]
 }
 
 /** A candidate after scoring against the query. */
@@ -153,6 +164,13 @@ export interface FetchBookOptions {
  */
 export interface BookProvider {
 	readonly name: string
+	/**
+	 * The shape version of this provider's cached search results. The registry
+	 * keys search-cache entries by name plus version, so a provider whose
+	 * candidates start carrying a field a consumer depends on bumps it and old
+	 * entries (7-day TTL) stop being served. Absent = the unversioned key.
+	 */
+	readonly cacheVersion?: number
 	search(query: BookSearchQuery, logger?: FastifyBaseLogger): Promise<ProviderCandidate[]>
 	fetchBook?(nativeId: string, kind: string, opts: FetchBookOptions): Promise<ProviderBook | null>
 	fetchBookByAsin?(asin: string, opts: FetchBookOptions): Promise<ProviderBook | null>

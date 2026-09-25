@@ -25,6 +25,7 @@ function decision(over: Partial<MatchDecision> = {}): MatchDecision {
 		volumeDemoted: 0,
 		aiNarrationDemoted: 0,
 		pinDurationOverridden: 0,
+		pinPromotedToSibling: false,
 		matched: true,
 		provider: 'audible',
 		matchedTitle: 'Some Book',
@@ -137,8 +138,17 @@ describe('match telemetry aggregates', () => {
 		expect(m.authorless).toBe(0)
 	})
 
+	test('counts searches whose regional pin moved to the store listing', () => {
+		// spec-regional-pin-sibling: the sidecar named the recording by an id no
+		// Audible region sells, and the pin was moved to the sibling it does sell.
+		recordMatchDecision(decision({ pinPromotedToSibling: true }))
+		recordMatchDecision(decision({ pinPromotedToSibling: false }))
+		recordMatchDecision(decision({ pinPromotedToSibling: true }))
+		expect(getMatchMetrics().pinPromotedToSiblingSearches).toBe(2)
+	})
+
 	test('reset clears everything', () => {
-		recordMatchDecision(decision({ risky: true, authorless: true }))
+		recordMatchDecision(decision({ risky: true, authorless: true, pinPromotedToSibling: true }))
 		recordLanguageMismatchedLookup()
 		resetMatchMetrics()
 		const m = getMatchMetrics()
@@ -148,6 +158,7 @@ describe('match telemetry aggregates', () => {
 		expect(m.byConfidence).toEqual({})
 		expect(m.avgConfidence).toBeNull()
 		expect(m.languageMismatchedLookups).toBe(0)
+		expect(m.pinPromotedToSiblingSearches).toBe(0)
 	})
 
 	test('counts region-vs-record language mismatches on item lookups', () => {

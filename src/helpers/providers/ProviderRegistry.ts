@@ -201,12 +201,18 @@ export default class ProviderRegistry {
 		logger?: FastifyBaseLogger,
 		cache?: ProviderSearchCache
 	): Promise<ProviderCandidate[]> {
+		// Entries are keyed by name AND shape version, so a provider whose rows gain
+		// a field a consumer depends on stops being served its old rows at deploy
+		// rather than a TTL later. The breaker stays keyed by name alone.
+		const cacheName = provider.cacheVersion
+			? `${provider.name}.v${provider.cacheVersion}`
+			: provider.name
 		// Still time-boxed: the read used to sit inside withTimeout, and a hung
 		// Redis must not be able to stall a search forever. A read that times out
 		// (or rejects) is simply "no entry" — degrade to the live call.
 		const cached = cache
 			? await withTimeout(
-					cache.get(provider.name, query),
+					cache.get(cacheName, query),
 					PROVIDER_TIMEOUT_MS,
 					`${provider.name} cache`
 				).catch(() => null)
@@ -227,7 +233,7 @@ export default class ProviderRegistry {
 		// costs one re-fetch, failing the search costs the match. An unhandled
 		// rejection would also take the process down, which is why the catch is
 		// not optional.
-		if (cache) void cache.set(provider.name, query, result).catch(() => undefined)
+		if (cache) void cache.set(cacheName, query, result).catch(() => undefined)
 		return result
 	}
 

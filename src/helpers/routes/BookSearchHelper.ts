@@ -171,6 +171,41 @@ export function titleExtendsQuery(
  * when both rows already have a runtime, which makes that predicate a
  * tautology.)
  */
+/**
+ * The provider whose ids are store listings in the requested region -- the one
+ * a regional pin is moved ONTO (spec-regional-pin-sibling).
+ */
+const STORE_PROVIDER = 'audible'
+
+/**
+ * False only when both rows name narrators and share none: then they are not
+ * one recording, whatever an edition record groups together. Normalised the way
+ * the comparator's narrator arm normalises (case, spacing, punctuation).
+ * @param {ProviderCandidate} a one row
+ * @param {ProviderCandidate} b the other
+ * @returns {boolean} whether the narrators allow "same recording"
+ */
+function narratorsAgree(a: ProviderCandidate, b: ProviderCandidate): boolean {
+	const key = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '')
+	const left = new Set(a.narrators.map(key).filter(Boolean))
+	const right = b.narrators.map(key).filter(Boolean)
+	if (!left.size || !right.length) return true
+	return right.some((k) => left.has(k))
+}
+
+/**
+ * `asinAliases` is matching evidence, not payload: the search response ships
+ * without it (a chaptarr row can carry a dozen regional ids).
+ * @param {ScoredCandidate} c a ranked candidate
+ * @returns {ScoredCandidate} the same candidate without its alias list
+ */
+function withoutAliases(c: ScoredCandidate): ScoredCandidate {
+	if (!c.asinAliases) return c
+	const out = { ...c }
+	delete out.asinAliases
+	return out
+}
+
 const AUDIO_CATALOG_PROVIDERS = new Set([
 	'audible',
 	'apple',
@@ -610,6 +645,12 @@ export default class BookSearchHelper {
 	// scoring pass. Instrumented like the language gate so its effect is measured
 	// rather than assumed.
 	private durationDeadzoned = 0
+	// The sidecar pin moved from a regional id the store does not sell to its
+	// sibling listing (spec-regional-pin-sibling). Reported per decision.
+	private pinPromotedToSibling = false
+	// Which provider answered the pinned-edition fetch. An Audible answer means
+	// the pinned id IS a store listing here, and R1 must never move it.
+	private pinFetchProvider: string | null = null
 
 	constructor(
 		registry: ProviderRegistry,
@@ -705,6 +746,8 @@ export default class BookSearchHelper {
 	 * @returns {Promise<ScoredCandidate[]>} accepted candidates, ranked best-first
 	 */
 	async search(): Promise<ScoredCandidate[]> {
+		this.pinPromotedToSibling = false
+		this.pinFetchProvider = null
 		let asin = this.effectiveAsin()
 		const primary = normalizeTitle(extractAsinAndClean(this.rawTitle).title)
 		const track = normalizeTitle(extractAsinAndClean(this.options.trackTitle ?? '').title)
@@ -715,6 +758,10 @@ export default class BookSearchHelper {
 			primary ? await this.fanOut(primary) : [],
 			asin
 		)
+		// The regional move runs FIRST: once the pin sits on the store listing it
+		// is in the pool, and the ISBN fallback -- which fires only for a pin
+		// nothing carries -- correctly stands down.
+		asin = this.promoteRegionalPinToSibling(albumCandidates, asin)
 		asin = this.promoteDeadPinToIsbn(albumCandidates, asin)
 		let ranked = this.scoreAndRank(albumCandidates, primary, altTitle, asin)
 		let poolSize = albumCandidates.length
@@ -753,11 +800,12 @@ export default class BookSearchHelper {
 			// miss the ISBN edition that the clean track title returns, and the
 			// widened fan-out is a fan-out row like any other for the
 			// two-sources-agree warrant.
+			asin = this.promoteRegionalPinToSibling(merged, asin)
 			asin = this.promoteDeadPinToIsbn(merged, asin)
 			ranked = this.scoreAndRank(merged, primary, altTitle, asin)
 		}
 		this.recordDecision(ranked, primary || (altTitle ?? ''), asin, widened, poolSize)
-		return ranked
+		return ranked.map(withoutAliases)
 	}
 
 	/**
@@ -813,6 +861,7 @@ export default class BookSearchHelper {
 			volumeDemoted: this.volumeDemoted,
 			aiNarrationDemoted: this.aiNarrationDemoted,
 			pinDurationOverridden: this.pinDurationOverridden,
+			pinPromotedToSibling: this.pinPromotedToSibling,
 			matched: top != null,
 			provider: top?.provider ?? null,
 			matchedTitle: top?.title ?? null,
@@ -874,6 +923,67 @@ export default class BookSearchHelper {
 	 * to it (see the asinMatch guard in scoreAndRank).
 	 */
 	private static readonly PINNED_PROVIDER = 'pinned'
+
+	/**
+	 * A sidecar pin that names the right RECORDING by a regional id the store
+	 * does not sell moves to the sibling listing it does (R1,
+	 * docs/design/spec-regional-pin-sibling.md).
+	 *
+	 * Chaptarr files one recording under every regional id it has and may name
+	 * an unsellable one its own: Ninth House's edition is B07LH8GF23 there, a
+	 * listing no Audible region sells, while B07LHB5ZJ6 (audible.com's) sits in
+	 * the same edition's id list. With the sidecar naming the first, dedupe's
+	 * pin-aware winner kept the chaptarr row and DELETED Audible's listing of the
+	 * same recording -- 138 prod albums sat on an id only the Chaptarr rescue
+	 * serves, with no runtime (measured on prod, 2026-09-25).
+	 *
+	 * Moves the identity only when every guard holds: the pin is a B0 listing
+	 * identity; no Audible row carries it and Audible did not answer its fetch
+	 * (either means it IS a store listing here); a row that knows its edition's
+	 * ids names it; an Audible row carries one of those ids; and that row is the
+	 * same RECORDING -- runtimes within provider rounding, a shared narrator when
+	 * both list any. Pure: no I/O, so it adds nothing to a search's upstream cost.
+	 * Deterministic: the closest runtime wins, then the smaller id.
+	 * @param {ProviderCandidate[]} pool the candidates about to be scored
+	 * @param {string | null} asin the current pin identity, uppercased
+	 * @returns {string | null} the pin identity to score with
+	 */
+	private promoteRegionalPinToSibling(
+		pool: ProviderCandidate[],
+		asin: string | null
+	): string | null {
+		if (asin == null || !BookSearchHelper.pinHasListingPrivilege(asin)) return asin
+		if (this.pinFetchProvider === STORE_PROVIDER) return asin
+		const isStore = (c: ProviderCandidate) => c.provider === STORE_PROVIDER
+		if (pool.some((c) => isStore(c) && c.asin?.toUpperCase() === asin)) return asin
+		const epsilon = durationTieEpsilonSeconds()
+		let best: { asin: string; gap: number } | null = null
+		for (const namer of pool) {
+			const aliases = namer.asinAliases
+			if (!aliases?.length || namer.audioSeconds == null) continue
+			const own = namer.asin?.toUpperCase()
+			if (own !== asin && !aliases.includes(asin)) continue
+			// The edition's ids INCLUDE the namer's own: when the sidecar names a
+			// regional variant, the store listing is often the id Chaptarr calls
+			// primary (Royal Assassin: pin B003NYOBOQ, store B003NTPCVM).
+			const edition = new Set(own ? [own, ...aliases] : aliases)
+			for (const c of pool) {
+				const id = c.asin?.toUpperCase()
+				if (!isStore(c) || !id || !edition.has(id) || c.audioSeconds == null) continue
+				const gap = Math.abs(c.audioSeconds - namer.audioSeconds)
+				if (gap > epsilon || !narratorsAgree(namer, c)) continue
+				if (!best || gap < best.gap || (gap === best.gap && id < best.asin))
+					best = { asin: id, gap }
+			}
+		}
+		if (!best) return asin
+		this.pinPromotedToSibling = true
+		this.logger?.info(
+			{ asin, sibling: best.asin },
+			'book search: regional pinned asin, using its store listing as the pin identity'
+		)
+		return best.asin
+	}
 
 	/**
 	 * A DEAD sidecar ASIN falls back to the sidecar's ISBN as the pin identity.
@@ -966,7 +1076,9 @@ export default class BookSearchHelper {
 				)
 				// provider is overwritten so isPinned can recognise this as the
 				// uncorroborated, fetched-by-asin row; everything else is the provider's
-				// own data, runtime included.
+				// own data, runtime included. Who answered is kept aside: an Audible
+				// answer means the id is a store listing (promoteRegionalPinToSibling).
+				this.pinFetchProvider = found.provider
 				return [...pool, { ...found, provider: BookSearchHelper.PINNED_PROVIDER }]
 			} catch (err) {
 				this.logger?.debug({ err, asin: id }, 'book search: pinned id lookup failed')

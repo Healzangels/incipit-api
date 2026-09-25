@@ -149,6 +149,12 @@ export interface ChaptarrEdition {
 	chapters?: ChaptarrChapter[]
 	hasChapters?: boolean
 	providerIdsAll?: { az?: string[] }
+	// The same store ids as the service spells them NOW (captured live on both
+	// v5 routes, 2026-09-25): snake_case, plus a flat `asins` list. The camelCase
+	// field above is what it sent on 2026-08-08 and what the fixture holds.
+	// Read through editionStoreIds, which accepts all three.
+	provider_ids_all?: { az?: string[] }
+	asins?: string[]
 	// The Audible multipart pair the duration oracle reads to turn "this file is
 	// short" into "this file holds k of N parts" -- which names the remedy. The
 	// wire body is cast, not validated, so an UNREAD field here is documentation
@@ -321,6 +327,35 @@ export function editionForAsin(
 }
 
 /**
+ * Every store id the service files this edition under, uppercased and without
+ * the `az:` namespace — the recording's regional ASINs, own asin included.
+ *
+ * One audiobook recording is ONE edition here, filed under all its listings:
+ * Ninth House's Lauren Fortgang recording carries twelve, and the service names
+ * B07LH8GF23 — which no Audible region sells — as its `asin`, while B07LHB5ZJ6
+ * (what audible.com sells) sits among the rest. BookSearchHelper uses the set to
+ * move a sidecar pin from the first to the second.
+ *
+ * Reads all three spellings the wire has used: `provider_ids_all.az` and `asins`
+ * (live since at least 2026-09-25) and `providerIdsAll.az` (2026-08-08).
+ * @param {ChaptarrEdition} e the edition
+ * @returns {string[]} the distinct store ids, in first-seen order
+ */
+export function editionStoreIds(e: ChaptarrEdition): string[] {
+	const ids = new Set<string>()
+	const add = (v: unknown): void => {
+		if (typeof v !== 'string') return
+		const id = v.trim().replace(/^az:/i, '').toUpperCase()
+		if (id) ids.add(id)
+	}
+	add(e.asin)
+	for (const v of e.provider_ids_all?.az ?? []) add(v)
+	for (const v of e.providerIdsAll?.az ?? []) add(v)
+	for (const v of e.asins ?? []) add(v)
+	return [...ids]
+}
+
+/**
  * @param {ChaptarrWorkResponse} response the work envelope
  * @param {ChaptarrEdition} e the edition to emit
  * @param {string | null} [asin] the asin to STAMP — the one the caller ASKED
@@ -339,10 +374,13 @@ function candidateFrom(
 	if (!asin) return null
 	const title = e.title ?? response.work?.title
 	if (!title) return null
+	const stamped = asin.toUpperCase()
+	const asinAliases = editionStoreIds(e).filter((id) => id !== stamped)
 	return {
 		provider: 'chaptarr',
 		id: asin,
 		asin,
+		...(asinAliases.length ? { asinAliases } : {}),
 		title,
 		authors: (response.authors ?? [])
 			.map((a) => a.name ?? '')
@@ -411,6 +449,9 @@ const MAX_CANDIDATES = 6
 
 export default class ChaptarrProvider implements BookProvider {
 	readonly name = 'chaptarr'
+	// 2: candidates carry asinAliases, which the regional-pin promotion reads. A
+	// cached v1 row has none, and prod's Redis would serve those for 7 days.
+	readonly cacheVersion = 2
 	private matchFetch: ChaptarrMatchFetch
 	private workFetch: ChaptarrWorkFetch
 
