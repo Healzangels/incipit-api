@@ -648,9 +648,9 @@ export default class BookSearchHelper {
 	// The sidecar pin moved from a regional id the store does not sell to its
 	// sibling listing (spec-regional-pin-sibling). Reported per decision.
 	private pinPromotedToSibling = false
-	// Which provider answered the pinned-edition fetch. An Audible answer means
-	// the pinned id IS a store listing here, and R1 must never move it.
-	private pinFetchProvider: string | null = null
+	// The store id R1 moved the pin onto. It keeps the listing privilege the B0
+	// pin arrived with, whatever its own shape (see hasListingPrivilege).
+	private transferredPin: string | null = null
 
 	constructor(
 		registry: ProviderRegistry,
@@ -730,6 +730,22 @@ export default class BookSearchHelper {
 	}
 
 	/**
+	 * pinHasListingPrivilege, plus the one identity R1 transferred. A B0 pin
+	 * moved onto its store sibling keeps the privilege it arrived with, whatever
+	 * shape the sibling's id has: audible.com sells Peace Talks as 0593290704,
+	 * and that id is a listing the title search returned, not a book-level ISBN.
+	 * Without this the transfer silently DROPPED the pin -- the A/B's first cut
+	 * sent Peace Talks and Network Effect to a closer-runtime OverDrive row.
+	 * @param {string | null} wantAsin the definitive identity, uppercased
+	 */
+	private hasListingPrivilege(wantAsin: string | null): boolean {
+		return (
+			BookSearchHelper.pinHasListingPrivilege(wantAsin) ||
+			(wantAsin != null && wantAsin === this.transferredPin)
+		)
+	}
+
+	/**
 	 * Execute the search across the album title and, when it differs, the track
 	 * title too.
 	 *
@@ -747,7 +763,7 @@ export default class BookSearchHelper {
 	 */
 	async search(): Promise<ScoredCandidate[]> {
 		this.pinPromotedToSibling = false
-		this.pinFetchProvider = null
+		this.transferredPin = null
 		let asin = this.effectiveAsin()
 		const primary = normalizeTitle(extractAsinAndClean(this.rawTitle).title)
 		const track = normalizeTitle(extractAsinAndClean(this.options.trackTitle ?? '').title)
@@ -758,9 +774,8 @@ export default class BookSearchHelper {
 			primary ? await this.fanOut(primary) : [],
 			asin
 		)
-		// The regional move runs FIRST: once the pin sits on the store listing it
-		// is in the pool, and the ISBN fallback -- which fires only for a pin
-		// nothing carries -- correctly stands down.
+		// R1 acts only on a pin a fan-out row carries; the ISBN fallback only on a
+		// pin nothing carries. At most one of the two can fire.
 		asin = this.promoteRegionalPinToSibling(albumCandidates, asin)
 		asin = this.promoteDeadPinToIsbn(albumCandidates, asin)
 		let ranked = this.scoreAndRank(albumCandidates, primary, altTitle, asin)
@@ -843,7 +858,7 @@ export default class BookSearchHelper {
 			this.isPinned(top, wantAsin) &&
 			// An ISBN-derived identity at the top is a merits win, not an ASIN
 			// confirmation -- reporting it as pinned would over-claim identity.
-			BookSearchHelper.pinHasListingPrivilege(wantAsin) &&
+			this.hasListingPrivilege(wantAsin) &&
 			this.pinOverriddenAsin !== wantAsin &&
 			!this.pinOverriddenIds.has(top.id)
 		const decision: MatchDecision = {
@@ -937,13 +952,18 @@ export default class BookSearchHelper {
 	 * same recording -- 138 prod albums sat on an id only the Chaptarr rescue
 	 * serves, with no runtime (measured on prod, 2026-09-25).
 	 *
-	 * Moves the identity only when every guard holds: the pin is a B0 listing
-	 * identity; no Audible row carries it and Audible did not answer its fetch
-	 * (either means it IS a store listing here); a row that knows its edition's
-	 * ids names it; an Audible row carries one of those ids; and that row is the
+	 * It TRANSFERS a pin's privilege, never creates one. So it moves only a pin
+	 * that already holds it: a B0 listing identity that a row returned for the
+	 * TITLE query carries as its own asin (the isPinned warrant) -- never the
+	 * injected fetch-by-asin row, never an id a row merely lists. The first cut
+	 * let an injected Midnight Tides row vouch, and a recording 9% off the file
+	 * went from a merits 0.777 to a pinned 1.0 (same-data A/B, 2026-09-25).
+	 * Then: no Audible row carries the pin (else it IS a store listing here); an
+	 * Audible row carries one of the edition's other ids; and that row is the
 	 * same RECORDING -- runtimes within provider rounding, a shared narrator when
-	 * both list any. Pure: no I/O, so it adds nothing to a search's upstream cost.
-	 * Deterministic: the closest runtime wins, then the smaller id.
+	 * both list any. The moved pin keeps its listing privilege even when the
+	 * store id is ISBN-shaped (hasListingPrivilege). Pure: no I/O. Deterministic:
+	 * the closest runtime wins, then the smaller id.
 	 * @param {ProviderCandidate[]} pool the candidates about to be scored
 	 * @param {string | null} asin the current pin identity, uppercased
 	 * @returns {string | null} the pin identity to score with
@@ -953,23 +973,18 @@ export default class BookSearchHelper {
 		asin: string | null
 	): string | null {
 		if (asin == null || !BookSearchHelper.pinHasListingPrivilege(asin)) return asin
-		if (this.pinFetchProvider === STORE_PROVIDER) return asin
 		const isStore = (c: ProviderCandidate) => c.provider === STORE_PROVIDER
 		if (pool.some((c) => isStore(c) && c.asin?.toUpperCase() === asin)) return asin
 		const epsilon = durationTieEpsilonSeconds()
 		let best: { asin: string; gap: number } | null = null
 		for (const namer of pool) {
+			if (namer.provider === BookSearchHelper.PINNED_PROVIDER) continue
+			if (namer.asin?.toUpperCase() !== asin) continue
 			const aliases = namer.asinAliases
 			if (!aliases?.length || namer.audioSeconds == null) continue
-			const own = namer.asin?.toUpperCase()
-			if (own !== asin && !aliases.includes(asin)) continue
-			// The edition's ids INCLUDE the namer's own: when the sidecar names a
-			// regional variant, the store listing is often the id Chaptarr calls
-			// primary (Royal Assassin: pin B003NYOBOQ, store B003NTPCVM).
-			const edition = new Set(own ? [own, ...aliases] : aliases)
 			for (const c of pool) {
 				const id = c.asin?.toUpperCase()
-				if (!isStore(c) || !id || !edition.has(id) || c.audioSeconds == null) continue
+				if (!isStore(c) || !id || !aliases.includes(id) || c.audioSeconds == null) continue
 				const gap = Math.abs(c.audioSeconds - namer.audioSeconds)
 				if (gap > epsilon || !narratorsAgree(namer, c)) continue
 				if (!best || gap < best.gap || (gap === best.gap && id < best.asin))
@@ -978,6 +993,7 @@ export default class BookSearchHelper {
 		}
 		if (!best) return asin
 		this.pinPromotedToSibling = true
+		this.transferredPin = best.asin
 		this.logger?.info(
 			{ asin, sibling: best.asin },
 			'book search: regional pinned asin, using its store listing as the pin identity'
@@ -1076,9 +1092,7 @@ export default class BookSearchHelper {
 				)
 				// provider is overwritten so isPinned can recognise this as the
 				// uncorroborated, fetched-by-asin row; everything else is the provider's
-				// own data, runtime included. Who answered is kept aside: an Audible
-				// answer means the id is a store listing (promoteRegionalPinToSibling).
-				this.pinFetchProvider = found.provider
+				// own data, runtime included.
 				return [...pool, { ...found, provider: BookSearchHelper.PINNED_PROVIDER }]
 			} catch (err) {
 				this.logger?.debug({ err, asin: id }, 'book search: pinned id lookup failed')
@@ -1485,8 +1499,7 @@ export default class BookSearchHelper {
 			// An ISBN-derived pin identity gets no confidence override (and no
 			// penalty exemptions): it scores like any other row -- see
 			// pinHasListingPrivilege for why an ISBN names a book, not a listing.
-			const effectivePin =
-				asinMatch && !pinContradicted && BookSearchHelper.pinHasListingPrivilege(wantAsin)
+			const effectivePin = asinMatch && !pinContradicted && this.hasListingPrivilege(wantAsin)
 			let confidence = effectivePin ? 1 : best.confidence
 			// Authorless title-only guard (see TITLE_ONLY_CEILING): with no author to
 			// verify identity, hold a fuzzy title match below STRONG_MATCH unless its
@@ -1711,7 +1724,7 @@ export default class BookSearchHelper {
 					this.isPinned(c, wantAsin) &&
 					// An ISBN-derived identity ranks on its merits (see
 					// pinHasListingPrivilege) -- no pinned-first.
-					BookSearchHelper.pinHasListingPrivilege(wantAsin) &&
+					this.hasListingPrivilege(wantAsin) &&
 					// A revoked pin stays revoked however the row acquired the asin.
 					this.pinOverriddenAsin !== wantAsin &&
 					!this.bundleDemotedIds.has(c.id) &&

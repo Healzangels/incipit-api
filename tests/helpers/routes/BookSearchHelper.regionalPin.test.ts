@@ -106,17 +106,15 @@ describe('a regional pin moves to its store listing', () => {
 		expect(decision().pinPromotedToSibling).toBe(false)
 	})
 
-	test('a pin whose fetch Audible answered is a store listing and is never moved', async () => {
-		// Not in the pool, so the injection fetches it -- and Audible answers.
-		const pinned = 'B0PINNED01'
-		const namer = row({
-			...chaptarrRow,
-			id: 'B07LHC24PJ',
-			asin: 'B07LHC24PJ',
-			asinAliases: [pinned, STORE]
-		})
-		const fromAudible = row({ ...storeRow, id: pinned, asin: pinned })
-		await helperFor([storeRow, namer], { asin: pinned }, { [pinned]: fromAudible }).search()
+	test('an injected fetch-by-asin row cannot vouch: R1 transfers privilege, never creates it', async () => {
+		// The pin is on no fan-out row, so the injection fetches it -- here through
+		// the Chaptarr rescue, aliases and all. That row holds no pin privilege by
+		// design (isPinned excludes it), and moving the pin off it would CREATE a
+		// 1.0: measured on Midnight Tides, a 0.777 merits row of a recording 9% off
+		// the file became a pinned 1.0 in the first cut.
+		const rescued = row({ ...chaptarrRow })
+		const ranked = await helperFor([storeRow], {}, { [REGIONAL]: rescued }).search()
+		expect(ranked.some((c) => c.provider === 'pinned')).toBe(true)
 		expect(decision().pinPromotedToSibling).toBe(false)
 	})
 
@@ -194,25 +192,11 @@ describe('a regional pin moves to its store listing', () => {
 		expect(decision().pinPromotedToSibling).toBe(false)
 	})
 
-	test('the regional move runs BEFORE the ISBN fallback', async () => {
-		// The sidecar's asin is a regional id no row carries as its own, and its
-		// isbn's ISBN-10 is carried by the chaptarr row. Were the ISBN fallback
-		// first, it would adopt that book-level id and the store listing would
-		// never get the pin; the regional move first lands it.
-		const namer = row({
-			...chaptarrRow,
-			id: '1250230918',
-			asin: '1250230918',
-			asinAliases: [REGIONAL, STORE]
-		})
-		const ranked = await helperFor([storeRow, namer], { isbn: '9781250230911' }).search()
-		expect(ranked[0]?.asin).toBe(STORE)
-		expect(decision().pinPromotedToSibling).toBe(true)
-	})
-
-	test("the variant shape: a pin that is only one of a row's regional ids", async () => {
+	test('an id a row merely LISTS is a dead pin before R1, and stays one', async () => {
 		// Royal Assassin: the sidecar names B003NYOBOQ, which Chaptarr lists only as
-		// a regional id of its edition B003NTPCVM -- also audible.com's listing.
+		// a regional id of its edition B003NTPCVM -- also audible.com's listing. No
+		// row carries the pin as its own asin, so it held no privilege, and R1 does
+		// not mint one. The store listing still wins -- on its merits.
 		const store = row({
 			...storeRow,
 			id: 'B003NTPCVM',
@@ -237,6 +221,60 @@ describe('a regional pin moves to its store listing', () => {
 			asin: 'B003NYOBOQ'
 		}).search()
 		expect(ranked[0]?.asin).toBe('B003NTPCVM')
+		expect(decision().pinPromotedToSibling).toBe(false)
+		expect(decision().asinPinned).toBe(false)
+	})
+
+	test('a listed-only pin is not moved even with a store sibling in the pool', async () => {
+		// The pin is one of the chaptarr row's regional ids, not its own asin, and
+		// audible.com's listing IS among that row's ids -- so the only thing between
+		// this pin and a minted 1.0 is the own-asin rule.
+		const namer = row({
+			...chaptarrRow,
+			id: 'B0CHAPT001',
+			asin: 'B0CHAPT001',
+			asinAliases: [REGIONAL, STORE]
+		})
+		await helperFor([storeRow, namer]).search()
+		expect(decision().pinPromotedToSibling).toBe(false)
+	})
+
+	test('the pin keeps its privilege on an ISBN-shaped store id (Peace Talks)', async () => {
+		// audible.com sells Peace Talks as 0593290704. The pin moved onto it must
+		// stay a pin: the first cut keyed privilege on the new id's SHAPE, lost it,
+		// and a closer-runtime OverDrive row with no ASIN took #1.
+		const store = row({
+			...storeRow,
+			id: '0593290704',
+			asin: '0593290704',
+			title: 'Peace Talks',
+			narrators: ['James Marsters'],
+			audioSeconds: 46_320
+		})
+		const namer = row({
+			...chaptarrRow,
+			id: 'B082YH6QL4',
+			asin: 'B082YH6QL4',
+			title: 'Peace Talks',
+			asinAliases: ['0593290704'],
+			narrators: ['James Marsters'],
+			audioSeconds: 46_320
+		})
+		const overdrive = row({
+			...store,
+			provider: 'overdrive',
+			id: 'overdrive-1',
+			asin: null,
+			audioSeconds: 46_352
+		})
+		const ranked = await helperFor([store, namer, overdrive], {
+			title: 'Peace Talks',
+			author: 'Jim Butcher',
+			duration: 46_360_000,
+			asin: 'B082YH6QL4'
+		}).search()
+		expect(ranked[0]?.asin).toBe('0593290704')
+		expect(ranked[0]?.confidence).toBe(1)
 		expect(decision().pinPromotedToSibling).toBe(true)
 		expect(decision().asinPinned).toBe(true)
 	})
