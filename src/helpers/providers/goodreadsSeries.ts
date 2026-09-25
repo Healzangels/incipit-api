@@ -674,18 +674,86 @@ const NON_LATIN_SCRIPT = /[Ͱ-ϿЀ-ӿ֐-׿؀-ۿ぀-ヿ一-鿿가-힯]/
  * the same shelf. A provider's English name would not: provider names vary book
  * to book, which is how one series ends up on several shelves.
  *
- * Narrow on purpose: the outside must contain non-Latin script, the bracket must
- * close the name, and what it holds must be Latin with at least one letter. A
- * Latin series that merely ends in brackets is left alone.
- * See docs/design/spec-shelf-titles-across-the-board.md, N1.
+ * Narrow on purpose: the outside must contain non-Latin script, the brackets must
+ * close the name, and what the chosen one holds must be Latin with at least one
+ * letter. Brackets are read from the END, skipping FORMAT tags: librarians also
+ * bracket the edition ("ソードアート・オンライン [Sword Art Online] [Light
+ * Novel]"), and shelving by "Light Novel" would put unrelated series on one
+ * shelf name. A Latin series that merely ends in brackets is left alone.
+ * See docs/design/spec-shelf-titles-across-the-board.md, N1 and section 12.
  * @param {string | null | undefined} name the series title as Goodreads gives it
  * @returns {string | null} the bracketed romanization, or null
  */
 export function bracketedRomanization(name: string | null | undefined): string | null {
 	if (!name || !NON_LATIN_SCRIPT.test(name)) return null
-	const inner = /\[([^[\]]+)\]\s*$/.exec(name)?.[1]?.trim()
-	if (!inner || NON_LATIN_SCRIPT.test(inner) || !/[A-Za-z]/.test(inner)) return null
-	return inner
+	const tail = /(?:\s*\[[^[\]]+\])+\s*$/.exec(name)?.[0]
+	if (!tail) return null
+	const groups = [...tail.matchAll(/\[([^[\]]+)\]/g)].map((m) => m[1].trim()).reverse()
+	for (const inner of groups) {
+		if (FORMAT_TAG_RE.test(inner)) continue
+		return NON_LATIN_SCRIPT.test(inner) || !/[A-Za-z]/.test(inner) ? null : inner
+	}
+	return null
+}
+
+// Bracket contents that name a FORMAT or edition, never a series.
+const FORMAT_TAG_RE =
+	/^(?:light\s*novels?|web\s*novels?|novels?|manga|manhwa|manhua|comics?|graphic\s*novels?|audio\s*books?|audio\s*drama|(?:un)?abridged|omnibus|box(?:ed)?\s*sets?|complete|official|deluxe|(?:[\w-]+\s+)?edition)$/i
+
+// The languages written in Latin script -- the only ones a bracketed romanization
+// is a DISPLAY name for. A library configured for Japanese wants "無職転生..."
+// itself, not its romaji. A language not listed counts as non-Latin, so the
+// rename stays off where nobody asked for it.
+const LATIN_SCRIPT_LANGUAGES = new Set([
+	'english',
+	'german',
+	'french',
+	'spanish',
+	'italian',
+	'portuguese',
+	'dutch',
+	'swedish',
+	'norwegian',
+	'danish',
+	'finnish',
+	'icelandic',
+	'polish',
+	'czech',
+	'slovak',
+	'slovenian',
+	'croatian',
+	'hungarian',
+	'romanian',
+	'turkish',
+	'indonesian',
+	'malay',
+	'vietnamese',
+	'catalan',
+	'estonian',
+	'latvian',
+	'lithuanian',
+	'irish',
+	'welsh',
+	'afrikaans',
+	'tagalog',
+	'filipino'
+])
+
+/**
+ * The display name a series record carries for `language`, or null: the alias
+ * the librarians declared first, then -- only for a Latin-script language -- the
+ * bracketed romanization of a non-Latin name. ONE definition, shared by the shelf
+ * rename and the Gate C reconciliation, so the two can never disagree.
+ * @param {string | null} description the series record's Description
+ * @param {string} name the series title (whitespace-normalized)
+ * @param {string} language the configured serve language
+ * @returns {string | null} the display name, or null to keep the canonical one
+ */
+function displayAlias(description: string | null, name: string, language: string): string | null {
+	return (
+		seriesAliasFor(description, language) ??
+		(LATIN_SCRIPT_LANGUAGES.has(language.trim().toLowerCase()) ? bracketedRomanization(name) : null)
+	)
 }
 
 /**
@@ -841,44 +909,84 @@ async function seriesRecord(
 function seriesMembers(links: unknown[]): SeriesMember[] {
 	const out: SeriesMember[] = []
 	for (const link of links) {
-		const l = link as {
-			ForeignWorkId?: unknown
-			PositionInSeries?: unknown
-			SeriesPosition?: unknown
-		}
+		const l = link as { ForeignWorkId?: unknown; PositionInSeries?: unknown }
 		if (typeof l?.ForeignWorkId !== 'number') continue
-		const position =
-			typeof l.PositionInSeries === 'string' && l.PositionInSeries.trim()
-				? l.PositionInSeries
-				: typeof l.SeriesPosition === 'number'
-					? String(l.SeriesPosition)
-					: undefined
-		out.push({ workId: l.ForeignWorkId, position })
+		// PositionInSeries ONLY. On a /series body SeriesPosition is the member's
+		// place in the LIST (index + 1 in all 423 recorded bodies), not a series
+		// number: reading it made 1,500 unpositioned Warhammer 40,000 works
+		// "numbered" and spent the read budget on them. "0" is Goodreads' marker for
+		// "in the series, unpositioned" -- positionFor reads it the same way.
+		const raw = typeof l.PositionInSeries === 'string' ? l.PositionInSeries.trim() : ''
+		out.push({ workId: l.ForeignWorkId, position: raw && raw !== '0' ? raw : undefined })
 	}
 	return out
 }
 
-// S1: the sibling-listing fallback. When the title+author search adopts NOTHING,
-// the book is usually still in view -- one step away. Goodreads' relevance order
-// fills the window with junk records (reviews, "Book Review" by Expert Book
-// Reviews, BookBuddy companions) and the author's OTHER books, and the book
-// itself never comes back. Measured on King and Maxwell (Sean King & Michelle
+// S1: the sibling-listing fallback -- the LAST pass. When every search pass has
+// adopted nothing, the book is often still in view, one step away: Goodreads'
+// relevance order fills the window with junk records (reviews, "Book Review" by
+// Expert Book Reviews, BookBuddy companions) and the author's OTHER books, and the
+// book itself never comes back. Measured on King and Maxwell (Sean King & Michelle
 // Maxwell #6): "King and Maxwell David Baldacci" returns two review records, a
 // BookBuddy companion, Split Second (#1) and The Sixth Man (#5) -- never work
-// 24064758 -- so the book kept Audible's "King and Maxwell" beside siblings on
-// "Sean King & Michelle Maxwell". The siblings name the listing that holds it.
+// 24064758 -- so the book kept Audible's "King and Maxwell". The siblings name the
+// listing that holds it.
 //
-// So a work the TITLE gate turned away but that is POSITIVELY credited to our
-// author contributes its clean series; after the search is spent, the numbered
-// members of those listings are tried as candidates -- through the same author
-// gate, ranking and volume veto as any hit, under the STRICT full-title gate (a
-// listing is all siblings, so no relaxed arm may match a sibling's stem).
-// Bounded: the first pass only, only after a clean miss, at most two listings
-// and LISTING_WORK_BUDGET /work reads. A book that resolves today never reaches
-// it, so its fetches and answer are unchanged.
-// See docs/design/spec-shelf-titles-across-the-board.md, section 10.
+// So the FIRST pass records the clean series of every hit the title gate turned
+// away that is POSITIVELY credited to one of our authors (a SiblingTrail). Only
+// after the stem and volume-prefix retries have ALSO missed are those listings'
+// numbered members tried (listingFallback) -- under the strict full-title gate on
+// the work's OWN title forms, never its edition titles, which Goodreads mis-merges
+// (a Sherlock Holmes STORY lists an edition titled "The Adventures of Sherlock
+// Holmes"); with volume and part numbers required to agree (markersAgree:
+// normalizeTitle strips them, so "Solo Leveling, Vol. 1" otherwise scores 1.0
+// against "Vol. 6"); then the same author gate, ranking and volume veto as any hit.
+//
+// Bounded: at most two listings, taking turns, and LISTING_WORK_BUDGET /work reads;
+// a failed read ends the walk. It runs after every search pass, so it can neither
+// delay nor degrade them, and a miss it could not finish stays a miss -- cached
+// under the short uncacheable TTL rather than degrading the lookup. A book any
+// search pass resolves never reaches it.
+// See docs/design/spec-shelf-titles-across-the-board.md, sections 10 and 12.
 const LISTING_SERIES_MAX = 2
 const LISTING_WORK_BUDGET = 8
+
+/** What the first pass hands the listing fallback when it adopts nothing. */
+interface SiblingTrail {
+	// Clean series of our-author hits the title gate turned away, in discovery order.
+	series: number[]
+	// Every work the first pass examined -- never re-read as a listing member.
+	seen: Set<number>
+}
+
+/** A lookup candidate: a /search hit, or a listing member with its position. */
+type Candidate = SearchHit & { position?: string }
+
+// The volume number in a "Book N" / "Vol. N" / "Volume N" marker, and the split
+// number in "Part N" -- both of which normalizeTitle strips for scoring.
+const VOLUME_MARKER_RE = /\b(?:book|vol(?:ume)?\.?)\s*(\d+(?:\.\d+)?)\b/i
+const PART_MARKER_RE = /\bpart\s+(\d+)\b/i
+
+/**
+ * Whether a listing member's title can be OUR volume. Its Part number must equal
+ * ours (neither having one counts as equal). When our title carries a volume
+ * number, the member's must match it -- read from its title, or from its listing
+ * position when its title names no volume.
+ * @param {string} ours our full title
+ * @param {string} theirs one of the member work's own title forms
+ * @param {string | undefined} theirPosition the member's position in the listing
+ * @returns {boolean} true when nothing in the numbers rules the member out
+ */
+export function markersAgree(ours: string, theirs: string, theirPosition?: string): boolean {
+	const same = (a: string | undefined, b: string | undefined) =>
+		a === undefined ? b === undefined : b !== undefined && Number(a) === Number(b)
+	if (!same(PART_MARKER_RE.exec(ours)?.[1], PART_MARKER_RE.exec(theirs)?.[1])) return false
+	const want = VOLUME_MARKER_RE.exec(ours)?.[1]
+	if (want === undefined) return true
+	const theirVolume = VOLUME_MARKER_RE.exec(theirs)?.[1]
+	if (theirVolume !== undefined) return Number(theirVolume) === Number(want)
+	return theirPosition !== undefined && Number(theirPosition) === Number(want)
+}
 
 /**
  * Record the clean series of a work that is OURS by credit but not this book --
@@ -901,50 +1009,116 @@ function noteSiblingSeries(work: WorkResponse, ours: readonly string[], into: nu
 }
 
 /**
- * The numbered members of the sibling listings, as lookup candidates: the member
- * at our own volume marker first when the title carries one, then by position.
+ * The numbered members of the sibling listings, as lookup candidates. Each listing
+ * is ordered by distance from our own volume marker (when the title or subtitle
+ * carries one), then by position; the listings then TAKE TURNS up to the budget,
+ * so the first-noted listing cannot spend every read while the one that holds the
+ * book is never tried (measured: with Memory Man ahead of Split Second in the
+ * search, eight Amos Decker reads left King and Maxwell unresolved).
  * @param {readonly number[]} seriesIds the sibling series, in discovery order
- * @param {Set<number>} seen works the search pass already examined
- * @param {string | undefined} volumeHint the volume number in our own title
- * @param {LookupState | undefined} state shared lookup state (a failed listing degrades it)
+ * @param {Set<number>} seen works the first pass already examined
+ * @param {number | null} hint our volume number, when we have one
  * @param {FastifyBaseLogger} logger optional logger
- * @returns {Promise<ListingCandidate[]>} at most LISTING_WORK_BUDGET candidates
+ * @returns {Promise<{candidates: Candidate[], readFailed: boolean}>} at most LISTING_WORK_BUDGET candidates
  */
 async function listingCandidates(
 	seriesIds: readonly number[],
 	seen: Set<number>,
-	volumeHint: string | undefined,
-	state?: LookupState,
+	hint: number | null,
 	logger?: FastifyBaseLogger
-): Promise<ListingCandidate[]> {
-	const hint = volumeHint != null ? Number(volumeHint) : null
-	const out: ListingCandidate[] = []
+): Promise<{ candidates: Candidate[]; readFailed: boolean }> {
+	const lists: SeriesMember[][] = []
+	let readFailed = false
 	for (const id of seriesIds.slice(0, LISTING_SERIES_MAX)) {
-		const record = await seriesRecord(id, state, logger)
-		const numbered = record.members
-			.filter((m) => !seen.has(m.workId) && isShelvablePosition(m.position))
-			.sort((x, y) => {
-				const px = Number(x.position)
-				const py = Number(y.position)
-				if (hint !== null && Number.isFinite(hint)) {
-					const byHint = Math.abs(px - hint) - Math.abs(py - hint)
-					if (byHint !== 0) return byHint
-				}
-				return px - py
-			})
-		for (const m of numbered)
-			if (!out.some((c) => c.workId === m.workId)) out.push({ workId: m.workId, fromListing: true })
-	}
-	if (out.length)
-		logger?.debug(
-			{ seriesIds, candidates: Math.min(out.length, LISTING_WORK_BUDGET) },
-			'goodreads series: no hit adopted, trying the listing of a sibling by our author'
+		// Each listing on its own probe: one that cannot be read is skipped, and it
+		// only caps the TTL of the result -- see listingFallback.
+		const readProbe = newLookupState()
+		const record = await seriesRecord(id, readProbe, logger)
+		if (readProbe.degraded) {
+			readFailed = true
+			continue
+		}
+		lists.push(
+			record.members
+				.filter((m) => !seen.has(m.workId) && isShelvablePosition(m.position))
+				.sort((x, y) => {
+					const px = Number(x.position)
+					const py = Number(y.position)
+					if (hint !== null) {
+						const byHint = Math.abs(px - hint) - Math.abs(py - hint)
+						if (byHint !== 0) return byHint
+					}
+					return px - py
+				})
 		)
-	return out.slice(0, LISTING_WORK_BUDGET)
+	}
+	const candidates: Candidate[] = []
+	const taken = new Set<number>()
+	for (let i = 0; candidates.length < LISTING_WORK_BUDGET && lists.some((l) => i < l.length); i++)
+		for (const list of lists) {
+			const m = list[i]
+			if (!m || taken.has(m.workId) || candidates.length >= LISTING_WORK_BUDGET) continue
+			taken.add(m.workId)
+			candidates.push({ workId: m.workId, position: m.position })
+		}
+	return { candidates, readFailed }
 }
 
-/** A search hit, or a member of a sibling's listing (S1). */
-type ListingCandidate = SearchHit & { fromListing?: boolean }
+/**
+ * S1, the LAST pass: try the members of the sibling listings the first pass
+ * recorded (see the S1 note above LISTING_SERIES_MAX). Its failures never degrade
+ * the lookup -- every search pass before it ran clean -- they only cap the TTL.
+ * The one exception is the doctrine every answer obeys: an answer whose own
+ * evidence failed (a member count behind its ranking) is not applied.
+ * @param {string} title our full title
+ * @param {string | null} author the query author
+ * @param {FastifyBaseLogger} logger optional logger
+ * @param {LookupState | undefined} state the shared lookup state
+ * @param {string | null | undefined} subtitle our subtitle
+ * @param {readonly string[]} coAuthors every other author of the book
+ * @param {SiblingTrail} trail what the first pass recorded
+ * @returns {Promise<GoodreadsSeriesResult | null>} the answer, or null
+ */
+async function listingFallback(
+	title: string,
+	author: string | null,
+	logger: FastifyBaseLogger | undefined,
+	state: LookupState | undefined,
+	subtitle: string | null | undefined,
+	coAuthors: readonly string[],
+	trail: SiblingTrail
+): Promise<GoodreadsSeriesResult | null> {
+	if (!trail.series.length || state?.degraded) return null
+	const marker =
+		VOLUME_MARKER_RE.exec(title)?.[1] ??
+		(subtitle ? VOLUME_MARKER_RE.exec(subtitle)?.[1] : undefined)
+	const { candidates, readFailed } = await listingCandidates(
+		trail.series,
+		trail.seen,
+		marker !== undefined ? Number(marker) : null,
+		logger
+	)
+	if (readFailed && state) state.uncacheable = true
+	if (!candidates.length) return null
+	logger?.debug(
+		{ title, listings: trail.series.slice(0, LISTING_SERIES_MAX), candidates: candidates.length },
+		'goodreads series: every search pass missed, trying the listing of a sibling by our author'
+	)
+	const walk = newLookupState()
+	const found = await lookupByTitle(title, author, logger, walk, false, subtitle, coAuthors, {
+		listing: candidates
+	})
+	if (walk.degraded) {
+		// The walk stops at its first failed read, so a degraded walk that still
+		// FOUND an answer failed on that answer's own evidence: not applied.
+		if (found && state) state.degraded = true
+		else if (state) state.uncacheable = true
+		return null
+	}
+	if (walk.uncacheable && state) state.uncacheable = true
+	if (walk.recoveredOverFailure && state) state.recoveredOverFailure = true
+	return found
+}
 
 interface WorkResponse {
 	Title?: string
@@ -1155,8 +1329,14 @@ const AUTHOR_MISS_TTL_SECONDS = 3600
 // books, 19 of which move from a translated shelf to their real sub-arc. The
 // hit TTL is a week; without the bump none of that reaches a shelf until the
 // entries expire one by one.
+// v7: answers changed under unchanged keys -- the bracketed romanization of a
+// non-Latin name (N1, now restricted to Latin-script languages and skipping
+// format tags), Banished Lands declared an umbrella, and the edition-listing
+// refusal. A persisted (REDIS_URL) cache would otherwise serve the old answers
+// for the rest of the hit TTL beside fresh ones: one series, two shelf names.
+// The in-memory cache is wiped by every restart and never needed this.
 const MIRROR_KEY = mirrorKeyFor(BASE)
-const CACHE_PREFIX = `grseries:v6:${MIRROR_KEY}:`
+const CACHE_PREFIX = `grseries:v7:${MIRROR_KEY}:`
 
 /**
  * Whether a Goodreads position can be used as a shelf key.
@@ -1298,12 +1478,14 @@ export async function withGoodreadsSeries<T extends SeriesEnrichable>(
 // every role the 2026-09-24 library survey found (translator 22, introduction 7,
 // editor 7, note 1, afterword 1 across 1313 current records) plus the standard
 // ones it did not. An unknown suffix is read as part of the name, which is what
-// happened to every suffix before. A WRITING role keeps its person -- Goodreads
-// credits an anthology to its editor (METAtropolis is John Scalzi's there). Any
-// other role names someone who did not write the book: no one to look it up by.
+// happened to every suffix before. EVERY role credit is dropped, the editor's
+// too: an editor's name searches the anthology's Goodreads work, which lists one
+// series per contributor's story, and the member-count ranking then hands the
+// book to a story's series -- measured on Heroic Hearts ("Jim Butcher - editor"):
+// Darkest Powers #3.4, with Heirs of Chicagoland #3.5 as its tag, where before
+// the role-suffixed query found nothing and the pin stood alone.
 const CREDIT_ROLE_RE =
-	/\s+-\s+(editor|editors|contributor|introduction|foreword|afterword|preface|notes?|translator|illustrator|narrator)\s*$/i
-const WRITING_ROLE_RE = /^(?:editor|editors|contributor)$/i
+	/\s+-\s+(?:editor|editors|contributor|introduction|foreword|afterword|preface|notes?|translator|illustrator|narrator)\s*$/i
 // A combined credit's separators: ampersand, semicolon, or the word "and",
 // whitespace-bounded so "Anderson" and "Rand" stay whole. The bundle splits an
 // artist on the same set (MULTI_AUTHOR_PATTERN) plus the comma and slash, which
@@ -1312,29 +1494,22 @@ const COMBINED_CREDIT_SPLIT_RE = /\s+&\s+|\s*;\s*|\s+and\s+/i
 
 /**
  * The book's credits as the PEOPLE the Goodreads lookup searches for and gates
- * on, first = the query author: the plain credits in provider order, then the
- * person each writing role names (the role cut off, once per person). A
- * non-writing role is dropped, and so is a combined credit whose every part is
- * another credit on the list -- it names no one the list does not, and dropping
- * it keeps the cache entry of a record Audible later adds one to. A list with
- * nothing to change comes back VERBATIM, same names in the same order, so the
- * query, the author gate and the cache key of every such book are what they
- * were; so does a list in which no person survives.
+ * on, first = the query author: the plain credits in provider order. A role
+ * credit is dropped, and so is a combined credit whose every part is another
+ * credit on the list -- it names no one the list does not, and dropping it keeps
+ * the cache entry of a record Audible later adds one to. A list with nothing to
+ * change comes back VERBATIM, same names in the same order, so the query, the
+ * author gate and the cache key of every such book are what they were; so does a
+ * list in which no person survives -- a role-only anthology searches exactly as
+ * it always did.
  * @param {ReadonlyArray<string | null | undefined>} names the provider's credits, in order
  * @returns {string[]} the people to look the book up by
  */
 export function lookupAuthors(names: ReadonlyArray<string | null | undefined>): string[] {
 	const credits = names.filter((n): n is string => typeof n === 'string' && n.trim().length > 0)
-	const people: string[] = []
-	const writers: string[] = []
-	for (const name of credits) {
-		const role = CREDIT_ROLE_RE.exec(name)
-		if (role) {
-			if (WRITING_ROLE_RE.test(role[1])) writers.push(name.slice(0, role.index).trim())
-		} else if (!isCombinedCredit(name, credits)) people.push(name)
-	}
-	for (const writer of writers)
-		if (!people.some((p) => isSameAuthor(p, writer))) people.push(writer)
+	const people = credits.filter(
+		(name) => !CREDIT_ROLE_RE.test(name) && !isCombinedCredit(name, credits)
+	)
 	return people.length ? people : credits
 }
 
@@ -1961,7 +2136,11 @@ export async function fetchGoodreadsSeries(
 	providerSeries?: string | null,
 	coAuthors: readonly string[] = []
 ): Promise<GoodreadsSeriesResult | null> {
-	const first = await lookupByTitle(title, author, logger, state, false, subtitle, coAuthors)
+	// The first pass also records the sibling listings S1 walks LAST.
+	const trail: SiblingTrail = { series: [], seen: new Set() }
+	const first = await lookupByTitle(title, author, logger, state, false, subtitle, coAuthors, {
+		trail
+	})
 	if (first) return first
 
 	// A degraded miss is not a miss. A timed-out /work on pass 1 might have been
@@ -1987,25 +2166,37 @@ export async function fetchGoodreadsSeries(
 	// faces the same title and author gates, which is what keeps a generic stem
 	// ("Star Wars", "The Beginning") from adopting a stranger's series.
 	const base = titleWithoutSubtitle(title)
-	if (!base)
-		return volumePrefixRetry(title, author, logger, state, subtitle, providerSeries, coAuthors)
-	logger?.debug({ title, base }, 'goodreads series: no hit, retrying without the subtitle')
-	// strictGate: a stripped stem must match a candidate's FULL title. The
-	// relaxed arms exist for full titles ("our subtitle half", "the candidate's
-	// stem"); handing them a stem is sibling-matching by construction --
-	// "Ahriman" scores 1.0 against every "Ahriman: X" sibling's stem.
-	// The subtitle rides along: stripping the marketing subtitle changes which
-	// TITLE we search for, not which volume the book is, so the veto must still
-	// hold the stem pass to our own volume number.
-	const stem = await lookupByTitle(base, author, logger, state, true, subtitle, coAuthors)
-	if (stem) {
-		markZeroInformationStemMatch(base, title, subtitle, stem, state, logger)
-		return stem
+	if (base) {
+		logger?.debug({ title, base }, 'goodreads series: no hit, retrying without the subtitle')
+		// strictGate: a stripped stem must match a candidate's FULL title. The
+		// relaxed arms exist for full titles ("our subtitle half", "the candidate's
+		// stem"); handing them a stem is sibling-matching by construction --
+		// "Ahriman" scores 1.0 against every "Ahriman: X" sibling's stem.
+		// The subtitle rides along: stripping the marketing subtitle changes which
+		// TITLE we search for, not which volume the book is, so the veto must still
+		// hold the stem pass to our own volume number.
+		const stem = await lookupByTitle(base, author, logger, state, true, subtitle, coAuthors)
+		if (stem) {
+			markZeroInformationStemMatch(base, title, subtitle, stem, state, logger)
+			return stem
+		}
 	}
-	// LAST resort, and only for the volume-prefix shape (see
-	// titleAfterVolumePrefix). Reached only when both passes above found nothing,
-	// which is what keeps it off every book that resolves today.
-	return volumePrefixRetry(title, author, logger, state, subtitle, providerSeries, coAuthors)
+	// Only for the volume-prefix shape (see titleAfterVolumePrefix), and reached
+	// only when both passes above found nothing, which is what keeps it off every
+	// book that resolves today.
+	const post = await volumePrefixRetry(
+		title,
+		author,
+		logger,
+		state,
+		subtitle,
+		providerSeries,
+		coAuthors
+	)
+	if (post) return post
+	// S1, LAST: after every search pass has missed, so it can neither delay nor
+	// degrade one that would have resolved the book.
+	return listingFallback(title, author, logger, state, subtitle, coAuthors, trail)
 }
 
 /**
@@ -2112,7 +2303,11 @@ async function volumePrefixRetry(
 // this one is used against two strings in a row.
 const VOLUME_HINT_RE = /\bbook\s+(\d+(?:\.\d+)?)\b/i
 
-/** One search-and-verify pass for exactly the title given. */
+/**
+ * One search-and-verify pass for exactly the title given. `opts.trail` makes it
+ * record the sibling listings for S1 (the first pass only); `opts.listing` skips
+ * the search and verifies those listing members instead (S1's walk).
+ */
 async function lookupByTitle(
 	title: string,
 	author: string | null,
@@ -2120,7 +2315,8 @@ async function lookupByTitle(
 	state?: LookupState,
 	strictGate = false,
 	subtitle?: string | null,
-	coAuthors: readonly string[] = []
+	coAuthors: readonly string[] = [],
+	opts: { trail?: SiblingTrail; listing?: Candidate[] } = {}
 ): Promise<GoodreadsSeriesResult | null> {
 	const want = normalizeTitle(title)
 	if (!want) return null
@@ -2161,16 +2357,20 @@ async function lookupByTitle(
 	// Only the qualifier goes. NOT normalizeTitle, which also strips ", Book N"
 	// -- that marker is the volume hint read just above and the one fact we hold
 	// about which volume this is.
+	// S1 hands its listing members in directly: no search, just the verify loop.
+	const listing = opts.listing
 	const q = encodeURIComponent([queryTitle(title), author].filter(Boolean).join(' '))
-	const hits = await getJson<SearchHit[]>(`/search?q=${q}`, state, logger)
+	const hits: Candidate[] | null =
+		listing ?? (await getJson<SearchHit[]>(`/search?q=${q}`, state, logger))
 	if (!Array.isArray(hits) || hits.length === 0) return null
 
 	// /search returns BOOKS, so two hits can be two editions of ONE work. The
 	// author path below already builds "distinct author ids" for exactly this
 	// reason; without the same guard here, three editions of one wrong work spend
 	// the whole candidate window on one /work record (re-fetched per hit) and the
-	// correct work sitting behind them is never examined.
-	const seenWorkIds = new Set<number>()
+	// correct work sitting behind them is never examined. The first pass keeps it
+	// on the trail, so S1 never re-reads a work this pass already judged.
+	const seenWorkIds = opts.trail?.seen ?? new Set<number>()
 	// This hit's OWN degradation, pending until we know whether the hit becomes the
 	// answer. Flushed at the top of the next iteration (this hit was discarded) and
 	// after the loop (nothing was adopted); the `return` at the end of the body is
@@ -2197,27 +2397,13 @@ async function lookupByTitle(
 	// See docs/design/spec-ordering-only-shelf-split.md.
 	// Every author of the book, for the author gate and the sibling test (S1).
 	const ours = author ? [author, ...coAuthors] : [...coAuthors]
-	// Series of hits that are OUR author's but not this book -- see S1 above
-	// listingCandidates. Read only if the search adopts nothing.
-	const siblingSeries: number[] = []
-	const queue: ListingCandidate[] = hits.slice(0, 5)
-	let listingTried = false
-	for (let next = 0; ; next++) {
-		if (next === queue.length) {
-			// The search hits are spent and none was adopted. The first pass only
-			// (the stem and volume-prefix retries are their own second chances), and
-			// never on a degraded pass: a miss we could not see clearly is not a miss.
-			if (listingTried || strictGate || pendingDegradation || state?.degraded) break
-			listingTried = true
-			queue.push(
-				...(await listingCandidates(siblingSeries, seenWorkIds, volumeHint, state, logger))
-			)
-			if (next === queue.length) break
-		}
-		const hit = queue[next]
+	for (const hit of listing ?? hits.slice(0, 5)) {
 		if (pendingDegradation) {
 			if (state) state.degraded = true
 			pendingDegradation = false
+			// A listing walk (S1) ends at its first failed read: the rest would cost
+			// reads against a mirror that just failed, for a fallback.
+			if (listing) break
 		}
 		const workId = hit.workId
 		if (typeof workId !== 'number') continue
@@ -2291,13 +2477,19 @@ async function lookupByTitle(
 		// still stand between an accepted work and its series being adopted.
 		// Deduped and capped: a mega-work (Harry Potter) lists hundreds of
 		// editions, and 40 unique names is plenty to find a language match.
-		const editionTitles = [
-			...new Set(
-				(Array.isArray(work.Books) ? work.Books : [])
-					.map((b) => b?.Title)
-					.filter((t): t is string => typeof t === 'string' && t.length > 0)
-			)
-		].slice(0, 40)
+		// Never for a listing member (S1): a listing is all siblings, and edition
+		// titles are exactly what a Goodreads mis-merge corrupts -- measured, the
+		// Sherlock Holmes STORY 1214700 carries an edition titled "The Adventures of
+		// Sherlock Holmes", so the story passed as the collection at 1.0.
+		const editionTitles = listing
+			? []
+			: [
+					...new Set(
+						(Array.isArray(work.Books) ? work.Books : [])
+							.map((b) => b?.Title)
+							.filter((t): t is string => typeof t === 'string' && t.length > 0)
+					)
+				].slice(0, 40)
 		const candidates = [work.Title, work.ShortTitle, work.FullTitle, ...editionTitles].filter(
 			(t): t is string => typeof t === 'string' && t.length > 0
 		)
@@ -2307,14 +2499,16 @@ async function lookupByTitle(
 			// stem there, and the relaxed arms below would let it sibling-match --
 			// measured on Chaos Seeds, and reproducible on any "Series: Title"
 			// naming, where the stem equals every sibling's stem at 1.0.
-			// A listing member (S1) is strict too: the listing is all siblings.
-			if (strictGate || hit.fromListing) return sim(want, c)
+			// A listing member (S1) is strict too -- the listing is all siblings -- and
+			// its volume and part numbers must agree with ours (markersAgree).
+			if (listing) return markersAgree(title, cand, hit.position) ? sim(want, c) : 0
+			if (strictGate) return sim(want, c)
 			const candStem = c.split(/\s*[:(]\s*/)[0].trim()
 			return Math.max(sim(want, c), sim(want, candStem), wantSubtitle ? sim(wantSubtitle, c) : 0)
 		}
 		const best = candidates.reduce((acc, t) => Math.max(acc, gate(t)), 0)
 		if (best < TITLE_ACCEPT) {
-			if (!hit.fromListing) noteSiblingSeries(work, ours, siblingSeries)
+			if (opts.trail) noteSiblingSeries(work, ours, opts.trail.series)
 			logger?.debug(
 				{ workId, best, want },
 				'goodreads series: work title too far from ours, not trusting its series'
@@ -2557,6 +2751,9 @@ async function lookupByTitle(
 		// provider series as three of them.
 		if (all.length === 1 && (isOrdering(all[0]) || isUmbrella(all[0]))) variantOnly = true
 		const result: GoodreadsSeriesResult = { primary: toSeries(ranked[0]) }
+		// The series the secondary slot actually took -- NOT ranked[1], which the
+		// filters below may skip; the display rename must read this one's record.
+		let secondarySeries: WorkSeries | undefined
 		{
 			// DENY: any candidate the librarians list as a re-listing of another
 			// candidate ("Also known as"). Catches the translated/renumbered
@@ -2591,7 +2788,10 @@ async function lookupByTitle(
 				if (NON_LATIN_SCRIPT.test(String(s.Title ?? ''))) return false
 				return true
 			})
-			if (fit) result.secondary = toSeries(fit)
+			if (fit) {
+				secondarySeries = fit
+				result.secondary = toSeries(fit)
+			}
 		}
 		if (variantOnly) result.variantOnly = true
 		if (rescuedOver?.length) result.rescuedOver = rescuedOver
@@ -2653,23 +2853,19 @@ async function lookupByTitle(
 				const aliasProbe = newLookupState()
 				const info = await seriesRecord(chosen.ForeignId, aliasProbe, logger)
 				if (aliasProbe.degraded && state) state.uncacheable = true
-				// A declared alias first (the librarians said so), then the bracketed
-				// romanization of a non-Latin name (the record's only Latin-script
-				// form). The Gate C reconciliation below applies the SAME two steps:
-				// the display name is defined once, not per call site.
-				const declared = seriesAliasFor(info.description, language)
-				const alias = declared ?? bracketedRomanization(out.name)
+				// The display name, from the ONE definition (displayAlias) the Gate C
+				// reconciliation below also calls: a declared alias first, then -- for a
+				// Latin-script language only -- the bracketed romanization.
+				const alias = displayAlias(info.description, out.name, language)
 				if (!alias || alias === out.name) return out
 				logger?.debug(
 					{ workId, canonical: out.name, alias, language },
-					declared
-						? 'goodreads series: renamed to the declared language alias'
-						: 'goodreads series: renamed to the bracketed romanization'
+					'goodreads series: renamed for display'
 				)
 				return { ...out, name: alias }
 			}
 			result.primary = await renamed(ranked[0], result.primary)
-			if (result.secondary) result.secondary = await renamed(ranked[1], result.secondary)
+			if (result.secondary) result.secondary = await renamed(secondarySeries, result.secondary)
 			// rescuedOver holds CANONICAL titles, but the provider names the shelf in
 			// the display language -- the same response can return secondary "Inkworld"
 			// while rescuedOver still says "Tintenwelt", so Gate C never matched and
@@ -2682,13 +2878,13 @@ async function lookupByTitle(
 					const aliasProbe = newLookupState()
 					const info = await seriesRecord(chosen.ForeignId, aliasProbe, logger)
 					if (aliasProbe.degraded && state) state.uncacheable = true
-					const alias =
-						seriesAliasFor(info.description, language) ??
-						bracketedRomanization(
-							String(chosen.Title ?? '')
-								.replace(/\s+/g, ' ')
-								.trim()
-						)
+					const alias = displayAlias(
+						info.description,
+						String(chosen.Title ?? '')
+							.replace(/\s+/g, ' ')
+							.trim(),
+						language
+					)
 					if (alias && !result.rescuedOver.includes(alias)) aliases.push(alias)
 				}
 				if (aliases.length) result.rescuedOver = [...result.rescuedOver, ...aliases]

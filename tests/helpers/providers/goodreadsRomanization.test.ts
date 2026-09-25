@@ -7,7 +7,8 @@ import { afterEach, describe, expect, it, mock } from 'bun:test'
 const fetchMock = mock()
 mock.module('#helpers/utils/fetchPlus', () => ({ default: fetchMock }))
 
-const { bracketedRomanization, fetchGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
+const { bracketedRomanization, fetchGoodreadsSeries } =
+	await import('#helpers/providers/goodreadsSeries')
 
 const MUSHOKU = '無職転生: 異世界行ったら本気だす [Mushoku Tensei: Isekai Ittara Honki Dasu]'
 
@@ -36,6 +37,16 @@ describe('bracketedRomanization', () => {
 
 	it('reads only a CLOSING bracket, not one in the middle of the name', () => {
 		expect(bracketedRomanization('無職転生 [Mushoku] 異世界')).toBeNull()
+	})
+
+	it('skips a FORMAT tag: a bracketed edition is never a shelf name', () => {
+		// Librarians bracket the format too; shelving by "Light Novel" would put
+		// unrelated series on one shelf name (section 12).
+		expect(bracketedRomanization('無職転生 [Light Novel]')).toBeNull()
+		expect(bracketedRomanization('ソードアート・オンライン [Sword Art Online] [Light Novel]')).toBe(
+			'Sword Art Online'
+		)
+		expect(bracketedRomanization('進撃の巨人 [Attack on Titan] [Manga]')).toBe('Attack on Titan')
 	})
 })
 
@@ -69,7 +80,10 @@ describe('the display rename applies the romanization to the SHELF', () => {
 			'Mushoku Tensei: Jobless Reincarnation (Light Novel), Vol. 14',
 			'Rifujin na Magonote'
 		)
-		expect(out?.primary).toEqual({ name: 'Mushoku Tensei: Isekai Ittara Honki Dasu', position: '14' })
+		expect(out?.primary).toEqual({
+			name: 'Mushoku Tensei: Isekai Ittara Honki Dasu',
+			position: '14'
+		})
 		// search + work + the one series record the rename reads.
 		expect(fetchMock.mock.calls.length).toBe(3)
 	})
@@ -91,6 +105,18 @@ describe('the display rename applies the romanization to the SHELF', () => {
 		// romanization is a display rename, so it honours the same switch.
 		process.env.GOODREADS_SERIES_LANGUAGE = 'canonical'
 		respond([{ workId: 88793726 }], lnWork(88793726, 1136944))
+		const out = await fetchGoodreadsSeries(
+			'Mushoku Tensei: Jobless Reincarnation (Light Novel), Vol. 14',
+			'Rifujin na Magonote'
+		)
+		expect(out?.primary).toEqual({ name: MUSHOKU, position: '14' })
+	})
+
+	it('a library configured for a non-Latin language keeps the original-script name', async () => {
+		// The romanization is a Latin-script DISPLAY name. An operator who set
+		// GOODREADS_SERIES_LANGUAGE=Japanese asked for the Japanese name, not romaji.
+		process.env.GOODREADS_SERIES_LANGUAGE = 'Japanese'
+		respond([{ workId: 88793727 }], lnWork(88793727, 1136945), { LinkItems: [], Description: '' })
 		const out = await fetchGoodreadsSeries(
 			'Mushoku Tensei: Jobless Reincarnation (Light Novel), Vol. 14',
 			'Rifujin na Magonote'

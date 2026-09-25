@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, mock } from 'bun:test'
 
+import { fakeRedis } from '#tests/setup/fakeRedis'
+
 // S1, 2026-09-24: the sibling-listing fallback. When the title+author search
 // adopts nothing, a hit credited to OUR author that the title gate turned away --
 // a sibling -- names a listing, and its numbered members are tried under the
@@ -38,6 +40,8 @@ function route(routes: Routes, fail: readonly string[] = []) {
 const requested = () => fetchMock.mock.calls.map(([url]) => new URL(String(url)).pathname)
 const workReads = () => requested().filter((p) => p.startsWith('/work/'))
 const listingReads = () => requested().filter((p) => p.startsWith('/series/'))
+/** The route key of one exact /search, as lookupByTitle encodes it. */
+const searchKey = (text: string) => `/search?q=${encodeURIComponent(text)}`
 
 /** A /work record for work `id`, credited to `author`, in `series` at `position`. */
 const work = (
@@ -316,5 +320,275 @@ describe('the sibling-listing fallback', () => {
 		route(routes)
 		await withGoodreadsSeries(book(), null)
 		expect(workReads().length).toBe(1 + 8)
+	})
+	// Section 12: the fixes the 2026-09-25 review found in S1.
+
+	it('a book the stem retry resolves never walks a listing', async () => {
+		// Esrever Doom: the full-title search returns only a sibling (Cube Route,
+		// Xanth #27), which the first pass records; the stem search then finds the
+		// book. S1 runs LAST, so its listing is never walked -- it used to run first,
+		// spend up to eight reads, and a failed one degraded the lookup before the
+		// stem retry could resolve it.
+		const full = 'Esrever Doom: A Fun-Filled Adventure into the Realm of Xanth'
+		route({
+			[searchKey(`${full} Piers Anthony`)]: [{ workId: 44301 }],
+			[searchKey('Esrever Doom Piers Anthony')]: [{ workId: 44338 }],
+			'/work/44301': work(44301, 'Cube Route', 'Piers Anthony', ['Xanth', 44300, '27']),
+			'/work/44338': work(44338, 'Esrever Doom', 'Piers Anthony', ['Xanth', 44300, '38']),
+			'/series/44300': listing('Xanth', [
+				[44302, '1'],
+				[44301, '27'],
+				[44338, '38']
+			]),
+			'/work/44302': work(44302, 'A Spell for Chameleon', 'Piers Anthony', ['Xanth', 44300, '1'])
+		})
+		const out = (await withGoodreadsSeries(
+			{ title: full, authors: [{ name: 'Piers Anthony' }] } as never,
+			null
+		)) as { seriesPrimary?: unknown }
+		expect(out.seriesPrimary).toEqual({ name: 'Xanth', position: '38' })
+		expect(workReads()).toEqual(['/work/44301', '/work/44338'])
+	})
+
+	it('a listing that cannot be read caps the miss instead of degrading the lookup', async () => {
+		// Every search pass ran clean. The fallback's own failure must not turn that
+		// clean miss into a degraded one (nothing cached, a stand-down, a re-run on
+		// every serve): it caps the miss's TTL instead.
+		const control = fakeRedis()
+		kingAndMaxwell(44400, {
+			'/series/44400': listing('Sean King & Michelle Maxwell', [
+				[44404, '1'],
+				[44405, '5']
+			])
+		})
+		await withGoodreadsSeries(book(), control)
+		const failing = fakeRedis()
+		route(kingRoutes(44500), ['/series/44500'])
+		const out = (await withGoodreadsSeries(book(), failing)) as { seriesPrimary?: unknown }
+		expect(out.seriesPrimary).toEqual({ name: 'King and Maxwell', position: '6' })
+		const [missTtl] = [...control.expires.values()]
+		const [cappedTtl] = [...failing.expires.values()]
+		expect(cappedTtl).toBeLessThan(missTtl)
+	})
+
+	it('a failed member read ends the walk', async () => {
+		route(kingRoutes(44600), ['/work/44612'])
+		const out = (await withGoodreadsSeries(book(), null)) as { seriesPrimary?: unknown }
+		expect(out.seriesPrimary).toEqual({ name: 'King and Maxwell', position: '6' })
+		expect(workReads().slice(5)).toEqual(['/work/44612'])
+	})
+
+	it('a listing member is judged on its own titles, never its editions', async () => {
+		// Goodreads mis-merges editions: the Sherlock Holmes STORY 1214700 carries an
+		// edition titled "The Adventures of Sherlock Holmes", and read through its
+		// editions it passed as the collection at 1.0 and shelved it at #4.
+		const doyle = 'Arthur Conan Doyle'
+		route({
+			'/search*': [{ workId: 44701 }, { workId: 44702 }],
+			'/work/44701': work(44701, 'The Five Orange Pips', doyle, [
+				'Sherlock Holmes Stories',
+				44700,
+				'5'
+			]),
+			'/work/44702': work(44702, 'A Case of Identity', doyle, [
+				'Sherlock Holmes Stories',
+				44700,
+				'3'
+			]),
+			'/series/44700': listing('Sherlock Holmes Stories', [
+				[44702, '3'],
+				[44704, '4'],
+				[44701, '5']
+			]),
+			'/work/44704': {
+				...work(44704, 'The Boscombe Valley Mystery', doyle, [
+					'Sherlock Holmes Stories',
+					44700,
+					'4'
+				]),
+				Books: [{ Title: 'The Adventures of Sherlock Holmes' }]
+			}
+		})
+		const out = (await withGoodreadsSeries(
+			{
+				title: 'The Adventures of Sherlock Holmes',
+				authors: [{ name: doyle }],
+				seriesPrimary: { name: 'Sherlock Holmes', position: '3' }
+			} as never,
+			null
+		)) as { seriesPrimary?: unknown }
+		expect(workReads()).toContain('/work/44704')
+		expect(out.seriesPrimary).toEqual({ name: 'Sherlock Holmes', position: '3' })
+	})
+
+	it("a 'Vol. N' title takes the member at N, first", async () => {
+		// normalizeTitle strips "Vol. N", so every volume scores 1.0 against every
+		// other; ascending order used to adopt Vol. 1 for Vol. 6.
+		const vols: Array<[number, string]> = [1, 2, 3, 4, 5, 6].map((n) => [44800 + n, String(n)])
+		const routes: Routes = {
+			'/search*': [{ workId: 44810 }],
+			'/work/44810': work(44810, 'Solo Leveling Side Stories', 'Chugong', [
+				'Solo Leveling (Novel)',
+				44800,
+				'9'
+			]),
+			'/series/44800': listing('Solo Leveling (Novel)', [...vols, [44810, '9']])
+		}
+		for (const [id, n] of vols)
+			routes[`/work/${id}`] = work(id, `Solo Leveling, Vol. ${n}`, 'Chugong', [
+				'Solo Leveling (Novel)',
+				44800,
+				n
+			])
+		route(routes)
+		const out = (await withGoodreadsSeries(
+			{
+				title: 'Solo Leveling, Vol. 6',
+				authors: [{ name: 'Chugong' }],
+				seriesPrimary: { name: 'Solo Leveling (Novel)', position: '6' }
+			} as never,
+			null
+		)) as { seriesPrimary?: unknown }
+		expect(out.seriesPrimary).toEqual({ name: 'Solo Leveling (Novel)', position: '6' })
+		expect(workReads().slice(1)).toEqual(['/work/44806'])
+	})
+
+	it("a 'Vol. N' title with no member at N adopts no other volume", async () => {
+		const vols: Array<[number, string]> = [1, 2, 3].map((n) => [44900 + n, String(n)])
+		const routes: Routes = {
+			'/search*': [{ workId: 44910 }],
+			'/work/44910': work(44910, 'Solo Leveling Side Stories', 'Chugong', [
+				'Solo Leveling (Novel)',
+				44900,
+				'9'
+			]),
+			'/series/44900': listing('Solo Leveling (Novel)', [...vols, [44910, '9']])
+		}
+		for (const [id, n] of vols)
+			routes[`/work/${id}`] = work(id, `Solo Leveling, Vol. ${n}`, 'Chugong', [
+				'Solo Leveling (Novel)',
+				44900,
+				n
+			])
+		route(routes)
+		const out = (await withGoodreadsSeries(
+			{
+				title: 'Solo Leveling, Vol. 6',
+				authors: [{ name: 'Chugong' }],
+				seriesPrimary: { name: 'Solo Leveling (Novel)', position: '6' }
+			} as never,
+			null
+		)) as { seriesPrimary?: unknown }
+		expect(out.seriesPrimary).toEqual({ name: 'Solo Leveling (Novel)', position: '6' })
+	})
+
+	it("a 'Vol. N' title reads an UNMARKED member's number from its listing position", async () => {
+		// Goodreads often titles a volume's work without its number ("Solo
+		// Leveling"); then its place in the listing is the number. The only member
+		// here sits at #1 -- not our Vol. 6 -- so it is not adopted.
+		route({
+			'/search*': [{ workId: 45410 }],
+			'/work/45410': work(45410, 'Solo Leveling Side Stories', 'Chugong', [
+				'Solo Leveling (Novel)',
+				45400,
+				'9'
+			]),
+			'/series/45400': listing('Solo Leveling (Novel)', [
+				[45401, '1'],
+				[45410, '9']
+			]),
+			'/work/45401': work(45401, 'Solo Leveling', 'Chugong', ['Solo Leveling (Novel)', 45400, '1'])
+		})
+		const out = (await withGoodreadsSeries(
+			{
+				title: 'Solo Leveling, Vol. 6',
+				authors: [{ name: 'Chugong' }],
+				seriesPrimary: { name: 'Solo Leveling (Novel)', position: '6' }
+			} as never,
+			null
+		)) as { seriesPrimary?: unknown }
+		expect(workReads()).toContain('/work/45401')
+		expect(out.seriesPrimary).toEqual({ name: 'Solo Leveling (Novel)', position: '6' })
+	})
+
+	it("a 'Part N' title never takes the whole book", async () => {
+		// "Words of Radiance, Part 2" is half of Stormlight #2, not Stormlight #2.
+		const bs = 'Brandon Sanderson'
+		route({
+			'/search*': [{ workId: 45001 }],
+			'/work/45001': work(45001, 'The Way of Kings', bs, ['The Stormlight Archive', 45000, '1']),
+			'/series/45000': listing('The Stormlight Archive', [
+				[45001, '1'],
+				[45002, '2']
+			]),
+			'/work/45002': work(45002, 'Words of Radiance', bs, ['The Stormlight Archive', 45000, '2'])
+		})
+		const out = (await withGoodreadsSeries(
+			{ title: 'Words of Radiance, Part 2', authors: [{ name: bs }] } as never,
+			null
+		)) as { seriesPrimary?: unknown }
+		expect(workReads()).toContain('/work/45002')
+		expect(out.seriesPrimary ?? null).toBeNull()
+	})
+
+	it('unpositioned members are never candidates', async () => {
+		// On a /series body SeriesPosition is the LIST index: an unpositioned member
+		// has a blank PositionInSeries (and "0" means the same), whatever its index.
+		route({
+			...kingRoutes(45100),
+			'/series/45100': {
+				Title: 'Sean King & Michelle Maxwell',
+				Description: '',
+				LinkItems: [
+					{ ForeignWorkId: 45104, PositionInSeries: '1', SeriesPosition: 1 },
+					{ ForeignWorkId: 45120, PositionInSeries: '', SeriesPosition: 2 },
+					{ ForeignWorkId: 45121, PositionInSeries: '0', SeriesPosition: 3 },
+					{ ForeignWorkId: 45105, PositionInSeries: '5', SeriesPosition: 4 },
+					{ ForeignWorkId: 45116, PositionInSeries: '6', SeriesPosition: 5 }
+				]
+			}
+		})
+		const out = (await withGoodreadsSeries(book(), null)) as { seriesPrimary?: unknown }
+		expect(out.seriesPrimary).toEqual({ name: 'Sean King & Michelle Maxwell', position: '6' })
+		expect(workReads().slice(5)).toEqual(['/work/45116'])
+	})
+
+	it('two sibling listings take turns in the read budget', async () => {
+		// Memory Man (Amos Decker #1) came back ahead of Split Second: the Decker
+		// listing used to spend all eight reads, and King and Maxwell was never tried.
+		const decker: Array<[number, string]> = Array.from({ length: 8 }, (_, i) => [
+			45220 + i,
+			String(i + 2)
+		])
+		const routes: Routes = {
+			'/search*': [{ workId: 45201 }, { workId: 45304 }],
+			'/work/45201': work(45201, 'Memory Man', BALDACCI, ['Amos Decker', 45200, '1']),
+			'/series/45200': listing('Amos Decker', [[45201, '1'], ...decker]),
+			'/work/45304': work(45304, 'Split Second', BALDACCI, [
+				'Sean King & Michelle Maxwell',
+				45300,
+				'1'
+			]),
+			'/series/45300': listing('Sean King & Michelle Maxwell', [
+				[45304, '1'],
+				[45312, '2'],
+				[45316, '6']
+			]),
+			'/work/45312': work(45312, 'Hour Game', BALDACCI, [
+				'Sean King & Michelle Maxwell',
+				45300,
+				'2'
+			]),
+			'/work/45316': work(45316, 'King and Maxwell', BALDACCI, [
+				'Sean King & Michelle Maxwell',
+				45300,
+				'6'
+			])
+		}
+		for (const [id, p] of decker)
+			routes[`/work/${id}`] = work(id, `Amos Decker ${p}`, BALDACCI, ['Amos Decker', 45200, p])
+		route(routes)
+		const out = (await withGoodreadsSeries(book(), null)) as { seriesPrimary?: unknown }
+		expect(out.seriesPrimary).toEqual({ name: 'Sean King & Michelle Maxwell', position: '6' })
 	})
 })

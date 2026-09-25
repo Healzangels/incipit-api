@@ -69,7 +69,7 @@ describe('sameSeriesName', () => {
 // The cache key carries the MIRROR's identity (a switch must not serve the
 // previous backend's answers), so tests that address an exact key derive the
 // fragment from the same helper the module uses rather than hardcoding it.
-const SERIES_PREFIX = `grseries:v6:${mirrorKeyFor(process.env.GOODREADS_SERIES_URL || 'https://api.bookinfo.pro')}:`
+const SERIES_PREFIX = `grseries:v7:${mirrorKeyFor(process.env.GOODREADS_SERIES_URL || 'https://api.bookinfo.pro')}:`
 
 // Pristine module state for EVERY test. The series-record memo lives for the
 // process, so without this, whichever test touches a series id first pins its
@@ -1099,7 +1099,7 @@ describe('a recovered work must not be discarded as degraded', () => {
 		expect(fetchMock.mock.calls[2][0]).toContain(`/author/${AUTHOR_ID}`)
 		// The v5 key carries the volume hint + folded provider series + language;
 		// assert the single grseries entry rather than hand-assembling segments.
-		const key = [...redis.store.keys()].find((k) => k.startsWith('grseries:v6:'))
+		const key = [...redis.store.keys()].find((k) => k.startsWith('grseries:v7:'))
 		expect(key).toBeDefined()
 		expect(redis.store.get(key as string)).toBe(
 			JSON.stringify({ primary: { name: 'Tier One', position: '9' } })
@@ -2338,7 +2338,7 @@ describe('the cache key carries everything the answer depends on', () => {
 		expect(fetchMock).not.toHaveBeenCalled()
 	})
 
-	test('the key namespace is v5', async () => {
+	test('the key namespace is the current version (v7)', async () => {
 		const { withGoodreadsSeries } = await import('#helpers/providers/goodreadsSeries')
 		const redis = fakeRedis()
 		respond([{ workId: 42 }], ahrimanExile, aliasRecord())
@@ -2346,7 +2346,7 @@ describe('the cache key carries everything the answer depends on', () => {
 			{ title: 'Ahriman: Exile', authors: [{ name: 'John French' }] },
 			redis
 		)
-		expect([...redis.store.keys()].every((k) => k.startsWith('grseries:v6:'))).toBe(true)
+		expect([...redis.store.keys()].every((k) => k.startsWith('grseries:v7:'))).toBe(true)
 	})
 })
 
@@ -2554,7 +2554,7 @@ describe('a persistently failing leg must not re-run the full lookup per serve',
 			redis
 		)
 		expect(out.seriesPrimary).toEqual({ name: 'Tintenwelt', position: '1' })
-		const key = [...redis.store.keys()].find((k) => k.startsWith('grseries:v6:'))
+		const key = [...redis.store.keys()].find((k) => k.startsWith('grseries:v7:'))
 		expect(key).toBeDefined()
 		expect(JSON.parse(redis.store.get(key as string) as string)).toEqual({
 			primary: { name: 'Tintenwelt', position: '1' }
@@ -2599,7 +2599,7 @@ describe('a persistently failing leg must not re-run the full lookup per serve',
 		)
 		// The sub-arc still wins -- the cap bounds a guess, it does not re-rank.
 		expect(out.seriesPrimary).toEqual({ name: 'The Cemeteries of Amalo', position: '2' })
-		const key = [...redis.store.keys()].find((k) => k.startsWith('grseries:v6:'))
+		const key = [...redis.store.keys()].find((k) => k.startsWith('grseries:v7:'))
 		expect(key).toBeDefined()
 		expect(redis.expires.get(key as string)).toBe(UNCACHEABLE_TTL)
 	})

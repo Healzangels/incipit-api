@@ -481,3 +481,104 @@ explicitly -- including two that would otherwise pass vacuously with the folder
 unread. Mutations, each changing its file, all killed: the guard removed; the
 guard inverted; the guard ignoring the overrides; the shipped default flipped on.
 Suite 765 OK.
+
+## 12. Review fixes (2026-09-25)
+
+A max-effort code review of 3f6f21d..81f49bd and the bundle's v1.3.216-217 found
+15 defects (probe- or replay-backed). The operator approved fixing the four groups
+below. Corrections to earlier sections first -- each changes what those sections
+claim:
+
+* **Section 10 was wrong about Sherlock and about reach.** Its A/B compared arm B
+  with a recording made under a different /search order. Replaying both versions on
+  the SAME data: whenever the wrong work 1214700 is not in the top five (4 of 7
+  recordings), S1 walked listing 320780 and adopted that STORY through its
+  mis-merged edition title "The Adventures of Sherlock Holmes" -- turning an
+  intermittent red into a permanent one (prod already showed #4, so nothing moved
+  visibly; S1 removed the refresh that could have restored #3). And S1 ran INSIDE
+  the first pass, before the stem and volume-prefix retries: 10 library books that
+  resolve through a retry walked a listing first (+62 calls), and a failed read in
+  that walk degraded the lookup and skipped the retry that resolves the book.
+  "A book that resolves today never reaches it" was false.
+* **Section 11's reach** is about 34 albums, not 32 (2 span-form omnibus shelves the
+  reach script's ", Book N - " pattern missed), and a forced refresh removed only
+  the sort-title prefix: the "Series: <folder>" mood survived (fixed below).
+* **Section 9's editor rule** was the cause of the Heroic Hearts leak (below).
+
+**1. S1 reworked** (`goodreadsSeries.ts`):
+* The first pass only RECORDS the sibling listings (a `SiblingTrail`, with the
+  works it read); `listingFallback` runs LAST in `fetchGoodreadsSeries`, after the
+  stem and volume-prefix retries have both missed.
+* Its failures never degrade the lookup: a listing that cannot be read is skipped,
+  a failed member read ends the walk, and a miss it could not finish is cached
+  under the short uncacheable TTL. (An answer whose own evidence failed is still
+  not applied, the rule every answer obeys.)
+* A listing member is judged on its OWN title forms, never its edition titles.
+* `markersAgree`: its "Part N" must equal ours, and when our title has a "Book /
+  Vol. / Volume N" number the member's must match -- from its title, or from its
+  listing position when its title names none. normalizeTitle strips those markers,
+  so "Solo Leveling, Vol. 1" otherwise scored 1.0 against "Vol. 6" and the
+  ascending walk adopted #1; "Words of Radiance, Part 2" took the whole book at #2.
+* Positions come from `PositionInSeries` only (on a /series body `SeriesPosition`
+  is the LIST index -- 1,500 unpositioned Warhammer 40,000 works became "numbered"),
+  and "0" means unpositioned.
+* The two listings take turns in the 8-read budget (Memory Man ahead of Split
+  Second used to spend all eight reads on Amos Decker).
+
+**2. Editors are dropped like every role credit** (`lookupAuthors`). Stripping
+" - editor" made Heroic Hearts searchable as "Heroic Hearts Jim Butcher", whose
+anthology work lists one series per story: the ranking answered Darkest Powers
+#3.4 with an "Heirs of Chicagoland" tag that leaked past the pin as a Series: mood.
+A role-only list now has no person left and comes back verbatim -- it searches
+exactly as before role credits were recognised (and finds nothing).
+
+**3. Bundle v1.3.218** (`55b8845`): a FORCED refresh of a book that ends up with no
+series retires its stale "Series:" moods (routine updates keep the sparse-record
+guard), and the test harness gained a `Core.storage.list_dir` with five end-to-end
+wiring tests -- the seven wiring mutations that passed the whole suite are now all
+killed.
+
+**4. Small fixes.** The secondary tag is renamed from the series it actually took
+(`fit`), not `ranked[1]` -- a skipped Russian listing's alias renamed Discworld's
+sub-arc. The display name is one function (`displayAlias`): the bracketed
+romanization applies only to Latin-script serve languages and skips FORMAT tags
+("[Light Novel]", "[Manga]"). `CACHE_PREFIX` v6 -> v7 (N1, Banished Lands and Q1
+changed answers under unchanged keys; only a persisted redis cache needed it).
+
+**Tests and mutations.** API: 13 new tests, 2 rewritten, each shown to FAIL on the
+deployed 81f49bd before passing on the fix; 15 mutations, each changing the file,
+all killed (S1 before the retries; listing failure degrading; walk past a failure;
+edition titles; no marker check; no part check; unmarked member at any position;
+"0" as a position; SeriesPosition as a position; listings not taking turns; roles
+kept; secondary from ranked[1]; romanization for every language; format tags kept;
+first-pass works re-read). Gate 2547 pass / 0 fail. Bundle: 9 mutations, all
+killed; suite 772 OK.
+
+**A/B, measured.** Corpus: the fixed code live and recorded (1,594 exchanges; 4
+failed, the same two persistent mirror defects as before -- Duma Key's /work 500
+and On Target's /series/435628): gate PASS, reds 1 -> 1; against the deployed
+81f49bd arm, 545/545 identical. That comparison cannot show the Sherlock fix,
+because today's /search put 1214700 at hit 2 -- both arms adopt it directly in the
+first pass (the open title-gate defect), which is exactly the cross-data trap the
+review exposed. So the fix was proven on the SAME data instead
+(`.cache/samedata/sherlock.test.ts`): both resolvers fed the 2026-09-24 recording
+in which /search left 1214700 out of the top five, any unrecorded URL fetched live.
+Deployed 81f49bd: `The Adventures of Sherlock Holmes #4`, served entirely from the
+recording. Fixed: the required `Sherlock Holmes #3` -- the walk rejects the story
+on its own titles, reads five more members live, adopts nothing, and the provider
+series stands.
+
+Library, on the SAME data (`.cache/samedata/library.test.ts`): every album with a
+current Audible record (1,313), through the deployed 81f49bd and the fixed code,
+both fed the 81f49bd library arm's own recording; a URL the recording lacks is
+fetched live. Arm A needed 0 live fetches (a faithful replay of itself); arm B
+needed 13 (S1's post-retry member reads, and Heroic Hearts' role-suffixed query).
+Primaries AND secondaries compared: **exactly 2 movers, both heals** -- Heroic
+Hearts keeps its pin (`The Dresden Files #17.1`) and loses the leaked `Heirs of
+Chicagoland #3.5` tag; The Adventures of Sherlock Holmes goes from `The Adventures
+of Sherlock Holmes #4` to the required `Sherlock Holmes #3` on that search order.
+Sherlock stays exposed to the open title-gate defect whenever /search ranks the
+story 1214700 in the top five (today it is hit 2), so its prod shelf is NOT to be
+refreshed until that defect has its own fix. (A live library arm was started and
+abandoned: after the corpus burst the mirror's /search slowed to ~2 s a request,
+and the same-data replay answers the question better.)

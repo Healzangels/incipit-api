@@ -62,25 +62,26 @@ describe('lookupAuthors', () => {
 		])
 	})
 
-	it('puts the authors first and cuts a writing role off the person it names', () => {
+	it("drops an editor's credit like any other role", () => {
+		// An editor's name searches the anthology's Goodreads work, whose story
+		// series then win the ranking (Heroic Hearts -> Darkest Powers #3.4). A
+		// role-only list has no person left, so it comes back as given -- and
+		// searches exactly as it did before role credits were recognised.
 		expect(lookupAuthors(['Jim Butcher - editor', 'Kerrie Hughes - editor'])).toEqual([
-			'Jim Butcher',
-			'Kerrie Hughes'
+			'Jim Butcher - editor',
+			'Kerrie Hughes - editor'
 		])
 		expect(lookupAuthors(['John Scalzi - editor', 'Jay Lake', 'Elizabeth Bear'])).toEqual([
 			'Jay Lake',
-			'Elizabeth Bear',
-			'John Scalzi'
+			'Elizabeth Bear'
 		])
-		// An editor who is ALSO credited plainly is one person, kept once.
 		expect(
 			lookupAuthors(['Christopher Tolkien - editor', 'J. R. R. Tolkien', 'Christopher Tolkien'])
 		).toEqual(['J. R. R. Tolkien', 'Christopher Tolkien'])
 		// Unfettered, as Audible lists it: the editor mid-list, behind the authors.
 		expect(lookupAuthors(['Terry Brooks', 'Shawn Speakman - editor', 'Peter V. Brett'])).toEqual([
 			'Terry Brooks',
-			'Peter V. Brett',
-			'Shawn Speakman'
+			'Peter V. Brett'
 		])
 	})
 
@@ -189,10 +190,13 @@ describe('the Goodreads lookup searches for a person', () => {
 		expect(searches()[0]).toContain(searchFor('Nightmare at 20,000 Feet Richard Matheson'))
 	})
 
-	it('an editor is a person the author gate accepts', async () => {
-		// Goodreads credits an anthology to its editor (METAtropolis is John
-		// Scalzi's there), so an editor credit names the book's person.
-		respond([{ workId: 42 }], work('Heroic Hearts', 'The Dresden Files', '17.1', 'Jim Butcher'))
+	it('Heroic Hearts: an editor-only anthology searches exactly as it always did', async () => {
+		// Recorded: "Heroic Hearts Jim Butcher - editor" finds nothing, and the book
+		// is shelved by its pin alone. With the role cut off, "Heroic Hearts Jim
+		// Butcher" returned work 85291724 -- one series per contributor's story --
+		// and the ranking answered Darkest Powers #3.4 with an "Heirs of
+		// Chicagoland" tag, which leaked past the pin as a Series: mood.
+		respond([])
 		const out = (await withGoodreadsSeries(
 			{
 				title: 'Heroic Hearts',
@@ -200,8 +204,8 @@ describe('the Goodreads lookup searches for a person', () => {
 			} as never,
 			fakeRedis()
 		)) as { seriesPrimary?: unknown }
-		expect(searches()[0]).toContain(searchFor('Heroic Hearts Jim Butcher'))
-		expect(out.seriesPrimary).toEqual({ name: 'The Dresden Files', position: '17.1' })
+		expect(searches()[0]).toContain(searchFor('Heroic Hearts Jim Butcher - editor'))
+		expect(out.seriesPrimary ?? null).toBeNull()
 	})
 
 	it('CONTROL: the introducer alone does not open the author gate', async () => {
