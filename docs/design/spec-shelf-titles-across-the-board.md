@@ -438,3 +438,46 @@ listing; listing members get the relaxed gate; runs on a degraded pass; no membe
 budget; no volume-hint ordering; orderings/umbrellas name listings; a sibling
 credited to anyone names a listing; listing members skip the author gate; runs in
 the stem retry too.
+
+## 11. The folder fallback becomes opt-in (bundle v1.3.217, 2026-09-25)
+
+Operator, 2026-09-25: *"I'm not sure I like the folder rules as it relies on the
+information coming from Chaptarr to not have the foreign language titles or book
+folders ... would rather a cleaner by api lookup from a source of truth unless the
+user has checked to use folders."* Section 6's refusals can only recognise junk
+by shape; a translated folder name ("Absoliuti galia") or a mis-filed book has
+no shape to recognise.
+
+**Rule:** a new agent setting, `series_from_folder_fallback` ("Fill a missing
+series + book number from the folder tree"), **default off**. With it off,
+`derive_series_from_path` returns before reading the path, so a book's series
+comes only from the metadata sources. The two existing overrides keep working
+without it -- `series_from_folder_wins` and `series_from_folder_authors` (prod:
+Raymond E. Feist) are explicit claims about a library's folders, the stronger
+setting. Section 6's refusals stay in force for anyone who opts in.
+
+**Measured reach on prod** (`.cache/folder-derived-shelves.py`: numbered shelves
+equal to what the bundle's own folder parser yields, set against what the API
+serves): 21 albums whose Audible record resolves to no numbered series today, so
+the folder is their only source; 298 more with no Audible record, estimated by
+rebuilding the book from Plex title/artist + AudioSilo's series and running the
+full pipeline (`.cache/folderUnknownEstimate.ts`, an estimate): 272 keep the
+same shelf from the API, 11 are folder-only, 15 differ for reasons that are not
+this change (a numbered API answer never consults the folder). So **about 32
+albums lose a folder shelf on their next forced refresh** -- about 20 of them the
+junk this exists to remove (Child of God under "Katie Kazoo, Switcheroo", "Absoliuti
+galia", one-book "series" such as Project Hail Mary and The Stand, the
+Split-Volume editions, Warhammer 40,000, "Cosmere #18", "Hard Case Crime ... #112",
+1984 as "English Edition #3"), and about 12 real placements no source numbers
+(Working for Bigfoot, Spellmonger #3.5/#10.5, Memory's Legion, Rock of Ages,
+Minority Report, Soldier's Life x3, Downstream Diaries, a Bone Season anniversary
+edition, Time Traveler's Passport #3). Those are candidates for explicit API pins
+or the per-author override, not for the fallback. Nothing moves until v1.3.217 is
+deployed and the albums are refreshed.
+
+Tests: 7 new (`FolderFallbackIsOptIn`, on the shipped DefaultPrefs.json, so they
+pin shipped behaviour); the 10 tests that exercise the fallback now opt in
+explicitly -- including two that would otherwise pass vacuously with the folder
+unread. Mutations, each changing its file, all killed: the guard removed; the
+guard inverted; the guard ignoring the overrides; the shipped default flipped on.
+Suite 765 OK.
