@@ -103,6 +103,42 @@ const DURATION_TIE_EPSILON_SECONDS_DEFAULT = 90
 // arm must NOT outrank real runtime evidence (2026-07-28).
 const NARRATOR_BRAND_MAX_DELTA_SECONDS = 600
 
+// Audible states a runtime in whole minutes, TRUNCATED, not rounded. Measured
+// 2026-09-26: Audible's own chapter runtime sat inside [m, m+1) of its listed
+// runtime_length_min m for 13 of 14 listings (the 14th above it, none below),
+// and of 260 library files within two minutes of their Audible listing, 238
+// sat 0-75s ABOVE its minute and 6 below. Chaptarr's durations for
+// Audible-listed ids are the same whole minutes (430 of 433 equal, all 433
+// whole). So an Audible runtime s is not the point s but the span [s, s + 60];
+// measuring the file against the point charged every Audible listing ~30s of
+// truncation on average, and closest-runtime then handed the match to any
+// second-precise listing of the SAME recording -- OverDrive's, measured on
+// Wind and Truth, The Mime Order, Disquiet Gods and eight more (2026-09-25).
+//
+// Audible's rows only: its truncation is the one that is measured. A whole
+// minute elsewhere is not known to be truncated, and reading every whole
+// minute as a span let a Hardcover print-edition record whose minute held the
+// file out-rank the tag-exact listing 14s away -- the He Who Fights with
+// Monsters "Vol. 1" shape (2026-07-28) back again. A Chaptarr or Hardcover
+// copy of an Audible minute stays a point, which can only favour the listing
+// the store sells.
+const MINUTE_TRUNCATION_SECONDS = 60
+
+/**
+ * How far a file of `wantSeconds` sits from what a listed runtime can mean:
+ * the span [audioSeconds, audioSeconds + 60] for a truncated minute (see
+ * MINUTE_TRUNCATION_SECONDS), the point otherwise.
+ */
+export function runtimeGapSeconds(
+	wantSeconds: number,
+	audioSeconds: number,
+	truncatedMinute: boolean
+): number {
+	if (!truncatedMinute) return Math.abs(wantSeconds - audioSeconds)
+	if (wantSeconds < audioSeconds) return audioSeconds - wantSeconds
+	return Math.max(0, wantSeconds - audioSeconds - MINUTE_TRUNCATION_SECONDS)
+}
+
 /**
  * The rounding epsilon in seconds; DURATION_TIE_EPSILON_SECONDS overrides.
  * A present-but-EMPTY value is absent, not zero -- see envInt.
@@ -1738,6 +1774,16 @@ export default class BookSearchHelper {
 			const raw = c.title ?? ''
 			decorationById.set(c.id, raw.length - normalizeTitle(raw).length)
 		}
+		// Closest runtime, measured against what each listed runtime can MEAN
+		// (runtimeGapSeconds): Audible's truncated whole minute is a span, not
+		// a point. Same participation as the scorer's durationDeltaPct -- null
+		// wherever that is null -- and the same unit, a fraction of the row's
+		// own runtime, so every other row's key IS its old delta.
+		const runtimeDelta = (c: ScoredCandidate): number | null => {
+			if (c.durationDeltaPct == null || wantSeconds == null || !c.audioSeconds) return null
+			const truncated = c.provider === STORE_PROVIDER
+			return runtimeGapSeconds(wantSeconds, c.audioSeconds, truncated) / c.audioSeconds
+		}
 		const titleTierById = new Map<string, number>()
 		{
 			const primaryLower = primaryTitle.toLowerCase()
@@ -1963,8 +2009,11 @@ export default class BookSearchHelper {
 				// Ordering by the delta uses that evidence without changing what
 				// counts as a match: it only ranks candidates that ALREADY passed,
 				// and a null delta (no runtime to compare) never participates.
-				const aDelta = a.durationDeltaPct
-				const bDelta = b.durationDeltaPct
+				// Measured from the span a truncated minute stands for (see
+				// runtimeDelta), or Audible's listing loses ~30s to truncation
+				// against a second-precise copy of the very same recording.
+				const aDelta = runtimeDelta(a)
+				const bDelta = runtimeDelta(b)
 				if (aDelta != null && bDelta != null) {
 					// Inside the rounding epsilon the delta is noise, so the
 					// fuller form of the SAME name may jump it -- the Nevermoor
