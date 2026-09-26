@@ -205,12 +205,19 @@ describe('the audiobook filter on the rescue paths', () => {
 describe('the rescue paths stamp the REQUESTED asin', () => {
 	const VARIANT = 'B00HYG9KMC' // resolves the edition whose own asin is B00HYGYN5Q
 
-	test('fetchCandidateByAsin identifies the row by the asin asked for', async () => {
+	test('fetchCandidateByAsin does NOT inject a regional variant (spec-chaptarr-wire-drift)', async () => {
+		// SUPERSEDED CONTRACT (2026-09-25): this used to assert the variant was
+		// injected under the asked-for id. The injection path is only reached when
+		// Audible declined the id, so a rescued variant is an id no store sells;
+		// injected, it out-ranked the recording's own store listing (the 45
+		// variant-class albums; The Bone Season in the same-data A/B). Serving the
+		// variant is still fetchBookByAsin's job, below.
 		const p = provider({ works: { [`az:${VARIANT}`]: work } })
-		const c = await p.fetchCandidateByAsin(VARIANT, OPTS)
-		expect(c?.asin).toBe(VARIANT)
-		expect(c?.id).toBe(VARIANT)
-		// Still the resolved edition's data, runtime included.
+		expect(await p.fetchCandidateByAsin(VARIANT, OPTS)).toBeNull()
+		// ...while the edition's OWN asin is still injectable, runtime included.
+		const own = provider({ works: { 'az:B00HYGYN5Q': work } })
+		const c = await own.fetchCandidateByAsin('B00HYGYN5Q', OPTS)
+		expect(c?.asin).toBe('B00HYGYN5Q')
 		expect(c?.audioSeconds).toBe(22260)
 	})
 
@@ -358,12 +365,11 @@ describe('regional store ids (spec-regional-pin-sibling)', () => {
 		expect(c.asinAliases).toEqual(['1250230918', 'B07LHB5ZJ6'])
 	})
 
-	test('a rescue stamps the asked-for id and lists the rest, never itself', async () => {
-		// The fixture's variant pass still resolves through providerIdsAll.
-		const p = provider({ works: { 'az:B00HYG9KMC': work } })
-		const c = await p.fetchCandidateByAsin('B00HYG9KMC', OPTS)
-		expect(c?.asin).toBe('B00HYG9KMC')
-		expect(c?.asinAliases).toEqual(['B00HYGYN5Q'])
+	test("an injected own-asin row lists its edition's other ids, never itself", async () => {
+		const p = provider({ works: { 'az:B00HYGYN5Q': work } })
+		const c = await p.fetchCandidateByAsin('B00HYGYN5Q', OPTS)
+		expect(c?.asin).toBe('B00HYGYN5Q')
+		expect(c?.asinAliases).toEqual(['B00HYG9KMC'])
 	})
 
 	test('an edition with no other ids carries no alias list at all', async () => {
@@ -409,15 +415,16 @@ describe('the snake_case wire (spec-chaptarr-wire-drift)', () => {
 		expect(editionForAsin(ebook, 'B07LH8GF23')).toBeNull()
 	})
 
-	test('the rescue of a VARIANT id serves the recording (it answered 404)', async () => {
-		const p = provider({ works: { 'az:B07LHB5ZJ6': live } })
+	test('SERVING a variant id works again (it answered 404); injecting one does not', async () => {
+		const p = provider({ works: { 'az:B07LHB5ZJ6': live, 'az:B07LH8GF23': live } })
 		const book = await p.fetchBookByAsin('B07LHB5ZJ6', OPTS)
 		expect(book?.asin).toBe('B07LHB5ZJ6')
 		expect(book?.title).toBe('Ninth House')
-		const c = await p.fetchCandidateByAsin('B07LHB5ZJ6', OPTS)
-		expect(c?.audioSeconds).toBe(58_920)
-		expect(c?.asinAliases).toContain('B07LH8GF23')
-		expect(c?.asinAliases).not.toContain('B07LHB5ZJ6')
+		expect(await p.fetchCandidateByAsin('B07LHB5ZJ6', OPTS)).toBeNull()
+		const own = await p.fetchCandidateByAsin('B07LH8GF23', OPTS)
+		expect(own?.audioSeconds).toBe(58_920)
+		expect(own?.asinAliases).toContain('B07LHB5ZJ6')
+		expect(own?.asinAliases).not.toContain('B07LH8GF23')
 	})
 
 	test('languageCode is read: eng -> en, deu -> de, on rows and served records', async () => {

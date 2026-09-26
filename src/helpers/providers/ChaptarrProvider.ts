@@ -318,7 +318,8 @@ function editionLanguage(e: ChaptarrEdition): string | null {
  */
 export function editionForAsin(
 	editions: ChaptarrEdition[] | undefined,
-	asin: string
+	asin: string,
+	opts: { variants?: boolean } = {}
 ): ChaptarrEdition | null {
 	if (!editions) return null
 	const upper = asin.toUpperCase()
@@ -338,6 +339,7 @@ export function editionForAsin(
 	// since some point after 2026-08-08 no variant id resolved and GET
 	// /books/<variant> answered 404 -- three Lady Hardcastle albums could not be
 	// refreshed at all (measured 2026-09-25, spec-chaptarr-wire-drift).
+	if (opts.variants === false) return null
 	for (const e of editions) {
 		if (!isAudiobookEdition(e)) continue
 		if (editionStoreIds(e).includes(upper)) return e
@@ -519,13 +521,32 @@ export default class ChaptarrProvider implements BookProvider {
 		return bookFrom(response, edition, asin || null)
 	}
 
+	/**
+	 * The pinned-edition INJECTION path: resolves an edition's OWN asin only, never
+	 * one of its regional variants -- unlike fetchBookByAsin, which serves both.
+	 *
+	 * The asymmetry is the point. Serving must answer for whatever id an album is
+	 * already matched to, or the album cannot refresh (the 404s the wire drift
+	 * caused). Injecting decides what an album gets matched TO. This path is only
+	 * reached when Audible declined the id -- so a Chaptarr-rescued variant is by
+	 * construction an id no store sells here -- and injected, its to-the-second
+	 * runtime can out-rank the recording's own store listing. That is how the 45
+	 * variant-class albums got their unsellable matches while the camelCase wire
+	 * still resolved variants; re-enabling it re-matched The Bone Season onto its
+	 * regional id in the same-data A/B (spec-chaptarr-wire-drift section 6).
+	 * Declining it keeps a variant hint exactly where the drift left it: unheld,
+	 * with the store listing competing on merits.
+	 * @param {string} asin the pinned id
+	 * @param {FetchBookOptions} opts region, credentials, logger
+	 * @returns {Promise<ProviderCandidate | null>} the own-asin edition's candidate, or null
+	 */
 	async fetchCandidateByAsin(
 		asin: string,
 		opts: FetchBookOptions
 	): Promise<ProviderCandidate | null> {
 		const response = await this.workFetch(`az:${asin}`, opts.logger)
 		if (!response) return null
-		const edition = editionForAsin(response.editions, asin)
+		const edition = editionForAsin(response.editions, asin, { variants: false })
 		if (!edition) return null
 		return candidateFrom(response, edition, asin || null)
 	}
