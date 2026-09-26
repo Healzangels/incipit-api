@@ -1,0 +1,176 @@
+{
+	"_capture": "TRIMMED LIVE CAPTURE of GET https://api2.chaptarr.com/api/v5/work/hc:427736 on 2026-09-25: the snake_case wire (provider_ids_all, asins, format, languageCode; no description). See docs/design/spec-chaptarr-wire-drift.md.",
+	"work": {
+		"id": "hc:427736",
+		"title": "Ninth House",
+		"seriesName": "Alex Stern",
+		"seriesPosition": "1",
+		"coverUrl": "https://assets.hardcover.app/edition/18053577/b79e8519f00a941e86a5a5e069c9b411423ca1ec.jpeg",
+		"genres": [
+			"adult",
+			"Audiobook",
+			"Dark Academia",
+			"DarkAcademia"
+		]
+	},
+	"authors": [
+		{
+			"name": "Leigh Bardugo"
+		}
+	],
+	"editions": [
+		{
+			"languageCode": "eng",
+			"durationSeconds": 58920,
+			"coverUrl": "https://m.media-amazon.com/images/I/410tY-Sm3OL._SL500_.jpg",
+			"provider_ids_all": {
+				"az": [
+					"az:1250230918",
+					"az:B07LGXWR58",
+					"az:B07LGY39GQ",
+					"az:B07LH8GF23",
+					"az:B07LH99WGK",
+					"az:B07LH9QWST",
+					"az:B07LH9X4G4",
+					"az:B07LHB5ZJ6",
+					"az:B07LHC24PJ",
+					"az:B07LHCJ6P7",
+					"az:B07LHCND7Y",
+					"az:B0C43ZZ1WF"
+				],
+				"gr": [
+					"gr:43267214",
+					"gr:44551419",
+					"gr:48497620",
+					"gr:48994849",
+					"gr:54333187"
+				],
+				"hc": [
+					"hc:edition:31529612"
+				]
+			},
+			"readingFormatId": 2,
+			"publicationDate": "2019-10-08",
+			"asins": [
+				"1250230918",
+				"B07LGXWR58",
+				"B07LGY39GQ",
+				"B07LH8GF23",
+				"B07LH99WGK",
+				"B07LH9QWST",
+				"B07LH9X4G4",
+				"B07LHB5ZJ6",
+				"B07LHC24PJ",
+				"B07LHCJ6P7",
+				"B07LHCND7Y",
+				"B0C43ZZ1WF"
+			],
+			"narratorNames": [
+				"Lauren Fortgang",
+				"Michael David Axtell"
+			],
+			"publisher": "Macmillan Audio",
+			"format": "audiobook",
+			"title": "Ninth House",
+			"chapters": [
+				{
+					"title": "Opening Credits",
+					"lengthMs": 41331,
+					"startOffsetMs": 0,
+					"startOffsetSec": 0
+				},
+				{
+					"title": "Epigraphs",
+					"lengthMs": 80851,
+					"startOffsetMs": 41331,
+					"startOffsetSec": 41
+				}
+			],
+			"asin": "B07LH8GF23",
+			"hasChapters": true,
+			"chapterCount": 39
+		},
+		{
+			"languageCode": "deu",
+			"durationSeconds": 57000,
+			"coverUrl": "https://m.media-amazon.com/images/I/51wBwjpuHoL._SL500_.jpg",
+			"provider_ids_all": {
+				"az": [
+					"az:3732453804",
+					"az:B084NW2C1F",
+					"az:B084NWGQP6",
+					"az:B084NWLGQ2",
+					"az:B084P299FD",
+					"az:B0BSXKG4VG"
+				],
+				"gr": [
+					"gr:199665648"
+				]
+			},
+			"readingFormatId": 2,
+			"publicationDate": "2020-02-11",
+			"asins": [
+				"3732453804",
+				"B084NW2C1F",
+				"B084NWGQP6",
+				"B084NWLGQ2",
+				"B084P299FD",
+				"B0BSXKG4VG"
+			],
+			"narratorNames": [
+				"Vera Teltz"
+			],
+			"publisher": "Argon Verlag",
+			"format": "audiobook",
+			"title": "Das neunte Haus",
+			"chapters": [
+				{
+					"title": "Vorspann",
+					"lengthMs": 24269,
+					"startOffsetMs": 0,
+					"startOffsetSec": 0
+				},
+				{
+					"title": "Motto",
+					"lengthMs": 48150,
+					"startOffsetMs": 24269,
+					"startOffsetSec": 24
+				}
+			],
+			"asin": "B084NW2C1F",
+			"hasChapters": true,
+			"chapterCount": 37
+		},
+		{
+			"languageCode": "eng",
+			"durationSeconds": 0,
+			"coverUrl": "https://m.media-amazon.com/images/I/81I8Sk1xvHL._SL1500_.jpg",
+			"provider_ids_all": {
+				"az": [
+					"az:B07LF64DZ2"
+				],
+				"gr": [
+					"gr:43301737",
+					"gr:56339403",
+					"gr:59356614"
+				],
+				"hc": [
+					"hc:edition:30404868",
+					"hc:edition:31465322"
+				]
+			},
+			"readingFormatId": 3,
+			"publicationDate": "2019-10-08",
+			"asins": [
+				"B07LF64DZ2"
+			],
+			"narratorNames": [],
+			"publisher": "Flatiron Books",
+			"format": "ebook",
+			"title": "Ninth House",
+			"asin": "B07LF64DZ2",
+			"hasChapters": false,
+			"chapterCount": 0
+		}
+	]
+}

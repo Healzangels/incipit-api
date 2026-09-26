@@ -142,9 +142,15 @@ export interface ChaptarrEdition {
 	durationSeconds?: number | null
 	coverUrl?: string | null
 	language?: string | null
+	// The live wire's spelling since the 2026-08-08 capture (both v5 routes,
+	// measured 2026-09-25): ISO 639-2 like `language` was ("eng", "deu"). Read
+	// through editionLanguage.
+	languageCode?: string | null
 	publisher?: string
 	publicationDate?: string
 	formatType?: string
+	// `formatType`'s live spelling ("audiobook", "ebook", "physical").
+	format?: string
 	readingFormatId?: number
 	chapters?: ChaptarrChapter[]
 	hasChapters?: boolean
@@ -277,7 +283,20 @@ export const fetchChaptarrWork: ChaptarrWorkFetch = async (id) => {
 
 /** True when the edition is the audio format (belt and braces: either flag). */
 function isAudiobookEdition(e: ChaptarrEdition): boolean {
-	return e.formatType === 'audiobook' || e.readingFormatId === 2
+	return e.formatType === 'audiobook' || e.format === 'audiobook' || e.readingFormatId === 2
+}
+
+/**
+ * The edition's language, from whichever spelling the wire used. `language`
+ * went unread from some point after the 2026-08-08 capture -- the service now
+ * says `languageCode` -- so every chaptarr row and every Chaptarr-served record
+ * reached the language gate, dedupe's language-conflict guard and the lookup
+ * route's foreign-edition flag as "unknown" (docs/design/spec-chaptarr-wire-drift.md).
+ * @param {ChaptarrEdition} e the edition
+ * @returns {string | null} ISO-639-1, or null when neither spelling says
+ */
+function editionLanguage(e: ChaptarrEdition): string | null {
+	return normalizeLanguage(e.language ?? e.languageCode)
 }
 
 /**
@@ -313,15 +332,15 @@ export function editionForAsin(
 	for (const e of editions) {
 		if (isAudiobookEdition(e) && (e.asin ?? '').toUpperCase() === upper) return e
 	}
-	// Uppercase BOTH sides wholesale: the service writes the namespace prefix
-	// lowercase ("az:") while ASINs are uppercase, so a one-sided fold
-	// mismatches on the prefix — caught by this file's own first test run.
-	const wanted = `AZ:${upper}`
+	// Through editionStoreIds, which reads every spelling the wire has used and
+	// folds case and the "az:" namespace itself. This pass read ONLY
+	// `providerIdsAll.az`; the live wire says `provider_ids_all` (and `asins`), so
+	// since some point after 2026-08-08 no variant id resolved and GET
+	// /books/<variant> answered 404 -- three Lady Hardcastle albums could not be
+	// refreshed at all (measured 2026-09-25, spec-chaptarr-wire-drift).
 	for (const e of editions) {
 		if (!isAudiobookEdition(e)) continue
-		for (const v of e.providerIdsAll?.az ?? []) {
-			if (v.toUpperCase() === wanted) return e
-		}
+		if (editionStoreIds(e).includes(upper)) return e
 	}
 	return null
 }
@@ -394,7 +413,7 @@ function candidateFrom(
 		// chaptarr row wins its group. An audiobook edition with no edition
 		// cover has no audiobook art; say so.
 		cover: e.coverUrl ?? null,
-		language: normalizeLanguage(e.language)
+		language: editionLanguage(e)
 	}
 }
 
@@ -437,7 +456,7 @@ function bookFrom(
 		...(e.publisher ? { publisherName: e.publisher } : {}),
 		...(e.publicationDate ? { releaseDate: e.publicationDate } : {}),
 		...(series ? { seriesPrimary: series } : {}),
-		language: normalizeLanguage(e.language)
+		language: editionLanguage(e)
 	}
 }
 

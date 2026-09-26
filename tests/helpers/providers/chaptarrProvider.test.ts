@@ -8,6 +8,7 @@ import ChaptarrProvider, {
 } from '#helpers/providers/ChaptarrProvider'
 import type { FetchBookOptions } from '#helpers/providers/types'
 import fixture from '#tests/fixtures/chaptarr-work-annihilation.json'
+import liveFixture from '#tests/fixtures/chaptarr-work-ninth-house-live.json'
 
 /**
  * Chaptarr metadata service provider (api2.chaptarr.com, opened 2026-08-08).
@@ -377,5 +378,58 @@ describe('regional store ids (spec-regional-pin-sibling)', () => {
 
 	test('the search cache is versioned: v1 rows carry no aliases', () => {
 		expect(new ChaptarrProvider().cacheVersion).toBe(2)
+	})
+})
+
+describe('the snake_case wire (spec-chaptarr-wire-drift)', () => {
+	/**
+	 * The 2026-08-08 fixture above is camelCase (providerIdsAll, formatType,
+	 * language); the service has since renamed them (provider_ids_all + asins,
+	 * format, languageCode) and dropped description. This is a TRIMMED LIVE
+	 * CAPTURE of /api/v5/work/hc:427736 from 2026-09-25: Ninth House's English
+	 * audiobook (own asin B07LH8GF23, twelve store ids incl. audible.com's
+	 * B07LHB5ZJ6), its German audiobook (deu), and an ebook.
+	 */
+	const live = liveFixture as unknown as ChaptarrWorkResponse
+	const english = live.editions!.find((e) => e.asin === 'B07LH8GF23')!
+
+	test('a variant id resolves through provider_ids_all', () => {
+		expect(editionForAsin(live.editions, 'B07LHB5ZJ6')?.asin).toBe('B07LH8GF23')
+	})
+
+	test('...and through the flat asins list alone', () => {
+		const flatOnly = [{ ...english, provider_ids_all: undefined }]
+		expect(editionForAsin(flatOnly, 'B07LHB5ZJ6')?.asin).toBe('B07LH8GF23')
+	})
+
+	test('`format` alone marks an audiobook (no formatType, no readingFormatId)', () => {
+		const bare = [{ ...english, readingFormatId: undefined, format: 'audiobook' }]
+		expect(editionForAsin(bare, 'B07LH8GF23')?.asin).toBe('B07LH8GF23')
+		const ebook = [{ ...english, readingFormatId: undefined, format: 'ebook' }]
+		expect(editionForAsin(ebook, 'B07LH8GF23')).toBeNull()
+	})
+
+	test('the rescue of a VARIANT id serves the recording (it answered 404)', async () => {
+		const p = provider({ works: { 'az:B07LHB5ZJ6': live } })
+		const book = await p.fetchBookByAsin('B07LHB5ZJ6', OPTS)
+		expect(book?.asin).toBe('B07LHB5ZJ6')
+		expect(book?.title).toBe('Ninth House')
+		const c = await p.fetchCandidateByAsin('B07LHB5ZJ6', OPTS)
+		expect(c?.audioSeconds).toBe(58_920)
+		expect(c?.asinAliases).toContain('B07LH8GF23')
+		expect(c?.asinAliases).not.toContain('B07LHB5ZJ6')
+	})
+
+	test('languageCode is read: eng -> en, deu -> de, on rows and served records', async () => {
+		const p = provider({
+			matches: [{ work_id: 'hc:427736' }],
+			works: { 'hc:427736': live, 'az:B07LH8GF23': live }
+		})
+		const rows = await p.search({ title: 'Ninth House', author: 'Leigh Bardugo', region: 'us' })
+		expect(Object.fromEntries(rows.map((r) => [r.asin, r.language]))).toEqual({
+			B07LH8GF23: 'en',
+			B084NW2C1F: 'de'
+		})
+		expect((await p.fetchBookByAsin('B07LH8GF23', OPTS))?.language).toBe('en')
 	})
 })

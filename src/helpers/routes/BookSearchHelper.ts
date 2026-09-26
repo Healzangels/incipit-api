@@ -194,6 +194,37 @@ function narratorsAgree(a: ProviderCandidate, b: ProviderCandidate): boolean {
 }
 
 /**
+ * The store listing, in `pool`, of the SAME RECORDING as `namer`: an Audible row
+ * whose asin is one of namer's other store ids (its edition's regional ASINs),
+ * with runtimes inside provider rounding and narrators that do not disagree.
+ * Closest runtime first, then the smaller id, so the answer is a function of the
+ * candidate set. Shared by the regional-pin transfer (R1) and the pinned-edition
+ * injection, which must agree on what "already here" means.
+ * @param {ProviderCandidate} namer a row that knows its edition's store ids
+ * @param {ProviderCandidate[]} pool the candidates to look in
+ * @param {number} epsilon provider rounding, in seconds
+ * @returns {{ asin: string; gap: number } | null} the sibling, or null
+ */
+function storeSibling(
+	namer: ProviderCandidate,
+	pool: ProviderCandidate[],
+	epsilon: number
+): { asin: string; gap: number } | null {
+	const aliases = namer.asinAliases
+	if (!aliases?.length || namer.audioSeconds == null) return null
+	let best: { asin: string; gap: number } | null = null
+	for (const c of pool) {
+		const id = c.asin?.toUpperCase()
+		if (c.provider !== STORE_PROVIDER || !id || !aliases.includes(id) || c.audioSeconds == null)
+			continue
+		const gap = Math.abs(c.audioSeconds - namer.audioSeconds)
+		if (gap > epsilon || !narratorsAgree(namer, c)) continue
+		if (!best || gap < best.gap || (gap === best.gap && id < best.asin)) best = { asin: id, gap }
+	}
+	return best
+}
+
+/**
  * `asinAliases` is matching evidence, not payload: the search response ships
  * without it (a chaptarr row can carry a dozen regional ids).
  * @param {ScoredCandidate} c a ranked candidate
@@ -980,16 +1011,12 @@ export default class BookSearchHelper {
 		for (const namer of pool) {
 			if (namer.provider === BookSearchHelper.PINNED_PROVIDER) continue
 			if (namer.asin?.toUpperCase() !== asin) continue
-			const aliases = namer.asinAliases
-			if (!aliases?.length || namer.audioSeconds == null) continue
-			for (const c of pool) {
-				const id = c.asin?.toUpperCase()
-				if (!isStore(c) || !id || !aliases.includes(id) || c.audioSeconds == null) continue
-				const gap = Math.abs(c.audioSeconds - namer.audioSeconds)
-				if (gap > epsilon || !narratorsAgree(namer, c)) continue
-				if (!best || gap < best.gap || (gap === best.gap && id < best.asin))
-					best = { asin: id, gap }
-			}
+			const sibling = storeSibling(namer, pool, epsilon)
+			if (
+				sibling &&
+				(!best || sibling.gap < best.gap || (sibling.gap === best.gap && sibling.asin < best.asin))
+			)
+				best = sibling
 		}
 		if (!best) return asin
 		this.pinPromotedToSibling = true
@@ -1085,6 +1112,23 @@ export default class BookSearchHelper {
 					// MISS so the loop proceeds to the next identifier.
 					this.logger?.debug({ asin: id }, 'book search: pinned id resolved to nothing usable')
 					continue
+				}
+				// A regional id of a recording ALREADY in the pool under its store
+				// listing is not injected. The injected row carries the rescuing
+				// provider's to-the-second runtime, so on merits it can edge out the
+				// same recording's whole-minute store row -- re-matching the book to
+				// an id no store sells, the class spec-regional-pin-sibling fixed.
+				// This only became reachable when the variant rescue started resolving
+				// again (spec-chaptarr-wire-drift). The pin stays unheld, exactly as
+				// when the rescue found nothing: the store row competes on merits, and
+				// no privilege is minted from a fetch (see promoteRegionalPinToSibling).
+				const present = storeSibling(found, pool, durationTieEpsilonSeconds())
+				if (present) {
+					this.logger?.info(
+						{ asin: id, storeListing: present.asin },
+						'book search: the pinned id is a regional listing of a recording already here; not injecting'
+					)
+					return pool
 				}
 				this.logger?.info(
 					{ asin: id, title: found.title },

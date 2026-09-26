@@ -111,10 +111,26 @@ describe('a regional pin moves to its store listing', () => {
 		// the Chaptarr rescue, aliases and all. That row holds no pin privilege by
 		// design (isPinned excludes it), and moving the pin off it would CREATE a
 		// 1.0: measured on Midnight Tides, a 0.777 merits row of a recording 9% off
-		// the file became a pinned 1.0 in the first cut.
+		// the file became a pinned 1.0 in the first cut. The store listing arrives
+		// only with the track-title widening -- the album pass injects the rescued
+		// row, the merged pool then holds both, and that is the one shape in which
+		// R1 can meet an injected namer (the injection itself stands down when the
+		// store listing is already in the album pool).
 		const rescued = row({ ...chaptarrRow })
-		const ranked = await helperFor([storeRow], {}, { [REGIONAL]: rescued }).search()
+		const registry = {
+			searchAll: async (q: { title: string }) => (q.title === 'Ninth House' ? [storeRow] : []),
+			fetchCandidateByAsin: async (id: string) => (id === REGIONAL ? rescued : null)
+		} as unknown as ProviderRegistry
+		const ranked = await new BookSearchHelper(registry, {
+			title: '16 Ninth House',
+			trackTitle: 'Ninth House',
+			author: 'Leigh Bardugo',
+			region: 'us',
+			duration: FILE_MS,
+			asin: REGIONAL
+		} as never).search()
 		expect(ranked.some((c) => c.provider === 'pinned')).toBe(true)
+		expect(decision().widened).toBe(true)
 		expect(decision().pinPromotedToSibling).toBe(false)
 	})
 
@@ -322,5 +338,35 @@ describe('a regional pin moves to its store listing', () => {
 		const ranked = await helperFor([storeRow, separate], { asin: undefined }).search()
 		expect(ranked.some((c) => c.provider === 'chaptarr')).toBe(true)
 		for (const c of ranked) expect('asinAliases' in c).toBe(false)
+	})
+})
+
+describe('the pinned-edition injection stands down for a recording already here (spec-chaptarr-wire-drift)', () => {
+	beforeEach(() => resetMatchMetrics())
+
+	test('its store listing is in the pool: nothing injected, the store row wins on its merits', async () => {
+		// Royal Assassin's shape once the variant rescue resolves again: the
+		// sidecar names a regional id, the rescue returns the recording with its
+		// to-the-second runtime -- which, injected, can out-rank the same
+		// recording's whole-minute store row on closest runtime.
+		const rescued = row({ ...chaptarrRow })
+		const ranked = await helperFor([storeRow], {}, { [REGIONAL]: rescued }).search()
+		expect(ranked.some((c) => c.provider === 'pinned')).toBe(false)
+		expect(ranked[0]?.asin).toBe(STORE)
+		// No privilege is minted from the fetch: the store row is not pinned.
+		expect(decision().asinPinned).toBe(false)
+	})
+
+	test('a store row of a DIFFERENT recording does not stand the injection down', async () => {
+		const rescued = row({ ...chaptarrRow })
+		const other = row({ ...storeRow, audioSeconds: 58_920 + 91 })
+		const ranked = await helperFor([other], {}, { [REGIONAL]: rescued }).search()
+		expect(ranked.some((c) => c.provider === 'pinned')).toBe(true)
+	})
+
+	test('a rescued row that lists no store ids is injected as before', async () => {
+		const rescued = row({ ...chaptarrRow, asinAliases: undefined })
+		const ranked = await helperFor([storeRow], {}, { [REGIONAL]: rescued }).search()
+		expect(ranked.some((c) => c.provider === 'pinned')).toBe(true)
 	})
 })
