@@ -582,3 +582,35 @@ story 1214700 in the top five (today it is hit 2), so its prod shelf is NOT to b
 refreshed until that defect has its own fix. (A live library arm was started and
 abandoned: after the corpus burst the mirror's /search slowed to ~2 s a request,
 and the same-data replay answers the question better.)
+
+## 13. K1: a bare initial is dotted in the search query (2026-09-25)
+
+**Found by the regional re-match waves.** 13 T. E. Kinsey albums were held back by the
+re-match shelf guard: on their sellable Audible listing the API served Audible's series name,
+"A Lady Hardcastle Mystery", while the shelf -- from Chaptarr-served records -- said "Lady
+Hardcastle Mysteries". The Goodreads authority never engaged for this author: the mirror's
+`/search` returns ZERO hits for "A Quiet Life in the Country T E Kinsey" and the right work
+(42913434, "Lady Hardcastle Mysteries" 169730) for "T. E. Kinsey", "T.E. Kinsey", "TE Kinsey"
+or plain "Kinsey". A lookup with no hit returns the book unchanged and says nothing, so each
+record kept its provider's name -- one shelf, two spellings, split by whichever listing a book
+happened to be matched to.
+
+**Rule.** `queryAuthor` dots a bare single-letter initial ("T E Kinsey" -> "T. E. Kinsey") in
+the text sent to `/search` -- the title lookup and the author-portrait lookup alike. QUERY ONLY:
+the author gate already treats "T E Kinsey" and "T.E. Kinsey" as one person (isSameAuthor; a
+different Kinsey is still refused), and the cache key keeps the provider's spelling.
+
+**Sizing.** 2 of 221 library authors carry a bare initial (T E Kinsey, Duncan M Hamilton); of
+38 with dotted initials none misses on the full name. Only Kinsey missed. Among the 1,313
+current Audible records, Erin M Evans and Michael J Sullivan are also spelled bare.
+
+**A/B, same data** (`.cache/samedata/k1.test.ts`): nightly's resolver (877b369) vs K1 over the
+1,313 library records plus the 13 Kinsey albums' sellable Audible records, on the library
+recording, with any URL it lacked fetched once and shared by both arms (A 26, B 29 live).
+**13 movers, all the Kinsey rows**: "A Lady Hardcastle Mystery #N" -> "Lady Hardcastle
+Mysteries #N", positions intact (1-12 and 3.5). **Library: 0 movers**, Erin M Evans's two
+books included (same Books of the Usurper #1/#2 under the dotted query). Mutation: 4/4 killed
+(`.cache/mutateK1.py`).
+
+**After deploy:** re-match the 13 onto their sellable listings -- the shelf guard should now
+pass, since the listing's served series becomes the shelf's own name.

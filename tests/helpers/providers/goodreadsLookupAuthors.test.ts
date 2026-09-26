@@ -14,8 +14,13 @@ process.env.GOODREADS_MIN_GAP_MS = '0'
 const fetchMock = mock()
 mock.module('#helpers/utils/fetchPlus', () => ({ default: fetchMock }))
 
-const { lookupAuthors, withGoodreadsSeries, resetGoodreadsThrottle } =
-	await import('#helpers/providers/goodreadsSeries')
+const {
+	lookupAuthors,
+	withGoodreadsSeries,
+	resetGoodreadsThrottle,
+	queryAuthor,
+	fetchGoodreadsAuthorInfo
+} = await import('#helpers/providers/goodreadsSeries')
 
 function respond(...bodies: unknown[]) {
 	fetchMock.mockReset()
@@ -229,5 +234,69 @@ describe('the Goodreads lookup searches for a person', () => {
 			fakeRedis()
 		)
 		expect(searches()[0]).toContain(searchFor('Cemetery Dance Lincoln Child'))
+	})
+})
+
+// K1, 2026-09-25 (spec-shelf-titles-across-the-board section 13): the mirror's
+// /search finds NOTHING for "A Quiet Life in the Country T E Kinsey" and the
+// work for "... T. E. Kinsey" -- so every T. E. Kinsey book kept its provider's
+// series name, Chaptarr's "Lady Hardcastle Mysteries" or Audible's "A Lady
+// Hardcastle Mystery", and a re-match onto the Audible listing split the shelf.
+describe('K1: a bare initial is dotted in the search query', () => {
+	afterEach(() => {
+		fetchMock.mockReset()
+		resetGoodreadsThrottle()
+	})
+
+	it('dots bare initials and leaves every other name as it came', () => {
+		expect(queryAuthor('T E Kinsey')).toBe('T. E. Kinsey')
+		expect(queryAuthor('Duncan M Hamilton')).toBe('Duncan M. Hamilton')
+		expect(queryAuthor('J R R Tolkien')).toBe('J. R. R. Tolkien')
+		for (const name of [
+			'T.E. Kinsey',
+			'J. R. R. Tolkien',
+			'C.S. Lewis',
+			'George R. R. Martin',
+			'Brian Andrews',
+			'Malcolm X'
+		])
+			expect(queryAuthor(name)).toBe(name)
+		expect(queryAuthor(null)).toBeNull()
+	})
+
+	/** The mirror as measured: the undotted query finds nothing, the dotted one the work. */
+	function mirror() {
+		fetchMock.mockImplementation((url: string) => {
+			const u = String(url)
+			if (u.includes(searchFor('A Quiet Life in the Country T. E. Kinsey')))
+				return Promise.resolve({ data: [{ workId: 42 }] })
+			if (u.includes('/search?q=')) return Promise.resolve({ data: [] })
+			if (u.includes('/work/42'))
+				return Promise.resolve({
+					data: work('A Quiet Life in the Country', 'Lady Hardcastle Mysteries', '1', 'T.E. Kinsey')
+				})
+			return Promise.resolve({ data: null })
+		})
+	}
+
+	it("the Audible record takes Goodreads' shelf name instead of Audible's", async () => {
+		mirror()
+		const out = (await withGoodreadsSeries(
+			{
+				title: 'A Quiet Life in the Country',
+				subtitle: 'A Lady Hardcastle Mystery, Book 1',
+				authors: credits('T E Kinsey'),
+				seriesPrimary: { name: 'A Lady Hardcastle Mystery', position: '1' }
+			} as never,
+			fakeRedis()
+		)) as { seriesPrimary?: { name: string; position?: string } }
+		expect(searches()[0]).toContain(searchFor('A Quiet Life in the Country T. E. Kinsey'))
+		expect(out.seriesPrimary).toEqual({ name: 'Lady Hardcastle Mysteries', position: '1' })
+	})
+
+	it('the author portrait search is dotted the same way', async () => {
+		fetchMock.mockImplementation(() => Promise.resolve({ data: [] }))
+		await fetchGoodreadsAuthorInfo('T E Kinsey')
+		expect(searches()[0]).toContain('/search?q=' + encodeURIComponent('T. E. Kinsey'))
 	})
 })

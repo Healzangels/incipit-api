@@ -645,6 +645,30 @@ export function queryTitle(title: string): string {
 	return stripped || title
 }
 
+/**
+ * The author as the mirror's SEARCH can read it: a bare single-letter initial
+ * gets its period, "T E Kinsey" -> "T. E. Kinsey" (K1, spec-shelf-titles-across-
+ * the-board section 13).
+ *
+ * The mirror's /search returns NOTHING for "<title> T E Kinsey" and the right
+ * work for "T. E. Kinsey", "T.E. Kinsey" or plain "Kinsey" (measured
+ * 2026-09-25). A lookup with no hit keeps the provider's series silently, so
+ * every T. E. Kinsey book kept whatever its provider called the series:
+ * Chaptarr's "Lady Hardcastle Mysteries" on some, Audible's "A Lady Hardcastle
+ * Mystery" on others -- a shelf split waiting for the next re-match.
+ *
+ * QUERY ONLY. The author gate already matches "T E Kinsey" to "T.E. Kinsey"
+ * (isSameAuthor), and the cache key keeps the name as the provider wrote it,
+ * so nothing but the text sent to /search changes. Sized over the library: 2
+ * of 221 authors carry a bare initial, and only one of them missed.
+ * @param {string | null} name the person to search for
+ * @returns {string | null} the same name with each bare initial dotted
+ */
+export function queryAuthor(name: string | null): string | null {
+	if (!name) return name
+	return name.replace(/(^|\s)([A-Za-z])(?=\s)/g, '$1$2.')
+}
+
 const SERIES_SUB_HEADING = /sub-?series\s*:?/i
 
 // SCRIPT ONLY -- deliberately not diacritics and not function words.
@@ -2359,7 +2383,7 @@ async function lookupByTitle(
 	// about which volume this is.
 	// S1 hands its listing members in directly: no search, just the verify loop.
 	const listing = opts.listing
-	const q = encodeURIComponent([queryTitle(title), author].filter(Boolean).join(' '))
+	const q = encodeURIComponent([queryTitle(title), queryAuthor(author)].filter(Boolean).join(' '))
 	const hits: Candidate[] | null =
 		listing ?? (await getJson<SearchHit[]>(`/search?q=${q}`, state, logger))
 	if (!Array.isArray(hits) || hits.length === 0) return null
@@ -2964,7 +2988,11 @@ export async function fetchGoodreadsAuthorInfo(
 ): Promise<{ image: string | null; bio: string | null }> {
 	if (!name.trim()) return { image: null, bio: null }
 
-	const hits = await getJson<SearchHit[]>(`/search?q=${encodeURIComponent(name)}`, state, logger)
+	const hits = await getJson<SearchHit[]>(
+		`/search?q=${encodeURIComponent(queryAuthor(name) ?? name)}`,
+		state,
+		logger
+	)
 	if (!hits?.length) return { image: null, bio: null }
 
 	// Distinct author ids from the top hits, in relevance order.
