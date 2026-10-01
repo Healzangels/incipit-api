@@ -30,9 +30,15 @@ USAGE (run on the box that holds the media files)
     Needs mutagen:  pip3 install mutagen
 
 AFTER APPLYING
-    Rescan the affected folders in Plex (Scan Library Files). The scanner
-    re-reads the tags and re-parents the albums; cover.jpg files on disk are
-    untouched and re-serve via prefer_local, so posters survive the move.
+    A scan alone does NOT move an album Plex has already filed. Measured
+    2026-09-30 on an untagged file under "[Unknown Artist]": after --apply and a
+    folder scan, Plex re-read the file (new part size and timestamp) and kept
+    it under the old artist. Plex fixes membership the first time it sees a
+    track. So: move the book's folder OUT of the library root, Scan Library
+    Files (auto-empty-trash drops the old row), move it back, scan again; it
+    comes back as a new album under the tagged artist and re-matches. Retag
+    BEFORE a book's first scan and none of this is needed. cover.jpg files on
+    disk are untouched and re-serve via prefer_local.
 """
 
 import argparse
