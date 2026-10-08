@@ -111,3 +111,38 @@ Fantastic / Ruin and Rising, German Origin and Red Rising, Italian Fourth Wing,
 Dutch L.A. Confidential — several of which had ranked at 1.000 as "unknown".
 
 Mutation: 31/31 killed (`.cache/mutateWireDrift.py`).
+
+## 7. A zero runtime means "unknown" (2026-10-07, branch `chaptarr-zero-runtime`)
+
+Found in the 2026-10-07 code review. The wire says `durationSeconds: 0` when it does not
+know an edition's length: 5,426 of the 7,495 audiobook editions in the 2026-09-26 search
+recordings, 208 of them with an asin and so emitted as candidates. `candidateFrom` passed
+the 0 through as a length, while the duration oracle and the chapter reader already read
+0 as absent.
+
+**What it broke.** dedupe groups rows that share a title, lead author and rounded-minute
+bucket, so every zero-runtime row landed in bucket 0. Two zero-runtime chaptarr rows of
+DIFFERENT recordings therefore joined their recordings' groups (each row also shares
+its asin with that recording's store listing), and one recording vanished from the
+results, Fix Match included. Reproduced with two narrators, each with an Audible listing
+and a chaptarr row: one result instead of two.
+
+**The change.** `audioSeconds` is null unless `durationSeconds > 0`. The provider's cache
+version goes 2 -> 3, because a cached v2 row still says 0 and prod's Redis would serve it
+for 7 days. Audible (1,344 runtimes, all positive) and OverDrive (2,540, and its parser
+already skips 0) emit no zeros, so the source fix is the whole fix.
+
+**Same-data A/B.** Arm A `2659572` (nightly) and arm B this branch, both replaying the
+2026-09-26 recordings (759 albums, 4,562 exchanges, 0 misses, 0 left over in either arm):
+
+| | albums |
+|---|---|
+| result list grew (rows dedupe had merged away) | 18, +34 rows |
+| rows lost | 0 |
+| #1 changed | 1: Sphere Of Influence, from a merged row (an ISBN record's id wearing another edition's narrator) to the B0 audiobook listing narrated by Michael Kramer |
+| top three changed below an unchanged #1 | 11 (regained editions entering the list) |
+| unchanged #1 whose confidence or narrators changed | 0 of 753 |
+
+The regained rows are real editions the merge hid, several with their own narrators
+(Dragonflight's Adrienne Barbeau, Fade's Robertson Dean, The Lion, the Witch and the
+Wardrobe's Michael York). Mutation: 4/4 killed (`.cache/mutateZeroRuntime.py`).
