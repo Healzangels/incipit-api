@@ -27,6 +27,9 @@ import getErrorMessage from '#helpers/utils/getErrorMessage'
 // replays the old payload and the fix is invisible on every already-cached
 // title while every test stays green. Scorer changes need no bump -- scoring
 // runs after the cache -- but provider-payload changes always do.
+// For ONE provider's shape, bump that provider's `cacheVersion` instead
+// (ProviderRegistry keys entries by name + version, as Chaptarr does): this
+// prefix retires EVERY provider's week of entries, rate-limited ones included.
 const KEY_PREFIX = 'incipit:psearch:v2'
 // Book metadata rarely changes; a week keeps the rate-limited providers cheap.
 const DEFAULT_TTL_SECONDS = 604800

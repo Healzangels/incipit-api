@@ -43,6 +43,10 @@ import xml.etree.ElementTree as ET
 from urllib.request import urlopen
 
 PREFS_CANDIDATES = (
+    # Prod (.98): the Plex data dir is /mnt/plex/pms on the host (Plug-ins/ sits
+    # directly under it, beside Preferences.xml). FIRST, so a stale appdata copy
+    # on that box can never hand over the wrong token.
+    '/mnt/plex/pms/Preferences.xml',
     '/mnt/user/appdata/plex/Preferences.xml',
     '/Volumes/appdata/plex/Preferences.xml',
     '/mnt/user/appdata/plex/Library/Application Support/Plex Media Server/Preferences.xml',
@@ -120,6 +124,35 @@ def folder_author(path, roots):
     return None
 
 
+# What retag_author.py edits: it refuses anything else.
+RETAGGABLE = ('.m4b', '.m4a')
+
+
+def fix_line(author, files):
+    """The retag_author.py dry run for an album, or why there is none.
+
+    Every file, not the first one: retag_author.py edits exactly the files it is
+    given, so a multi-file album needs them all. An album in ONE folder gets that
+    folder's files as a glob; anything else gets the full list.
+    """
+    if not files:
+        return 'no files -- nothing to retag'
+    if not author:
+        return 'no author folder under the library root -- retag by hand'
+    if not all(f.lower().endswith(RETAGGABLE) for f in files):
+        return 'retag by hand: retag_author.py edits .m4b/.m4a only'
+    if len(files) == 1:
+        target = '"%s"' % files[0]
+    else:
+        folders = {os.path.dirname(f) for f in files}
+        exts = {os.path.splitext(f)[1] for f in files}
+        if len(folders) == 1 and len(exts) == 1:
+            target = '"%s"/*%s' % (folders.pop(), exts.pop())
+        else:
+            target = ' '.join('"%s"' % f for f in files)
+    return 'retag_author.py --artist "%s" %s' % (author, target)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -166,11 +199,7 @@ def main():
                     print('    file   %s' % f)
                 if len(files) > 3:
                     print('    ...    %d more' % (len(files) - 3))
-                if author and files:
-                    print('    fix    retag_author.py --artist "%s" "%s"%s' % (
-                        author, files[0], ' ...' if len(files) > 1 else ''))
-                else:
-                    print('    fix    no author folder under the library root -- retag by hand')
+                print('    fix    %s' % fix_line(author, files))
     print('== %d album(s) under unmatched artists' % found)
     sys.exit(1 if found else 0)
 

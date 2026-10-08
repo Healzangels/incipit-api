@@ -214,17 +214,28 @@ export function titleExtendsQuery(
 const STORE_PROVIDER = 'audible'
 
 /**
+ * A narrator name folded for comparison: lowercase, letters and digits only, so
+ * case, spacing and punctuation never decide a match. The ONE definition, shared
+ * by narratorsAgree and the comparator's narrator arms -- two copies of the same
+ * regex were one edit away from disagreeing about who reads a book.
+ * @param {string} s a narrator credit
+ * @returns {string} its comparison key
+ */
+function narratorKey(s: string): string {
+	return s.toLowerCase().replace(/[^a-z0-9]+/g, '')
+}
+
+/**
  * False only when both rows name narrators and share none: then they are not
- * one recording, whatever an edition record groups together. Normalised the way
- * the comparator's narrator arm normalises (case, spacing, punctuation).
+ * one recording, whatever an edition record groups together. Keys from
+ * narratorKey, as the comparator's narrator arms use.
  * @param {ProviderCandidate} a one row
  * @param {ProviderCandidate} b the other
  * @returns {boolean} whether the narrators allow "same recording"
  */
 function narratorsAgree(a: ProviderCandidate, b: ProviderCandidate): boolean {
-	const key = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '')
-	const left = new Set(a.narrators.map(key).filter(Boolean))
-	const right = b.narrators.map(key).filter(Boolean)
+	const left = new Set(a.narrators.map(narratorKey).filter(Boolean))
+	const right = b.narrators.map(narratorKey).filter(Boolean)
 	if (!left.size || !right.length) return true
 	return right.some((k) => left.has(k))
 }
@@ -1253,7 +1264,6 @@ export default class BookSearchHelper {
 		// Split on commas and ampersands because a sidecar credits a cast as one
 		// string ("Stephen Fry & full cast") while providers list members
 		// separately -- matching ANY name is the useful test.
-		const narratorKey = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '')
 		const wantNarratorKeys = (this.options.narrator ?? '')
 			.split(/[,&]/)
 			.map((n) => narratorKey(n))
