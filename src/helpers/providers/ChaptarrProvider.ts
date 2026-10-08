@@ -407,7 +407,14 @@ function candidateFrom(
 			.map((a) => a.name ?? '')
 			.filter((n): n is string => n.length > 0),
 		narrators: (e.narratorNames ?? []).filter((n) => !!n),
-		audioSeconds: typeof e.durationSeconds === 'number' ? e.durationSeconds : null,
+		// 0 is the wire's "unknown", not a length: 5,426 of 7,495 audiobook
+		// editions in the 2026-09-26 search recordings say 0. Passed through, every
+		// such row shared dedupe's minute bucket 0, so two zero-runtime rows of
+		// DIFFERENT recordings bridged their recordings into one group and one of
+		// them vanished from the results. The duration oracle and the chapter
+		// reader already read 0 as absent; so does this.
+		audioSeconds:
+			typeof e.durationSeconds === 'number' && e.durationSeconds > 0 ? e.durationSeconds : null,
 		// NO work-cover fallback. The work cover is the PRINT jacket, and this
 		// row carries audioSeconds — which is exactly what dedupe's isAudioArt
 		// accepts as proof of audiobook art, so the jacket would be admitted
@@ -470,9 +477,10 @@ const MAX_CANDIDATES = 6
 
 export default class ChaptarrProvider implements BookProvider {
 	readonly name = 'chaptarr'
-	// 2: candidates carry asinAliases, which the regional-pin promotion reads. A
-	// cached v1 row has none, and prod's Redis would serve those for 7 days.
-	readonly cacheVersion = 2
+	// The shape of a cached search row; prod's Redis serves an entry for 7 days.
+	// 2: candidates carry asinAliases, which the regional-pin promotion reads.
+	// 3: an unknown runtime is null, not 0 -- a cached v2 row still says 0.
+	readonly cacheVersion = 3
 	private matchFetch: ChaptarrMatchFetch
 	private workFetch: ChaptarrWorkFetch
 

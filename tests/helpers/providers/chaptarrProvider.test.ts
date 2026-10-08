@@ -6,7 +6,8 @@ import ChaptarrProvider, {
 	editionStoreIds,
 	workRouteFor
 } from '#helpers/providers/ChaptarrProvider'
-import type { FetchBookOptions } from '#helpers/providers/types'
+import { dedupeCandidates } from '#helpers/providers/dedupe'
+import type { FetchBookOptions, ScoredCandidate } from '#helpers/providers/types'
 import fixture from '#tests/fixtures/chaptarr-work-annihilation.json'
 import liveFixture from '#tests/fixtures/chaptarr-work-ninth-house-live.json'
 
@@ -382,8 +383,10 @@ describe('regional store ids (spec-regional-pin-sibling)', () => {
 		expect(c.asinAliases).toBeUndefined()
 	})
 
-	test('the search cache is versioned: v1 rows carry no aliases', () => {
-		expect(new ChaptarrProvider().cacheVersion).toBe(2)
+	test('the search cache is versioned past every shape a cached row may still hold', () => {
+		// v1 rows carry no asinAliases; v2 rows say 0 for an unknown runtime. Either,
+		// served from prod's 7-day cache, would undo the fix it predates.
+		expect(new ChaptarrProvider().cacheVersion).toBeGreaterThanOrEqual(3)
 	})
 })
 
@@ -438,5 +441,84 @@ describe('the snake_case wire (spec-chaptarr-wire-drift)', () => {
 			B084NW2C1F: 'de'
 		})
 		expect((await p.fetchBookByAsin('B07LH8GF23', OPTS))?.language).toBe('en')
+	})
+})
+
+describe('an unknown runtime (durationSeconds 0)', () => {
+	/**
+	 * The wire says 0 when it does not know an edition's length: 5,426 of the
+	 * 7,495 audiobook editions in the 2026-09-26 search recordings. Read as a
+	 * length, every such row shared dedupe's minute bucket 0, so two of them --
+	 * different recordings -- bridged their recordings' groups and one recording
+	 * vanished from the results, Fix Match included (reproduced 2026-10-07).
+	 */
+	const edition = (asin: string, narrator: string, durationSeconds: number) => ({
+		...work.editions![0],
+		asin,
+		narratorNames: [narrator],
+		durationSeconds,
+		providerIdsAll: undefined
+	})
+	const withEditions = (...editions: ReturnType<typeof edition>[]): ChaptarrWorkResponse => ({
+		...work,
+		editions
+	})
+	const QUERY = { title: 'Annihilation', author: 'Jeff VanderMeer', region: 'us' }
+
+	test('a zero runtime reads as unknown; a real one is kept', async () => {
+		const p = provider({
+			matches: [{ work_id: 'hc:1' }],
+			works: {
+				'hc:1': withEditions(
+					edition('B0XNARR001', 'Narrator One', 0),
+					edition('B0YNARR002', 'Narrator Two', 22260)
+				)
+			}
+		})
+		const out = await p.search(QUERY)
+		expect(out.map((c) => [c.asin, c.audioSeconds])).toEqual([
+			['B0XNARR001', null],
+			['B0YNARR002', 22260]
+		])
+	})
+
+	test('the injection path reads it the same way', async () => {
+		const p = provider({
+			works: { 'az:B0XNARR001': withEditions(edition('B0XNARR001', 'Narrator One', 0)) }
+		})
+		const c = await p.fetchCandidateByAsin('B0XNARR001', OPTS)
+		expect(c?.asin).toBe('B0XNARR001')
+		expect(c?.audioSeconds).toBeNull()
+	})
+
+	test('two recordings whose chaptarr rows both say 0 stay two results', async () => {
+		const p = provider({
+			matches: [{ work_id: 'hc:1' }],
+			works: {
+				'hc:1': withEditions(
+					edition('B0XNARR001', 'Narrator One', 0),
+					edition('B0YNARR002', 'Narrator Two', 0)
+				)
+			}
+		})
+		const chaptarr = await p.search(QUERY)
+		const audible = (asin: string, narrator: string, audioSeconds: number) => ({
+			provider: 'audible',
+			id: asin,
+			asin,
+			title: 'Annihilation',
+			authors: ['Jeff VanderMeer'],
+			narrators: [narrator],
+			audioSeconds,
+			cover: `${asin}.jpg`,
+			language: 'en'
+		})
+		const pool = [
+			audible('B0XNARR001', 'Narrator One', 36_000),
+			audible('B0YNARR002', 'Narrator Two', 39_000),
+			...chaptarr
+		].map((c) => ({ ...c, confidence: 0.85, durationDeltaPct: null }) as ScoredCandidate)
+		const out = dedupeCandidates(pool, null, new Set(), new Set())
+		expect(out.map((c) => c.asin).sort()).toEqual(['B0XNARR001', 'B0YNARR002'])
 	})
 })
