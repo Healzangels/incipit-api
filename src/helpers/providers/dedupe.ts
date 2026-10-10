@@ -1,5 +1,5 @@
 import { coverAsset } from '#helpers/providers/nearTieCovers'
-import type { ScoredCandidate } from '#helpers/providers/types'
+import type { ProviderCandidate, ScoredCandidate } from '#helpers/providers/types'
 import { normalizeLanguage } from '#helpers/utils/language'
 
 /**
@@ -61,14 +61,27 @@ export function byCandidateIdentity(a: ScoredCandidate, b: ScoredCandidate): num
 function dedupeKeys(c: ScoredCandidate): string[] {
 	const keys: string[] = []
 	if (c.asin) keys.push(`asin:${c.asin.toUpperCase()}`)
-	const title = normKey(c.title)
-	const author = normKey(c.authors[0] ?? '')
-	if (c.audioSeconds != null) {
-		keys.push(`dur:${title}|${author}|${Math.round(c.audioSeconds / 60)}`)
+	const recording = recordingKey(c)
+	if (recording) {
+		keys.push(recording)
 	} else if (!c.asin) {
-		keys.push(`book:${title}|${author}`)
+		keys.push(`book:${normKey(c.title)}|${normKey(c.authors[0] ?? '')}`)
 	}
 	return keys
+}
+
+/**
+ * The `dur:` identity dedupe merges on: title, lead author and runtime to the
+ * minute -- the same audiobook, whatever store id it carries. Null without a
+ * runtime. Exported so a caller asking "is this the same recording?" asks it
+ * exactly as dedupe does (BookSearchHelper's regional-pin transfer), rather than
+ * keeping a lookalike that drifts.
+ * @param {ProviderCandidate} c the candidate
+ * @returns {string | null} the recording key, or null when the row has no runtime
+ */
+export function recordingKey(c: ProviderCandidate): string | null {
+	if (c.audioSeconds == null) return null
+	return `dur:${normKey(c.title)}|${normKey(c.authors[0] ?? '')}|${Math.round(c.audioSeconds / 60)}`
 }
 
 /** How much usable data a candidate carries — the tie-breaker within a group. */

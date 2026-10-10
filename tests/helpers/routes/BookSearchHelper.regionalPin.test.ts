@@ -165,8 +165,16 @@ describe('a regional pin moves to its store listing', () => {
 		expect(decision().pinPromotedToSibling).toBe(false)
 	})
 
-	test("an Audible row outside the edition's ids is not a sibling: refused", async () => {
-		const unrelated = row({ ...storeRow, id: 'B0NOTALIAS', asin: 'B0NOTALIAS' })
+	test("an Audible row outside the edition's ids, a minute away, is not a sibling: refused", async () => {
+		// Inside provider rounding (60s) and the same narrators, but not one of the
+		// edition's ids and not dedupe's twin either (a different minute bucket):
+		// nothing says it is the same recording.
+		const unrelated = row({
+			...storeRow,
+			id: 'B0NOTALIAS',
+			asin: 'B0NOTALIAS',
+			audioSeconds: 58_920 + 60
+		})
 		await helperFor([unrelated, chaptarrRow]).search()
 		expect(decision().pinPromotedToSibling).toBe(false)
 	})
@@ -364,9 +372,127 @@ describe('the pinned-edition injection stands down for a recording already here 
 		expect(ranked.some((c) => c.provider === 'pinned')).toBe(true)
 	})
 
-	test('a rescued row that lists no store ids is injected as before', async () => {
+	test("a rescued row that lists no store ids stands down for dedupe's twin of it (R1b)", async () => {
+		// Injected, it would win the twin's dedupe group on the pin and delete the
+		// store listing -- the Book of the Dead shape, reached through the rescue.
 		const rescued = row({ ...chaptarrRow, asinAliases: undefined })
 		const ranked = await helperFor([storeRow], {}, { [REGIONAL]: rescued }).search()
+		expect(ranked.some((c) => c.provider === 'pinned')).toBe(false)
+		expect(ranked[0]?.asin).toBe(STORE)
+	})
+
+	test('a rescued row that lists no store ids and has no twin here is injected as before', async () => {
+		const rescued = row({ ...chaptarrRow, asinAliases: undefined })
+		const elsewhere = row({ ...storeRow, audioSeconds: 58_920 + 60 })
+		const ranked = await helperFor([elsewhere], {}, { [REGIONAL]: rescued }).search()
 		expect(ranked.some((c) => c.provider === 'pinned')).toBe(true)
+	})
+})
+
+describe('R1b: the store listing dedupe would merge (spec-regional-pin-sibling section 9)', () => {
+	/**
+	 * Measured 2026-10-08 on four albums the UPGRADE wave could not re-match:
+	 * Chaptarr files some unsellable ids with no other store ids (The Book of the
+	 * Dead, Starlight Enclave) and splits others into two editions with the US
+	 * listing under the other one (Drive, Hannibal Rising). The US listing had the
+	 * same title, narrator and runtime to the second, so dedupe merged it into the
+	 * pinned row's group, the pin won, and the sellable listing was DELETED from
+	 * the results -- while R1, finding it in none of the edition's ids, refused to
+	 * move the pin. 13 of the 298 regional albums.
+	 */
+	beforeEach(() => resetMatchMetrics())
+
+	test('an edition with no other ids: the pin moves onto the listing dedupe would merge', async () => {
+		const lone = row({ ...chaptarrRow, asinAliases: undefined })
+		const ranked = await helperFor([storeRow, lone]).search()
+		expect(ranked[0]?.asin).toBe(STORE)
+		expect(decision().pinPromotedToSibling).toBe(true)
+		// The privilege travelled with it: pinned-first, not a merits win.
+		expect(decision().asinPinned).toBe(true)
+	})
+
+	test("a split edition (the listing filed under the other one): dedupe's key still finds it", async () => {
+		const split = row({ ...chaptarrRow, asinAliases: ['B0SOMEOTHR', '1250230918'] })
+		const ranked = await helperFor([storeRow, split]).search()
+		expect(ranked[0]?.asin).toBe(STORE)
+		expect(decision().pinPromotedToSibling).toBe(true)
+	})
+
+	test("the edition's own ids win over dedupe's key, even at a larger gap", async () => {
+		const aliased = row({
+			...storeRow,
+			id: 'B0ALIASED1',
+			asin: 'B0ALIASED1',
+			audioSeconds: 58_920 + 50
+		})
+		const twin = row({ ...storeRow, id: 'B0DEDUPE01', asin: 'B0DEDUPE01' })
+		const namer = row({ ...chaptarrRow, asinAliases: ['B0ALIASED1'] })
+		const ranked = await helperFor([twin, aliased, namer]).search()
+		expect(ranked[0]?.asin).toBe('B0ALIASED1')
+	})
+
+	test("across two rows carrying the pin, the edition's ids still outrank dedupe's key", async () => {
+		const aliased = row({
+			...storeRow,
+			id: 'B0ALIASED1',
+			asin: 'B0ALIASED1',
+			audioSeconds: 58_920 + 50
+		})
+		const twin = row({ ...storeRow, id: 'B0DEDUPE01', asin: 'B0DEDUPE01' })
+		const chaptarrNamer = row({ ...chaptarrRow, asinAliases: ['B0ALIASED1'] })
+		const otherNamer = row({
+			...chaptarrRow,
+			provider: 'hardcover',
+			id: 'hc-1',
+			asinAliases: undefined
+		})
+		const ranked = await helperFor([twin, aliased, otherNamer, chaptarrNamer]).search()
+		expect(ranked[0]?.asin).toBe('B0ALIASED1')
+	})
+
+	test('a store row a minute away is not the same recording: refused (Sharp Ends)', async () => {
+		// Sharp Ends: the US listing is 60s longer and the file sits inside the
+		// regional recording's minute -- a different master, so the pin stays.
+		const lone = row({ ...chaptarrRow, asinAliases: undefined })
+		const longer = row({ ...storeRow, audioSeconds: 58_920 + 60 })
+		await helperFor([longer, lone]).search()
+		expect(decision().pinPromotedToSibling).toBe(false)
+	})
+
+	test('no narrator in common: refused', async () => {
+		const lone = row({ ...chaptarrRow, asinAliases: undefined })
+		const otherVoice = row({ ...storeRow, narrators: ['Someone Else'] })
+		await helperFor([otherVoice, lone]).search()
+		expect(decision().pinPromotedToSibling).toBe(false)
+	})
+
+	test("a side with no narrators: refused (dedupe's key is weaker than the edition's ids)", async () => {
+		const lone = row({ ...chaptarrRow, asinAliases: undefined })
+		const unnamed = row({ ...storeRow, narrators: [] })
+		await helperFor([unnamed, lone]).search()
+		expect(decision().pinPromotedToSibling).toBe(false)
+	})
+
+	test('a different title is a different recording: refused', async () => {
+		const lone = row({ ...chaptarrRow, asinAliases: undefined })
+		const retitled = row({ ...storeRow, title: 'Ninth House: Collector Edition' })
+		await helperFor([retitled, lone]).search()
+		expect(decision().pinPromotedToSibling).toBe(false)
+	})
+
+	test('a different lead author is a different recording: refused', async () => {
+		const lone = row({ ...chaptarrRow, asinAliases: undefined })
+		const otherAuthor = row({ ...storeRow, authors: ['Somebody Else', 'Leigh Bardugo'] })
+		await helperFor([otherAuthor, lone]).search()
+		expect(decision().pinPromotedToSibling).toBe(false)
+	})
+
+	test("an injected row still cannot vouch, even with dedupe's twin in the pool", async () => {
+		// R1 transfers a privilege a title-search row holds; the stand-down above is
+		// what keeps the rescue from deleting the listing.
+		const rescued = row({ ...chaptarrRow, asinAliases: undefined })
+		await helperFor([storeRow], {}, { [REGIONAL]: rescued }).search()
+		expect(decision().pinPromotedToSibling).toBe(false)
+		expect(decision().asinPinned).toBe(false)
 	})
 })
