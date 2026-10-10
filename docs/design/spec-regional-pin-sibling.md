@@ -193,3 +193,52 @@ check can now flag them.
 
 Mutation: 25/25 killed (`.cache/mutateRegionalPin.py`), including the injected-row
 vouch, the listed-only pin, and privilege left behind on an ISBN-shaped id.
+
+## 9. R1b: the store listing dedupe would merge (2026-10-10, branch `regional-pin-dedupe-twin`)
+
+**What R1 missed.** Four albums in the 2026-10-08 UPGRADE wave carried sidecar pins on ids
+Audible US does not sell (The Book of the Dead, Drive, Starlight Enclave, Hannibal Rising),
+and Plex's match list showed the pinned id first and the US listing nowhere. Traced on
+the deployed code: a chaptarr title-search row carries each pin as its own asin, and the
+US listing is in the pool. But R1 trusts a listing only when the pinned EDITION names it
+among its store ids, and Chaptarr does not:
+
+- two editions list no other store ids at all (The Book of the Dead, Starlight Enclave);
+- two are split: Chaptarr files the recording as two editions and the US listing sits under
+  the other one (Drive, Hannibal Rising).
+
+Meanwhile the US row has the same title, lead author, narrator and runtime to the second,
+so dedupe merged it into the pinned row's group, the pin won the group, and the sellable
+listing was DELETED from the results. Dedupe used that evidence to delete the listing while
+R1 refused to use it to move the pin. Chaptarr's data is not healing this: re-fetched
+2026-10-10, all four editions are unchanged.
+
+**The change.** `storeSibling`, shared by R1 and the injection stand-down, consults two
+kinds of evidence in order. First the edition's own store ids, as before. Then, only without
+one, the Audible row with the pinned row's `recordingKey` -- exactly the `dur:` key dedupe
+merges on (title, lead author, runtime minute; now exported from dedupe so the two can never
+drift) -- and a narrator named on both sides (stricter than R1's "do not disagree": this is
+weaker evidence than the edition's ids). Across several rows carrying the pin, the edition's
+ids still outrank dedupe's key. Nothing else changed: the privilege is still only
+transferred, never created, and an injected row still never vouches.
+
+**Same-data A/B.** Arm A `5891a07` (nightly, deployed), arm B this branch, both replaying
+the wire-drift recording (298 albums, hint = the match at the time; 1,919 exchanges) and the
+two hint-less runtime-precision batches (759 albums; 4,562 exchanges). Every replay: 0
+misses, 0 left over.
+
+| | albums |
+|---|---|
+| hint-less batches: any change | 0 of 759 |
+| R1's existing promotions | 129, unchanged |
+| new R1b promotions | 12: The Dark Mirror, The Mask Falling, Never Flinch, Wintersmith, Crowntide, A Gift of Dragons, Hell's Corner, The Hit, The Grief of Stones, Dragons and Demons, Champion of the Fallen, Ship of Magic |
+| injection stood down for dedupe's twin | 2: Deliver Us From Evil, Exodus: The Helium Sea |
+| pins created or lost (`asinPinned`) | 0 |
+| result counts changed | 0 |
+
+All 14 changed #1s moved from an id Audible US calls NOT_AVAILABLE_FOR_PURCHASE to one it
+sells (checked against the live catalogue 2026-10-10). The 12 promotions are exactly the
+sizing's "listing deleted" cases. The 13th sizing case, Sharp Ends, correctly stays: its US
+listing is a minute longer and the file sits inside the regional recording's minute.
+
+Mutation: 10/10 killed (`.cache/mutateR1b.py`).

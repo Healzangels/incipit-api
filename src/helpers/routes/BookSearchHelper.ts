@@ -1,7 +1,7 @@
 import type { FastifyBaseLogger } from 'fastify'
 
 import type { BookSearchQueryString } from '#config/types'
-import { byCandidateIdentity, dedupeCandidates } from '#helpers/providers/dedupe'
+import { byCandidateIdentity, dedupeCandidates, recordingKey } from '#helpers/providers/dedupe'
 import {
 	type CandidateScore,
 	CONFIDENCE_FLOOR,
@@ -241,34 +241,67 @@ function narratorsAgree(a: ProviderCandidate, b: ProviderCandidate): boolean {
 }
 
 /**
- * The store listing, in `pool`, of the SAME RECORDING as `namer`: an Audible row
- * whose asin is one of namer's other store ids (its edition's regional ASINs),
- * with runtimes inside provider rounding and narrators that do not disagree.
- * Closest runtime first, then the smaller id, so the answer is a function of the
- * candidate set. Shared by the regional-pin transfer (R1) and the pinned-edition
- * injection, which must agree on what "already here" means.
- * @param {ProviderCandidate} namer a row that knows its edition's store ids
+ * True when both rows name narrators and share one -- the positive form of
+ * narratorsAgree, for evidence weaker than an edition's own store ids.
+ * @param {ProviderCandidate} a one row
+ * @param {ProviderCandidate} b the other
+ * @returns {boolean} whether a narrator is named on both sides and in common
+ */
+function narratorsShared(a: ProviderCandidate, b: ProviderCandidate): boolean {
+	const left = new Set(a.narrators.map(narratorKey).filter(Boolean))
+	return b.narrators.map(narratorKey).some((k) => left.has(k))
+}
+
+/**
+ * The store listing, in `pool`, of the SAME RECORDING as `namer`. Closest runtime
+ * first, then the smaller id, so the answer is a function of the candidate set.
+ * Shared by the regional-pin transfer (R1) and the pinned-edition injection,
+ * which must agree on what "already here" means. Two kinds of evidence, in order:
+ *
+ *  - The edition says so: an Audible row whose asin is one of namer's other store
+ *    ids (its edition's regional ASINs), runtimes inside provider rounding,
+ *    narrators that do not disagree.
+ *  - Dedupe says so (R1b): an Audible row with namer's recordingKey -- the same
+ *    title, lead author and runtime minute that dedupe merges on -- and a narrator
+ *    named on both. Measured 2026-10-08: Chaptarr files some unsellable ids with
+ *    no other store ids (The Book of the Dead, Starlight Enclave), and splits
+ *    others into two editions with the US listing under the other one (Drive,
+ *    Hannibal Rising). Dedupe still merged each US listing into the pinned row's
+ *    group, where the pin won, so the sellable listing was DELETED from the
+ *    results while R1 refused to move the pin; 13 of the 298 regional albums.
+ *    This moves the pin onto exactly the listings dedupe would delete.
+ * @param {ProviderCandidate} namer a row naming the pinned edition
  * @param {ProviderCandidate[]} pool the candidates to look in
  * @param {number} epsilon provider rounding, in seconds
- * @returns {{ asin: string; gap: number } | null} the sibling, or null
+ * @returns {{ asin: string; gap: number; via: 'edition' | 'dedupe' } | null} the sibling, or null
  */
 function storeSibling(
 	namer: ProviderCandidate,
 	pool: ProviderCandidate[],
 	epsilon: number
-): { asin: string; gap: number } | null {
-	const aliases = namer.asinAliases
-	if (!aliases?.length || namer.audioSeconds == null) return null
-	let best: { asin: string; gap: number } | null = null
-	for (const c of pool) {
-		const id = c.asin?.toUpperCase()
-		if (c.provider !== STORE_PROVIDER || !id || !aliases.includes(id) || c.audioSeconds == null)
-			continue
-		const gap = Math.abs(c.audioSeconds - namer.audioSeconds)
-		if (gap > epsilon || !narratorsAgree(namer, c)) continue
-		if (!best || gap < best.gap || (gap === best.gap && id < best.asin)) best = { asin: id, gap }
+): { asin: string; gap: number; via: 'edition' | 'dedupe' } | null {
+	if (namer.audioSeconds == null) return null
+	const aliases = namer.asinAliases ?? []
+	const recording = recordingKey(namer)
+	let best: { asin: string; gap: number; via: 'edition' | 'dedupe' } | null = null
+	for (const via of ['edition', 'dedupe'] as const) {
+		for (const c of pool) {
+			const id = c.asin?.toUpperCase()
+			if (c.provider !== STORE_PROVIDER || !id || c.audioSeconds == null) continue
+			const same =
+				via === 'edition'
+					? aliases.includes(id) && narratorsAgree(namer, c)
+					: recordingKey(c) === recording && narratorsShared(namer, c)
+			if (!same) continue
+			const gap = Math.abs(c.audioSeconds - namer.audioSeconds)
+			if (gap > epsilon) continue
+			if (!best || gap < best.gap || (gap === best.gap && id < best.asin))
+				best = { asin: id, gap, via }
+		}
+		// The edition's own word first: dedupe's is only consulted without it.
+		if (best) return best
 	}
-	return best
+	return null
 }
 
 /**
@@ -1036,12 +1069,15 @@ export default class BookSearchHelper {
 	 * injected fetch-by-asin row, never an id a row merely lists. The first cut
 	 * let an injected Midnight Tides row vouch, and a recording 9% off the file
 	 * went from a merits 0.777 to a pinned 1.0 (same-data A/B, 2026-09-25).
-	 * Then: no Audible row carries the pin (else it IS a store listing here); an
-	 * Audible row carries one of the edition's other ids; and that row is the
-	 * same RECORDING -- runtimes within provider rounding, a shared narrator when
-	 * both list any. The moved pin keeps its listing privilege even when the
-	 * store id is ISBN-shaped (hasListingPrivilege). Pure: no I/O. Deterministic:
-	 * the closest runtime wins, then the smaller id.
+	 * Then: no Audible row carries the pin (else it IS a store listing here), and
+	 * an Audible row is the same RECORDING (storeSibling): one of the edition's
+	 * other ids with runtimes within provider rounding and narrators that do not
+	 * disagree -- or, when the edition names none, the row dedupe would merge with
+	 * the pinned one (R1b: same title, lead author and runtime minute, a narrator
+	 * in common). The moved pin keeps its listing privilege even when the store
+	 * id is ISBN-shaped (hasListingPrivilege). Pure: no I/O. Deterministic: the
+	 * edition's own ids before dedupe's, then the closest runtime, then the
+	 * smaller id.
 	 * @param {ProviderCandidate[]} pool the candidates about to be scored
 	 * @param {string | null} asin the current pin identity, uppercased
 	 * @returns {string | null} the pin identity to score with
@@ -1054,22 +1090,31 @@ export default class BookSearchHelper {
 		const isStore = (c: ProviderCandidate) => c.provider === STORE_PROVIDER
 		if (pool.some((c) => isStore(c) && c.asin?.toUpperCase() === asin)) return asin
 		const epsilon = durationTieEpsilonSeconds()
-		let best: { asin: string; gap: number } | null = null
+		// The edition's own ids outrank dedupe's key across namers too.
+		const order = (s: NonNullable<ReturnType<typeof storeSibling>>) => [
+			s.via === 'edition' ? 0 : 1,
+			s.gap
+		]
+		let best: ReturnType<typeof storeSibling> = null
 		for (const namer of pool) {
 			if (namer.provider === BookSearchHelper.PINNED_PROVIDER) continue
 			if (namer.asin?.toUpperCase() !== asin) continue
 			const sibling = storeSibling(namer, pool, epsilon)
-			if (
-				sibling &&
-				(!best || sibling.gap < best.gap || (sibling.gap === best.gap && sibling.asin < best.asin))
-			)
+			if (!sibling) continue
+			if (!best) {
+				best = sibling
+				continue
+			}
+			const [sv, sg] = order(sibling)
+			const [bv, bg] = order(best)
+			if (sv < bv || (sv === bv && (sg < bg || (sg === bg && sibling.asin < best.asin))))
 				best = sibling
 		}
 		if (!best) return asin
 		this.pinPromotedToSibling = true
 		this.transferredPin = best.asin
 		this.logger?.info(
-			{ asin, sibling: best.asin },
+			{ asin, sibling: best.asin, via: best.via },
 			'book search: regional pinned asin, using its store listing as the pin identity'
 		)
 		return best.asin
@@ -1172,7 +1217,7 @@ export default class BookSearchHelper {
 				const present = storeSibling(found, pool, durationTieEpsilonSeconds())
 				if (present) {
 					this.logger?.info(
-						{ asin: id, storeListing: present.asin },
+						{ asin: id, storeListing: present.asin, via: present.via },
 						'book search: the pinned id is a regional listing of a recording already here; not injecting'
 					)
 					return pool
