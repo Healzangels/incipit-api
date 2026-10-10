@@ -23,6 +23,7 @@
 		"test:integration": "bun test tests-integration",
 		"test:gate": "bun run test",
 		"test:live": "bun test --timeout 60000 tests/live",
+		"check:chaptarr": "bun scripts/chaptarrWireCheck.ts",
 		"watch-debug": "bun --watch --inspect src/server.ts",
 		"watch": "bun --watch src/server.ts",
 		"check:pins": "bun scripts/checkPinLiveness.ts",

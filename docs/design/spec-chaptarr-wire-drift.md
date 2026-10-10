@@ -146,3 +146,28 @@ already skips 0) emit no zeros, so the source fix is the whole fix.
 The regained rows are real editions the merge hid, several with their own narrators
 (Dragonflight's Adrienne Barbeau, Fade's Robertson Dean, The Lion, the Witch and the
 Wardrobe's Michael York). Mutation: 4/4 killed (`.cache/mutateZeroRuntime.py`).
+
+## 8. A daily canary (2026-10-10)
+
+Chaptarr publishes no docs, version or changelog (probed 2026-10-10: `/docs`,
+`/openapi.json`, `/api/v5/version`, `/api/v6/...` all 404), and the rename in section 1
+went unnoticed for weeks. A wire check, re-fetching 25 works and 6 editions against the
+same bodies recorded in September, found the schema unchanged since 2026-09-25, the data
+growing (+31% audiobook editions in two weeks) with flat completeness (asin 25%, runtime
+24%, narrators 72%), enrichment and the odd regression (an edition lost its runtime,
+chapters and store ids), and the R1 gap editions unchanged (spec-regional-pin-sibling
+section 9). `providerUrls.audible`, a field we never read, was always one of the edition's
+own store ids (2,342 editions, 0 outside), so it adds nothing to R1.
+
+`runChaptarrWireCheck` (src/helpers/providers/chaptarrWireCheck.ts) checks one known work,
+Ninth House, on the raw wire (naming the field that moved, in every spelling it has had)
+and through ChaptarrProvider itself (whether we still read it: runtime, narrators,
+language, the store ids naming audible.com's listing, and serving a regional id). Run it
+inside the API container, where it uses the deployed build:
+
+    docker exec incipit-api bun run check:chaptarr
+
+Exit 0 all passed, 1 drift (the output names the field), 2 unreachable (an outage, not a
+drift). `tests/live/providers/chaptarr.live.test.ts` runs the same check; its unit test
+renames each field the way the service did and asserts exactly that field's checks fail.
+Mutation: 8/8 killed (`.cache/mutateCanary.py`).
