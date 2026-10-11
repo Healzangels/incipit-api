@@ -281,6 +281,24 @@
      "B00MX3Q2BS",
      "overdrive-565194"
     ]
+   },
+   {
+    "date": "2026-10-11",
+    "what": "Operator pinned the 12 real folder-only shelves bundle v1.3.217 stops deriving (folder fallback opt-in, default off; live on prod 2026-10-11). 5 converted in place (4 CONDITIONAL on Q2, 1 SERIES without a pin), 7 added. Served 2026-10-11: 5 lose their shelf without the pin (positionless or no series); 7 were served positioned WARM and are pinned as insurance.",
+    "rows": [
+     "B0128B9MHK",
+     "1549191144",
+     "B002V5H0LE",
+     "B00I3JUZ28",
+     "1774244934",
+     "B0C2QTN5CB",
+     "B0D32JJS32",
+     "B0DS6MTT5D",
+     "B0H72K5PXX",
+     "hardcover-book-455503",
+     "B0CDCKSX7S",
+     "B0FVG4C61Z"
+    ]
    }
   ]
  },
@@ -8173,22 +8191,25 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "Q2",
-     "ifQ2_positionlessNameMayTag": "The Dresden Files as positionless tag; NO shelf prefix (stale Book 2.5 sort clears on next apply - P3 rollout note)",
-     "ifQ2_nothingWins": "NONE"
-    }
+    "outcome": "SERIES",
+    "series": "The Dresden Files",
+    "position": "2.5",
+    "expectedSortPrefix": "Dresden Files, Book 2.5 - "
    },
    "specRule": [
-    "Q2",
     "R4"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "Bigfoot novella collection: provider AND Goodreads both give The Dresden Files with NO position (secondary: Bigfoot Trilogy, also positionless). R4 forbids synthesizing 2.5 even though the folder and the stale Plex sort (\"Dresden Files, Book 2.5\") carry it.",
-   "group": "named-dresden"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-11: 'pin those 12' -- the real placements no source numbers, which bundle v1.3.217 (folder series fallback opt-in, default off; live on prod 2026-10-11) stops deriving from the folder tree. The pin restates the album's prod shelf on 2026-10-11 (titleSort + Series: mood) under the series name its siblings carry. An operator-approved pin is the sanctioned way to state a number: the system never synthesizes one (R4; spec 2026-07-30 DECISIONS). Reach measurement: docs/design/spec-shelf-titles-across-the-board.md section 11.",
+   "group": "named-dresden",
+   "note": "Was CONDITIONAL on Q2 -- decided 2026-07-30: a positionless real series is a tag with no shelf -- so with the folder fallback off a forced refresh drops this shelf. Served 2026-10-11: primary NONE, tag The Dresden Files #?. Was CONDITIONAL (pinType conditional); previous sourceOfTruth: Bigfoot novella collection: provider AND Goodreads both give The Dresden Files with NO position (secondary: Bigfoot Trilogy, also positionless). R4 forbids synthesizing 2.5 even though the folder and the stale Plex sort (\"Dresden Files, Book 2.5\") carry it.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-11 (.cache/pin12-probe.py)",
+    "incipit-api GET /books 2026-10-11 (title, subtitle, authors in stored order, served series; .cache/pin12-inputs.py)",
+    "live Audible catalogue probe 2026-10-11 (US/UK/CA/AU)"
+   ],
+   "mintPin": true
   },
   {
    "recordId": "B007KSJKI8",
@@ -9341,12 +9362,19 @@
     ]
    },
    "specRule": [
-    "R6",
-    "R5"
+    "R4"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Main-line row. Name split today (\"The Spellmonger\" vs \"Spellmonger\" on two rows) is masked by the article-stripping sort composer - any design must preserve that fold (R6).",
-   "group": "named-spellmonger"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-11: 'pin those 12' -- the real placements no source numbers, which bundle v1.3.217 (folder series fallback opt-in, default off; live on prod 2026-10-11) stops deriving from the folder tree. The pin restates the album's prod shelf on 2026-10-11 (titleSort + Series: mood) under the series name its siblings carry. An operator-approved pin is the sanctioned way to state a number: the system never synthesizes one (R4; spec 2026-07-30 DECISIONS). Reach measurement: docs/design/spec-shelf-titles-across-the-board.md section 11.",
+   "group": "named-spellmonger",
+   "note": "Served WARM 2026-10-11 as The Spellmonger #10.5, so v1.3.217 alone would not drop this shelf today; the 1.3.217 reach count listed it from an estimate. Pinned as insurance per the operator: warm serving is not behaviour (the Elderlings lesson, 2026-08-18), and a degraded mirror or a cold recompute must not cost an operator-approved shelf. Was SERIES (pinType current-correct-default); previous sourceOfTruth: Main-line row. Name split today (\"The Spellmonger\" vs \"Spellmonger\" on two rows) is masked by the article-stripping sort composer - any design must preserve that fold (R6).",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-11 (.cache/pin12-probe.py)",
+    "incipit-api GET /books 2026-10-11 (title, subtitle, authors in stored order, served series; .cache/pin12-inputs.py)",
+    "live Audible catalogue probe 2026-10-11 (US/UK/CA/AU)"
+   ],
+   "mintPin": true
   },
   {
    "recordId": "1774243326",
@@ -10277,22 +10305,25 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "Q2",
-     "ifQ2_positionlessNameMayTag": "The Spellmonger positionless tag, no shelf prefix",
-     "ifQ2_nothingWins": "NONE"
-    }
+    "outcome": "SERIES",
+    "series": "The Spellmonger",
+    "position": "3.5",
+    "expectedSortPrefix": "Spellmonger, Book 3.5 - "
    },
    "specRule": [
-    "Q2",
     "R4"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "Anthology: provider and GR both positionless (\"Spellmonger\"). Stale Plex sort still carries \"Book 3.5\" (P3 rollout note). R4 forbids re-synthesizing 3.5.",
-   "group": "named-spellmonger"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-11: 'pin those 12' -- the real placements no source numbers, which bundle v1.3.217 (folder series fallback opt-in, default off; live on prod 2026-10-11) stops deriving from the folder tree. The pin restates the album's prod shelf on 2026-10-11 (titleSort + Series: mood) under the series name its siblings carry. An operator-approved pin is the sanctioned way to state a number: the system never synthesizes one (R4; spec 2026-07-30 DECISIONS). Reach measurement: docs/design/spec-shelf-titles-across-the-board.md section 11.",
+   "group": "named-spellmonger",
+   "note": "Was CONDITIONAL on Q2 -- decided 2026-07-30: a positionless real series is a tag with no shelf -- so with the folder fallback off a forced refresh drops this shelf. Served 2026-10-11: primary NONE, tag Spellmonger #?. Was CONDITIONAL (pinType conditional); previous sourceOfTruth: Anthology: provider and GR both positionless (\"Spellmonger\"). Stale Plex sort still carries \"Book 3.5\" (P3 rollout note). R4 forbids re-synthesizing 3.5.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-11 (.cache/pin12-probe.py)",
+    "incipit-api GET /books 2026-10-11 (title, subtitle, authors in stored order, served series; .cache/pin12-inputs.py)",
+    "live Audible catalogue probe 2026-10-11 (US/UK/CA/AU)"
+   ],
+   "mintPin": true
   },
   {
    "recordId": "B01L082HJ2",
@@ -15325,21 +15356,25 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "Q2",
-     "ifQ2_positionlessNameMayTag": "METAtropolis as a positionless tag; NO shelf prefix",
-     "ifQ2_nothingWins": "NONE"
-    }
+    "outcome": "SERIES",
+    "series": "METAtropolis",
+    "position": "3.1",
+    "expectedSortPrefix": "METAtropolis, Book 3.1 - "
    },
    "specRule": [
-    "Q2"
+    "R4"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "Served today: METAtropolis with NO position (anthology entry positionless; STALE sort \"Book 3.1\" (P3)). No source supplies a position (R4 forbids synthesis).",
-   "group": "q2-positionless"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-11: 'pin those 12' -- the real placements no source numbers, which bundle v1.3.217 (folder series fallback opt-in, default off; live on prod 2026-10-11) stops deriving from the folder tree. The pin restates the album's prod shelf on 2026-10-11 (titleSort + Series: mood) under the series name its siblings carry. An operator-approved pin is the sanctioned way to state a number: the system never synthesizes one (R4; spec 2026-07-30 DECISIONS). Reach measurement: docs/design/spec-shelf-titles-across-the-board.md section 11.",
+   "group": "q2-positionless",
+   "note": "Was CONDITIONAL on Q2 -- decided 2026-07-30: a positionless real series is a tag with no shelf -- so with the folder fallback off a forced refresh drops this shelf. Served 2026-10-11: primary NONE, tag METAtropolis #?. Was CONDITIONAL (pinType conditional); previous sourceOfTruth: Served today: METAtropolis with NO position (anthology entry positionless; STALE sort \"Book 3.1\" (P3)). No source supplies a position (R4 forbids synthesis).",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-11 (.cache/pin12-probe.py)",
+    "incipit-api GET /books 2026-10-11 (title, subtitle, authors in stored order, served series; .cache/pin12-inputs.py)",
+    "live Audible catalogue probe 2026-10-11 (US/UK/CA/AU)"
+   ],
+   "mintPin": true
   },
   {
    "recordId": "overdrive-2923812",
@@ -16125,21 +16160,25 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "Q2",
-     "ifQ2_positionlessNameMayTag": "The Expanse as a positionless tag; NO shelf prefix",
-     "ifQ2_nothingWins": "NONE"
-    }
+    "outcome": "SERIES",
+    "series": "The Expanse",
+    "position": "10",
+    "expectedSortPrefix": "Expanse, Book 10 - "
    },
    "specRule": [
-    "Q2"
+    "R4"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "Served today: The Expanse with NO position (novella collection; positionless today, stale sort \"Book 10\" (P3/C5)). No source supplies a position (R4 forbids synthesis).",
-   "group": "q2-positionless"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-11: 'pin those 12' -- the real placements no source numbers, which bundle v1.3.217 (folder series fallback opt-in, default off; live on prod 2026-10-11) stops deriving from the folder tree. The pin restates the album's prod shelf on 2026-10-11 (titleSort + Series: mood) under the series name its siblings carry. An operator-approved pin is the sanctioned way to state a number: the system never synthesizes one (R4; spec 2026-07-30 DECISIONS). Reach measurement: docs/design/spec-shelf-titles-across-the-board.md section 11.",
+   "group": "q2-positionless",
+   "note": "Was CONDITIONAL on Q2 -- decided 2026-07-30: a positionless real series is a tag with no shelf -- so with the folder fallback off a forced refresh drops this shelf. Served 2026-10-11: primary NONE, tag The Expanse #?. Was CONDITIONAL (pinType conditional); previous sourceOfTruth: Served today: The Expanse with NO position (novella collection; positionless today, stale sort \"Book 10\" (P3/C5)). No source supplies a position (R4 forbids synthesis).",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-11 (.cache/pin12-probe.py)",
+    "incipit-api GET /books 2026-10-11 (title, subtitle, authors in stored order, served series; .cache/pin12-inputs.py)",
+    "live Audible catalogue probe 2026-10-11 (US/UK/CA/AU)"
+   ],
+   "mintPin": true
   },
   {
    "recordId": "B0756SN5NF",
@@ -29594,6 +29633,346 @@
     "in-process reproduction (.cache/mushoku.ts, .cache/coauthor.ts, .cache/splitprobe.ts)"
    ],
    "mintPin": false
+  },
+  {
+   "recordId": "B002V5H0LE",
+   "ratingKey": "728928",
+   "album": "The Minority Report and Other Stories",
+   "artist": "Philip K. Dick",
+   "inputs": {
+    "title": "The Minority Report and Other Stories",
+    "subtitle": null,
+    "author": "Philip K. Dick",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [],
+    "inputSource": "incipit-api stored record (title, authors); live Audible catalogue probe 2026-10-11 (series)"
+   },
+   "servedNow": {
+    "primary": null,
+    "secondary": null,
+    "plexSortTitleNow": "Collected Stories of Philip K. Dick, Book 4 - The Minority Report and Other Stories",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "The Collected Stories of Philip K. Dick",
+    "position": "4",
+    "expectedSortPrefix": "Collected Stories of Philip K. Dick, Book 4 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-11: 'pin those 12' -- the real placements no source numbers, which bundle v1.3.217 (folder series fallback opt-in, default off; live on prod 2026-10-11) stops deriving from the folder tree. The pin restates the album's prod shelf on 2026-10-11 (titleSort + Series: mood) under the series name its siblings carry. An operator-approved pin is the sanctioned way to state a number: the system never synthesizes one (R4; spec 2026-07-30 DECISIONS). Reach measurement: docs/design/spec-shelf-titles-across-the-board.md section 11.",
+   "group": "folder-fallback-pins-2026-10-11",
+   "note": "Served 2026-10-11: no positioned series (primary NONE, tag NONE) -- with the folder fallback off a forced refresh drops this shelf and v1.3.218 retires its Series: mood. Load-bearing pin.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-11 (.cache/pin12-probe.py)",
+    "incipit-api GET /books 2026-10-11 (title, subtitle, authors in stored order, served series; .cache/pin12-inputs.py)",
+    "live Audible catalogue probe 2026-10-11 (US/UK/CA/AU)"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "B0D32JJS32",
+   "ratingKey": "730020",
+   "album": "A Soldier's Life",
+   "artist": "AlwaysRollsAOne",
+   "inputs": {
+    "title": "A Soldier's Life, Book 1",
+    "subtitle": "A Soldier's Life, Book 1",
+    "author": "Always RollsAOne",
+    "authors": [
+     "Always RollsAOne",
+     "ERICK THIEMKE"
+    ],
+    "providerSeries": {
+     "name": "A Soldier's Life",
+     "position": "1"
+    },
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [
+     {
+      "title": "A Soldier's Life",
+      "sequence": "1"
+     }
+    ],
+    "inputSource": "incipit-api stored record (title, authors); live Audible catalogue probe 2026-10-11 (series)"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "A Soldier's Life",
+     "position": "1"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Soldier's Life, Book 1 - A Soldier's Life",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "A Soldier's Life",
+    "position": "1",
+    "expectedSortPrefix": "Soldier's Life, Book 1 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-11: 'pin those 12' -- the real placements no source numbers, which bundle v1.3.217 (folder series fallback opt-in, default off; live on prod 2026-10-11) stops deriving from the folder tree. The pin restates the album's prod shelf on 2026-10-11 (titleSort + Series: mood) under the series name its siblings carry. An operator-approved pin is the sanctioned way to state a number: the system never synthesizes one (R4; spec 2026-07-30 DECISIONS). Reach measurement: docs/design/spec-shelf-titles-across-the-board.md section 11.",
+   "group": "folder-fallback-pins-2026-10-11",
+   "note": "Served WARM 2026-10-11 as A Soldier's Life #1, so v1.3.217 alone would not drop this shelf today; the 1.3.217 reach count listed it from an estimate. Pinned as insurance per the operator: warm serving is not behaviour (the Elderlings lesson, 2026-08-18), and a degraded mirror or a cold recompute must not cost an operator-approved shelf.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-11 (.cache/pin12-probe.py)",
+    "incipit-api GET /books 2026-10-11 (title, subtitle, authors in stored order, served series; .cache/pin12-inputs.py)",
+    "live Audible catalogue probe 2026-10-11 (US/UK/CA/AU)"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "B0DS6MTT5D",
+   "ratingKey": "730030",
+   "album": "A Soldier's Life: Book 3: The Shimmering Labyrinth",
+   "artist": "AlwaysRollsAOne",
+   "inputs": {
+    "title": "A Soldier's Life: Book 3: The Shimmering Labyrinth",
+    "subtitle": "Book 3: The Shimmering Labyrinth",
+    "author": "Always RollsAOne",
+    "authors": [
+     "Always RollsAOne",
+     "Erick Thiemke"
+    ],
+    "providerSeries": "UNKNOWN-not-rebuildable",
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": null,
+    "inputSource": "served book doc 2026-10-11; no Audible product in US/UK/CA/AU, so the stored record's provider series is unknown"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "A Soldier's Life",
+     "position": "3"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Soldier's Life, Book 3 - A Soldier's Life: Book 3: The Shimmering Labyrinth",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "A Soldier's Life",
+    "position": "3",
+    "expectedSortPrefix": "Soldier's Life, Book 3 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-11: 'pin those 12' -- the real placements no source numbers, which bundle v1.3.217 (folder series fallback opt-in, default off; live on prod 2026-10-11) stops deriving from the folder tree. The pin restates the album's prod shelf on 2026-10-11 (titleSort + Series: mood) under the series name its siblings carry. An operator-approved pin is the sanctioned way to state a number: the system never synthesizes one (R4; spec 2026-07-30 DECISIONS). Reach measurement: docs/design/spec-shelf-titles-across-the-board.md section 11.",
+   "group": "folder-fallback-pins-2026-10-11",
+   "note": "Served WARM 2026-10-11 as A Soldier's Life #3, so v1.3.217 alone would not drop this shelf today; the 1.3.217 reach count listed it from an estimate. Pinned as insurance per the operator: warm serving is not behaviour (the Elderlings lesson, 2026-08-18), and a degraded mirror or a cold recompute must not cost an operator-approved shelf.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-11 (.cache/pin12-probe.py)",
+    "incipit-api GET /books 2026-10-11 (title, subtitle, authors in stored order, served series; .cache/pin12-inputs.py)",
+    "live Audible catalogue probe 2026-10-11 (US/UK/CA/AU)"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "B0H72K5PXX",
+   "ratingKey": "730027",
+   "album": "Adventures in Godok",
+   "artist": "AlwaysRollsAOne",
+   "inputs": {
+    "title": "Adventures in Godok",
+    "subtitle": "A Soldier's Life, Book 6",
+    "author": "Always RollsAOne",
+    "authors": [
+     "Always RollsAOne",
+     "Erick Thiemke"
+    ],
+    "providerSeries": "UNKNOWN-not-rebuildable",
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": null,
+    "inputSource": "served book doc 2026-10-11; no Audible product in US/UK/CA/AU, so the stored record's provider series is unknown"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "A Soldier's Life",
+     "position": "6"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Soldier's Life, Book 6 - Adventures in Godok",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "A Soldier's Life",
+    "position": "6",
+    "expectedSortPrefix": "Soldier's Life, Book 6 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-11: 'pin those 12' -- the real placements no source numbers, which bundle v1.3.217 (folder series fallback opt-in, default off; live on prod 2026-10-11) stops deriving from the folder tree. The pin restates the album's prod shelf on 2026-10-11 (titleSort + Series: mood) under the series name its siblings carry. An operator-approved pin is the sanctioned way to state a number: the system never synthesizes one (R4; spec 2026-07-30 DECISIONS). Reach measurement: docs/design/spec-shelf-titles-across-the-board.md section 11.",
+   "group": "folder-fallback-pins-2026-10-11",
+   "note": "Served WARM 2026-10-11 as A Soldier's Life #6, so v1.3.217 alone would not drop this shelf today; the 1.3.217 reach count listed it from an estimate. Pinned as insurance per the operator: warm serving is not behaviour (the Elderlings lesson, 2026-08-18), and a degraded mirror or a cold recompute must not cost an operator-approved shelf.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-11 (.cache/pin12-probe.py)",
+    "incipit-api GET /books 2026-10-11 (title, subtitle, authors in stored order, served series; .cache/pin12-inputs.py)",
+    "live Audible catalogue probe 2026-10-11 (US/UK/CA/AU)"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "hardcover-book-455503",
+   "ratingKey": "731312",
+   "album": "The Unexpected Gift of Joseph Bridgeman: A Time Travel Adventure: Volume 1",
+   "artist": "Nick Jones",
+   "inputs": {
+    "title": "The Unexpected Gift of Joseph Bridgeman: A Time Travel Adventure: Volume 1",
+    "subtitle": "A Time Travel Adventure: Volume 1",
+    "author": "Nick   Jones",
+    "providerSeries": "UNKNOWN-not-rebuildable",
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": null,
+    "inputSource": "served book doc 2026-10-11; no Audible product in US/UK/CA/AU (a Hardcover record), so the stored record's provider series is unknown"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "The Downstream Diaries",
+     "position": "1"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Downstream Diaries, Book 1 - The Unexpected Gift of Joseph Bridgeman: A Time Travel Adventure: Volume 1",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "The Downstream Diaries",
+    "position": "1",
+    "expectedSortPrefix": "Downstream Diaries, Book 1 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-11: 'pin those 12' -- the real placements no source numbers, which bundle v1.3.217 (folder series fallback opt-in, default off; live on prod 2026-10-11) stops deriving from the folder tree. The pin restates the album's prod shelf on 2026-10-11 (titleSort + Series: mood) under the series name its siblings carry. An operator-approved pin is the sanctioned way to state a number: the system never synthesizes one (R4; spec 2026-07-30 DECISIONS). Reach measurement: docs/design/spec-shelf-titles-across-the-board.md section 11.",
+   "group": "folder-fallback-pins-2026-10-11",
+   "note": "Served WARM 2026-10-11 as The Downstream Diaries #1, so v1.3.217 alone would not drop this shelf today; the 1.3.217 reach count listed it from an estimate. Pinned as insurance per the operator: warm serving is not behaviour (the Elderlings lesson, 2026-08-18), and a degraded mirror or a cold recompute must not cost an operator-approved shelf.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-11 (.cache/pin12-probe.py)",
+    "incipit-api GET /books 2026-10-11 (title, subtitle, authors in stored order, served series; .cache/pin12-inputs.py)",
+    "live Audible catalogue probe 2026-10-11 (US/UK/CA/AU)"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "B0CDCKSX7S",
+   "ratingKey": "741339",
+   "album": "The Bone Season",
+   "artist": "Samantha Shannon",
+   "inputs": {
+    "title": "The Bone Season",
+    "subtitle": "The million-copy bestselling series from the author of THE PRIORY OF THE ORANGE TREE",
+    "author": "Samantha Shannon",
+    "providerSeries": {
+     "name": "The Bone Season",
+     "position": "1"
+    },
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [
+     {
+      "title": "The Bone Season",
+      "sequence": "1"
+     }
+    ],
+    "inputSource": "incipit-api stored record (title, authors); live Audible catalogue probe 2026-10-11 (series)"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "The Bone Season",
+     "position": "1"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Bone Season, Book 1 - The Bone Season",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "The Bone Season",
+    "position": "1",
+    "expectedSortPrefix": "Bone Season, Book 1 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-11: 'pin those 12' -- the real placements no source numbers, which bundle v1.3.217 (folder series fallback opt-in, default off; live on prod 2026-10-11) stops deriving from the folder tree. The pin restates the album's prod shelf on 2026-10-11 (titleSort + Series: mood) under the series name its siblings carry. An operator-approved pin is the sanctioned way to state a number: the system never synthesizes one (R4; spec 2026-07-30 DECISIONS). Reach measurement: docs/design/spec-shelf-titles-across-the-board.md section 11.",
+   "group": "folder-fallback-pins-2026-10-11",
+   "note": "Served WARM 2026-10-11 as The Bone Season #1, so v1.3.217 alone would not drop this shelf today; the 1.3.217 reach count listed it from an estimate. Pinned as insurance per the operator: warm serving is not behaviour (the Elderlings lesson, 2026-08-18), and a degraded mirror or a cold recompute must not cost an operator-approved shelf.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-11 (.cache/pin12-probe.py)",
+    "incipit-api GET /books 2026-10-11 (title, subtitle, authors in stored order, served series; .cache/pin12-inputs.py)",
+    "live Audible catalogue probe 2026-10-11 (US/UK/CA/AU)"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "B0FVG4C61Z",
+   "ratingKey": "729742",
+   "album": "For a Limited Time Only",
+   "artist": "Peng Shepherd",
+   "inputs": {
+    "title": "For a Limited Time Only",
+    "subtitle": "The Time Traveler's Passport",
+    "author": "Peng Shepherd",
+    "providerSeries": "UNKNOWN-not-rebuildable",
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": null,
+    "inputSource": "served book doc 2026-10-11; no Audible product in US/UK/CA/AU, so the stored record's provider series is unknown"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "The Time Traveler's Passport",
+     "position": "3"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Time Traveler's Passport, Book 3 - For a Limited Time Only",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "The Time Traveler's Passport",
+    "position": "3",
+    "expectedSortPrefix": "Time Traveler's Passport, Book 3 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-11: 'pin those 12' -- the real placements no source numbers, which bundle v1.3.217 (folder series fallback opt-in, default off; live on prod 2026-10-11) stops deriving from the folder tree. The pin restates the album's prod shelf on 2026-10-11 (titleSort + Series: mood) under the series name its siblings carry. An operator-approved pin is the sanctioned way to state a number: the system never synthesizes one (R4; spec 2026-07-30 DECISIONS). Reach measurement: docs/design/spec-shelf-titles-across-the-board.md section 11.",
+   "group": "folder-fallback-pins-2026-10-11",
+   "note": "Served WARM 2026-10-11 as The Time Traveler's Passport #3, so v1.3.217 alone would not drop this shelf today; the 1.3.217 reach count listed it from an estimate. Pinned as insurance per the operator: warm serving is not behaviour (the Elderlings lesson, 2026-08-18), and a degraded mirror or a cold recompute must not cost an operator-approved shelf.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-11 (.cache/pin12-probe.py)",
+    "incipit-api GET /books 2026-10-11 (title, subtitle, authors in stored order, served series; .cache/pin12-inputs.py)",
+    "live Audible catalogue probe 2026-10-11 (US/UK/CA/AU)"
+   ],
+   "mintPin": true
   }
  ]
 }
