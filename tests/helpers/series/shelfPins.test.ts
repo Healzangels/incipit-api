@@ -1,4 +1,6 @@
 import { describe, expect, test } from 'bun:test'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 
 import { pinKey, pinKeyAliases } from '#helpers/series/pinKey'
 import { applyPins, type ShelfPin } from '#helpers/series/shelfPins'
@@ -602,3 +604,59 @@ function foldForAlias(name: string | undefined): string {
 		.trim()
 		.toLowerCase()
 }
+
+// The generator's contract, asserted on what ships: every corpus row the operator
+// flagged mintPin is a pin, and it is the answer that row states. A NONE row (no
+// shelf) ships as a `none` pin. mintPins refused NONE rows until 2026-10-12, so an
+// operator's "this is not a series" could be stated in the corpus and never ship —
+// applyPins could clear a shelf (the Unfettered class), but no pin ever reached it.
+describe('the shipped pins are the corpus answers', () => {
+	const corpus = JSON.parse(
+		readFileSync(join(import.meta.dir, '..', '..', 'fixtures', 'series-golden-corpus.json'), 'utf8')
+	) as {
+		rows: Array<{
+			recordId: string
+			mintPin?: boolean | null
+			required: {
+				outcome: string
+				series?: string | null
+				position?: string | null
+				displayTitle?: string | null
+			}
+		}>
+	}
+	const minted = corpus.rows.filter((r) => r.mintPin)
+
+	test('every mintPin row ships as the answer it states', () => {
+		const wrong = minted
+			.filter((r) => {
+				const p = SHELF_PINS[r.recordId]
+				if (!p) return true
+				if (r.required.outcome === 'NONE') return p.none !== true || p.series !== undefined
+				return (
+					p.none === true ||
+					p.series !== r.required.series ||
+					(p.position ?? null) !== (r.required.position ?? null) ||
+					(p.displayTitle ?? null) !== (r.required.displayTitle ?? null)
+				)
+			})
+			.map((r) => `${r.recordId} (${r.required.outcome})`)
+		expect(wrong).toEqual([])
+	})
+
+	test('a NONE row clears whatever the resolver served, both slots', () => {
+		const none = minted.filter((r) => r.required.outcome === 'NONE')
+		// Not vacuous: the corpus states NONE pins (Cujo, The Count of Monte Cristo).
+		expect(none.length).toBeGreaterThan(0)
+		for (const r of none) {
+			const served = {
+				title: 'Any Title',
+				seriesPrimary: { name: 'Junk the resolver served', position: '1' },
+				seriesSecondary: { name: 'A tag beside it' }
+			}
+			const out = applyPins(served, r.recordId)
+			expect(out.seriesPrimary).toBeUndefined()
+			expect(out.seriesSecondary).toBeUndefined()
+		}
+	})
+})

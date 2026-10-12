@@ -1,10 +1,11 @@
 /**
- * Mint shelf pins from the golden corpus + the current harness baseline.
+ * Mint shelf pins from the golden corpus.
  *
- * A pin is minted ONLY for a record that is (a) a standing red in the
- * baseline and (b) carries a corpus REQUIRED outcome of SERIES — i.e. the
- * operator has already stated the answer. Conditional/pending rows are never
- * minted. Output overwrites src/helpers/series/shelfPins.data.ts.
+ * A pin is minted ONLY for a corpus row the operator flagged `mintPin` whose
+ * REQUIRED outcome states the answer: SERIES (a shelf, with its number) or NONE
+ * (no shelf at all — applyPins' `none`, the Unfettered class, for a series name
+ * the resolver serves that is not a series for this book). Conditional/pending
+ * rows are never minted. Output overwrites src/helpers/series/shelfPins.data.ts.
  */
 import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
@@ -39,7 +40,15 @@ const corpus = JSON.parse(readFileSync(join(FIXTURES, 'series-golden-corpus.json
 // live: regenerating after the pins landed dropped all 32).
 const red = new Set(corpus.rows.filter((r) => r.mintPin).map((r) => r.ratingKey))
 const byRk = new Map(corpus.rows.map((r) => [r.ratingKey, r]))
-type Minted = { series: string; position?: string; displayTitle?: string; source: string }
+type Minted = {
+	series?: string
+	position?: string
+	displayTitle?: string
+	none?: true
+	source: string
+}
+/** How a minted answer reads in a refusal message. */
+const answer = (p: Minted): string => (p.none ? 'no shelf' : `${p.series} #${p.position ?? '-'}`)
 const pins: Record<string, Minted> = {}
 /** The same pins, keyed on the portable (title, author) identity. */
 const keyed: Record<string, Minted> = {}
@@ -60,7 +69,9 @@ for (const rk of red) {
 		missing.push(`rk${rk}`)
 		continue
 	}
-	if (row.required.outcome !== 'SERIES' || !row.required.series) {
+	const none = row.required.outcome === 'NONE'
+	const series = row.required.series
+	if (!none && (row.required.outcome !== 'SERIES' || !series)) {
 		skipped.push(`rk${rk} ${row.album} (${row.required.outcome})`)
 		continue
 	}
@@ -70,17 +81,19 @@ for (const rk of red) {
 	// flagged mintPin, which is the only reason this has not already bitten.
 	if (pins[row.recordId]) {
 		collisions.push(
-			`${row.recordId} (rk${rk} ${row.album}) already minted as ` +
-				`${pins[row.recordId].series} #${pins[row.recordId].position ?? '-'}`
+			`${row.recordId} (rk${rk} ${row.album}) already minted as ${answer(pins[row.recordId])}`
 		)
 		continue
 	}
-	pins[row.recordId] = {
-		series: row.required.series,
-		...(row.required.position ? { position: row.required.position } : {}),
-		...(row.required.displayTitle ? { displayTitle: row.required.displayTitle } : {}),
-		source: row.pinType
-	}
+	pins[row.recordId] =
+		series && !none
+			? {
+					series,
+					...(row.required.position ? { position: row.required.position } : {}),
+					...(row.required.displayTitle ? { displayTitle: row.required.displayTitle } : {}),
+					source: row.pinType
+				}
+			: { none: true, source: row.pinType }
 	// The portable key, minted from the PRE-pin provider strings. inputs.title
 	// deliberately, never the album name or required.displayTitle: applyPins
 	// looks the pin up BEFORE it rewrites the title, so keying on the rewritten
@@ -95,8 +108,8 @@ for (const rk of red) {
 	const prior = keyed[k]
 	if (prior && JSON.stringify(prior) !== JSON.stringify(pins[row.recordId])) {
 		keyCollisions.push(
-			`"${k}" claimed by rk${rk} ${row.album} (${pins[row.recordId].series} #${pins[row.recordId].position ?? '-'}) ` +
-				`and already by ${prior.series} #${prior.position ?? '-'}`
+			`"${k}" claimed by rk${rk} ${row.album} (${answer(pins[row.recordId])}) ` +
+				`and already by ${answer(prior)}`
 		)
 		continue
 	}
@@ -170,7 +183,7 @@ console.log(`minted ${Object.keys(pins).length} pins`)
 // used to print and exit 0, so a green run could ship with the pin missing.
 let failed = false
 for (const s of skipped) {
-	console.error(`  SKIPPED (mintPin row is not SERIES-required): ${s}`)
+	console.error(`  SKIPPED (mintPin row is neither SERIES- nor NONE-required): ${s}`)
 	failed = true
 }
 for (const s of missing) {

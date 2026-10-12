@@ -309,6 +309,23 @@
      "B082BHWQCJ",
      "B000BKHEVM"
     ]
+   },
+   {
+    "date": "2026-10-12",
+    "what": "Operator: \"go with your recommendations, keep all 8 in B\" (junk-shelf review). Pinned the 8 one-book shelves named after the book (kept like The Martian) and The Iliad as Iliad & Odyssey #1 (keeps the pair; The Odyssey is served #2). No-shelf pins for Cujo (\"Cujo / Rattlesnakes\") and The Count of Monte Cristo (\"The Seaside Library\"), junk the API itself serves. The 12 folder-junk shelves and Beren and Luthien were cleared by guarded forced refreshes the same day, no pin needed.",
+    "rows": [
+     "B08G9PRS1K",
+     "B0077DEH7A",
+     "B086WNG3RK",
+     "B002UZKWLA",
+     "B019HBKK02",
+     "B01H63H54M",
+     "B002V8MUYI",
+     "hardcover-edition-18917807",
+     "apple-audiobook-1780933677",
+     "B019NOBKVQ",
+     "B005GFQ5WQ"
+    ]
    }
   ]
  },
@@ -15276,21 +15293,26 @@
     "sweepDegraded": false
    },
    "required": {
-    "outcome": "CONDITIONAL",
-    "series": null,
-    "position": null,
-    "conditional": {
-     "on": "Q2",
-     "ifQ2_positionlessNameMayTag": "The Green Mile as a positionless tag; NO shelf prefix",
-     "ifQ2_nothingWins": "NONE"
-    }
+    "outcome": "SERIES",
+    "series": "The Green Mile",
+    "position": "1",
+    "expectedSortPrefix": "Green Mile, Book 1 - "
    },
    "specRule": [
-    "Q2"
+    "R4"
    ],
-   "pinType": "conditional",
-   "sourceOfTruth": "Served today: The Green Mile with NO position (serial-novel cluster positionless; STALE sort \"Green Mile, Book 1\" (P3)). No source supplies a position (R4 forbids synthesis).",
-   "group": "q2-positionless"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-12: 'go with your recommendations, keep all 8 in B' -- the one-book shelves named after the book, kept like The Martian (2026-09-26). Bundle v1.3.217 (folder series fallback opt-in, default off; live on prod 2026-10-11) stops deriving this shelf from the folder tree and the API serves no positioned series, so only a pin keeps it through a forced refresh. The pin restates the album's prod shelf on 2026-10-12 (titleSort + Series: mood). An operator-approved pin is the sanctioned way to state a number (R4).",
+   "group": "q2-positionless",
+   "note": "Served 2026-10-12: primary NONE, tag The Green Mile #? -- with the folder fallback off a forced refresh drops this shelf and v1.3.218 retires its Series: mood. Load-bearing pin. Was CONDITIONAL (pinType conditional); previous sourceOfTruth: Served today: The Green Mile with NO position (serial-novel cluster positionless; STALE sort \"Green Mile, Book 1\" (P3)). No source supplies a position (R4 forbids synthesis).",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-12 (.cache/junk-shelves/pin11-capture.py)",
+    "incipit-api GET /books 2026-10-12 (title, subtitle, authors in stored order, served series; .cache/junk-shelves/pin11-capture.py)",
+    "live Audible catalogue probe 2026-10-12 (US/UK/CA/AU; Audible ids only)",
+    "junk-shelf lookup 2026-10-12 (.cache/junk-shelves/lookup.py)"
+   ],
+   "mintPin": true
   },
   {
    "recordId": "1789996902",
@@ -16336,17 +16358,19 @@
    },
    "required": {
     "outcome": "SERIES",
-    "series": "Heinlein's Juveniles",
-    "position": null
+    "series": "Starship Troopers",
+    "position": "1",
+    "secondaryNote": "Heinlein's Juveniles stays the TAG (C5: a mirror failure must not strip it); the harness does not assert the tag slot",
+    "expectedSortPrefix": "Starship Troopers, Book 1 - "
    },
    "specRule": [
-    "C5",
-    "Q2"
+    "R4",
+    "C5"
    ],
-   "pinType": "ratchet",
-   "sourceOfTruth": "Positionless tag today; provider record UNFETCHABLE (delisted ASIN) and the mirror /work 500s persistently (re-confirmed 2026-07-30). C5: the mirror failure must not strip the tag; also carries a STALE shelf sort \"Starship Troopers, Book 1\" from an older answer (P3).",
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-12: 'keep all 8 in B' -- Starship Troopers keeps its one-book shelf (pinned on the current edition, hardcover-edition-18917807). This earlier edition's row is reached by the pin's portable (title, author) key, so it now also proves that key reaches another edition of the same book.",
    "group": "q2-positionless",
-   "note": "Drift-classification cause: mirror-degraded-no-answer. Tag survives; prefix clears.",
+   "note": "Converted 2026-10-12: the 2026-07-30 ratchet expected the stale \"Starship Troopers, Book 1\" prefix to clear; the operator has since chosen to keep it. Was SERIES (pinType ratchet, group q2-positionless); previous required: {\"outcome\": \"SERIES\", \"series\": \"Heinlein's Juveniles\", \"position\": null}; previous sourceOfTruth: Positionless tag today; provider record UNFETCHABLE (delisted ASIN) and the mirror /work 500s persistently (re-confirmed 2026-07-30). C5: the mirror failure must not strip the tag; also carries a STALE shelf sort \"Starship Troopers, Book 1\" from an older answer (P3). | Earlier note: Drift-classification cause: mirror-degraded-no-answer. Tag survives; prefix clears.",
    "inputsVerified": [
     "live mirror /work probe 2026-07-30 (500 reproduced)"
    ]
@@ -30110,6 +30134,455 @@
     "prod Plex titleSort + Series mood 2026-10-12 (.cache/pin4-capture.py)",
     "incipit-api GET /books 2026-10-12 (title, subtitle, authors in stored order, served series; .cache/pin4-capture.py)",
     "live Audible catalogue probe 2026-10-12 (US/UK/CA/AU)"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "B08G9PRS1K",
+   "ratingKey": "728995",
+   "album": "Project Hail Mary",
+   "artist": "Andy Weir",
+   "inputs": {
+    "title": "Project Hail Mary",
+    "subtitle": null,
+    "author": "Andy Weir",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [],
+    "inputSource": "incipit-api stored record (title, authors); live Audible catalogue probe 2026-10-12 (series)"
+   },
+   "servedNow": {
+    "primary": null,
+    "secondary": null,
+    "plexSortTitleNow": "Project Hail Mary, Book 1 - Project Hail Mary",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Project Hail Mary",
+    "position": "1",
+    "expectedSortPrefix": "Project Hail Mary, Book 1 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-12: 'go with your recommendations, keep all 8 in B' -- the one-book shelves named after the book, kept like The Martian (2026-09-26). Bundle v1.3.217 (folder series fallback opt-in, default off; live on prod 2026-10-11) stops deriving this shelf from the folder tree and the API serves no positioned series, so only a pin keeps it through a forced refresh. The pin restates the album's prod shelf on 2026-10-12 (titleSort + Series: mood). An operator-approved pin is the sanctioned way to state a number (R4).",
+   "group": "kept-shelf-pins-2026-10-12",
+   "note": "Served 2026-10-12: primary NONE, tag NONE -- with the folder fallback off a forced refresh drops this shelf and v1.3.218 retires its Series: mood. Load-bearing pin.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-12 (.cache/junk-shelves/pin11-capture.py)",
+    "incipit-api GET /books 2026-10-12 (title, subtitle, authors in stored order, served series; .cache/junk-shelves/pin11-capture.py)",
+    "live Audible catalogue probe 2026-10-12 (US/UK/CA/AU; Audible ids only)",
+    "junk-shelf lookup 2026-10-12 (.cache/junk-shelves/lookup.py)"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "B0077DEH7A",
+   "ratingKey": "739900",
+   "album": "The Stand",
+   "artist": "Stephen King",
+   "inputs": {
+    "title": "The Stand",
+    "subtitle": null,
+    "author": "Stephen King",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [],
+    "inputSource": "incipit-api stored record (title, authors); live Audible catalogue probe 2026-10-12 (series)"
+   },
+   "servedNow": {
+    "primary": null,
+    "secondary": null,
+    "plexSortTitleNow": "Stand, Book 1 - The Stand",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "The Stand",
+    "position": "1",
+    "expectedSortPrefix": "Stand, Book 1 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-12: 'go with your recommendations, keep all 8 in B' -- the one-book shelves named after the book, kept like The Martian (2026-09-26). Bundle v1.3.217 (folder series fallback opt-in, default off; live on prod 2026-10-11) stops deriving this shelf from the folder tree and the API serves no positioned series, so only a pin keeps it through a forced refresh. The pin restates the album's prod shelf on 2026-10-12 (titleSort + Series: mood). An operator-approved pin is the sanctioned way to state a number (R4).",
+   "group": "kept-shelf-pins-2026-10-12",
+   "note": "Served 2026-10-12: primary NONE, tag NONE -- with the folder fallback off a forced refresh drops this shelf and v1.3.218 retires its Series: mood. Load-bearing pin.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-12 (.cache/junk-shelves/pin11-capture.py)",
+    "incipit-api GET /books 2026-10-12 (title, subtitle, authors in stored order, served series; .cache/junk-shelves/pin11-capture.py)",
+    "live Audible catalogue probe 2026-10-12 (US/UK/CA/AU; Audible ids only)",
+    "junk-shelf lookup 2026-10-12 (.cache/junk-shelves/lookup.py)"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "B086WNG3RK",
+   "ratingKey": "728669",
+   "album": "Anathem",
+   "artist": "Neal Stephenson",
+   "inputs": {
+    "title": "Anathem",
+    "subtitle": null,
+    "author": "Neal Stephenson",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [],
+    "inputSource": "incipit-api stored record (title, authors); live Audible catalogue probe 2026-10-12 (series)"
+   },
+   "servedNow": {
+    "primary": null,
+    "secondary": {
+     "name": "Anathem"
+    },
+    "plexSortTitleNow": "Anathem, Book 1 - Anathem",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Anathem",
+    "position": "1",
+    "expectedSortPrefix": "Anathem, Book 1 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-12: 'go with your recommendations, keep all 8 in B' -- the one-book shelves named after the book, kept like The Martian (2026-09-26). Bundle v1.3.217 (folder series fallback opt-in, default off; live on prod 2026-10-11) stops deriving this shelf from the folder tree and the API serves no positioned series, so only a pin keeps it through a forced refresh. The pin restates the album's prod shelf on 2026-10-12 (titleSort + Series: mood). An operator-approved pin is the sanctioned way to state a number (R4).",
+   "group": "kept-shelf-pins-2026-10-12",
+   "note": "Served 2026-10-12: primary NONE, tag Anathem #? -- with the folder fallback off a forced refresh drops this shelf and v1.3.218 retires its Series: mood. Load-bearing pin.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-12 (.cache/junk-shelves/pin11-capture.py)",
+    "incipit-api GET /books 2026-10-12 (title, subtitle, authors in stored order, served series; .cache/junk-shelves/pin11-capture.py)",
+    "live Audible catalogue probe 2026-10-12 (US/UK/CA/AU; Audible ids only)",
+    "junk-shelf lookup 2026-10-12 (.cache/junk-shelves/lookup.py)"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "B019HBKK02",
+   "ratingKey": "729180",
+   "album": "Different Seasons",
+   "artist": "Stephen King",
+   "inputs": {
+    "title": "Different Seasons",
+    "subtitle": null,
+    "author": "Stephen King",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [],
+    "inputSource": "incipit-api stored record (title, authors); live Audible catalogue probe 2026-10-12 (series)"
+   },
+   "servedNow": {
+    "primary": null,
+    "secondary": null,
+    "plexSortTitleNow": "Different Seasons, Book 1 - Different Seasons",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Different Seasons",
+    "position": "1",
+    "expectedSortPrefix": "Different Seasons, Book 1 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-12: 'go with your recommendations, keep all 8 in B' -- the one-book shelves named after the book, kept like The Martian (2026-09-26). Bundle v1.3.217 (folder series fallback opt-in, default off; live on prod 2026-10-11) stops deriving this shelf from the folder tree and the API serves no positioned series, so only a pin keeps it through a forced refresh. The pin restates the album's prod shelf on 2026-10-12 (titleSort + Series: mood). An operator-approved pin is the sanctioned way to state a number (R4).",
+   "group": "kept-shelf-pins-2026-10-12",
+   "note": "Served 2026-10-12: primary NONE, tag NONE -- with the folder fallback off a forced refresh drops this shelf and v1.3.218 retires its Series: mood. Load-bearing pin.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-12 (.cache/junk-shelves/pin11-capture.py)",
+    "incipit-api GET /books 2026-10-12 (title, subtitle, authors in stored order, served series; .cache/junk-shelves/pin11-capture.py)",
+    "live Audible catalogue probe 2026-10-12 (US/UK/CA/AU; Audible ids only)",
+    "junk-shelf lookup 2026-10-12 (.cache/junk-shelves/lookup.py)"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "B01H63H54M",
+   "ratingKey": "729229",
+   "album": "Skeleton Crew",
+   "artist": "Stephen King",
+   "inputs": {
+    "title": "Skeleton Crew",
+    "subtitle": "Stories",
+    "author": "Stephen King",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [],
+    "inputSource": "incipit-api stored record (title, authors); live Audible catalogue probe 2026-10-12 (series)"
+   },
+   "servedNow": {
+    "primary": null,
+    "secondary": null,
+    "plexSortTitleNow": "Skeleton Crew, Book 1 - Skeleton Crew",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Skeleton Crew",
+    "position": "1",
+    "expectedSortPrefix": "Skeleton Crew, Book 1 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-12: 'go with your recommendations, keep all 8 in B' -- the one-book shelves named after the book, kept like The Martian (2026-09-26). Bundle v1.3.217 (folder series fallback opt-in, default off; live on prod 2026-10-11) stops deriving this shelf from the folder tree and the API serves no positioned series, so only a pin keeps it through a forced refresh. The pin restates the album's prod shelf on 2026-10-12 (titleSort + Series: mood). An operator-approved pin is the sanctioned way to state a number (R4).",
+   "group": "kept-shelf-pins-2026-10-12",
+   "note": "Served 2026-10-12: primary NONE, tag NONE -- with the folder fallback off a forced refresh drops this shelf and v1.3.218 retires its Series: mood. Load-bearing pin.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-12 (.cache/junk-shelves/pin11-capture.py)",
+    "incipit-api GET /books 2026-10-12 (title, subtitle, authors in stored order, served series; .cache/junk-shelves/pin11-capture.py)",
+    "live Audible catalogue probe 2026-10-12 (US/UK/CA/AU; Audible ids only)",
+    "junk-shelf lookup 2026-10-12 (.cache/junk-shelves/lookup.py)"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "B002V8MUYI",
+   "ratingKey": "730896",
+   "album": "Stranger in a Strange Land",
+   "artist": "Robert Heinlein",
+   "inputs": {
+    "title": "Stranger in a Strange Land",
+    "subtitle": null,
+    "author": "Robert A. Heinlein",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [],
+    "inputSource": "incipit-api stored record (title, authors); live Audible catalogue probe 2026-10-12 (series)"
+   },
+   "servedNow": {
+    "primary": null,
+    "secondary": null,
+    "plexSortTitleNow": "Stranger in a Strange Land, Book 1 - Stranger in a Strange Land",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Stranger in a Strange Land",
+    "position": "1",
+    "expectedSortPrefix": "Stranger in a Strange Land, Book 1 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-12: 'go with your recommendations, keep all 8 in B' -- the one-book shelves named after the book, kept like The Martian (2026-09-26). Bundle v1.3.217 (folder series fallback opt-in, default off; live on prod 2026-10-11) stops deriving this shelf from the folder tree and the API serves no positioned series, so only a pin keeps it through a forced refresh. The pin restates the album's prod shelf on 2026-10-12 (titleSort + Series: mood). An operator-approved pin is the sanctioned way to state a number (R4).",
+   "group": "kept-shelf-pins-2026-10-12",
+   "note": "Served 2026-10-12: primary NONE, tag NONE -- with the folder fallback off a forced refresh drops this shelf and v1.3.218 retires its Series: mood. Load-bearing pin.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-12 (.cache/junk-shelves/pin11-capture.py)",
+    "incipit-api GET /books 2026-10-12 (title, subtitle, authors in stored order, served series; .cache/junk-shelves/pin11-capture.py)",
+    "live Audible catalogue probe 2026-10-12 (US/UK/CA/AU; Audible ids only)",
+    "junk-shelf lookup 2026-10-12 (.cache/junk-shelves/lookup.py)"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "hardcover-edition-18917807",
+   "ratingKey": "730898",
+   "album": "Starship Troopers",
+   "artist": "Robert Heinlein",
+   "inputs": {
+    "title": "Starship Troopers",
+    "subtitle": null,
+    "author": "Robert A. Heinlein",
+    "providerSeries": "UNKNOWN-not-rebuildable",
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": null,
+    "inputSource": "served book doc 2026-10-12; a hardcover record, no Audible product, so the stored record's provider series is unknown"
+   },
+   "servedNow": {
+    "primary": null,
+    "secondary": {
+     "name": "Heinlein's Juveniles"
+    },
+    "plexSortTitleNow": "Starship Troopers, Book 1 - Starship Troopers",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Starship Troopers",
+    "position": "1",
+    "expectedSortPrefix": "Starship Troopers, Book 1 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-12: 'go with your recommendations, keep all 8 in B' -- the one-book shelves named after the book, kept like The Martian (2026-09-26). Bundle v1.3.217 (folder series fallback opt-in, default off; live on prod 2026-10-11) stops deriving this shelf from the folder tree and the API serves no positioned series, so only a pin keeps it through a forced refresh. The pin restates the album's prod shelf on 2026-10-12 (titleSort + Series: mood). An operator-approved pin is the sanctioned way to state a number (R4).",
+   "group": "kept-shelf-pins-2026-10-12",
+   "note": "Served 2026-10-12: primary NONE, tag Heinlein's Juveniles #? -- with the folder fallback off a forced refresh drops this shelf and v1.3.218 retires its Series: mood. Load-bearing pin.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-12 (.cache/junk-shelves/pin11-capture.py)",
+    "incipit-api GET /books 2026-10-12 (title, subtitle, authors in stored order, served series; .cache/junk-shelves/pin11-capture.py)",
+    "live Audible catalogue probe 2026-10-12 (US/UK/CA/AU; Audible ids only)",
+    "junk-shelf lookup 2026-10-12 (.cache/junk-shelves/lookup.py)"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "apple-audiobook-1780933677",
+   "ratingKey": "736049",
+   "album": "The Iliad",
+   "artist": "Homer",
+   "inputs": {
+    "title": "The Iliad",
+    "subtitle": null,
+    "author": "Homer & Robert Fagles",
+    "providerSeries": "UNKNOWN-not-rebuildable",
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": null,
+    "inputSource": "served book doc 2026-10-12; a apple record, no Audible product, so the stored record's provider series is unknown"
+   },
+   "servedNow": {
+    "primary": null,
+    "secondary": null,
+    "plexSortTitleNow": "Iliad & Odyssey, Book 1 - The Iliad",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Iliad & Odyssey",
+    "position": "1",
+    "expectedSortPrefix": "Iliad & Odyssey, Book 1 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-12: 'go with your recommendations' -- keep The Iliad on Iliad & Odyssey #1 so the pair stays together: The Odyssey (B002UZMUZG) is served Iliad & Odyssey #2 by Audible, and clearing The Iliad would leave it alone on the shelf. The pin restates the album's prod shelf on 2026-10-12. An operator-approved pin is the sanctioned way to state a number (R4).",
+   "group": "kept-shelf-pins-2026-10-12",
+   "note": "Served 2026-10-12: primary NONE, tag NONE -- with the folder fallback off a forced refresh drops this shelf and v1.3.218 retires its Series: mood. Load-bearing pin.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-12 (.cache/junk-shelves/pin11-capture.py)",
+    "incipit-api GET /books 2026-10-12 (title, subtitle, authors in stored order, served series; .cache/junk-shelves/pin11-capture.py)",
+    "live Audible catalogue probe 2026-10-12 (US/UK/CA/AU; Audible ids only)",
+    "junk-shelf lookup 2026-10-12 (.cache/junk-shelves/lookup.py)"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "B019NOBKVQ",
+   "ratingKey": "729299",
+   "album": "Cujo",
+   "artist": "Stephen King",
+   "inputs": {
+    "title": "Cujo",
+    "subtitle": null,
+    "author": "Stephen King",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [],
+    "inputSource": "incipit-api stored record (title, authors); live Audible catalogue probe 2026-10-12 (series)"
+   },
+   "servedNow": {
+    "primary": {
+     "name": "Cujo / Rattlesnakes",
+     "position": "1"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Cujo / Rattlesnakes, Book 1 - Cujo",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "NONE",
+    "series": null,
+    "position": null,
+    "expectedSortPrefix": ""
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-12: 'go with your recommendations' -- no shelf. 'Cujo / Rattlesnakes' is the name Goodreads serves for this book (no Audible series), a two-in-one bundle label rather than a series this recording belongs to. A refresh cannot clear it because the API itself serves it; the no-shelf pin (applyPins none) does.",
+   "group": "no-shelf-pins-2026-10-12",
+   "note": "Served 2026-10-12: Cujo / Rattlesnakes #1 (Goodreads) -- API-served, so a forced refresh keeps it; only this pin clears it. Prod shows it until a forced refresh after the pin deploys.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-12 (.cache/junk-shelves/pin11-capture.py)",
+    "incipit-api GET /books 2026-10-12 (title, subtitle, authors in stored order, served series; .cache/junk-shelves/pin11-capture.py)",
+    "live Audible catalogue probe 2026-10-12 (US/UK/CA/AU; Audible ids only)",
+    "junk-shelf lookup 2026-10-12 (.cache/junk-shelves/lookup.py)"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "B005GFQ5WQ",
+   "ratingKey": "742650",
+   "album": "The Count of Monte Cristo",
+   "artist": "Alexandre Dumas",
+   "inputs": {
+    "title": "The Count of Monte Cristo",
+    "subtitle": null,
+    "author": "Alexandre Dumas",
+    "providerSeries": {
+     "name": "The Seaside Library",
+     "position": "1"
+    },
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [
+     {
+      "title": "The Seaside Library",
+      "sequence": "1"
+     }
+    ],
+    "inputSource": "incipit-api stored record (title, authors); live Audible catalogue probe 2026-10-12 (series)"
+   },
+   "servedNow": {
+    "primary": {
+     "asin": "B0BRT65LLM",
+     "name": "The Seaside Library",
+     "position": "1"
+    },
+    "secondary": null,
+    "plexSortTitleNow": "Seaside Library, Book 1 - The Count of Monte Cristo",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "NONE",
+    "series": null,
+    "position": null,
+    "expectedSortPrefix": ""
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-10-12: 'go with your recommendations' -- no shelf. 'The Seaside Library' is a 19th-century publisher's reprint line, which Audible lists as #1 for this edition; not a series. A refresh cannot clear it because the API itself serves it; the no-shelf pin (applyPins none) does.",
+   "group": "no-shelf-pins-2026-10-12",
+   "note": "Served 2026-10-12: The Seaside Library #1 (provider series) -- API-served, so a forced refresh keeps it; only this pin clears it. Prod shows it until a forced refresh after the pin deploys.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-12 (.cache/junk-shelves/pin11-capture.py)",
+    "incipit-api GET /books 2026-10-12 (title, subtitle, authors in stored order, served series; .cache/junk-shelves/pin11-capture.py)",
+    "live Audible catalogue probe 2026-10-12 (US/UK/CA/AU; Audible ids only)",
+    "junk-shelf lookup 2026-10-12 (.cache/junk-shelves/lookup.py)"
    ],
    "mintPin": true
   }
