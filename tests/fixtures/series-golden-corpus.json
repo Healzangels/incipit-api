@@ -299,6 +299,16 @@
      "B0CDCKSX7S",
      "B0FVG4C61Z"
     ]
+   },
+   {
+    "date": "2026-10-12",
+    "what": "Operator: \"do the pins\". Sherlock (B002V1CGGM) converted in place to a pin of Sherlock Holmes #3 -- a correction of the search-order-dependent title-gate false accept (O2-exposed), whose resolver fix stays parked. Danse Macabre, The Martian and Fear and Loathing added: the one-book shelves the operator kept on 2026-09-26, served no series by the API, so a forced refresh with the folder fallback off would drop them.",
+    "rows": [
+     "B002V1CGGM",
+     "B0CVHGJ16P",
+     "B082BHWQCJ",
+     "B000BKHEVM"
+    ]
    }
   ]
  },
@@ -29621,18 +29631,21 @@
     "O2-exposed"
    ],
    "pinType": "operator-stated",
-   "sourceOfTruth": "Operator 2026-09-23: 'lets make sure all the titles are across the board', after the Mushoku Tensei shelf was found under its Japanese-script Goodreads name. A library-wide shelf-title audit (.cache/title-audit.py) then surfaced the co-author gate defect and a stale Sherlock shelf. See docs/design/spec-shelf-titles-across-the-board.md.",
+   "sourceOfTruth": "Operator 2026-10-12: 'do the pins' -- pin the collection to Sherlock Holmes #3, where Audible, Goodreads' main series and all eight sibling albums on prod put it. The resolver defect that adopts the story 1214700 (#4 of 'The Adventures of Sherlock Holmes') stays parked, spec first; this pin removes its only known victim. | Earlier sourceOfTruth: Operator 2026-09-23: 'lets make sure all the titles are across the board', after the Mushoku Tensei shelf was found under its Japanese-script Goodreads name. A library-wide shelf-title audit (.cache/title-audit.py) then surfaced the co-author gate defect and a stale Sherlock shelf. See docs/design/spec-shelf-titles-across-the-board.md.",
    "group": "title-audit-2026-09-23",
-   "note": "LIVE DEFECT, measured 2026-09-24 -- NOT the stale shelf first diagnosed. Goodreads' /search never returns the collection work in its top five for this title. The answer is decided by the FIFTH hit, which the widened window (O2, 1fa81b0) made reachable: when it is 8463213 'The Great Adventures of Sherlock Holmes' (no series listed) nothing is accepted and Audible's correct 'Sherlock Holmes #3' stands; when it is 1214700 'The Boscombe Valley Mystery - a Sherlock Holmes Short Story' (series 320780 'The Adventures of Sherlock Holmes' #4) that STORY is adopted. Proven by replaying HEAD and the C1+N1 fix against both recorded search orders: identical answers per order, zero replay misses. Prod rk 735035 carries the story's shelf. Needs a title-gate/window fix of its own (spec first).",
-   "knownDefectNow": true,
+   "note": "Pinned 2026-10-12. Served warm that day: Sherlock Holmes #3 (the provider series; the false accept did not fire on that search order). A cold recompute can still adopt the story, so only the pin makes #3 deterministic. Prod rk 735035 keeps the story shelf (Book 4) until a forced refresh. | Earlier note: LIVE DEFECT, measured 2026-09-24 -- NOT the stale shelf first diagnosed. Goodreads' /search never returns the collection work in its top five for this title. The answer is decided by the FIFTH hit, which the widened window (O2, 1fa81b0) made reachable: when it is 8463213 'The Great Adventures of Sherlock Holmes' (no series listed) nothing is accepted and Audible's correct 'Sherlock Holmes #3' stands; when it is 1214700 'The Boscombe Valley Mystery - a Sherlock Holmes Short Story' (series 320780 'The Adventures of Sherlock Holmes' #4) that STORY is adopted. Proven by replaying HEAD and the C1+N1 fix against both recorded search orders: identical answers per order, zero replay misses. Prod rk 735035 carries the story's shelf. Needs a title-gate/window fix of its own (spec first).",
+   "knownDefectNow": false,
    "inputsVerified": [
     "prod Plex titleSort 2026-09-23 (section 6)",
     "incipit-api GET /books 2026-09-23 (title, subtitle, authors in stored order, served series)",
     "live Audible catalog probe 2026-09-23 (US/UK/CA/AU)",
     "GR mirror /search + /work + /series 2026-09-23",
-    "in-process reproduction (.cache/mushoku.ts, .cache/coauthor.ts, .cache/splitprobe.ts)"
+    "in-process reproduction (.cache/mushoku.ts, .cache/coauthor.ts, .cache/splitprobe.ts)",
+    "prod Plex titleSort + Series mood 2026-10-12 (.cache/pin4-capture.py)",
+    "incipit-api GET /books 2026-10-12 (title, subtitle, authors in stored order, served series; .cache/pin4-capture.py)",
+    "live Audible catalogue probe 2026-10-12 (US/UK/CA/AU)"
    ],
-   "mintPin": false
+   "mintPin": true
   },
   {
    "recordId": "B002V5H0LE",
@@ -29971,6 +29984,132 @@
     "prod Plex titleSort + Series mood 2026-10-11 (.cache/pin12-probe.py)",
     "incipit-api GET /books 2026-10-11 (title, subtitle, authors in stored order, served series; .cache/pin12-inputs.py)",
     "live Audible catalogue probe 2026-10-11 (US/UK/CA/AU)"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "B0CVHGJ16P",
+   "ratingKey": "729223",
+   "album": "Danse Macabre",
+   "artist": "Stephen King",
+   "inputs": {
+    "title": "Danse Macabre",
+    "subtitle": null,
+    "author": "Stephen King",
+    "providerSeries": null,
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": [],
+    "inputSource": "incipit-api stored record (title, authors); live Audible catalogue probe 2026-10-12 (series)"
+   },
+   "servedNow": {
+    "primary": null,
+    "secondary": null,
+    "plexSortTitleNow": "Danse macabre, Book 1 - Danse Macabre",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Danse macabre",
+    "position": "1",
+    "expectedSortPrefix": "Danse macabre, Book 1 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-26: 'KEEP the six held-back shelves as they are' (The Martian, Fear and Loathing among them) and 'leave Danse Macabre' on its one-book shelf; operator 2026-10-12: 'do the pins'. Bundle v1.3.217 (folder series fallback opt-in, default off; live on prod 2026-10-11) stops deriving this shelf from the folder tree and the API serves no series, so only a pin keeps the operator's decision through a forced refresh. The pin restates the album's prod shelf on 2026-10-12 (titleSort + Series: mood). An operator-approved pin is the sanctioned way to state a number (R4).",
+   "group": "kept-shelf-pins-2026-10-12",
+   "note": "Served 2026-10-12: no series (primary NONE, tag NONE) -- with the folder fallback off a forced refresh drops this one-book shelf and v1.3.218 retires its Series: mood. Load-bearing pin for a shelf the operator chose to keep.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-12 (.cache/pin4-capture.py)",
+    "incipit-api GET /books 2026-10-12 (title, subtitle, authors in stored order, served series; .cache/pin4-capture.py)",
+    "live Audible catalogue probe 2026-10-12 (US/UK/CA/AU)"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "B082BHWQCJ",
+   "ratingKey": "728999",
+   "album": "The Martian",
+   "artist": "Andy Weir",
+   "inputs": {
+    "title": "The Martian",
+    "subtitle": "Stranded on Mars, one astronaut fights to survive",
+    "author": "Andy Weir",
+    "providerSeries": "UNKNOWN-not-rebuildable",
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": null,
+    "inputSource": "served book doc 2026-10-12; no Audible product in the US store or UK/CA/AU, so the stored record's provider series is unknown"
+   },
+   "servedNow": {
+    "primary": null,
+    "secondary": null,
+    "plexSortTitleNow": "Martian, Book 1 - The Martian",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "The Martian",
+    "position": "1",
+    "expectedSortPrefix": "Martian, Book 1 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-26: 'KEEP the six held-back shelves as they are' (The Martian, Fear and Loathing among them) and 'leave Danse Macabre' on its one-book shelf; operator 2026-10-12: 'do the pins'. Bundle v1.3.217 (folder series fallback opt-in, default off; live on prod 2026-10-11) stops deriving this shelf from the folder tree and the API serves no series, so only a pin keeps the operator's decision through a forced refresh. The pin restates the album's prod shelf on 2026-10-12 (titleSort + Series: mood). An operator-approved pin is the sanctioned way to state a number (R4).",
+   "group": "kept-shelf-pins-2026-10-12",
+   "note": "Served 2026-10-12: no series (primary NONE, tag NONE) -- with the folder fallback off a forced refresh drops this one-book shelf and v1.3.218 retires its Series: mood. Load-bearing pin for a shelf the operator chose to keep.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-12 (.cache/pin4-capture.py)",
+    "incipit-api GET /books 2026-10-12 (title, subtitle, authors in stored order, served series; .cache/pin4-capture.py)",
+    "live Audible catalogue probe 2026-10-12 (US/UK/CA/AU)"
+   ],
+   "mintPin": true
+  },
+  {
+   "recordId": "B000BKHEVM",
+   "ratingKey": "740611",
+   "album": "Fear and Loathing in Las Vegas",
+   "artist": "Hunter S. Thompson",
+   "inputs": {
+    "title": "Fear and Loathing in Las Vegas",
+    "subtitle": null,
+    "author": "Hunter S. Thompson",
+    "providerSeries": "UNKNOWN-not-rebuildable",
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": null,
+    "inputSource": "served book doc 2026-10-12; no Audible product in the US store or UK/CA/AU, so the stored record's provider series is unknown"
+   },
+   "servedNow": {
+    "primary": null,
+    "secondary": null,
+    "plexSortTitleNow": "Fear and Loathing, Book 1 - Fear and Loathing in Las Vegas",
+    "sweepDegraded": false
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Fear and Loathing",
+    "position": "1",
+    "expectedSortPrefix": "Fear and Loathing, Book 1 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Operator 2026-09-26: 'KEEP the six held-back shelves as they are' (The Martian, Fear and Loathing among them) and 'leave Danse Macabre' on its one-book shelf; operator 2026-10-12: 'do the pins'. Bundle v1.3.217 (folder series fallback opt-in, default off; live on prod 2026-10-11) stops deriving this shelf from the folder tree and the API serves no series, so only a pin keeps the operator's decision through a forced refresh. The pin restates the album's prod shelf on 2026-10-12 (titleSort + Series: mood). An operator-approved pin is the sanctioned way to state a number (R4).",
+   "group": "kept-shelf-pins-2026-10-12",
+   "note": "Served 2026-10-12: no series (primary NONE, tag NONE) -- with the folder fallback off a forced refresh drops this one-book shelf and v1.3.218 retires its Series: mood. Load-bearing pin for a shelf the operator chose to keep.",
+   "knownDefectNow": false,
+   "inputsVerified": [
+    "prod Plex titleSort + Series mood 2026-10-12 (.cache/pin4-capture.py)",
+    "incipit-api GET /books 2026-10-12 (title, subtitle, authors in stored order, served series; .cache/pin4-capture.py)",
+    "live Audible catalogue probe 2026-10-12 (US/UK/CA/AU)"
    ],
    "mintPin": true
   }
