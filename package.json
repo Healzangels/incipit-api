@@ -17,7 +17,7 @@
 		"release": "standard-version",
 		"serve": "bun run dist/server.js",
 		"start": "bun run build && bun run serve",
-		"test": "bun test --timeout 30000 --parallel=1 tests/typing tests/static tests/helpers/database tests/helpers/errors tests/helpers/routes tests/helpers/utils tests/helpers/books tests/helpers/authors tests/helpers/providers tests/helpers/series tests/database tests/config tests/audible/authors/scrape.test.ts tests/audible/books/scrape.test.ts",
+		"test": "bun test --timeout 30000 --parallel=1 tests/typing tests/static tests/helpers/database tests/helpers/errors tests/helpers/routes tests/helpers/utils tests/helpers/books tests/helpers/authors tests/helpers/providers tests/helpers/series tests/helpers/overlay tests/database tests/config tests/audible/authors/scrape.test.ts tests/audible/books/scrape.test.ts",
 		"backup": "bun scripts/backupSqlite.ts",
 		"test:audible": "bun test --timeout 30000 --parallel=1 tests/audible/books/api.test.ts tests/audible/books/chapter.test.ts tests/audible/books/stitch.test.ts",
 		"test:integration": "bun test tests-integration",
@@ -27,7 +27,8 @@
 		"watch-debug": "bun --watch --inspect src/server.ts",
 		"watch": "bun --watch src/server.ts",
 		"check:pins": "bun scripts/checkPinLiveness.ts",
-		"test:all": "bun test --timeout 30000 --parallel=1 tests/typing tests/static tests/helpers/database tests/helpers/errors tests/helpers/routes tests/helpers/utils tests/helpers/books tests/helpers/authors tests/helpers/providers tests/helpers/series tests/database tests/config tests/audible"
+		"check:overlay": "bun scripts/checkOverlay.ts",
+		"test:all": "bun test --timeout 30000 --parallel=1 tests/typing tests/static tests/helpers/database tests/helpers/errors tests/helpers/routes tests/helpers/utils tests/helpers/books tests/helpers/authors tests/helpers/providers tests/helpers/series tests/helpers/overlay tests/database tests/config tests/audible"
 	},
 	"author": "David Dembeck",
 	"license": "GPL-3.0",

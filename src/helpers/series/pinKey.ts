@@ -33,6 +33,16 @@ const flatten = (value: string): string =>
 		.replace(/[^a-z0-9]+/g, '')
 
 /**
+ * The fold every pinKey half goes through, for a key that adds a third half
+ * (the book-enrichment overlay's narrator). Exported rather than copied: a
+ * narrator folded one way and a title folded another would make keys that
+ * look right and never match.
+ * @param {string} value one key component
+ * @returns {string} the folded component, possibly empty
+ */
+export const foldKeyPart = flatten
+
+/**
  * A folded (title, author) key.
  *
  * WHY THIS EXISTS: a pin is keyed on the matched EDITION id, and two libraries

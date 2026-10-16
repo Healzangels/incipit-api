@@ -1,5 +1,8 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test'
+import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test'
 import Fastify from 'fastify'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 /**
  * WIRING for the main serving path.
@@ -767,6 +770,180 @@ describe('finish() enrichment concurrency', () => {
 			enrichTrace = async () => {}
 			cachedAlternates = []
 		}
+	})
+})
+
+/**
+ * The book-enrichment overlay through the REGISTERED route (PLAN-v2 4.1).
+ *
+ * The overlay is the last stage of finish(), and it is exactly the kind of
+ * stage a mutation sweep removes without a red test: a missing call serves the
+ * provider text, which looks fine. So the contract is asserted end to end, on
+ * SYNTHETIC entries (the real overlay data is private): the overlay replaces
+ * `summary` and `genres` and nothing else, runs AFTER pins and shelf policy,
+ * keys from the PRE-pin title, and with no file serves exactly what it would
+ * have served anyway.
+ */
+describe('the book-enrichment overlay on the item response', () => {
+	const dir = mkdtempSync(join(tmpdir(), 'overlay-route-'))
+	const ON = join(dir, 'book-enrichment.json')
+	const OFF = join(dir, 'absent.json')
+	const prior = process.env.BOOK_OVERLAY_PATH
+	const GENRES = ['Fantasy', 'Epic Fantasy', 'High Fantasy', 'Adventure']
+	const entry = (title: string, author: string, narrator: string, work = 'synthetic-work') => ({
+		work,
+		keys: { title, author, narrator },
+		status: 'approved',
+		approved_on: '2026-10-16'
+	})
+
+	beforeAll(() => {
+		writeFileSync(
+			ON,
+			JSON.stringify({
+				schema: 1,
+				works: {
+					'synthetic-work': {
+						hook: 'A synthetic hook for the route test.',
+						genres: GENRES,
+						series_total: 7
+					},
+					'open-series-work': { hook: 'A synthetic hook for an open series.', genres: GENRES }
+				},
+				editions: {
+					B0OVERLAY1: entry('The Lantern Road', 'Ada Quill', 'Ben Reader'),
+					// A shipped pin's record (Holly Gibney #2): proves the overlay runs
+					// AFTER the pin and leaves the shelf alone.
+					'1797104802': entry('If It Bleeds', 'Stephen King', 'Synthetic Narrator'),
+					// No entry under B00HFW9SUE itself: only the PRE-pin title reaches
+					// it, because its pin rewrites the title (displayTitle).
+					B0SPINEKEY: entry(
+						'The Spine of the World: Legend of Drizzt: Paths of Darkness, Book 2',
+						'R.A. Salvatore',
+						'Synthetic Narrator',
+						'open-series-work'
+					),
+					'hardcover-book-424242': entry('The Glass Orchard', 'Fen Writer', 'Gus Speaker')
+				}
+			})
+		)
+	})
+	afterAll(() => {
+		if (prior === undefined) delete process.env.BOOK_OVERLAY_PATH
+		else process.env.BOOK_OVERLAY_PATH = prior
+		rmSync(dir, { recursive: true, force: true })
+	})
+	beforeEach(() => {
+		handlerThrows = null
+		storedRecord = null
+		servedByProvider = null
+		backfillGenres = []
+		chaptarrGenres = []
+		titleRescueGenres = []
+		hcTitleRescueGenres = []
+		cachedAlternates = []
+	})
+
+	/** The same request with the overlay file absent (arm A) and present (arm B). */
+	const arms = async (id: string, query = '') => {
+		process.env.BOOK_OVERLAY_PATH = OFF
+		const off = await get(id, query)
+		process.env.BOOK_OVERLAY_PATH = ON
+		const on = await get(id, query)
+		process.env.BOOK_OVERLAY_PATH = OFF
+		return { off, on }
+	}
+	const changedFields = (a: Record<string, unknown>, b: Record<string, unknown>) =>
+		Object.keys({ ...a, ...b })
+			.filter((k) => JSON.stringify(a[k]) !== JSON.stringify(b[k]))
+			.sort()
+
+	const fullRecord = (over: Record<string, unknown> = {}) =>
+		bookRecord({
+			asin: 'B0OVERLAY1',
+			title: 'The Lantern Road',
+			subtitle: 'A Subtitle',
+			authors: [{ name: 'Ada Quill' }],
+			narrators: [{ name: 'Ben Reader' }],
+			formatType: 'unabridged',
+			runtimeLengthMin: 1023,
+			publisherName: 'Synthetic Audio',
+			releaseDate: '2000-12-31T00:00:00.000Z',
+			language: 'english',
+			summary: '<p>The provider blurb.</p>',
+			description: 'The provider description.',
+			genres: [{ asin: '18580606011', name: 'Science Fiction & Fantasy', type: 'genre' }],
+			seriesPrimary: { name: 'The Lantern Cycle', position: '2' },
+			seriesSecondary: { name: 'A Tag Series', position: '9' },
+			...over
+		})
+
+	test('ONLY summary and genres change; every other field is byte-identical', async () => {
+		served = fullRecord()
+		const { off, on } = await arms('B0OVERLAY1')
+		expect(off.status).toBe(200)
+		expect(on.status).toBe(200)
+		expect(changedFields(off.body, on.body)).toEqual(['genres', 'summary'])
+		expect(on.body.summary).toBe(
+			'A synthetic hook for the route test.\n\n' +
+				'Series: The Lantern Cycle, Book 2 of 7\n' +
+				'Narrated by Ben Reader · Unabridged · 17 h 03 min · Synthetic Audio, 2000'
+		)
+		expect((on.body.genres as { name: string }[]).map((g) => g.name)).toEqual(GENRES)
+		// Arm A is the provider text, untouched.
+		expect(off.body.summary).toBe('<p>The provider blurb.</p>')
+		expect((off.body.genres as { name: string }[]).map((g) => g.name)).toEqual([
+			'Science Fiction & Fantasy'
+		])
+	})
+
+	test('the overlay runs AFTER pins: the shelf is the pinned one, in the body and in the text', async () => {
+		served = fullRecord({
+			asin: '1797104802',
+			title: 'If It Bleeds',
+			authors: [{ name: 'Stephen King' }],
+			narrators: [{ name: 'Synthetic Narrator' }],
+			seriesPrimary: { name: 'Not The Pinned Shelf', position: '9' },
+			seriesSecondary: undefined
+		})
+		const { off, on } = await arms('1797104802')
+		expect(off.body.seriesPrimary).toEqual({ name: 'Holly Gibney', position: '2' })
+		expect(on.body.seriesPrimary).toEqual(off.body.seriesPrimary)
+		expect(on.body.seriesSecondary).toEqual(off.body.seriesSecondary)
+		expect(changedFields(off.body, on.body)).toEqual(['genres', 'summary'])
+		expect(on.body.summary).toContain('Series: Holly Gibney, Book 2 of 7\n')
+	})
+
+	test('the lookup keys on the PRE-pin title (a displayTitle pin cannot hide the entry)', async () => {
+		served = fullRecord({
+			asin: 'B00HFW9SUE',
+			title: 'The Spine of the World: Legend of Drizzt: Paths of Darkness, Book 2',
+			authors: [{ name: 'R. A. Salvatore' }],
+			narrators: [{ name: 'Synthetic Narrator' }],
+			seriesPrimary: undefined,
+			seriesSecondary: undefined
+		})
+		const { off, on } = await arms('B00HFW9SUE')
+		// The pin rewrote the title and placed the shelf, in both arms alike.
+		expect(off.body.title).toBe('The Spine of the World')
+		expect(on.body.title).toBe('The Spine of the World')
+		expect(on.body.seriesPrimary).toEqual(off.body.seriesPrimary)
+		expect(changedFields(off.body, on.body)).toEqual(['genres', 'summary'])
+		expect(on.body.summary).toContain('Series: The Legend of Drizzt, Book 12\n')
+	})
+
+	test('the PROVIDER-ID branch is overlaid too', async () => {
+		servedByProvider = fullRecord({ asin: null, title: 'Unrelated Title' })
+		const { off, on } = await arms('hardcover-book-424242', '?region=us')
+		expect(changedFields(off.body, on.body)).toEqual(['genres', 'summary'])
+		expect(on.body.summary).toContain('A synthetic hook for the route test.')
+	})
+
+	test('a book with no entry is served identically with the overlay on and off', async () => {
+		served = fullRecord({ asin: 'B0NOENTRY1', title: 'Some Other Book' })
+		const { off, on } = await arms('B0NOENTRY1')
+		expect(on.body).toEqual(off.body)
+		expect(on.body.summary).toBe('<p>The provider blurb.</p>')
 	})
 })
 

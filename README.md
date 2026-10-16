@@ -99,6 +99,14 @@ answer, so the work is not repeated on every request.
 | `OL_CONTACT` | Contact string sent to OpenLibrary, which their API asks of automated clients. |
 | `ADP_TOKEN`, `PRIVATE_KEY` | Audible device keys, needed only for the chapters endpoint. |
 
+**Book-enrichment overlay (optional)** — `BOOK_OVERLAY_PATH` (default
+`/data/overlays/book-enrichment.json`) names a private JSON file of operator-approved
+descriptions and genres that replace the provider's for specific editions. No file
+means no overlay. The file is validated at load, a refused file keeps the last good
+one, and a changed file is picked up without a restart. See
+[docs/design/spec-book-enrichment-overlay.md](docs/design/spec-book-enrichment-overlay.md)
+and `bun run check:overlay`.
+
 **Write protection** — the delete routes refuse to run unless one of these is set, so
 an unconfigured deployment cannot be told to delete things:
 

@@ -3,6 +3,8 @@ import { FastifyInstance } from 'fastify'
 import type { ApiBook, ApiGenre } from '#config/types'
 import { RequestGeneric } from '#config/typing/requests'
 import { NotFoundError, ServiceUnavailableError } from '#helpers/errors/ApiErrors'
+import { applyBookOverlay } from '#helpers/overlay/bookOverlay'
+import { bookOverlayTable } from '#helpers/overlay/overlayStore'
 import {
 	alternateCoverKey,
 	recallAlternates,
@@ -315,9 +317,15 @@ async function _show(fastify: FastifyInstance) {
 					: {}),
 				...(Array.isArray(genred.genres) && genred.genres.length ? { genres: genred.genres } : {})
 			}
-			// Q2 shelf policy runs LAST and at serve time, so pre-policy answers in
-			// the goodreads cache obey it too — no invalidation rides along (P3).
-			return applyShelfPolicy(applyPins(merged, asin))
+			// Q2 shelf policy runs at serve time, so pre-policy answers in the
+			// goodreads cache obey it too — no invalidation rides along (P3).
+			const shelved = applyShelfPolicy(applyPins(merged, asin))
+			// The book-enrichment overlay runs AFTER the shelf is settled, so its
+			// Series line states the shelf actually served, and is keyed from the
+			// PRE-pin record so a pin's displayTitle cannot change which text a
+			// book gets. It replaces `summary` and `genres` and nothing else; a
+			// missing overlay file (the default) returns `shelved` untouched.
+			return applyBookOverlay(shelved, merged, asin, bookOverlayTable(request.log))
 		}
 
 		const dataHelper = new BookDataHelper(defaultRegistry, asin, region, credentials, request.log)

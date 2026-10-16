@@ -8,6 +8,7 @@ Not to be confused with [`docs/spec/`](../spec/), which holds the OpenAPI docume
 
 | spec | status |
 |---|---|
+| [spec-book-enrichment-overlay.md](spec-book-enrichment-overlay.md) | **Built and A/B'd, not deployed.** Operator-approved descriptions and genres served in place of the provider's, from a private runtime file validated at load (keys: record id, then title+author+narrator, then an unambiguous title key; never the wrong book). Same-data A/B: movers exactly the 8 pilot editions, `summary` and `genres` only |
 | [spec-edition-subtitle-arm.md](spec-edition-subtitle-arm.md) | **Closed — won't fix.** Kill switch passed, sizing failed: 4 books library-wide |
 | [spec-translated-series-pin.md](spec-translated-series-pin.md) | **Implemented as a pin.** A German series name, fixed as data rather than in the resolver |
 | [spec-millennium-shelf-split.md](spec-millennium-shelf-split.md) | **Implemented as pins.** One shelf split three ways, by two opposite causes |
