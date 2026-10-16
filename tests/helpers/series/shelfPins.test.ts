@@ -660,3 +660,88 @@ describe('the shipped pins are the corpus answers', () => {
 		}
 	})
 })
+
+// Healzangels 2026-10-16 (audiobooks PLAN-v2, P8): the library holds two complete
+// Harry Potter narrations, and each gets its own shelf. The Stephen Fry set already
+// has one — its provider names the series "Harry Potter (Narrated by Stephen Fry)" —
+// but every source names the Jim Dale set plain "Harry Potter", so only a pin can
+// state its shelf. The stored titles carry ", Book N", which is what the portable
+// key folds, so these are the strings another library's record would present.
+describe('the Jim Dale Harry Potter shelf (2026-10-16)', () => {
+	const DALE = 'Harry Potter (Narrated by Jim Dale)'
+	const AUTHOR = 'J.K. Rowling'
+	const dale = [
+		['B017V4IM1G', "Harry Potter and the Sorcerer's Stone, Book 1", '1'],
+		['B017V4IWVG', 'Harry Potter and the Chamber of Secrets, Book 2', '2'],
+		['B017V4JA2Q', 'Harry Potter and the Prisoner of Azkaban, Book 3', '3'],
+		['B017V4NUPO', 'Harry Potter and the Goblet of Fire, Book 4', '4'],
+		['B017V4NMX4', 'Harry Potter and the Order of the Phoenix, Book 5', '5'],
+		['B017V4NOZ0', 'Harry Potter and the Half-Blood Prince, Book 6', '6'],
+		['B017WJ5ZK6', 'Harry Potter and the Deathly Hallows, Book 7', '7']
+	] as const
+	const fry = [
+		['B0D1CSXB3Z', "Harry Potter and the Philosopher's Stone (Narrated by Stephen Fry)", '1'],
+		['B0D1CTCS5D', 'Harry Potter and the Chamber of Secrets (Narrated by Stephen Fry)', '2'],
+		['B0D1CW8W56', 'Harry Potter and the Prisoner of Azkaban (Narrated by Stephen Fry)', '3'],
+		['B0D1C5R1XF', 'Harry Potter and the Goblet of Fire (Narrated by Stephen Fry)', '4'],
+		['B0D1CVZ22J', 'Harry Potter and the Order of the Phoenix (Narrated by Stephen Fry)', '5'],
+		['B0D1CWLB8H', 'Harry Potter and the Half-Blood Prince (Narrated by Stephen Fry)', '6'],
+		['B0D1CWTPYD', 'Harry Potter and the Deathly Hallows (Narrated by Stephen Fry)', '7']
+	] as const
+	/** What the resolver serves a Dale book today (prod, 2026-10-16). */
+	const servedToday = (title: string, n: string) => ({
+		title,
+		authors: [{ name: AUTHOR }],
+		seriesPrimary: { name: 'Harry Potter', position: n },
+		seriesSecondary: { name: 'Wizarding World Collection', position: n, asin: 'B07CM5ZDJL' }
+	})
+
+	test('each Dale record serves its own shelf, #1-7, by recordId', () => {
+		for (const [id, title, n] of dale) {
+			expect(SHELF_PINS[id]).toStrictEqual({ series: DALE, position: n, source: 'operator-stated' })
+			const served = applyShelfPolicy(applyPins(servedToday(title, n), id))
+			expect(served.seriesPrimary).toStrictEqual({ name: DALE, position: n })
+			// The resolver's own tag keeps the slot; plain "Harry Potter" is not re-seated.
+			expect(served.seriesSecondary).toStrictEqual({
+				name: 'Wizarding World Collection',
+				position: n,
+				asin: 'B07CM5ZDJL'
+			})
+		}
+	})
+
+	test('each Dale book reaches the same shelf by portable key from an edition id never minted', () => {
+		for (const [id, title, n] of dale) {
+			const k = pinKey(title, AUTHOR)
+			expect(SHELF_PIN_KEYS[id]).toEqual([k])
+			expect(SHELF_PINS_BY_KEY[k]).toStrictEqual({
+				series: DALE,
+				position: n,
+				source: 'operator-stated'
+			})
+			const out = applyPins(servedToday(title, n), 'B0NOTMINTD')
+			expect(out.seriesPrimary).toStrictEqual({ name: DALE, position: n })
+		}
+	})
+
+	test('exactly the seven Dale records state the Dale shelf', () => {
+		const stating = Object.entries(SHELF_PINS)
+			.filter(([, p]) => p.series === DALE)
+			.map(([id]) => id)
+			.sort()
+		expect(stating).toEqual(dale.map(([id]) => id).sort())
+	})
+
+	test('the Stephen Fry narration is not pinned, by id or by key', () => {
+		for (const [id, title, n] of fry) {
+			expect(Object.hasOwn(SHELF_PINS, id)).toBe(false)
+			const book = {
+				title,
+				authors: [{ name: AUTHOR }],
+				seriesPrimary: { name: 'Harry Potter (Narrated by Stephen Fry)', position: n }
+			}
+			// The SAME object back: no pin reached it through either table.
+			expect(applyPins(book, id)).toBe(book)
+		}
+	})
+})

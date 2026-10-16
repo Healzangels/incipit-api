@@ -11499,7 +11499,7 @@
   },
   {
    "recordId": "B017V4IM1G",
-   "ratingKey": "154544",
+   "ratingKey": "730213",
    "album": "Harry Potter and the Sorcerer's Stone",
    "artist": "J.K. Rowling",
    "inputs": {
@@ -11527,7 +11527,7 @@
       "sequence": "1"
      }
     ],
-    "inputSource": "provider-rebuilt (final2.jsonl sweep 2026-07-30)"
+    "inputSource": "provider-rebuilt (final2.jsonl sweep 2026-07-30); re-verified 2026-10-16 against the stored record (title, authors; narrator Jim Dale) and the live Audible US catalogue (same two series and numbers; Audible lists them in varying order)"
    },
    "servedNow": {
     "primary": {
@@ -11544,25 +11544,34 @@
      "name": "Harry Potter",
      "position": "1"
     },
-    "sweepDegraded": false
+    "sweepDegraded": false,
+    "note": "prod Plex 2026-10-16 (CMacServer, section 6, rk730213, folder \"Harry Potter (Narrated by Jim Dale)\"): Series: moods Harry Potter, Wizarding World Collection. Served = incipit-api GET /books/B017V4IM1G 2026-10-16."
    },
    "required": {
     "outcome": "SERIES",
-    "series": "Harry Potter",
+    "series": "Harry Potter (Narrated by Jim Dale)",
     "position": "1",
-    "secondaryNote": "Wizarding World Collection stays secondary",
-    "expectedSortPrefix": "Harry Potter, Book 1 - "
+    "secondaryNote": "Wizarding World Collection stays secondary: applyPins keeps a non-echo tag the resolver placed, so the displaced \"Harry Potter\" is not re-seated",
+    "expectedSortPrefix": "Harry Potter (Narrated by Jim Dale), Book 1 - "
    },
    "specRule": [
     "R5"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Standard-narration shelf.",
-   "group": "named-potter"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Healzangels 2026-10-16 (audiobooks PLAN-v2, pilot step P8, approved): both Harry Potter narrations get their own shelf, the Jim Dale set as \"Harry Potter (Narrated by Jim Dale)\" #1-7. The Stephen Fry set keeps the edition-scoped \"Harry Potter (Narrated by Stephen Fry)\" its provider already supplies (named-potter rows B0D1CSXB3Z..B0D1CWTPYD, unchanged). No source names the Dale shelf -- Audible and Goodreads both say plain \"Harry Potter\" -- so only a pin can state it. Positions are Audible's, never synthesized (R4). R5: edition variants never merge.",
+   "group": "hp-jim-dale-2026-10-16",
+   "note": "Converted in place 2026-10-16: served today as Harry Potter #1 (tag Wizarding World Collection #1), the plain shelf the operator has now given the Jim Dale narration its own name for. Was SERIES Harry Potter #1 (pinType current-correct-default, group named-potter, pre-rebuild rk154544); previous sourceOfTruth: Standard-narration shelf.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort + Series moods + guid + folder 2026-10-16 (.cache/hp-jim-dale/capture.py)",
+    "incipit-api GET /books 2026-10-16 (title, subtitle, authors, narrators, served series; .cache/hp-jim-dale/capture.py)",
+    "live Audible catalogue probe 2026-10-16 (US lists Harry Potter #1 + Wizarding World Collection #1; no product in UK/CA/AU)"
+   ],
+   "mintPin": true
   },
   {
    "recordId": "B017V4IWVG",
-   "ratingKey": "154556",
+   "ratingKey": "730225",
    "album": "Harry Potter and the Chamber of Secrets",
    "artist": "J.K. Rowling",
    "inputs": {
@@ -11590,7 +11599,7 @@
       "sequence": "2"
      }
     ],
-    "inputSource": "provider-rebuilt (final2.jsonl sweep 2026-07-30)"
+    "inputSource": "provider-rebuilt (final2.jsonl sweep 2026-07-30); re-verified 2026-10-16 against the stored record (title, authors; narrator Jim Dale) and the live Audible US catalogue (same two series and numbers; Audible lists them in varying order)"
    },
    "servedNow": {
     "primary": {
@@ -11607,25 +11616,34 @@
      "name": "Harry Potter",
      "position": "2"
     },
-    "sweepDegraded": false
+    "sweepDegraded": false,
+    "note": "prod Plex 2026-10-16 (CMacServer, section 6, rk730225, folder \"Harry Potter (Narrated by Jim Dale)\"): Series: moods Harry Potter, Wizarding World Collection. Served = incipit-api GET /books/B017V4IWVG 2026-10-16."
    },
    "required": {
     "outcome": "SERIES",
-    "series": "Harry Potter",
+    "series": "Harry Potter (Narrated by Jim Dale)",
     "position": "2",
-    "secondaryNote": "Wizarding World Collection stays secondary",
-    "expectedSortPrefix": "Harry Potter, Book 2 - "
+    "secondaryNote": "Wizarding World Collection stays secondary: applyPins keeps a non-echo tag the resolver placed, so the displaced \"Harry Potter\" is not re-seated",
+    "expectedSortPrefix": "Harry Potter (Narrated by Jim Dale), Book 2 - "
    },
    "specRule": [
     "R5"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Standard-narration shelf.",
-   "group": "named-potter"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Healzangels 2026-10-16 (audiobooks PLAN-v2, pilot step P8, approved): both Harry Potter narrations get their own shelf, the Jim Dale set as \"Harry Potter (Narrated by Jim Dale)\" #1-7. The Stephen Fry set keeps the edition-scoped \"Harry Potter (Narrated by Stephen Fry)\" its provider already supplies (named-potter rows B0D1CSXB3Z..B0D1CWTPYD, unchanged). No source names the Dale shelf -- Audible and Goodreads both say plain \"Harry Potter\" -- so only a pin can state it. Positions are Audible's, never synthesized (R4). R5: edition variants never merge.",
+   "group": "hp-jim-dale-2026-10-16",
+   "note": "Converted in place 2026-10-16: served today as Harry Potter #2 (tag Wizarding World Collection #2), the plain shelf the operator has now given the Jim Dale narration its own name for. Was SERIES Harry Potter #2 (pinType current-correct-default, group named-potter, pre-rebuild rk154556); previous sourceOfTruth: Standard-narration shelf.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort + Series moods + guid + folder 2026-10-16 (.cache/hp-jim-dale/capture.py)",
+    "incipit-api GET /books 2026-10-16 (title, subtitle, authors, narrators, served series; .cache/hp-jim-dale/capture.py)",
+    "live Audible catalogue probe 2026-10-16 (US lists Harry Potter #2 + Wizarding World Collection #2; no product in UK/CA/AU)"
+   ],
+   "mintPin": true
   },
   {
    "recordId": "B017V4JA2Q",
-   "ratingKey": "154542",
+   "ratingKey": "730211",
    "album": "Harry Potter and the Prisoner of Azkaban",
    "artist": "J.K. Rowling",
    "inputs": {
@@ -11653,7 +11671,7 @@
       "sequence": "3"
      }
     ],
-    "inputSource": "provider-rebuilt (final2.jsonl sweep 2026-07-30)"
+    "inputSource": "provider-rebuilt (final2.jsonl sweep 2026-07-30); re-verified 2026-10-16 against the stored record (title, authors; narrator Jim Dale) and the live Audible US catalogue (same two series and numbers; Audible lists them in varying order)"
    },
    "servedNow": {
     "primary": {
@@ -11670,25 +11688,34 @@
      "name": "Harry Potter",
      "position": "3"
     },
-    "sweepDegraded": false
+    "sweepDegraded": false,
+    "note": "prod Plex 2026-10-16 (CMacServer, section 6, rk730211, folder \"Harry Potter (Narrated by Jim Dale)\"): Series: moods Harry Potter, Wizarding World Collection. Served = incipit-api GET /books/B017V4JA2Q 2026-10-16."
    },
    "required": {
     "outcome": "SERIES",
-    "series": "Harry Potter",
+    "series": "Harry Potter (Narrated by Jim Dale)",
     "position": "3",
-    "secondaryNote": "Wizarding World Collection stays secondary",
-    "expectedSortPrefix": "Harry Potter, Book 3 - "
+    "secondaryNote": "Wizarding World Collection stays secondary: applyPins keeps a non-echo tag the resolver placed, so the displaced \"Harry Potter\" is not re-seated",
+    "expectedSortPrefix": "Harry Potter (Narrated by Jim Dale), Book 3 - "
    },
    "specRule": [
     "R5"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Standard-narration shelf.",
-   "group": "named-potter"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Healzangels 2026-10-16 (audiobooks PLAN-v2, pilot step P8, approved): both Harry Potter narrations get their own shelf, the Jim Dale set as \"Harry Potter (Narrated by Jim Dale)\" #1-7. The Stephen Fry set keeps the edition-scoped \"Harry Potter (Narrated by Stephen Fry)\" its provider already supplies (named-potter rows B0D1CSXB3Z..B0D1CWTPYD, unchanged). No source names the Dale shelf -- Audible and Goodreads both say plain \"Harry Potter\" -- so only a pin can state it. Positions are Audible's, never synthesized (R4). R5: edition variants never merge.",
+   "group": "hp-jim-dale-2026-10-16",
+   "note": "Converted in place 2026-10-16: served today as Harry Potter #3 (tag Wizarding World Collection #3), the plain shelf the operator has now given the Jim Dale narration its own name for. Was SERIES Harry Potter #3 (pinType current-correct-default, group named-potter, pre-rebuild rk154542); previous sourceOfTruth: Standard-narration shelf.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort + Series moods + guid + folder 2026-10-16 (.cache/hp-jim-dale/capture.py)",
+    "incipit-api GET /books 2026-10-16 (title, subtitle, authors, narrators, served series; .cache/hp-jim-dale/capture.py)",
+    "live Audible catalogue probe 2026-10-16 (US lists Harry Potter #3 + Wizarding World Collection #3; no product in UK/CA/AU)"
+   ],
+   "mintPin": true
   },
   {
    "recordId": "B017V4NUPO",
-   "ratingKey": "154546",
+   "ratingKey": "730215",
    "album": "Harry Potter and the Goblet of Fire",
    "artist": "J.K. Rowling",
    "inputs": {
@@ -11716,7 +11743,7 @@
       "sequence": "4"
      }
     ],
-    "inputSource": "provider-rebuilt (final2.jsonl sweep 2026-07-30)"
+    "inputSource": "provider-rebuilt (final2.jsonl sweep 2026-07-30); re-verified 2026-10-16 against the stored record (title, authors; narrator Jim Dale) and the live Audible US catalogue (same two series and numbers; Audible lists them in varying order)"
    },
    "servedNow": {
     "primary": {
@@ -11733,25 +11760,34 @@
      "name": "Harry Potter",
      "position": "4"
     },
-    "sweepDegraded": false
+    "sweepDegraded": false,
+    "note": "prod Plex 2026-10-16 (CMacServer, section 6, rk730215, folder \"Harry Potter (Narrated by Jim Dale)\"): Series: moods Harry Potter, Wizarding World Collection. Served = incipit-api GET /books/B017V4NUPO 2026-10-16."
    },
    "required": {
     "outcome": "SERIES",
-    "series": "Harry Potter",
+    "series": "Harry Potter (Narrated by Jim Dale)",
     "position": "4",
-    "secondaryNote": "Wizarding World Collection stays secondary",
-    "expectedSortPrefix": "Harry Potter, Book 4 - "
+    "secondaryNote": "Wizarding World Collection stays secondary: applyPins keeps a non-echo tag the resolver placed, so the displaced \"Harry Potter\" is not re-seated",
+    "expectedSortPrefix": "Harry Potter (Narrated by Jim Dale), Book 4 - "
    },
    "specRule": [
     "R5"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Standard-narration shelf.",
-   "group": "named-potter"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Healzangels 2026-10-16 (audiobooks PLAN-v2, pilot step P8, approved): both Harry Potter narrations get their own shelf, the Jim Dale set as \"Harry Potter (Narrated by Jim Dale)\" #1-7. The Stephen Fry set keeps the edition-scoped \"Harry Potter (Narrated by Stephen Fry)\" its provider already supplies (named-potter rows B0D1CSXB3Z..B0D1CWTPYD, unchanged). No source names the Dale shelf -- Audible and Goodreads both say plain \"Harry Potter\" -- so only a pin can state it. Positions are Audible's, never synthesized (R4). R5: edition variants never merge.",
+   "group": "hp-jim-dale-2026-10-16",
+   "note": "Converted in place 2026-10-16: served today as Harry Potter #4 (tag Wizarding World Collection #4), the plain shelf the operator has now given the Jim Dale narration its own name for. Was SERIES Harry Potter #4 (pinType current-correct-default, group named-potter, pre-rebuild rk154546); previous sourceOfTruth: Standard-narration shelf.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort + Series moods + guid + folder 2026-10-16 (.cache/hp-jim-dale/capture.py)",
+    "incipit-api GET /books 2026-10-16 (title, subtitle, authors, narrators, served series; .cache/hp-jim-dale/capture.py)",
+    "live Audible catalogue probe 2026-10-16 (US lists Harry Potter #4 + Wizarding World Collection #4; no product in UK/CA/AU)"
+   ],
+   "mintPin": true
   },
   {
    "recordId": "B017V4NMX4",
-   "ratingKey": "154548",
+   "ratingKey": "730217",
    "album": "Harry Potter and the Order of the Phoenix",
    "artist": "J.K. Rowling",
    "inputs": {
@@ -11779,7 +11815,7 @@
       "sequence": "5"
      }
     ],
-    "inputSource": "provider-rebuilt (final2.jsonl sweep 2026-07-30)"
+    "inputSource": "provider-rebuilt (final2.jsonl sweep 2026-07-30); re-verified 2026-10-16 against the stored record (title, authors; narrator Jim Dale) and the live Audible US catalogue (same two series and numbers; Audible lists them in varying order)"
    },
    "servedNow": {
     "primary": {
@@ -11796,25 +11832,34 @@
      "name": "Harry Potter",
      "position": "5"
     },
-    "sweepDegraded": false
+    "sweepDegraded": false,
+    "note": "prod Plex 2026-10-16 (CMacServer, section 6, rk730217, folder \"Harry Potter (Narrated by Jim Dale)\"): Series: moods Harry Potter, Wizarding World Collection. Served = incipit-api GET /books/B017V4NMX4 2026-10-16."
    },
    "required": {
     "outcome": "SERIES",
-    "series": "Harry Potter",
+    "series": "Harry Potter (Narrated by Jim Dale)",
     "position": "5",
-    "secondaryNote": "Wizarding World Collection stays secondary",
-    "expectedSortPrefix": "Harry Potter, Book 5 - "
+    "secondaryNote": "Wizarding World Collection stays secondary: applyPins keeps a non-echo tag the resolver placed, so the displaced \"Harry Potter\" is not re-seated",
+    "expectedSortPrefix": "Harry Potter (Narrated by Jim Dale), Book 5 - "
    },
    "specRule": [
     "R5"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Standard-narration shelf.",
-   "group": "named-potter"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Healzangels 2026-10-16 (audiobooks PLAN-v2, pilot step P8, approved): both Harry Potter narrations get their own shelf, the Jim Dale set as \"Harry Potter (Narrated by Jim Dale)\" #1-7. The Stephen Fry set keeps the edition-scoped \"Harry Potter (Narrated by Stephen Fry)\" its provider already supplies (named-potter rows B0D1CSXB3Z..B0D1CWTPYD, unchanged). No source names the Dale shelf -- Audible and Goodreads both say plain \"Harry Potter\" -- so only a pin can state it. Positions are Audible's, never synthesized (R4). R5: edition variants never merge.",
+   "group": "hp-jim-dale-2026-10-16",
+   "note": "Converted in place 2026-10-16: served today as Harry Potter #5 (tag Wizarding World Collection #5), the plain shelf the operator has now given the Jim Dale narration its own name for. Was SERIES Harry Potter #5 (pinType current-correct-default, group named-potter, pre-rebuild rk154548); previous sourceOfTruth: Standard-narration shelf.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort + Series moods + guid + folder 2026-10-16 (.cache/hp-jim-dale/capture.py)",
+    "incipit-api GET /books 2026-10-16 (title, subtitle, authors, narrators, served series; .cache/hp-jim-dale/capture.py)",
+    "live Audible catalogue probe 2026-10-16 (US lists Harry Potter #5 + Wizarding World Collection #5; no product in UK/CA/AU)"
+   ],
+   "mintPin": true
   },
   {
    "recordId": "B017V4NOZ0",
-   "ratingKey": "154550",
+   "ratingKey": "730219",
    "album": "Harry Potter and the Half-Blood Prince",
    "artist": "J.K. Rowling",
    "inputs": {
@@ -11842,7 +11887,7 @@
       "sequence": "6"
      }
     ],
-    "inputSource": "provider-rebuilt (final2.jsonl sweep 2026-07-30)"
+    "inputSource": "provider-rebuilt (final2.jsonl sweep 2026-07-30); re-verified 2026-10-16 against the stored record (title, authors; narrator Jim Dale) and the live Audible US catalogue (same two series and numbers; Audible lists them in varying order)"
    },
    "servedNow": {
     "primary": {
@@ -11859,25 +11904,34 @@
      "name": "Harry Potter",
      "position": "6"
     },
-    "sweepDegraded": false
+    "sweepDegraded": false,
+    "note": "prod Plex 2026-10-16 (CMacServer, section 6, rk730219, folder \"Harry Potter (Narrated by Jim Dale)\"): Series: moods Harry Potter, Wizarding World Collection. Served = incipit-api GET /books/B017V4NOZ0 2026-10-16."
    },
    "required": {
     "outcome": "SERIES",
-    "series": "Harry Potter",
+    "series": "Harry Potter (Narrated by Jim Dale)",
     "position": "6",
-    "secondaryNote": "Wizarding World Collection stays secondary",
-    "expectedSortPrefix": "Harry Potter, Book 6 - "
+    "secondaryNote": "Wizarding World Collection stays secondary: applyPins keeps a non-echo tag the resolver placed, so the displaced \"Harry Potter\" is not re-seated",
+    "expectedSortPrefix": "Harry Potter (Narrated by Jim Dale), Book 6 - "
    },
    "specRule": [
     "R5"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Standard-narration shelf.",
-   "group": "named-potter"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Healzangels 2026-10-16 (audiobooks PLAN-v2, pilot step P8, approved): both Harry Potter narrations get their own shelf, the Jim Dale set as \"Harry Potter (Narrated by Jim Dale)\" #1-7. The Stephen Fry set keeps the edition-scoped \"Harry Potter (Narrated by Stephen Fry)\" its provider already supplies (named-potter rows B0D1CSXB3Z..B0D1CWTPYD, unchanged). No source names the Dale shelf -- Audible and Goodreads both say plain \"Harry Potter\" -- so only a pin can state it. Positions are Audible's, never synthesized (R4). R5: edition variants never merge.",
+   "group": "hp-jim-dale-2026-10-16",
+   "note": "Converted in place 2026-10-16: served today as Harry Potter #6 (tag Wizarding World Collection #6), the plain shelf the operator has now given the Jim Dale narration its own name for. Was SERIES Harry Potter #6 (pinType current-correct-default, group named-potter, pre-rebuild rk154550); previous sourceOfTruth: Standard-narration shelf.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort + Series moods + guid + folder 2026-10-16 (.cache/hp-jim-dale/capture.py)",
+    "incipit-api GET /books 2026-10-16 (title, subtitle, authors, narrators, served series; .cache/hp-jim-dale/capture.py)",
+    "live Audible catalogue probe 2026-10-16 (US lists Harry Potter #6 + Wizarding World Collection #6; no product in UK/CA/AU)"
+   ],
+   "mintPin": true
   },
   {
    "recordId": "B017WJ5ZK6",
-   "ratingKey": "154552",
+   "ratingKey": "730221",
    "album": "Harry Potter and the Deathly Hallows",
    "artist": "J.K. Rowling",
    "inputs": {
@@ -11905,7 +11959,7 @@
       "sequence": "7"
      }
     ],
-    "inputSource": "provider-rebuilt (final2.jsonl sweep 2026-07-30)"
+    "inputSource": "provider-rebuilt (final2.jsonl sweep 2026-07-30); re-verified 2026-10-16 against the stored record (title, authors; narrator Jim Dale) and the live Audible US catalogue (same two series and numbers; Audible lists them in varying order)"
    },
    "servedNow": {
     "primary": {
@@ -11922,21 +11976,30 @@
      "name": "Harry Potter",
      "position": "7"
     },
-    "sweepDegraded": false
+    "sweepDegraded": false,
+    "note": "prod Plex 2026-10-16 (CMacServer, section 6, rk730221, folder \"Harry Potter (Narrated by Jim Dale)\"): Series: moods Harry Potter, Wizarding World Collection. Served = incipit-api GET /books/B017WJ5ZK6 2026-10-16."
    },
    "required": {
     "outcome": "SERIES",
-    "series": "Harry Potter",
+    "series": "Harry Potter (Narrated by Jim Dale)",
     "position": "7",
-    "secondaryNote": "Wizarding World Collection stays secondary",
-    "expectedSortPrefix": "Harry Potter, Book 7 - "
+    "secondaryNote": "Wizarding World Collection stays secondary: applyPins keeps a non-echo tag the resolver placed, so the displaced \"Harry Potter\" is not re-seated",
+    "expectedSortPrefix": "Harry Potter (Narrated by Jim Dale), Book 7 - "
    },
    "specRule": [
     "R5"
    ],
-   "pinType": "current-correct-default",
-   "sourceOfTruth": "Standard-narration shelf.",
-   "group": "named-potter"
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Healzangels 2026-10-16 (audiobooks PLAN-v2, pilot step P8, approved): both Harry Potter narrations get their own shelf, the Jim Dale set as \"Harry Potter (Narrated by Jim Dale)\" #1-7. The Stephen Fry set keeps the edition-scoped \"Harry Potter (Narrated by Stephen Fry)\" its provider already supplies (named-potter rows B0D1CSXB3Z..B0D1CWTPYD, unchanged). No source names the Dale shelf -- Audible and Goodreads both say plain \"Harry Potter\" -- so only a pin can state it. Positions are Audible's, never synthesized (R4). R5: edition variants never merge.",
+   "group": "hp-jim-dale-2026-10-16",
+   "note": "Converted in place 2026-10-16: served today as Harry Potter #7 (tag Wizarding World Collection #7), the plain shelf the operator has now given the Jim Dale narration its own name for. Was SERIES Harry Potter #7 (pinType current-correct-default, group named-potter, pre-rebuild rk154552); previous sourceOfTruth: Standard-narration shelf.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort + Series moods + guid + folder 2026-10-16 (.cache/hp-jim-dale/capture.py)",
+    "incipit-api GET /books 2026-10-16 (title, subtitle, authors, narrators, served series; .cache/hp-jim-dale/capture.py)",
+    "live Audible catalogue probe 2026-10-16 (US lists Harry Potter #7 + Wizarding World Collection #7; no product in UK/CA/AU)"
+   ],
+   "mintPin": true
   },
   {
    "recordId": "B0D1CSXB3Z",
