@@ -745,3 +745,45 @@ describe('the Jim Dale Harry Potter shelf (2026-10-16)', () => {
 		}
 	})
 })
+
+// Healzangels 2026-10-16: the library's Xanth books 1-40 all shelve as Xanth, and
+// Cube Route (#27) was the one album off the shelf. Its thin Hardcover record serves
+// no series in either slot, and its title bakes the series in ("Cube Route (Xanth)"),
+// which is the string the portable key folds.
+describe('Cube Route on the Xanth shelf (2026-10-16)', () => {
+	const ID = 'hardcover-book-458319'
+	const TITLE = 'Cube Route (Xanth)'
+	const AUTHOR = 'Piers Anthony'
+	const PIN = { series: 'Xanth', position: '27', source: 'operator-stated' }
+	/** What the API serves the record today: a title and an author, no series at all. */
+	const servedToday = () => ({ title: TITLE, authors: [{ name: AUTHOR }] })
+
+	test('the record serves Xanth #27 by its Hardcover id, through the full serve pipeline', () => {
+		expect(SHELF_PINS[ID]).toStrictEqual(PIN)
+		const served = applyShelfPolicy(applyPins(servedToday(), ID))
+		expect(served.seriesPrimary).toStrictEqual({ name: 'Xanth', position: '27' })
+		expect(served.seriesSecondary).toBeUndefined()
+		expect(served.title).toBe(TITLE)
+	})
+
+	test('the same shelf by portable key from an id never minted', () => {
+		const k = pinKey(TITLE, AUTHOR)
+		expect(SHELF_PIN_KEYS[ID]).toEqual([k])
+		expect(SHELF_PINS_BY_KEY[k]).toStrictEqual(PIN)
+		const out = applyPins(servedToday(), 'hardcover-book-0')
+		expect(out.seriesPrimary).toStrictEqual({ name: 'Xanth', position: '27' })
+	})
+
+	test('no other record is pinned to Xanth #27, and a served sibling is untouched', () => {
+		const others = Object.entries(SHELF_PINS)
+			.filter(([id, p]) => id !== ID && p.series === 'Xanth' && p.position === '27')
+			.map(([id]) => id)
+		expect(others).toEqual([])
+		const crewelLye = {
+			title: 'Crewel Lye',
+			authors: [{ name: AUTHOR }],
+			seriesPrimary: { name: 'Xanth', position: '8' }
+		}
+		expect(applyPins(crewelLye, 'hardcover-book-429808')).toBe(crewelLye)
+	})
+})

@@ -30648,6 +30648,49 @@
     "junk-shelf lookup 2026-10-12 (.cache/junk-shelves/lookup.py)"
    ],
    "mintPin": true
+  },
+  {
+   "recordId": "hardcover-book-458319",
+   "ratingKey": "739994",
+   "album": "Cube Route (Xanth)",
+   "artist": "Piers Anthony",
+   "inputs": {
+    "title": "Cube Route (Xanth)",
+    "subtitle": null,
+    "author": "Piers Anthony",
+    "providerSeries": "UNKNOWN-not-rebuildable",
+    "providerSeries2": null,
+    "publicationName": null,
+    "audibleSeriesRaw": null,
+    "inputSource": "served book doc 2026-10-16 (GET /books/hardcover-book-458319?region=us); a Hardcover record with no Audible product, so the stored record's provider series is unknown"
+   },
+   "servedNow": {
+    "primary": null,
+    "secondary": null,
+    "plexSortTitleNow": null,
+    "sweepDegraded": false,
+    "note": "prod Plex 2026-10-16 (CMacServer, section 6, rk739994): no titleSort and no Series: mood; folder \"Xanth/27 - Cube Route (The Xanth Novels)\". Served = incipit-api GET /books/hardcover-book-458319?region=us 2026-10-16: no seriesPrimary, no tag."
+   },
+   "required": {
+    "outcome": "SERIES",
+    "series": "Xanth",
+    "position": "27",
+    "expectedSortPrefix": "Xanth, Book 27 - "
+   },
+   "specRule": [
+    "R4"
+   ],
+   "pinType": "operator-stated",
+   "sourceOfTruth": "Healzangels 2026-10-16 (\"re-match Cube Route\" so it gets its Xanth shelf): the library's Xanth books 1-40 should all shelve as Xanth; Cube Route is #27. The API serves this record no series, so only a pin states the shelf. An operator-approved pin is the sanctioned way to state a number (R4).",
+   "group": "xanth-cube-route-2026-10-16",
+   "note": "Served 2026-10-16: no series (primary NONE, tag NONE), and prod has no titleSort or Series: mood -- the only one of the 40 Piers Anthony albums off the Xanth shelf. The other 39 shelve as Xanth #1-40 with #27 the only gap (neighbours Up in a Heaval #26, Currant Events #28; siblings are served seriesPrimary Xanth, e.g. hardcover-book-429808 Crewel Lye = Xanth #8). The record is a thin Hardcover record whose title bakes in the series (\"Cube Route (Xanth)\") and carries no runtime, narrator or release date, so the portable key is \"cuberoutexanth|piersanthony\": a re-match to a record titled plainly \"Cube Route\" reaches this pin by neither id nor key.",
+   "knownDefectNow": true,
+   "inputsVerified": [
+    "prod Plex titleSort + Series moods + guid + folder 2026-10-16, and the 40 Piers Anthony albums' sort titles (.cache/xanth-cube-route/capture.py)",
+    "incipit-api GET /books?region=us 2026-10-16 for Cube Route and Crewel Lye (title, subtitle, authors, served series; .cache/xanth-cube-route/capture.py)",
+    "no Audible probe: a Hardcover id"
+   ],
+   "mintPin": true
   }
  ]
 }
