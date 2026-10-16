@@ -1,4 +1,5 @@
 import type { ApiGenre } from '#config/types'
+import { OVERLAY_GENRE_VOCABULARY } from '#helpers/overlay/genreVocabulary'
 import { AUDIBLE_VOCABULARY } from '#helpers/providers/audibleVocabulary'
 
 /**
@@ -177,6 +178,21 @@ export function dedupeKey(name: string): string {
 }
 
 /**
+ * Fold keys of the operator-approved genre vocabulary, which no shape rule may
+ * call noise.
+ *
+ * The length and word-count rules below are a guess at what free text looks
+ * like, and two approved names fail it: "Fairy Tales, Folk Tales & Myths" is 31
+ * characters and "Movie, TV & Video Game Tie-Ins" has five words, so both
+ * mapped to nothing (measured 2026-10-16). Their commas were never the
+ * problem; splitJoinedShelf leaves commas alone. An approved name is an
+ * operator decision, not a shelf to judge. Keyed by fold key, so a feed's
+ * lowercase spelling is kept too and the canonical table restores the
+ * approved one.
+ */
+const APPROVED_KEYS: ReadonlySet<string> = new Set([...OVERLAY_GENRE_VOCABULARY].map(dedupeKey))
+
+/**
  * Whether a community shelf should be discarded rather than shown.
  *
  * Non-ASCII letters are the tell for a foreign-language shelf ("Colecção
@@ -188,6 +204,7 @@ export function dedupeKey(name: string): string {
  */
 export function isNoiseShelf(name: string): boolean {
 	if (!name) return true
+	if (APPROVED_KEYS.has(dedupeKey(name))) return false
 	if (name.length > MAX_NAME_LENGTH) return true
 	if (/[^\x20-\x7E]/.test(name)) return true
 	// Pure numbers and decades ("1980s", "2015") are shelving, not genre.

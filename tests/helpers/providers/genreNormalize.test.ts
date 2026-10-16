@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
+import { OVERLAY_GENRE_VOCABULARY } from '#helpers/overlay/genreVocabulary'
 import {
 	dedupeKey,
 	isGenericShelf,
@@ -277,6 +278,42 @@ describe('namesToGenres end to end', () => {
 		expect(
 			namesToGenres(names, { title: 'Harry Potter and the Goblet of Fire' }).map((x) => x.name)
 		).toEqual(['Fantasy'])
+	})
+})
+
+describe('an approved vocabulary name is never noise', () => {
+	// Two of the 105 approved names came out of the mapper as NOTHING, and not
+	// because of their comma — splitJoinedShelf leaves commas alone. The shape
+	// rules judged them free text: "Fairy Tales, Folk Tales & Myths" is 31
+	// characters, one over MAX_NAME_LENGTH, and "Movie, TV & Video Game Tie-Ins"
+	// has five words where MAX_WORDS allows three. Measured 2026-10-16.
+	test('every approved name maps to exactly itself', () => {
+		const lost = [...OVERLAY_GENRE_VOCABULARY].filter((name) => {
+			const out = namesToGenres([name]).map((x) => x.name)
+			return !(out.length === 1 && out[0] === name)
+		})
+		expect(lost).toEqual([])
+	})
+
+	test('a feed spelling of an approved name lands on the approved spelling', () => {
+		// Constructed, not sampled: community feeds lowercase freely ("dragons"),
+		// so the exemption goes by fold key, the way the canonical table does.
+		expect(namesToGenres(['fairy tales, folk tales & myths']).map((x) => x.name)).toEqual([
+			'Fairy Tales, Folk Tales & Myths'
+		])
+	})
+
+	test('the exemption is the approved list, not the shape: other long names still drop', () => {
+		// All three are Audible's own categories, and none is approved. The shape
+		// rules keep doing their job on everything outside the list.
+		for (const name of [
+			'Growing Up & Facts of Life',
+			'Mice, Hamsters, Guinea Pigs & Squirrels',
+			'Relationships, Parenting & Personal Development'
+		]) {
+			expect(OVERLAY_GENRE_VOCABULARY.has(name)).toBe(false)
+			expect(namesToGenres([name])).toEqual([])
+		}
 	})
 })
 

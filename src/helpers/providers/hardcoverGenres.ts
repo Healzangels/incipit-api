@@ -64,8 +64,12 @@ const MISS_TTL_SECONDS = 604800
  * change exists to remove.
  *
  * v4: umbrella shelves are dropped rather than demoted — a v3 answer can still
- * carry "Fiction" at the tail. */
-const KEY_VERSION = 'v4'
+ * carry "Fiction" at the tail.
+ *
+ * v5: approved vocabulary names are never noise (genreNormalize APPROVED_KEYS),
+ * so a v4 answer can be missing "Fairy Tales, Folk Tales & Myths" or "Movie,
+ * TV & Video Game Tie-Ins". */
+const KEY_VERSION = 'v5'
 
 /** Most genres a backfill will attach. Hardcover lists by tag frequency, so
  * the head of the list is the community's actual verdict and the tail is

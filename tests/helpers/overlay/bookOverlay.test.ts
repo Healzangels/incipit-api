@@ -380,14 +380,14 @@ describe('the approved genre vocabulary', () => {
 		for (const g of genres) expect(ApiGenreSchema.safeParse(g).success).toBe(true)
 	})
 
-	test('why overlay genres bypass namesToGenres: it drops approved comma names', () => {
-		// If this ever starts passing through, overlayGenres could reuse the
-		// community mapper; until then reusing it would silently lose these.
-		for (const n of ['Fairy Tales, Folk Tales & Myths', 'Movie, TV & Video Game Tie-Ins']) {
+	test('the community mapper serves every approved name exactly as the overlay does', () => {
+		// This pinned the opposite until 2026-10-16: namesToGenres dropped these
+		// two as noise (31 characters; five words), which was the reason given for
+		// the bypass. It now exempts the approved list, so the two paths agree,
+		// synthetic ids included, on every name.
+		for (const n of ['Fairy Tales, Folk Tales & Myths', 'Movie, TV & Video Game Tie-Ins'])
 			expect(OVERLAY_GENRE_VOCABULARY.has(n)).toBe(true)
-			expect(namesToGenres([n]).map((g) => g.name)).not.toEqual([n])
-			expect(overlayGenres([n]).map((g) => g.name)).toEqual([n])
-		}
+		for (const n of OVERLAY_GENRE_VOCABULARY) expect(namesToGenres([n])).toEqual(overlayGenres([n]))
 	})
 
 	test('no umbrella container and no case-duplicate is in the list', () => {

@@ -111,11 +111,12 @@ export function overlayNarrationKey(
  * the same synthetic ids every community genre carries (the schema needs 10-12
  * digits; the bundle reads only the name).
  *
- * NOT through namesToGenres, deliberately: that mapper normalises free text,
- * and it DROPS two approved names outright — it splits "Fairy Tales, Folk Tales
- * & Myths" and "Movie, TV & Video Game Tie-Ins" at the comma (measured
- * 2026-10-16: both map to nothing). The vocabulary is closed and checked at
- * load, so there is nothing left to normalise.
+ * NOT through namesToGenres, deliberately: that mapper normalises free text
+ * (alias fold, self-reference drop, a cap). It used to DROP two approved names
+ * as noise, "Fairy Tales, Folk Tales & Myths" (too long) and "Movie, TV & Video
+ * Game Tie-Ins" (too many words); it now exempts the approved list and keeps
+ * both. The vocabulary is closed and checked at load, so there is nothing left
+ * to normalise.
  * @param {readonly string[]} names approved vocabulary names
  * @returns {ApiGenre[]} schema-valid genres, one per name
  */

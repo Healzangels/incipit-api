@@ -43,8 +43,11 @@ const MISS_TTL_SECONDS = 604800
  * caches, two versions, one rule change: bump BOTH.
  *
  * v3: umbrella shelves are dropped rather than demoted, so every v2 answer
- * carries a "Fiction"/"Adult" this rule would now remove. */
-const KEY_VERSION = 'v3'
+ * carries a "Fiction"/"Adult" this rule would now remove.
+ *
+ * v4: approved vocabulary names are never noise, bumped with hardcoverGenres
+ * v5 for the same rule change. */
+const KEY_VERSION = 'v4'
 
 export function chaptarrGenreKey(id: string): string {
 	const bare = (id ?? '').split('_')[0] ?? ''
